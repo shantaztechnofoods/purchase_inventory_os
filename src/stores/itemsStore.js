@@ -68,11 +68,14 @@ function fromRow(r) {
 }
 
 function historyFromRow(r) {
+  // Read new (008/RPC) schema first, fall back to legacy (002) column names so the
+  // history drawer renders rows written by either path.
+  const rawDate = r.created_at || r.event_date;
   return {
-    date:  r.event_date ? new Date(r.event_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "",
-    event: r.event,
-    change: Number(r.change) || 0,
-    qty:   Number(r.qty_after) || 0,
+    date:  rawDate ? new Date(rawDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "",
+    event: r.event_type ?? r.event ?? "",
+    change: Number(r.quantity_change ?? r.change) || 0,
+    qty:   Number(r.stock_after ?? r.qty_after) || 0,
   };
 }
 
