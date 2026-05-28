@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #070910;
+  color: white;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.15); }
+::-webkit-scrollbar-corner { background: transparent; }
+
+input, button, select, textarea {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* ── Animations ── */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(18px) scale(0.987); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);     }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes glowCritical {
+  0%, 100% { border-color: rgba(239, 68, 68, 0.28); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  50%       { border-color: rgba(239, 68, 68, 0.65); box-shadow: 0 0 24px 4px rgba(239, 68, 68, 0.14); }
+}
+
+@keyframes glowWarning {
+  0%, 100% { border-color: rgba(249, 115, 22, 0.28); box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
+  50%       { border-color: rgba(249, 115, 22, 0.55); box-shadow: 0 0 18px 3px rgba(249, 115, 22, 0.12); }
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 1;   transform: scale(1);    }
+  50%       { opacity: 0.5; transform: scale(0.85); }
+}
+
+@keyframes barFill {
+  from { width: 0%; }
+}
+
+/* ── Card hover ── */
+.card-hover {
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.2s ease,
+              border-color 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  border-color: rgba(255, 255, 255, 0.11);
+}
+
+/* ── Status glow animations ── */
+.glow-critical { animation: glowCritical 2.2s ease-in-out infinite; }
+.glow-warning  { animation: glowWarning  2.8s ease-in-out infinite; }
+
+/* ── Modal input ── */
+.modal-input {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.modal-input:focus {
+  border-color: rgba(59, 130, 246, 0.6);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.15), 0 0 16px rgba(59, 130, 246, 0.18);
+  outline: none;
+}
+
+/* ── Table row transitions ── */
+tbody tr {
+  transition: background-color 0.1s ease;
+}
+
+/* ── Smooth select appearance ── */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23475569'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 2rem !important;
+}
+
+/* ── Pulse dot (status online indicator) ── */
+.pulse-dot {
+  animation: pulseDot 2s ease-in-out infinite;
+}
+
+/* ── Tabular nums for all mono-numeric contexts ── */
+.tabular-nums { font-variant-numeric: tabular-nums; }
