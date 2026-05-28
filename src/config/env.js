@@ -11,6 +11,11 @@ export const APP_NAME          = env.VITE_APP_NAME || "Shantaz Technofoods ERP";
 export const APP_ENV           = env.VITE_APP_ENV  || "development";
 export const IS_PROD           = APP_ENV === "production";
 
+// Demo/seed data is OFF by default. It only ever loads when this is explicitly set to
+// "true" AND Supabase is disabled (i.e. a deliberate local/offline dev session). It can
+// never appear in a Supabase-backed or production build.
+export const ALLOW_DEMO        = String(env.VITE_ALLOW_DEMO || "").toLowerCase() === "true";
+
 // When this returns true, app should route persistence through Supabase.
 // When false (default), the existing localStorage paths run unchanged.
 export const isSupabaseEnabled = () => !!USE_SUPABASE;
@@ -26,6 +31,22 @@ if (typeof console !== "undefined") {
     VITE_SUPABASE_ANON_KEY_length: SUPABASE_ANON_KEY.length,
     USE_SUPABASE_resolved: !!USE_SUPABASE,
   });
+}
+
+// ── Boot banner ── (console.warn so it survives production console-stripping)
+if (typeof console !== "undefined") {
+  if (USE_SUPABASE) {
+    console.warn("[BOOT] Supabase mode active — live database");
+  } else {
+    console.error(
+      "[BOOT] Supabase NOT configured — app is in localStorage mode. " +
+      "Set VITE_USE_SUPABASE=true, VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY " +
+      "(in Vercel → Project → Settings → Environment Variables) and REDEPLOY."
+    );
+  }
+  console.warn(ALLOW_DEMO && !USE_SUPABASE
+    ? "[BOOT] Demo mode ENABLED (VITE_ALLOW_DEMO=true, local only)"
+    : "[BOOT] Demo mode disabled");
 }
 
 // Expose for browser-console inspection — DEV/STAGING ONLY

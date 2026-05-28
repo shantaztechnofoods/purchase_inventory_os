@@ -10,7 +10,7 @@ import ItemSearchSelect from "./components/ItemSearchSelect.jsx";
 import VendorSearchSelect from "./components/VendorSearchSelect.jsx";
 import { appendAuditWithUser, getAuditLog, subscribeAudit } from "./auth/auditStore.js";
 import AuditHistoryPage from "./pages/AuditHistoryPage.jsx";
-import { isSupabaseEnabled } from "./config/env.js";
+import { isSupabaseEnabled, IS_PROD, ALLOW_DEMO } from "./config/env.js";
 import { loadSettings, saveSettings } from "./stores/settingsStore.js";
 import { listVendors, createVendor, updateVendor, deleteVendor, bulkCreateVendors } from "./stores/vendorsStore.js";
 import { fetchItems, createItem as itemCreate, updateItem as itemUpdate, deleteItem as itemDelete, updateStockAndHistory, addItemHistory } from "./stores/itemsStore.js";
@@ -9411,6 +9411,12 @@ function NotificationPanel({ notifications, dismissed, onClose, onNavigate, onDi
 export default function App() {
   const { currentUser, canDo: authCanDo, canView, isLoading: authLoading } = useAuth();
 
+  // Boot mode. In Supabase mode the DB is the single source of truth — state starts EMPTY
+  // and is filled by the on-mount hydration, so no demo/stale data is ever shown.
+  // Demo seed data loads ONLY when explicitly allowed (VITE_ALLOW_DEMO=true) and Supabase is off.
+  const SUPA      = isSupabaseEnabled();
+  const SEED_DEMO = ALLOW_DEMO && !SUPA;
+
   const [activePage,    setActivePage]    = useState("dashboard");
   const [collapsed,     setCollapsed]     = useState(false);
   const [showSearch,    setShowSearch]    = useState(false);
@@ -9418,6 +9424,8 @@ export default function App() {
   const [dismissedIds,  setDismissedIds]  = useState(() => new Set());
 
   const [items, setItems] = useState(() => {
+    // Supabase mode → start empty; the on-mount hydration is the source of truth (no demo flash).
+    if (SUPA) return {};
     try {
       const s = localStorage.getItem("erp_items");
       if (s) {
@@ -9438,6 +9446,7 @@ export default function App() {
         return parsed;
       }
     } catch {}
+    if (!SEED_DEMO) return {};                 // demo disabled → empty, never fake data
     const out = {};
     for (const [cat, list] of Object.entries(inventoryData)) {
       out[cat] = list.map((item) => ({ ...item, history: buildInitialHistory(item.trend) }));
@@ -9445,14 +9454,14 @@ export default function App() {
     return out;
   });
 
-  const [pos,        setPos]        = useState(() => { try { const s = localStorage.getItem("erp_pos");        if (s) return JSON.parse(s); } catch {} return initialPOs; });
-  const [vendorList, setVendorList] = useState(() => { try { const s = localStorage.getItem("erp_vendors");    if (s) return JSON.parse(s); } catch {} return vendors; });
-  const [bomDefs,    setBomDefs]    = useState(() => { try { const s = localStorage.getItem("erp_bomdefs");    if (s) return JSON.parse(s); } catch {} return bomDefinitions; });
-  const [outwardLog, setOutwardLog] = useState(() => { try { const s = localStorage.getItem("erp_outward");   if (s) return JSON.parse(s); } catch {} return []; });
-  const [inwardLog,  setInwardLog]  = useState(() => { try { const s = localStorage.getItem("erp_inward");    if (s) return JSON.parse(s); } catch {} return []; });
-  const [pendingLog, setPendingLog] = useState(() => { try { const s = localStorage.getItem("erp_pending");   if (s) return JSON.parse(s); } catch {} return []; });
-  const [followUps,  setFollowUps]  = useState(() => { try { const s = localStorage.getItem("erp_followups"); if (s) return JSON.parse(s); } catch {} return initialFollowUps; });
-  const [machineLog, setMachineLog] = useState(() => { try { const s = localStorage.getItem("erp_machines");  if (s) return JSON.parse(s); } catch {} return []; });
+  const [pos,        setPos]        = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_pos");        if (s) return JSON.parse(s); } catch {} return SEED_DEMO ? initialPOs : []; });
+  const [vendorList, setVendorList] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_vendors");    if (s) return JSON.parse(s); } catch {} return SEED_DEMO ? vendors : []; });
+  const [bomDefs,    setBomDefs]    = useState(() => { if (SUPA) return {}; try { const s = localStorage.getItem("erp_bomdefs");    if (s) return JSON.parse(s); } catch {} return SEED_DEMO ? bomDefinitions : {}; });
+  const [outwardLog, setOutwardLog] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_outward");   if (s) return JSON.parse(s); } catch {} return []; });
+  const [inwardLog,  setInwardLog]  = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_inward");    if (s) return JSON.parse(s); } catch {} return []; });
+  const [pendingLog, setPendingLog] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_pending");   if (s) return JSON.parse(s); } catch {} return []; });
+  const [followUps,  setFollowUps]  = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_followups"); if (s) return JSON.parse(s); } catch {} return SEED_DEMO ? initialFollowUps : []; });
+  const [machineLog, setMachineLog] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_machines");  if (s) return JSON.parse(s); } catch {} return []; });
   const [auditLog,   setAuditLog]   = useState(() => getAuditLog());
   const [settings,   setSettings]   = useState(() => { try { const s = localStorage.getItem("erp_settings"); if (s) return { ...SETTINGS_DEFAULTS, ...JSON.parse(s) }; } catch {} return { ...SETTINGS_DEFAULTS }; });
 
@@ -10492,6 +10501,18 @@ export default function App() {
           onDismiss={dismissNotif}
           onDismissAll={dismissAllNotifs}
         />
+      )}
+
+      {/* Supabase misconfiguration banner — deployed build without DB env vars shows this
+          instead of silently falling back to empty/demo data. */}
+      {!SUPA && (
+        <div className="fixed top-0 inset-x-0 z-[200] flex items-center justify-center gap-2 px-4 py-2 text-center"
+             style={{ background: "linear-gradient(90deg,#7f1d1d,#991b1b)", borderBottom: "1px solid rgba(239,68,68,0.5)" }}>
+          <span className="text-sm">⚠️</span>
+          <span className="text-[11px] font-bold text-red-100">
+            Live database not connected — set VITE_USE_SUPABASE, VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY in Vercel and redeploy.
+          </span>
+        </div>
       )}
 
       {/* Stock movement error toast — movement rejected, optimistic UI reverted to DB truth */}
