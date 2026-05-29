@@ -23,6 +23,7 @@ import { fetchFollowUps, createFollowUp as followupCreate, updateFollowUp as fol
 import { fetchMachines, createMachine as machineCreate, updateMachine as machineUpdate, updateMachineBomKey } from "./stores/machinesStore.js";
 import { useRealtimeTables } from "./realtime/useRealtimeTables.js";
 import { fetchRecentMovements, MOVEMENT_META } from "./stores/stockMovementsStore.js";
+import { sendPOWhatsApp, openVendorWhatsApp, waErrorToast } from "./utils/whatsapp.js";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -3960,7 +3961,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                 </div>
 
                 <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
-                  <Btn variant="wa"    size="xs">📱 WA</Btn>
+                  <Btn variant="wa"    size="xs" onClick={() => { const r = openVendorWhatsApp(v); if (!r.ok) showToast(waErrorToast(r.error)); }}>📱 WA</Btn>
                   <Btn variant="mail"  size="xs">✉️</Btn>
                   {canDo("vendors","edit")   && <Btn variant="ghost" size="xs" onClick={() => { setEditingVendor(v); setShowModal(true); }}>✏️</Btn>}
                   {canDo("vendors","delete") && <Btn variant="red"   size="xs" onClick={() => setConfirmDelete(v)}>🗑</Btn>}
@@ -5065,6 +5066,15 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
   const [reverseReason,setReverseReason]= useState("");
   const [reverseErr,   setReverseErr]   = useState("");
   const [qtyInput,     setQtyInput]     = useState("");
+  const [waToast,      setWaToast]      = useState(null);
+
+  // WhatsApp PO confirmation — opens the exact vendor chat with a prefilled message,
+  // or toasts when the vendor's mobile number is missing/invalid.
+  const sendWA = (po) => {
+    const vendor = vendorList.find((x) => x.name === po.vendor);
+    const res = sendPOWhatsApp(po, vendor);
+    if (!res.ok) { setWaToast(waErrorToast(res.error)); setTimeout(() => setWaToast(null), 3500); }
+  };
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
 
@@ -5176,6 +5186,18 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
             <div className="text-xs font-black text-white">Received — {receiveToast}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">Stock updated · Pipeline closed</div>
           </div>
+        </div>
+      )}
+
+      {waToast && (
+        <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
+             style={{ background: "linear-gradient(135deg,#2a1216,#1a0c0e)", border: "1px solid rgba(239,68,68,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+          <span className="text-lg">⚠️</span>
+          <div>
+            <div className="text-xs font-black text-white">{waToast}</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">Add a valid mobile number in Vendor Master.</div>
+          </div>
+          <button onClick={() => setWaToast(null)} className="ml-2 text-slate-600 hover:text-slate-300 text-xs">✕</button>
         </div>
       )}
 
@@ -5318,7 +5340,6 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               {makeOrderPOs.length === 0 && <div className="text-center py-10 text-[11px] text-slate-600"><div className="text-3xl mb-2">📋</div>No approved POs to order</div>}
               {makeOrderPOs.map(po => {
                 const v = vendorList.find(x => x.name === po.vendor);
-                const wa = v?.phone?.replace(/\D/g,"");
                 return (
                   <div key={po.id} className={`${card} border-blue-500/20`} style={{ background: "#0e1117" }}>
                     <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -5330,7 +5351,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                     <div className="text-[9px] text-slate-500 mb-2">ETA: {po.delivery||"—"}</div>
                     <div className="flex gap-1 mb-1.5">
                       {v?.phone && <a href={`tel:${v.phone}`} className="flex-1 text-center text-[9px] font-bold py-1.5 rounded-lg text-blue-400 border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-all">📞 Call</a>}
-                      {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="flex-1 text-center text-[9px] font-bold py-1.5 rounded-lg text-green-400 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-all">💬 WA</a>}
+                      <button onClick={() => sendWA(po)} className="flex-1 text-center text-[9px] font-bold py-1.5 rounded-lg text-green-400 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-all">💬 WA</button>
                     </div>
                     {canDo("pipeline","ordered") && (
                       <button onClick={() => { setMoModal(po); setEta(""); setEtaCustom(""); }}
@@ -5353,7 +5374,6 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               {enrichedFU.map(f => {
                 const po = pos.find(p => p.id === f.poId);
                 const v  = vendorList.find(x => x.name === f.vendor);
-                const wa = v?.phone?.replace(/\D/g,"");
                 return (
                   <div key={f.id} className={`${card} ${f.fstat==="fu-overdue"?"border-red-500/30":f.fstat==="fu-due"?"border-yellow-500/30":"border-purple-500/20"}`}
                        style={{ background: "#0e1117" }}>
@@ -5389,7 +5409,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                     </div>
                     <div className="flex gap-1 mb-1.5">
                       {v?.phone && <a href={`tel:${v.phone}`} className="flex-1 text-center text-[9px] font-bold py-1.5 rounded-lg text-blue-400 border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-all">📞 Call</a>}
-                      {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="flex-1 text-center text-[9px] font-bold py-1.5 rounded-lg text-green-400 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-all">💬 WA</a>}
+                      <button onClick={() => sendWA(po || { id: f.poId, vendor: f.vendor })} className="flex-1 text-center text-[9px] font-bold py-1.5 rounded-lg text-green-400 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-all">💬 WA</button>
                     </div>
                     <button onClick={() => { setFuModal(f); setFuFreq(1); setFuCustom(""); }}
                             className="w-full text-[9px] font-bold py-1.5 rounded-lg text-purple-400 border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 transition-all mb-1.5">
@@ -5470,7 +5490,6 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
       {/* ── View PO Modal ── */}
       {viewPO && (() => {
         const vnd      = vendorList.find(x => x.name === viewPO.vendor);
-        const wa       = vnd?.phone?.replace(/\D/g, "");
         const subtotal = (viewPO.lineItems || []).reduce((s, li) => s + (li.amount || 0), 0);
         const poGst    = viewPO.gst != null ? viewPO.gst : Math.round(subtotal * 0.18);
         const poTotal  = viewPO.amount || (subtotal + poGst);
@@ -5501,7 +5520,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {vnd?.phone && <a href={`tel:${vnd.phone}`} className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg text-blue-400 border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-all">📞 Call</a>}
-                  {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg text-green-400 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-all">💬 WhatsApp</a>}
+                  <button onClick={() => sendWA(viewPO)} className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg text-green-400 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-all">💬 WhatsApp</button>
                   <button onClick={() => generatePOPdf(viewPO, vnd, settings)}
                           className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg text-orange-400 border border-orange-500/30 bg-orange-500/10 hover:bg-orange-500/20 transition-all">
                     📄 PDF
