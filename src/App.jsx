@@ -4684,6 +4684,41 @@ function AIPage({ items, pos }) {
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
 
+// Settings UI primitives — MODULE SCOPE (stable identity). Defining these inside
+// SettingsPage caused inputs to lose focus on every keystroke (remount on re-render).
+const SLabel = ({ text, hint }) => (
+  <div className="mb-1.5">
+    <div className="text-[12px] font-semibold text-slate-300">{text}</div>
+    {hint && <div className="text-[10px] text-slate-600 mt-0.5">{hint}</div>}
+  </div>
+);
+
+const Toggle = ({ checked, onChange, label, desc }) => (
+  <div className="flex items-center justify-between py-3.5 border-b border-white/[0.05] last:border-0">
+    <div>
+      <div className="text-[13px] font-semibold text-white">{label}</div>
+      {desc && <div className="text-[11px] text-slate-500 mt-0.5">{desc}</div>}
+    </div>
+    <button onClick={() => onChange(!checked)}
+            className="relative flex-shrink-0 w-11 h-6 rounded-full transition-all duration-200"
+            style={{ background: checked ? "#2563eb" : "rgba(255,255,255,0.08)", border: `1px solid ${checked ? "rgba(59,130,246,0.6)" : "rgba(255,255,255,0.1)"}` }}>
+      <div className="absolute top-0.5 h-5 w-5 rounded-full transition-all duration-200 shadow"
+           style={{ background: "#fff", left: checked ? "calc(100% - 22px)" : "2px" }} />
+    </button>
+  </div>
+);
+
+const Section = ({ icon, title, children }) => (
+  <div className="bg-[#0e1117] border border-white/[0.07] rounded-2xl overflow-hidden">
+    <div className="flex items-center gap-3 px-6 py-4 border-b border-white/[0.06]"
+         style={{ background: "rgba(255,255,255,0.015)" }}>
+      <span className="text-base">{icon}</span>
+      <span className="text-[14px] font-bold text-white">{title}</span>
+    </div>
+    <div className="px-6 py-5">{children}</div>
+  </div>
+);
+
 const SETTINGS_DEFAULTS = {
   companyName:     "Shantaz Technofoods",
   gst:             "",
@@ -4755,38 +4790,9 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
 
   const inpCls = "w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-[13px] text-[#f0f6ff] placeholder-slate-600 outline-none focus:border-blue-500/40 transition-colors";
 
-  const SLabel = ({ text, hint }) => (
-    <div className="mb-1.5">
-      <div className="text-[12px] font-semibold text-slate-300">{text}</div>
-      {hint && <div className="text-[10px] text-slate-600 mt-0.5">{hint}</div>}
-    </div>
-  );
-
-  const Toggle = ({ checked, onChange, label, desc }) => (
-    <div className="flex items-center justify-between py-3.5 border-b border-white/[0.05] last:border-0">
-      <div>
-        <div className="text-[13px] font-semibold text-white">{label}</div>
-        {desc && <div className="text-[11px] text-slate-500 mt-0.5">{desc}</div>}
-      </div>
-      <button onClick={() => onChange(!checked)}
-              className="relative flex-shrink-0 w-11 h-6 rounded-full transition-all duration-200"
-              style={{ background: checked ? "#2563eb" : "rgba(255,255,255,0.08)", border: `1px solid ${checked ? "rgba(59,130,246,0.6)" : "rgba(255,255,255,0.1)"}` }}>
-        <div className="absolute top-0.5 h-5 w-5 rounded-full transition-all duration-200 shadow"
-             style={{ background: "#fff", left: checked ? "calc(100% - 22px)" : "2px" }} />
-      </button>
-    </div>
-  );
-
-  const Section = ({ icon, title, children }) => (
-    <div className="bg-[#0e1117] border border-white/[0.07] rounded-2xl overflow-hidden">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-white/[0.06]"
-           style={{ background: "rgba(255,255,255,0.015)" }}>
-        <span className="text-base">{icon}</span>
-        <span className="text-[14px] font-bold text-white">{title}</span>
-      </div>
-      <div className="px-6 py-5">{children}</div>
-    </div>
-  );
+  // SLabel / Toggle / Section are hoisted to module scope (above SETTINGS_DEFAULTS).
+  // Defining them inside this component remounted every <Section> subtree on each
+  // keystroke (new function identity per render), which stole focus from inputs.
 
   return (
     <div className="flex-1 overflow-y-auto">
