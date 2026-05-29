@@ -32,6 +32,11 @@ import {
   Legend, ResponsiveContainer, RadialBarChart, RadialBar
 } from "recharts";
 
+// Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
+// which bundle is live. If you don't see this tag on the Settings page, the deployed
+// build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
+const APP_BUILD = "2026-05-29e-po-settings";
+
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
 const inventoryData = {
@@ -4785,7 +4790,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <Topbar title="Settings" subtitle="Manage company details, alerts and data">
+      <Topbar title="Settings" subtitle={`Manage company details, alerts and data · Build ${APP_BUILD}`}>
         <button onClick={handleSave}
                 className="inline-flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl transition-all duration-200"
                 style={{ background: saved ? "rgba(34,197,94,0.18)" : "linear-gradient(135deg,#2563eb,#4f46e5)", color: saved ? "#4ade80" : "#fff", border: saved ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(99,130,255,0.5)", boxShadow: saved ? "none" : "0 0 12px rgba(59,130,246,0.3)" }}>
