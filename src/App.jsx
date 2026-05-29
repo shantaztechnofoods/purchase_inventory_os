@@ -728,14 +728,14 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
   })();
 
   // Active machines (in-progress builds that need stage updates)
-  const activeMachines = machineLog.filter((m) => m.status === "active").slice(0, 4);
+  const activeMachines = machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").slice(0, 4);
 
   const kpis = [
     { label: "Total SKUs",        value: totalSKUs,                                              icon: "📦", color: "#3b82f6", nav: "inventory",  sub: `${safeItems.length} safe` },
     { label: "Critical Stock",    value: criticalN,                                              icon: "🔴", color: "#ef4444", nav: "inventory",  sub: `${warningItems.length} warning`,  alert: criticalN > 0 },
     { label: "Pending POs",       value: pendingPOs.length,                                      icon: "⚠️", color: "#f97316", nav: "pipeline",   sub: "awaiting approval",               alert: pendingPOs.length > 0 },
     { label: "Open PO Value",     value: fmtVal(openPOValue),                                    icon: "💰", color: "#22c55e", nav: "pipeline",   sub: `${pos.filter(p=>p.status!=="received").length} open` },
-    { label: "In Production",     value: machineLog.filter((m) => m.status === "active").length, icon: "⚙️", color: "#6366f1", nav: "machines",   sub: "machines active" },
+    { label: "In Production",     value: machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").length, icon: "⚙️", color: "#6366f1", nav: "machines",   sub: "machines active" },
     { label: "Machines Ready",    value: machineLog.filter((m) => m.status === "completed").length, icon: "🏆", color: "#22c55e", nav: "machines", sub: "completed" },
     { label: "Pending Materials", value: pendingLog.length,                                      icon: "⏳", color: "#f97316", nav: "pending",    sub: "items pending",                   alert: pendingLog.length > 0 },
     { label: "Pending Approvals", value: pos.filter((p) => p.status === "pending").length,       icon: "📋", color: "#3b82f6", nav: "pipeline",   sub: "awaiting review",                 alert: pos.filter((p) => p.status === "pending").length > 0 },
@@ -930,7 +930,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
               <button onClick={() => onNavigate?.("machines")} className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors">View Tracker →</button>
             </div>
             {activeMachines.length === 0 ? (
-              <EmptyState icon="🔧" title="No active builds" sub="Issue a BOM from Outward to start tracking." />
+              <EmptyState icon="🔧" title="No active builds" sub="Start a machine from the rack (Machine Tracker) to begin a build." />
             ) : (
               <div className="space-y-2.5">
                 {activeMachines.map((m) => {
@@ -956,9 +956,9 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                     </div>
                   );
                 })}
-                {machineLog.filter((m) => m.status === "active").length > 4 && (
+                {machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").length > 4 && (
                   <button onClick={() => onNavigate?.("machines")} className="w-full text-[10px] text-slate-500 hover:text-blue-400 transition-colors py-1">
-                    +{machineLog.filter((m) => m.status === "active").length - 4} more active builds →
+                    +{machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").length - 4} more active builds →
                   </button>
                 )}
               </div>
@@ -6593,7 +6593,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
 // ─── OUTWARD PAGE ─────────────────────────────────────────────────────────────
 
-function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateBOM, onRenameBOM, outwardLog, onAddOutward, pendingLog, onClearPending, onCreateMachine, canDo = () => true }) {
+function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateBOM, onRenameBOM, outwardLog, onAddOutward, pendingLog, onClearPending, onCreateMachine, machineLog = [], canDo = () => true }) {
   const [openBOM,       setOpenBOM]       = useState(null);
   const [activeSerial,  setActiveSerial]  = useState("");
   const [serialModal,   setSerialModal]   = useState(null); // bomKey waiting for S/N
@@ -6631,9 +6631,26 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
     </div>
   );
 
+  // Current rack occupancy for a model = machines still waiting at the "BOM Issued" stage.
+  const rackReadyCount = (key) => machineLog.filter((m) => m.bomKey === key && m.stage === "BOM Issued").length;
+
   const confirmSerial = () => {
-    if (!pendingSerial.trim()) { setSerialErr("Serial number is required to proceed."); return; }
-    setActiveSerial(pendingSerial.trim());
+    const sn = pendingSerial.trim();
+    if (!sn) { setSerialErr("Serial number is required to proceed."); return; }
+    const key = serialModal;
+    const capacity = Number(bomDefs?.[key]?.rackCapacity) || 0;
+    const ready    = rackReadyCount(key);
+    // Capacity rule: a configured rack (capacity > 0) cannot overflow.
+    if (capacity > 0 && ready >= capacity) {
+      setSerialErr("Rack capacity reached. Start production or increase rack capacity.");
+      return;
+    }
+    // Block duplicate serials sitting on the rack for this model.
+    if (machineLog.some((m) => m.bomKey === key && m.stage === "BOM Issued" && (m.serialNo || "").toLowerCase() === sn.toLowerCase())) {
+      setSerialErr(`Serial "${sn}" is already on the rack for ${key}.`);
+      return;
+    }
+    setActiveSerial(sn);
     setOpenBOM(serialModal);
     setSerialModal(null);
     setSerialErr("");
@@ -6729,7 +6746,9 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                 </div>
                 <div>
                   <div className="text-sm font-bold text-white">{serialModal} — {bomDefs[serialModal].label}</div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">Enter machine serial number to begin issue</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    Enter serial to issue to rack · Rack {rackReadyCount(serialModal)}{(Number(bomDefs[serialModal].rackCapacity) || 0) > 0 ? ` / ${Number(bomDefs[serialModal].rackCapacity)}` : ""} ready
+                  </div>
                 </div>
               </div>
             </div>
@@ -7134,15 +7153,18 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   const [expanded, setExpanded] = useState(null);
   const [stageMap, setStageMap] = useState({});
   const [toast,    setToast]    = useState(null);
-  const [startProd, setStartProd] = useState(null); // { bomKey, label, ready, capacity }
-  const [startQty,  setStartQty]  = useState(1);
+  const [startProd, setStartProd] = useState(null); // rack object { key, label, ready, capacity }
+  const [startSel,  setStartSel]  = useState(() => new Set()); // selected rack-machine ids
   const [startErr,  setStartErr]  = useState("");
 
   const showToast = (text, sub) => { setToast({ text, sub }); setTimeout(() => setToast(null), 3000); };
 
-  const active    = machineLog.filter((m) => m.status !== "completed");
-  const completed = machineLog.filter((m) => m.status === "completed");
-  const filtered  = filter === "active" ? active : filter === "completed" ? completed : machineLog;
+  // Machine Tracker shows ONLY machines that have STARTED production (left the rack).
+  // Rack machines sit at stage "BOM Issued" and appear solely in the Production Rack View.
+  const started   = machineLog.filter((m) => m.stage !== "BOM Issued");
+  const active    = started.filter((m) => m.status !== "completed");
+  const completed = started.filter((m) => m.status === "completed");
+  const filtered  = filter === "active" ? active : filter === "completed" ? completed : started;
 
   const stageIdx = (s) => MACHINE_STAGES.indexOf(s);
 
@@ -7172,17 +7194,29 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   })();
   const replenishAlerts = rackData.filter((r) => r.configured && r.ready < r.capacity);
 
+  // Rack machines (serial-wise, oldest first) waiting to start for a model.
+  const rackMachinesFor = (key) =>
+    machineLog.filter((m) => m.bomKey === key && m.stage === "BOM Issued")
+              .sort((a, b) => (a.createdDate || "").localeCompare(b.createdDate || ""));
+
   const openStartProd = (rack) => {
     if (rack.ready === 0) return;
     setStartProd(rack);
-    setStartQty(rack.ready);
+    setStartSel(new Set());
     setStartErr("");
   };
+  const toggleStartSel = (id) => setStartSel((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
   const confirmStartProd = () => {
     if (!startProd || !onStartProduction) return;
-    const res = onStartProduction(startProd.key, startQty);
+    const ids = [...startSel];
+    if (ids.length === 0) { setStartErr("Select at least one machine (serial) to start."); return; }
+    const res = onStartProduction(ids);
     if (res?.success === false) { setStartErr(res.error || "Failed to start production"); return; }
-    showToast(`${startProd.key} — ${res.count} unit(s) into production`, "Assembly stage active");
+    showToast(`${startProd.key} — ${res.count} machine(s) into production`, (res.serials || []).join(", ") || "Assembly stage active");
     setStartProd(null); setStartErr("");
   };
 
@@ -7217,8 +7251,8 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         <div className="grid grid-cols-3 gap-4">
           <div className="p-5 rounded-xl" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.2)" }}>
             <div className="text-[9px] font-bold text-blue-500 uppercase tracking-[0.08em] mb-1">Total Machines</div>
-            <div className="text-4xl font-black text-blue-400 mb-1">{machineLog.length}</div>
-            <div className="text-[10px] text-slate-500">all builds tracked</div>
+            <div className="text-4xl font-black text-blue-400 mb-1">{started.length}</div>
+            <div className="text-[10px] text-slate-500">started from rack</div>
           </div>
           <div className="p-5 rounded-xl" style={{ background: "rgba(249,115,22,0.06)", border: "1px solid rgba(249,115,22,0.2)" }}>
             <div className="text-[9px] font-bold text-orange-500 uppercase tracking-[0.08em] mb-1">Active Builds</div>
@@ -7348,7 +7382,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           {[["active","Active Builds"], ["completed","Completed"], ["all","All Machines"]].map(([key, label]) => (
             <button key={key} onClick={() => setFilter(key)}
                     className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${filter === key ? "bg-blue-500/15 text-blue-400 border-blue-500/30" : "text-slate-500 border-white/[0.08] hover:text-slate-300"}`}>
-              {label} ({key === "active" ? active.length : key === "completed" ? completed.length : machineLog.length})
+              {label} ({key === "active" ? active.length : key === "completed" ? completed.length : started.length})
             </button>
           ))}
         </div>
@@ -7362,7 +7396,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               <div className="text-[11px] text-slate-500">No completed machines yet.</div>
             ) : (
               <div className="text-[11px] text-slate-500">
-                Issue a BOM from Outward to start tracking a machine build.{" "}
+                Issue a BOM from Outward to add a machine to the rack, then use the Production Rack View above to start a build.{" "}
                 <button onClick={() => onNavigate("outward")}
                         className="text-blue-400 underline hover:text-blue-300 transition-colors">
                   Go to Outward →
@@ -7546,24 +7580,26 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Quantity to Start</label>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setStartQty(Math.max(1, startQty - 1))}
-                  className="w-9 h-9 rounded-lg text-base font-bold text-slate-400 hover:text-white hover:bg-white/10 transition-all"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>−</button>
-                <input type="number" min="1" max={startProd.ready} value={startQty}
-                       onChange={(e) => { setStartQty(Math.max(1, Math.min(startProd.ready, parseInt(e.target.value, 10) || 1))); setStartErr(""); }}
-                       className="flex-1 px-3 py-2 text-center text-lg font-black text-white outline-none rounded-lg"
-                       style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }} />
-                <button onClick={() => setStartQty(Math.min(startProd.ready, startQty + 1))}
-                  className="w-9 h-9 rounded-lg text-base font-bold text-slate-400 hover:text-white hover:bg-white/10 transition-all"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>+</button>
-                <button onClick={() => setStartQty(startProd.ready)}
-                  className="px-3 py-2 rounded-lg text-[10px] font-bold text-blue-400 hover:text-blue-300 transition-all"
-                  style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.22)" }}>Max</button>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Select Machine(s) to Start</label>
+              <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                {rackMachinesFor(startProd.key).map((m) => {
+                  const sel = startSel.has(m.id);
+                  return (
+                    <button key={m.id} onClick={() => { toggleStartSel(m.id); setStartErr(""); }}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all"
+                            style={{ background: sel ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.03)", border: `1px solid ${sel ? "rgba(34,197,94,0.45)" : "rgba(255,255,255,0.08)"}` }}>
+                      <span className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 text-[10px] font-black"
+                            style={{ background: sel ? "#16a34a" : "transparent", border: `1.5px solid ${sel ? "#16a34a" : "rgba(255,255,255,0.25)"}`, color: "#fff" }}>
+                        {sel ? "✓" : ""}
+                      </span>
+                      <span className="text-[12px] font-mono font-bold text-white flex-1 truncate">{m.serialNo || "(no serial)"}</span>
+                      <span className="text-[9px] text-slate-500 flex-shrink-0">Issued {m.createdDate}</span>
+                    </button>
+                  );
+                })}
               </div>
               <div className="text-[10px] text-slate-500 mt-1.5">
-                {startQty} unit{startQty !== 1 ? "s" : ""} will move from rack → Assembly stage.
+                {startSel.size} selected · will move from rack → Assembly stage.
               </div>
               {startErr && <div className="text-[10px] text-red-400 mt-1">{startErr}</div>}
             </div>
@@ -10233,20 +10269,17 @@ export default function App() {
     }
   };
 
-  // Bulk-promote N machines from "BOM Issued" → "Assembly" (rack → active production).
-  // Picks oldest-issued first. Single audit entry per batch.
-  const handleStartProduction = (bomKey, qty) => {
-    const want = Math.max(0, Math.floor(qty || 0));
-    if (!want) return { success: false, error: "Quantity must be greater than zero" };
-    const inRack = machineLog
-      .filter((m) => m.bomKey === bomKey && m.stage === "BOM Issued")
-      .sort((a, b) => (a.createdDate || "").localeCompare(b.createdDate || ""));
-    if (inRack.length === 0) return { success: false, error: "Rack is empty for this model" };
-    const take = Math.min(want, inRack.length);
-    const ids  = new Set(inRack.slice(0, take).map((m) => m.id));
+  // SERIAL-BASED start production. Takes the specific rack-machine id(s) the operator
+  // selected and promotes ONLY those from "BOM Issued" (rack) → "Assembly" (active build).
+  // The machine now leaves the rack and appears in the Machine Tracker.
+  const handleStartProduction = (machineIds) => {
+    const idArr  = Array.isArray(machineIds) ? machineIds : [machineIds];
+    const idSet  = new Set(idArr);
+    const targets = machineLog.filter((m) => idSet.has(m.id) && m.stage === "BOM Issued");
+    if (targets.length === 0) return { success: false, error: "Select at least one machine on the rack" };
     const dateStr = fmtDate(new Date());
     setMachineLog((prev) => prev.map((m) => {
-      if (!ids.has(m.id)) return m;
+      if (!idSet.has(m.id) || m.stage !== "BOM Issued") return m;
       return {
         ...m,
         stage:   "Assembly",
@@ -10255,7 +10288,7 @@ export default function App() {
       };
     }));
     if (isSupabaseEnabled()) {
-      Promise.all(inRack.slice(0, take).map((m) =>
+      Promise.all(targets.map((m) =>
         machineUpdate(m.id, {
           stage: "Assembly",
           status: "active",
@@ -10266,17 +10299,18 @@ export default function App() {
         if (failed.length) console.warn("[App] handleStartProduction: Supabase machine updates failed", failed);
       });
     }
-    const sample = inRack.slice(0, take).map((m) => m.serialNo).filter(Boolean);
+    const serials = targets.map((m) => m.serialNo).filter(Boolean);
     logAudit({
       type: "production_started", module: "Machine",
-      action: `Production Started: ${bomKey} × ${take}`,
-      ref: bomKey,
-      qty: take,
-      oldValue: { rackReady: inRack.length, stage: "BOM Issued" },
-      newValue: { rackReady: inRack.length - take, stage: "Assembly", started: take },
-      details: { serialNos: sample.slice(0, 10), totalSerialCount: sample.length },
+      action: `Production Started: ${targets[0].bomKey} — ${serials.join(", ") || `${targets.length} machine(s)`}`,
+      ref: targets[0].bomKey,
+      serialNo: serials[0] || "",
+      qty: targets.length,
+      oldValue: { stage: "BOM Issued" },
+      newValue: { stage: "Assembly", started: targets.length },
+      details: { serialNos: serials },
     });
-    return { success: true, count: take };
+    return { success: true, count: targets.length, serials };
   };
 
   // Adds a "materials fully issued" note to Machine Tracker when an issueId is cleared
@@ -10376,7 +10410,7 @@ export default function App() {
                               onCreateBOM={handleCreateBOM} onRenameBOM={handleRenameBOM}
                               outwardLog={outwardLog} onAddOutward={handleAddOutward}
                               pendingLog={pendingLog} onClearPending={handleClearPending}
-                              onCreateMachine={handleCreateMachine} canDo={canDo} />,
+                              onCreateMachine={handleCreateMachine} machineLog={machineLog} canDo={canDo} />,
     pending:   <PendingPage   pendingLog={pendingLog} items={items} bomDefs={bomDefs}
                               machineLog={machineLog}
                               onFulfillPending={handleFulfillPending}
@@ -10415,7 +10449,7 @@ export default function App() {
       <Sidebar
         activePage={activePage} setActivePage={setActivePage}
         collapsed={collapsed} setCollapsed={setCollapsed}
-        badges={{ pending: pendingLog.length, pipeline: pipelineBadge, machines: machineLog.filter((m) => m.status !== "completed").length }}
+        badges={{ pending: pendingLog.length, pipeline: pipelineBadge, machines: machineLog.filter((m) => m.status !== "completed" && m.stage !== "BOM Issued").length }}
         canView={canView}
         onSearchOpen={() => setShowSearch(true)}
         onNotifsOpen={() => setShowNotifs((v) => !v)}
