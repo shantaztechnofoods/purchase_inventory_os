@@ -48,10 +48,21 @@ export function buildPOWhatsAppMessage(po = {}, vendorName = "", companyName = "
   ].join("\n");
 }
 
-// Low-level: open wa.me for a normalized number with an optional prefilled message.
+// Low-level: open the vendor chat with the message prefilled.
+// Desktop browsers must use web.whatsapp.com/send?phone=&text= — the wa.me link
+// redirects through a "Continue to Chat" page on desktop and drops the text, leaving
+// the message box empty. Mobile keeps wa.me so it deep-links into the installed app.
 function openChat(number, message) {
-  const url = `https://wa.me/${number}${message ? `?text=${encodeURIComponent(message)}` : ""}`;
-  console.info("[WA] opening chat", { number, url });
+  const text = message ? encodeURIComponent(message) : "";
+  const isMobile = typeof navigator !== "undefined" &&
+    /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || "");
+  const url = isMobile
+    ? `https://wa.me/${number}${text ? `?text=${text}` : ""}`
+    : `https://web.whatsapp.com/send?phone=${number}${text ? `&text=${text}` : ""}&type=phone_number&app_absent=0`;
+  console.info("[WA] phone   :", number);
+  console.info("[WA] message :", message);
+  console.info("[WA] platform:", isMobile ? "mobile (wa.me)" : "desktop (web.whatsapp.com)");
+  console.info("[WA] url     :", url);
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
