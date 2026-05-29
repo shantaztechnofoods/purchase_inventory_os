@@ -24,6 +24,8 @@ import { fetchMachines, createMachine as machineCreate, updateMachine as machine
 import { useRealtimeTables } from "./realtime/useRealtimeTables.js";
 import { fetchRecentMovements, MOVEMENT_META } from "./stores/stockMovementsStore.js";
 import { sendPOWhatsApp, openVendorWhatsApp, waErrorToast } from "./utils/whatsapp.js";
+import POSettings from "./components/POSettings.jsx";
+import { getActiveCompany, normalizePOSettings, openPOPdf, PO_TEMPLATE_OPTIONS } from "./utils/poTemplate.js";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -2699,13 +2701,16 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
 
 // ─── PO MODAL ─────────────────────────────────────────────────────────────────
 
-function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null, pos = [] }) {
+function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null, pos = [], settings = {} }) {
   const isEdit = Boolean(initialPO);
+  const poCfg  = normalizePOSettings(settings);
   const [form, setForm] = useState(() => {
     if (isEdit) return {
       vendor: initialPO.vendor, priority: initialPO.priority,
       delivery: initialPO.delivery || "", notes: initialPO.notes || "",
       lineItems: initialPO.lineItems ? [...initialPO.lineItems] : [],
+      companyId: initialPO.companyId || poCfg.activeCompanyId,
+      template:  initialPO.template  || poCfg.template,
     };
     return {
       vendor:    prefill?.vendor || vendorList[0]?.name || "",
@@ -2713,6 +2718,8 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
       delivery:  prefill?.delivery || "",
       notes:     prefill?.notes    || "",
       lineItems: prefill?.lineItems ? [...prefill.lineItems] : [],
+      companyId: poCfg.activeCompanyId,
+      template:  poCfg.template,
     };
   });
 
@@ -2982,6 +2989,18 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
               </div>
             )}
 
+            <div>
+              <PLabel text="Issued By (Company)" />
+              <select value={form.companyId} onChange={(e) => setF("companyId", e.target.value)} className={`w-full ${inpCls}`} style={selStyle}>
+                {poCfg.companies.map((c) => <option key={c.id} value={c.id}>{c.name || "(unnamed)"}</option>)}
+              </select>
+            </div>
+            <div>
+              <PLabel text="PO Template" />
+              <select value={form.template} onChange={(e) => setF("template", e.target.value)} className={`w-full ${inpCls}`} style={selStyle}>
+                {PO_TEMPLATE_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+            </div>
             <div>
               <PLabel text="Priority" />
               <select value={form.priority} onChange={(e) => setF("priority", e.target.value)} className={`w-full ${inpCls}`} style={selStyle}>
@@ -4670,9 +4689,10 @@ const SETTINGS_DEFAULTS = {
   currency:        "INR (₹)",
   whatsappAlerts:  false,
   emailAlerts:     false,
+  po:              null,   // Purchase Order settings (company profiles, templates) — see utils/poTemplate
 };
 
-function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave }) {
+function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, isSuperAdmin = false }) {
   const [settings, setSettings] = useState(() => ({ ...SETTINGS_DEFAULTS, ...initialSettings }));
   const [saved,    setSaved]    = useState(false);
   const [backupOk, setBackupOk] = useState(false);
@@ -4837,7 +4857,17 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave })
           </div>
         </Section>
 
-        {/* ── 2. Inventory ── */}
+        {/* ── 2. Purchase Order Templates & Company Profiles ── */}
+        <Section icon="🧾" title="Purchase Order Settings">
+          <POSettings
+            value={settings.po}
+            settings={settings}
+            isSuperAdmin={isSuperAdmin}
+            onChange={(po) => upd("po", po)}
+          />
+        </Section>
+
+        {/* ── 3. Inventory ── */}
         <Section icon="📦" title="Inventory">
           <SLabel text="Currency" hint="Shown throughout the ERP" />
           <select value={settings.currency} onChange={(e) => upd("currency", e.target.value)}
@@ -4915,133 +4945,15 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave })
 // ─── PDF GENERATOR ────────────────────────────────────────────────────────────
 
 function generatePOPdf(po, vendor, settings = {}) {
-  const company  = settings.companyName || "Shantaz Technofoods";
-  const subtotal = (po.lineItems || []).reduce((s, li) => s + (li.amount || 0), 0);
-  const gst      = po.gst != null ? po.gst : Math.round(subtotal * 0.18);
-  const total    = po.amount || (subtotal + gst);
-
-  const rows = (po.lineItems || []).map((li, i) => `
-    <tr>
-      <td>${i + 1}</td>
-      <td><strong>${li.name}</strong><br><span style="font-family:monospace;font-size:9px;color:#888">${li.code}</span></td>
-      <td style="text-align:center">${li.unit || "—"}</td>
-      <td style="text-align:right">${li.qty}</td>
-      <td style="text-align:right">₹${(li.rate || 0).toLocaleString("en-IN")}</td>
-      <td style="text-align:right"><strong>₹${(li.amount || 0).toLocaleString("en-IN")}</strong></td>
-    </tr>`).join("");
-
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>PO-${po.id}</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#1a1a1a;background:#fff;padding:28px 32px}
-  .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #1e3a5f;padding-bottom:14px;margin-bottom:20px}
-  .co-name{font-size:19px;font-weight:700;color:#1e3a5f;margin-bottom:3px}
-  .co-info{font-size:10px;color:#555;line-height:1.65}
-  .po-right{text-align:right}
-  .po-label{font-size:22px;font-weight:800;color:#1e3a5f;letter-spacing:1px}
-  .po-num{font-size:13px;font-weight:600;color:#333;margin-top:2px;font-family:monospace}
-  .po-badge{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;padding:2px 8px;border-radius:4px;background:#e8f0fb;color:#1e3a5f;margin-top:5px;letter-spacing:.05em}
-  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
-  .box{border:1px solid #d8e0ec;border-radius:6px;padding:12px}
-  .box-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#888;margin-bottom:8px}
-  .box-name{font-size:13px;font-weight:700;color:#1a1a1a;margin-bottom:6px}
-  .info-row{display:flex;gap:6px;margin-bottom:3px;font-size:10.5px}
-  .ik{color:#777;min-width:85px;flex-shrink:0}
-  .iv{font-weight:600;color:#1a1a1a}
-  .sec-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#888;margin-bottom:6px}
-  .table-wrap{border:1px solid #d8e0ec;border-radius:6px;overflow:hidden;margin-bottom:14px}
-  table{width:100%;border-collapse:collapse;font-size:11px}
-  thead tr{background:#1e3a5f;color:#fff}
-  thead th{padding:7px 10px;text-align:left;font-size:9.5px;font-weight:600;letter-spacing:.04em}
-  thead th.r{text-align:right}
-  thead th.c{text-align:center}
-  tbody tr:nth-child(even){background:#f6f8fc}
-  tbody td{padding:7px 10px;border-bottom:1px solid #eef0f5;vertical-align:middle}
-  .totals{width:44%;margin-left:auto;border-collapse:collapse;font-size:11px}
-  .totals td{padding:4px 10px}
-  .grand td{background:#1e3a5f;color:#fff;font-weight:700;font-size:12.5px}
-  .notes{margin:14px 0;padding:10px 14px;border-left:3px solid #1e3a5f;background:#f6f8fc;font-size:10.5px;color:#444;border-radius:0 4px 4px 0}
-  .footer{margin-top:20px;border-top:1px solid #d8e0ec;padding-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:50px;font-size:11px}
-  .sig-lbl{font-size:9px;color:#888;margin-bottom:22px}
-  .sig-line{border-top:1px solid #aaa;padding-top:5px;font-size:10px;color:#555}
-  @media print{body{padding:0}@page{margin:12mm;size:A4}}
-</style></head>
-<body>
-
-<div class="header">
-  <div>
-    <div class="co-name">${company}</div>
-    <div class="co-info">
-      ${settings.address ? settings.address + "<br>" : ""}
-      ${settings.gst ? "GSTIN: <strong>" + settings.gst + "</strong><br>" : ""}
-      ${settings.phone ? "Phone: " + settings.phone : ""}
-    </div>
-  </div>
-  <div class="po-right">
-    <div class="po-label">PURCHASE ORDER</div>
-    <div class="po-num">${po.id}</div>
-    <div class="po-badge">${(po.status || "").toUpperCase()}</div>
-  </div>
-</div>
-
-<div class="two-col">
-  <div class="box">
-    <div class="box-title">Bill To / Vendor</div>
-    <div class="box-name">${po.vendor}</div>
-    ${vendor?.contactPerson ? `<div class="info-row"><span class="ik">Contact</span><span class="iv">${vendor.contactPerson}</span></div>` : ""}
-    ${vendor?.phone ? `<div class="info-row"><span class="ik">Phone</span><span class="iv">${vendor.phone}</span></div>` : ""}
-    ${vendor?.gst ? `<div class="info-row"><span class="ik">GSTIN</span><span class="iv" style="font-family:monospace">${vendor.gst}</span></div>` : ""}
-    ${vendor?.address ? `<div class="info-row"><span class="ik">Address</span><span class="iv">${vendor.address}</span></div>` : ""}
-    ${vendor?.paymentTerms ? `<div class="info-row"><span class="ik">Payment</span><span class="iv">${vendor.paymentTerms}</span></div>` : ""}
-  </div>
-  <div class="box">
-    <div class="box-title">PO Details</div>
-    <div class="info-row"><span class="ik">PO Number</span><span class="iv" style="font-family:monospace">${po.id}</span></div>
-    <div class="info-row"><span class="ik">PO Date</span><span class="iv">${po.date || "—"}</span></div>
-    <div class="info-row"><span class="ik">Expected By</span><span class="iv">${po.eta || po.delivery || "—"}</span></div>
-    <div class="info-row"><span class="ik">Priority</span><span class="iv" style="text-transform:capitalize">${po.priority || "normal"}</span></div>
-    <div class="info-row"><span class="ik">Status</span><span class="iv" style="text-transform:capitalize">${po.status || "—"}</span></div>
-  </div>
-</div>
-
-<div class="sec-lbl">Items Ordered</div>
-<div class="table-wrap">
-  <table>
-    <thead><tr>
-      <th style="width:28px">#</th>
-      <th>Item Name / Code</th>
-      <th class="c" style="width:55px">Unit</th>
-      <th class="r" style="width:50px">Qty</th>
-      <th class="r" style="width:85px">Rate (₹)</th>
-      <th class="r" style="width:90px">Amount (₹)</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-  <table class="totals">
-    <tbody>
-      <tr><td style="color:#666">Subtotal</td><td style="text-align:right;font-weight:600">₹${subtotal.toLocaleString("en-IN")}</td></tr>
-      <tr><td style="color:#666">GST (18%)</td><td style="text-align:right;font-weight:600">₹${gst.toLocaleString("en-IN")}</td></tr>
-      <tr class="grand"><td>Grand Total</td><td style="text-align:right">₹${total.toLocaleString("en-IN")}</td></tr>
-    </tbody>
-  </table>
-</div>
-
-${po.notes ? `<div class="notes"><strong>Notes / Terms &amp; Conditions:</strong><br>${po.notes}</div>` : ""}
-
-<div class="footer">
-  <div><div class="sig-lbl">Prepared By</div><div class="sig-line">Name &amp; Signature</div></div>
-  <div><div class="sig-lbl">Approved By</div><div class="sig-line">Manager / Director</div></div>
-</div>
-
-<script>window.onload=function(){window.print()};<\/script>
-</body></html>`;
-
-  const w = window.open("", `PO-${po.id}`, "width=960,height=720");
-  if (!w) { alert("Pop-up blocked. Please allow pop-ups to download the PDF."); return; }
-  w.document.write(html);
-  w.document.close();
+  // Resolve the company profile + template from PO Settings (per-PO override → active default).
+  const poCfg   = normalizePOSettings(settings);
+  const company = getActiveCompany(settings, po?.companyId);
+  openPOPdf(po, vendor, company, {
+    template:    po?.template || poCfg.template,
+    show:        poCfg.show,
+    terms:       poCfg.terms,
+    declaration: poCfg.declaration,
+  });
 }
 
 // ─── ORDER PIPELINE PAGE ─────────────────────────────────────────────────────
@@ -5071,8 +4983,9 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
   // WhatsApp PO confirmation — opens the exact vendor chat with a prefilled message,
   // or toasts when the vendor's mobile number is missing/invalid.
   const sendWA = (po) => {
-    const vendor = vendorList.find((x) => x.name === po.vendor);
-    const res = sendPOWhatsApp(po, vendor);
+    const vendor  = vendorList.find((x) => x.name === po.vendor);
+    const company = getActiveCompany(settings, po?.companyId);
+    const res = sendPOWhatsApp(po, vendor, company?.name);
     if (!res.ok) { setWaToast(waErrorToast(res.error)); setTimeout(() => setWaToast(null), 3500); }
   };
 
@@ -5479,6 +5392,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
           items={items}
           prefill={createPrefill}
           pos={pos}
+          settings={settings}
           onSave={(data) => {
             onCreatePO(data);
             setShowCreatePO(false); setCreatePrefill(null);
@@ -10477,7 +10391,7 @@ export default function App() {
     analytics: <AnalyticsPage items={items} pos={pos} vendorList={vendorList} settings={settings} />,
     ai:        <AIPage items={items} pos={pos} />,
     history:   <HistoryPage auditLog={auditLog} pos={pos} inwardLog={inwardLog} outwardLog={outwardLog} pendingLog={pendingLog} machineLog={machineLog} items={items} vendorList={vendorList} bomDefs={bomDefs} />,
-    settings:  <SettingsPage settings={settings} onSave={handleSaveSettings} />,
+    settings:  <SettingsPage settings={settings} onSave={handleSaveSettings} isSuperAdmin={currentUser?.role === "super_admin"} />,
     users:     <UserManagementPage canDo={canDo} />,
     roles:     <RoleManagementPage canDo={canDo} />,
     audit:     <AuditHistoryPage />,

@@ -2,7 +2,7 @@
 // Opens the EXACT vendor chat (via wa.me) with a prefilled message so the operator
 // only has to press Send. Validates + normalizes Indian mobile numbers.
 
-const COMPANY_NAME = "Shantaz Technofoods";
+const DEFAULT_COMPANY_NAME = "Shantaz Technofoods";
 
 // Normalize a raw phone string to wa.me form: 91 + 10-digit mobile (12 digits, no +).
 // Accepts: "9876543210", "098765 43210", "+91 98765-43210", "0091 9876543210", etc.
@@ -31,7 +31,8 @@ export function normalizeIndianMobile(raw) {
 }
 
 // Build the standard PO confirmation message (exact business template).
-export function buildPOWhatsAppMessage(po = {}, vendorName = "") {
+// companyName comes from the active PO company profile; falls back to the default.
+export function buildPOWhatsAppMessage(po = {}, vendorName = "", companyName = "") {
   const amount    = Number(po.amount || 0).toLocaleString("en-IN");
   const itemCount = Array.isArray(po.lineItems) ? po.lineItems.length : (po.itemCount || 0);
   return [
@@ -43,7 +44,7 @@ export function buildPOWhatsAppMessage(po = {}, vendorName = "") {
     `Please confirm this order and provide ETA.`,
     ``,
     `Regards,`,
-    COMPANY_NAME,
+    companyName || DEFAULT_COMPANY_NAME,
   ].join("\n");
 }
 
@@ -56,12 +57,12 @@ function openChat(number, message) {
 
 // Open a vendor's chat prefilled with the PO confirmation message.
 // Returns { ok:true } or { ok:false, error:"missing"|"invalid" } so the caller can toast.
-export function sendPOWhatsApp(po, vendor) {
+export function sendPOWhatsApp(po, vendor, companyName = "") {
   const phone = vendor?.phone || po?.vendorPhone || "";
   const norm  = normalizeIndianMobile(phone);
-  console.info("[WA] sendPOWhatsApp", { po: po?.id, vendor: vendor?.name || po?.vendor, rawPhone: phone, normalized: norm });
+  console.info("[WA] sendPOWhatsApp", { po: po?.id, vendor: vendor?.name || po?.vendor, company: companyName, rawPhone: phone, normalized: norm });
   if (!norm.ok) return norm;
-  openChat(norm.number, buildPOWhatsAppMessage(po, vendor?.name));
+  openChat(norm.number, buildPOWhatsAppMessage(po, vendor?.name, companyName));
   return { ok: true };
 }
 

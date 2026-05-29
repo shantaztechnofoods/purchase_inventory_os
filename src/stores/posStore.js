@@ -40,6 +40,8 @@ function fromRow(r) {
     rejectReason:  r.reject_reason || "",
     lineItems:     Array.isArray(r.line_items)   ? r.line_items   : [],
     activityLog:   Array.isArray(r.activity_log) ? r.activity_log : [],
+    companyId:     r.company_id || null,   // PO Settings company profile (migration 015)
+    template:      r.template   || null,   // PO template preset (migration 015)
   };
 }
 function toIsoDate(s) {
@@ -70,7 +72,15 @@ export async function createPO(po) {
   console.info("[pos:create] start", { id: po.id });
   if (!isSupabaseEnabled()) { setLocal([po, ...getLocal()]); return { success: true, po }; }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
-  const { data, error } = await c.from("purchase_orders").insert(toRow(po)).select().single();
+  const baseRow = toRow(po);
+  const fullRow = { ...baseRow, company_id: po.companyId || null, template: po.template || null };
+  let { data, error } = await c.from("purchase_orders").insert(fullRow).select().single();
+  // Schema-tolerant: if company_id/template columns aren't there yet (migration 015 not run),
+  // retry without them so PO creation never breaks.
+  if (error && (error.code === "42703" || error.code === "PGRST204" || /column .* does not exist|schema cache/i.test(error.message || ""))) {
+    console.warn("[pos:create] company_id/template columns missing — run migration 015. Creating PO without them.");
+    ({ data, error } = await c.from("purchase_orders").insert(baseRow).select().single());
+  }
   if (error) { console.error("[pos:create] failed", error); return { success: false, error: error.message }; }
   const out = fromRow(data);
   console.info("[pos:create] ok");
