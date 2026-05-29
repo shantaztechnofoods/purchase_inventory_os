@@ -1,6 +1,11 @@
 // WhatsApp click-to-chat helpers.
-// Opens the EXACT vendor chat (via wa.me) with a prefilled message so the operator
-// only has to press Send. Validates + normalizes Indian mobile numbers.
+// Opens the EXACT vendor chat with a prefilled message so the operator only has to
+// press Send. Validates + normalizes Indian mobile numbers.
+
+// Build marker — printed on every WA action so you can confirm in the PRODUCTION console
+// that the latest whatsapp.js is actually live. If you don't see this tag, the deployed
+// bundle is stale (redeploy on Vercel without build cache + hard-refresh).
+export const WA_BUILD = "wa-2026-05-29d-webfix";
 
 const DEFAULT_COMPANY_NAME = "Shantaz Technofoods";
 
@@ -59,21 +64,33 @@ function openChat(number, message) {
   const url = isMobile
     ? `https://wa.me/${number}${text ? `?text=${text}` : ""}`
     : `https://web.whatsapp.com/send?phone=${number}${text ? `&text=${text}` : ""}&type=phone_number&app_absent=0`;
-  console.info("[WA] phone   :", number);
-  console.info("[WA] message :", message);
-  console.info("[WA] platform:", isMobile ? "mobile (wa.me)" : "desktop (web.whatsapp.com)");
-  console.info("[WA] url     :", url);
+  // console.warn so these survive production console-stripping (build keeps warn/error).
+  console.warn(`[WA ${WA_BUILD}] phone   :`, number);
+  console.warn(`[WA ${WA_BUILD}] platform:`, isMobile ? "mobile (wa.me)" : "desktop (web.whatsapp.com)");
+  console.warn(`[WA ${WA_BUILD}] text len:`, text.length);
+  console.warn(`[WA ${WA_BUILD}] URL     :`, url);
+  if (!text) console.error(`[WA ${WA_BUILD}] WARNING: message is empty — text= will be blank!`);
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
 // Open a vendor's chat prefilled with the PO confirmation message.
 // Returns { ok:true } or { ok:false, error:"missing"|"invalid" } so the caller can toast.
 export function sendPOWhatsApp(po, vendor, companyName = "") {
-  const phone = vendor?.phone || po?.vendorPhone || "";
-  const norm  = normalizeIndianMobile(phone);
-  console.info("[WA] sendPOWhatsApp", { po: po?.id, vendor: vendor?.name || po?.vendor, company: companyName, rawPhone: phone, normalized: norm });
+  const phone   = vendor?.phone || po?.vendorPhone || "";
+  const norm    = normalizeIndianMobile(phone);
+  const message = buildPOWhatsAppMessage(po, vendor?.name, companyName);
+  console.warn(`[WA ${WA_BUILD}] ── PO WhatsApp ──`, {
+    poNumber:        po?.id,
+    vendorName:      vendor?.name || po?.vendor,
+    rawPhone:        phone,
+    normalizedPhone: norm.ok ? norm.number : `(invalid: ${norm.error})`,
+    amount:          po?.amount,
+    itemCount:       Array.isArray(po?.lineItems) ? po.lineItems.length : 0,
+    company:         companyName,
+    message,
+  });
   if (!norm.ok) return norm;
-  openChat(norm.number, buildPOWhatsAppMessage(po, vendor?.name, companyName));
+  openChat(norm.number, message);
   return { ok: true };
 }
 
