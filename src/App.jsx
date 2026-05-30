@@ -36,7 +36,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-05-30b-phase1-storage";
+const APP_BUILD = "2026-05-30c-phase2";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -2840,8 +2840,8 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
       delivery:  prefill?.delivery || "",
       notes:     prefill?.notes    || "",
       lineItems: prefill?.lineItems ? [...prefill.lineItems] : [],
-      companyId: poCfg.activeCompanyId,
-      template:  poCfg.template,
+      companyId: prefill?.companyId || poCfg.activeCompanyId,
+      template:  prefill?.template  || poCfg.template,
     };
   });
 
@@ -3140,6 +3140,71 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                      placeholder="e.g. Urgent — machine M-07 down" className={`w-full ${inpCls}`} />
             </div>
           </div>
+
+          {/* ── Phase 2 — Vendor low-stock picker (additive, strict Preferred-only) ──
+              Visible whenever the selected vendor has ≥1 preferred low-stock item that
+              isn't already on the PO. Re-filters live as the vendor dropdown changes.
+              "Order Now" / "+ New PO" flows that don't match still see nothing here. */}
+          {(() => {
+            if (!selectedVendorObj) return null;
+            const inLine = new Set((form.lineItems || []).map((li) => li.code));
+            const lowItems = allFlatItems.filter((i) =>
+              (i.status === "critical" || i.status === "warning") &&
+              ((i.vendorLinks || []).find((l) => l.role === "Preferred")?.vendorId === selectedVendorObj.id) &&
+              !inLine.has(i.code)
+            );
+            if (lowItems.length === 0) return null;
+            const addLowStockItem = (it) => {
+              const shortage = Math.max(0, (it.min || 0) - (it.stock || 0));
+              const qty  = Math.max(shortage, Math.max(1, it.min || 1));
+              const rate = it.lastPurchaseRate || 0;
+              setForm((f) => ({
+                ...f,
+                lineItems: [...(f.lineItems || []), { code: it.code, name: it.name, category: it.category, unit: it.unit, qty, rate, amount: qty * rate }],
+              }));
+            };
+            const addAllLowStockItems = () => {
+              const lines = lowItems.map((it) => {
+                const shortage = Math.max(0, (it.min || 0) - (it.stock || 0));
+                const qty  = Math.max(shortage, Math.max(1, it.min || 1));
+                const rate = it.lastPurchaseRate || 0;
+                return { code: it.code, name: it.name, category: it.category, unit: it.unit, qty, rate, amount: qty * rate };
+              });
+              setForm((f) => ({ ...f, lineItems: [...(f.lineItems || []), ...lines] }));
+            };
+            return (
+              <div className="mb-3 p-3 rounded-xl"
+                   style={{ background: "rgba(34,197,94,0.05)", border: "1px solid rgba(34,197,94,0.25)" }}>
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <div className="text-[11px] font-bold text-emerald-300">📦 Low Stock for {form.vendor}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">{lowItems.length} preferred low-stock item{lowItems.length !== 1 ? "s" : ""} · tap to add to PO</div>
+                  </div>
+                  <button onClick={addAllLowStockItems}
+                          className="text-[10px] font-bold px-2.5 py-1 rounded-lg text-emerald-300 border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 transition-all">
+                    + Add All ({lowItems.length})
+                  </button>
+                </div>
+                <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
+                  {lowItems.map((it) => {
+                    const shortage = Math.max(0, (it.min || 0) - (it.stock || 0));
+                    return (
+                      <button key={it.code} onClick={() => addLowStockItem(it)}
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-all"
+                              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                        <span className="text-[10px]" style={{ color: it.status === "critical" ? "#f87171" : "#fbbf24" }}>{it.status === "critical" ? "🔴" : "🟠"}</span>
+                        <span className="text-[11px] font-bold text-white truncate flex-1">{it.name}</span>
+                        <span className="text-[9px] font-mono text-slate-600 flex-shrink-0">{it.code}</span>
+                        <span className="text-[9px] text-slate-500 flex-shrink-0">stock {it.stock}/{it.min} {it.unit}</span>
+                        {shortage > 0 && <span className="text-[9px] font-bold text-orange-300 flex-shrink-0">need {shortage}+</span>}
+                        <span className="text-[10px] font-bold text-emerald-300 flex-shrink-0">+ Add</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           <div>
             <PLabel text="Line Items" req />
@@ -5108,6 +5173,13 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
   const [qtyInput,     setQtyInput]     = useState("");
   const [waToast,      setWaToast]      = useState(null);
 
+  // Phase 2 — Vendor-first PO wizard. Additive entry point ("📦 Create Vendor PO"
+  // button) that opens Step 1 (Company) → Step 2 (Vendor) → POModal pre-filled.
+  // The existing "+ New PO" and per-item "Order Now" buttons are unchanged.
+  const [vendorWizStep,      setVendorWizStep]      = useState(null);  // null | "company" | "vendor"
+  const [vendorWizCompanyId, setVendorWizCompanyId] = useState(null);
+  const [vendorWizVendor,    setVendorWizVendor]    = useState(null);  // vendor NAME
+
   // WhatsApp PO confirmation — opens the exact vendor chat with a prefilled message,
   // or toasts when the vendor's mobile number is missing/invalid.
   const sendWA = (po) => {
@@ -5195,6 +5267,44 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
     setShowCreatePO(true);
   };
 
+  // ── Phase 2 — Vendor-first PO wizard helpers ──────────────────────────────
+  // Vendors that have ≥1 PREFERRED low-stock item, sorted by item count desc.
+  // Approved/Backup links do NOT count (Rule 1). The result drives Step 2.
+  const vendorsWithPreferredLowStock = (() => {
+    const counts = new Map();
+    for (const it of allItems) {
+      if (it.status !== "critical" && it.status !== "warning") continue;
+      const pref = (it.vendorLinks || []).find((l) => l.role === "Preferred");
+      if (!pref) continue;
+      const v = vendorList.find((x) => x.id === pref.vendorId);
+      if (!v) continue;
+      counts.set(v.name, (counts.get(v.name) || 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  })();
+  const openVendorWizard = () => {
+    const cfg = normalizePOSettings(settings);
+    setVendorWizCompanyId(cfg.activeCompanyId);
+    setVendorWizVendor(null);
+    setVendorWizStep("company");
+  };
+  const cancelVendorWizard = () => { setVendorWizStep(null); setVendorWizVendor(null); };
+  const confirmWizCompany  = () => { if (vendorWizCompanyId) setVendorWizStep("vendor"); };
+  const confirmWizVendor   = () => {
+    if (!vendorWizVendor) return;
+    // Hand off to POModal. Vendor stays editable; companyId is honored by POModal init.
+    setCreatePrefill({
+      vendor:        vendorWizVendor,
+      companyId:     vendorWizCompanyId,
+      vendorWizard:  true,
+      lineItems:     [],
+    });
+    setShowCreatePO(true);
+    setVendorWizStep(null);
+  };
+
   // ── sub-components ──────────────────────────────────────────────────────────
   const ColHdr = ({ icon, title, count, color }) => (
     <div className="flex items-center justify-between mb-3">
@@ -5243,6 +5353,13 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
       )}
 
       <Topbar title="Order Pipeline" subtitle={`${lowStock.length} low stock · ${approvalPOs.length} pending approval · ${makeOrderPOs.length} ready to order · ${enrichedFU.length} follow-ups · ${receivedPOs.length} received`}>
+        {canDo("pipeline","create") && (
+          <button onClick={openVendorWizard}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
+                  style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", borderColor: "rgba(34,197,94,0.5)" }}>
+            📦 Create Vendor PO
+          </button>
+        )}
         {canDo("pipeline","create") && (
           <button onClick={() => { setCreatePrefill(null); setShowCreatePO(true); }}
                   className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
@@ -5527,6 +5644,119 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
           }}
           onClose={() => { setShowCreatePO(false); setCreatePrefill(null); }}
         />
+      )}
+
+      {/* ── Phase 2 — Vendor PO Wizard Step 1: Select Company ── */}
+      {vendorWizStep === "company" && (() => {
+        const cfg = normalizePOSettings(settings);
+        return (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+               style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
+               onClick={(e) => e.target === e.currentTarget && cancelVendorWizard()}>
+            <div className="w-full max-w-md rounded-2xl p-6 space-y-4"
+                 style={{ background: "#0d1018", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black text-emerald-300"
+                     style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.35)" }}>1</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-black text-white">Select Company</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">Which company is issuing this PO?</div>
+                </div>
+                <button onClick={cancelVendorWizard} className="text-slate-500 hover:text-white text-lg leading-none">✕</button>
+              </div>
+              <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                {cfg.companies.map((c) => {
+                  const sel = vendorWizCompanyId === c.id;
+                  return (
+                    <button key={c.id} onClick={() => setVendorWizCompanyId(c.id)}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all"
+                            style={{ background: sel ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.03)", border: `1px solid ${sel ? "rgba(34,197,94,0.45)" : "rgba(255,255,255,0.08)"}` }}>
+                      <span className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{ background: sel ? "#16a34a" : "transparent", border: `1.5px solid ${sel ? "#16a34a" : "rgba(255,255,255,0.25)"}` }}>
+                        {sel && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
+                      {c.logo
+                        ? <img src={c.logo} alt="" className="w-7 h-7 rounded object-contain bg-white/5 flex-shrink-0" />
+                        : <span className="text-base flex-shrink-0">🏭</span>}
+                      <span className="text-[12px] font-bold text-white flex-1 truncate">{c.name || "(unnamed)"}</span>
+                      {c.id === cfg.activeCompanyId && <span className="text-[9px] font-bold text-emerald-400 flex-shrink-0">ACTIVE</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={cancelVendorWizard}
+                        className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-all"
+                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>Cancel</button>
+                <button onClick={confirmWizCompany} disabled={!vendorWizCompanyId}
+                        className="flex-1 py-2.5 rounded-xl text-xs font-black text-white transition-all disabled:opacity-50"
+                        style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.35)" }}>
+                  Next → Vendor
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Phase 2 — Vendor PO Wizard Step 2: Select Vendor (preferred low-stock only) ── */}
+      {vendorWizStep === "vendor" && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
+             onClick={(e) => e.target === e.currentTarget && cancelVendorWizard()}>
+          <div className="w-full max-w-md rounded-2xl p-6 space-y-4"
+               style={{ background: "#0d1018", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black text-emerald-300"
+                   style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.35)" }}>2</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-black text-white">Select Vendor</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">Vendors with preferred low-stock items, sorted by item count.</div>
+              </div>
+              <button onClick={cancelVendorWizard} className="text-slate-500 hover:text-white text-lg leading-none">✕</button>
+            </div>
+            {vendorsWithPreferredLowStock.length === 0 ? (
+              <div className="py-6 text-center">
+                <div className="text-3xl mb-2">✅</div>
+                <div className="text-sm font-bold text-white mb-1">No low-stock items with a preferred vendor</div>
+                <div className="text-[11px] text-slate-500">Either everything is in safe stock, or low-stock items don't have a Preferred vendor link yet.</div>
+              </div>
+            ) : (
+              <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                {vendorsWithPreferredLowStock.map((v) => {
+                  const sel = vendorWizVendor === v.name;
+                  return (
+                    <button key={v.name} onClick={() => setVendorWizVendor(v.name)}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all"
+                            style={{ background: sel ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.03)", border: `1px solid ${sel ? "rgba(34,197,94,0.45)" : "rgba(255,255,255,0.08)"}` }}>
+                      <span className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{ background: sel ? "#16a34a" : "transparent", border: `1.5px solid ${sel ? "#16a34a" : "rgba(255,255,255,0.25)"}` }}>
+                        {sel && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
+                      <span className="text-[12px] font-bold text-white flex-1 truncate">{v.name}</span>
+                      <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full flex-shrink-0">
+                        {v.count} low-stock item{v.count !== 1 ? "s" : ""}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setVendorWizStep("company")}
+                      className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-all"
+                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>← Back</button>
+              <button onClick={cancelVendorWizard}
+                      className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-all"
+                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>Cancel</button>
+              <button onClick={confirmWizVendor} disabled={!vendorWizVendor}
+                      className="flex-1 py-2.5 rounded-xl text-xs font-black text-white transition-all disabled:opacity-50"
+                      style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.35)" }}>
+                Open PO →
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── View PO Modal ── */}
