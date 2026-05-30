@@ -35,7 +35,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-05-29f";
+const APP_BUILD = "2026-05-30a-phase1";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -1177,14 +1177,30 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
         {/* Header */}
         <div className="px-6 py-5 border-b border-white/[0.08] flex items-start justify-between flex-shrink-0"
              style={{ background: "linear-gradient(90deg,rgba(59,130,246,0.1),rgba(99,102,241,0.05))" }}>
-          <div className="flex-1 min-w-0 pr-3">
-            <div className="text-[15px] font-semibold text-white leading-snug truncate">{item.name}</div>
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              <span className="text-[10px] font-mono font-bold text-blue-400">{item.code}</span>
-              <span className="text-slate-700">·</span>
-              <StatusBadge status={item.status} />
-              <span className="text-slate-700">·</span>
-              <span className="text-[10px] text-slate-500">{category}</span>
+          <div className="flex-1 min-w-0 pr-3 flex items-start gap-3">
+            {/* Optional item photo (Phase 1 item media) */}
+            {item.photo && (
+              <a href={item.photo} target="_blank" rel="noreferrer" title="Open photo"
+                 className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0"
+                 style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
+                <img src={item.photo} alt={item.name} className="w-full h-full object-cover" />
+              </a>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="text-[15px] font-semibold text-white leading-snug truncate">{item.name}</div>
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                <span className="text-[10px] font-mono font-bold text-blue-400">{item.code}</span>
+                <span className="text-slate-700">·</span>
+                <StatusBadge status={item.status} />
+                <span className="text-slate-700">·</span>
+                <span className="text-[10px] text-slate-500">{category}</span>
+                {item.designFile && (
+                  <a href={item.designFile} target="_blank" rel="noreferrer" title={item.designName || "Open design"}
+                     className="text-[10px] font-bold text-violet-300 bg-violet-500/10 border border-violet-500/30 px-2 py-0.5 rounded-full hover:bg-violet-500/20 transition-all">
+                    📐 View Design
+                  </a>
+                )}
+              </div>
             </div>
           </div>
           <button onClick={onClose}
@@ -1820,6 +1836,33 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
   const vendorDropRef  = useRef(null);
   const vendorSearchRef = useRef(null);
 
+  // Optional media — Phase 1 item-media support (migration 016). Pure metadata; no
+  // impact on stock calculations or inventory logic. Capped at 800 KB per file.
+  const [photo,       setPhoto]       = useState(initialValues?.photo       || "");
+  const [designFile,  setDesignFile]  = useState(initialValues?.designFile  || "");
+  const [designName,  setDesignName]  = useState(initialValues?.designName  || "");
+  const photoInputRef  = useRef(null);
+  const designInputRef = useRef(null);
+
+  const onPickPhoto = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 800 * 1024) { alert("Please use a photo under 800 KB."); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => setPhoto(ev.target.result);
+    reader.readAsDataURL(file);
+  };
+  const onPickDesign = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 800 * 1024) { alert("Please keep the design under 800 KB."); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => { setDesignFile(ev.target.result); setDesignName(file.name); };
+    reader.readAsDataURL(file);
+  };
+
   useEffect(() => {
     if (!dropOpen) return;
     const handler = (e) => {
@@ -1890,6 +1933,8 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
       vendor:           primaryVendor?.name || preferredLink?.vendorName || "",
       vendorPhone:      primaryVendor?.phone || "",
       lastPurchaseRate: Number(form.lastPurchaseRate) || 0,
+      // Phase 1 — optional media metadata (no impact on stock)
+      photo, designFile, designName,
     });
   };
 
@@ -2206,6 +2251,54 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
                 Inventory value: <span className="text-green-400 font-bold">₹{(Number(form.stock) * Number(form.lastPurchaseRate)).toLocaleString("en-IN")}</span>
               </div>
             )}
+          </div>
+
+          {/* Row 6 — Optional media (photo + design). Phase 1 item-media support. */}
+          <div>
+            <Label text="Item Media (optional)" />
+            <div className="grid grid-cols-2 gap-3">
+              {/* Photo */}
+              <div className="flex items-center gap-3 p-3 rounded-xl"
+                   style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
+                     style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  {photo ? <img src={photo} alt="" className="w-full h-full object-cover" /> : <span className="text-xl">📷</span>}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-semibold text-slate-300 mb-1">Item Photo</div>
+                  <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={onPickPhoto} />
+                  <div className="flex gap-1.5">
+                    <button onClick={() => photoInputRef.current?.click()}
+                            className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-white/[0.1] text-slate-300 hover:border-white/20 transition-all">Upload</button>
+                    {photo && <button onClick={() => setPhoto("")}
+                            className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-all">Remove</button>}
+                  </div>
+                  <div className="text-[9px] text-slate-600 mt-1">PNG/JPG, under 800 KB</div>
+                </div>
+              </div>
+              {/* Design / Drawing */}
+              <div className="flex items-center gap-3 p-3 rounded-xl"
+                   style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
+                     style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  {designFile
+                    ? (designFile.startsWith("data:image/") ? <img src={designFile} alt="" className="w-full h-full object-cover" /> : <span className="text-lg">📄</span>)
+                    : <span className="text-xl">📐</span>}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-semibold text-slate-300 mb-1">Design / Drawing</div>
+                  <input ref={designInputRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={onPickDesign} />
+                  <div className="flex gap-1.5">
+                    <button onClick={() => designInputRef.current?.click()}
+                            className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-white/[0.1] text-slate-300 hover:border-white/20 transition-all">Upload</button>
+                    {designFile && <button onClick={() => { setDesignFile(""); setDesignName(""); }}
+                            className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-all">Remove</button>}
+                  </div>
+                  {designName && <div className="text-[9px] text-slate-500 mt-1 truncate" title={designName}>📎 {designName}</div>}
+                  <div className="text-[9px] text-slate-600 mt-0.5">PNG/JPG/PDF, under 800 KB</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

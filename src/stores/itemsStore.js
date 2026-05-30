@@ -64,7 +64,19 @@ function fromRow(r) {
     vendorLinks:      r.vendor_links || [],
     trend:            Array.isArray(r.trend) ? r.trend : [0, 0, 0, 0, stock],
     history:          [],                          // hydrated on demand from item_history
+    // Optional media (migration 016). NULL when the migration hasn't been run.
+    photo:            r.photo || "",
+    designFile:       r.design_file || "",
+    designName:       r.design_name || "",
   };
+}
+
+// Detect "column does not exist" / "schema cache miss" errors so we can retry without
+// the new media columns when migration 016 hasn't been run yet (same pattern as posStore).
+function isMissingColumnError(err) {
+  if (!err) return false;
+  if (err.code === "42703" || err.code === "PGRST204") return true;
+  return /column .* does not exist|schema cache|could not find the .* column/i.test(err.message || err.details || err.hint || "");
 }
 
 function historyFromRow(r) {
@@ -153,12 +165,24 @@ export async function createItem(category, item) {
     if (!c) { console.error(`[${traceId}] step 2.5 — NO CLIENT, abort`); return { success: false, error: "Supabase not configured" }; }
     console.log(`[${traceId}] step 3 — client OK`);
 
-    const row = toRow(item, category);
-    console.log(`[${traceId}] step 4 — items.insert payload:`, row);
+    const baseRow = toRow(item, category);
+    // Optional media columns (migration 016). Sent on the first attempt; stripped on retry
+    // if the columns don't exist yet so item creation never breaks before migration runs.
+    const fullRow = {
+      ...baseRow,
+      photo:       item.photo       || null,
+      design_file: item.designFile  || null,
+      design_name: item.designName  || null,
+    };
+    console.log(`[${traceId}] step 4 — items.insert payload:`, fullRow);
 
     let insertData, insertError;
     try {
-      const resp = await c.from("items").insert(row).select().single();
+      let resp = await c.from("items").insert(fullRow).select().single();
+      if (resp.error && isMissingColumnError(resp.error)) {
+        console.warn(`[${traceId}] step 4.5 — media columns missing (run migration 016) — retrying without`);
+        resp = await c.from("items").insert(baseRow).select().single();
+      }
       insertData = resp.data; insertError = resp.error;
       console.log(`[${traceId}] step 5 — items.insert response:`, { data: insertData, error: insertError, status: resp.status, statusText: resp.statusText });
     } catch (thrown) {
@@ -234,7 +258,7 @@ export async function updateItem(originalCode, originalCategory, updatedItem, ne
   // METADATA-ONLY update. stock / status / trend / reserved_stock / available_stock are
   // engine-managed — they may ONLY change via record_stock_movement. Editing an item never
   // mutates physical stock; a stock correction goes through handleInventoryCorrection → RPC.
-  const row = {
+  const baseRow = {
     code:               updatedItem.code,
     name:               updatedItem.name,
     category:           (newCategory || originalCategory) || updatedItem.category,
@@ -245,7 +269,19 @@ export async function updateItem(originalCode, originalCategory, updatedItem, ne
     last_purchase_rate: updatedItem.lastPurchaseRate  || null,
     vendor_links:       updatedItem.vendorLinks  || [],
   };
-  const { data, error } = await c.from("items").update(row).eq("code", originalCode).select().single();
+  // Optional media columns (migration 016). Retry without them on schema miss.
+  const fullRow = {
+    ...baseRow,
+    photo:       updatedItem.photo       || null,
+    design_file: updatedItem.designFile  || null,
+    design_name: updatedItem.designName  || null,
+  };
+  let resp = await c.from("items").update(fullRow).eq("code", originalCode).select().single();
+  if (resp.error && isMissingColumnError(resp.error)) {
+    console.warn("[items:update] media columns missing (run migration 016) — retrying without");
+    resp = await c.from("items").update(baseRow).eq("code", originalCode).select().single();
+  }
+  const { data, error } = resp;
   if (error) { console.error("[items:update] supabase failed", error); return { success: false, error: error.message }; }
   const updated = fromRow(data);
   console.info("[items:update] supabase ok", { id: updated.id });
