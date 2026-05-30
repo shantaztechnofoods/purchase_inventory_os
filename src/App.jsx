@@ -36,7 +36,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-05-30c-phase2";
+const APP_BUILD = "2026-05-30d-phase3";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -2953,7 +2953,10 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
     setAddErr("");
     setForm((f) => ({
       ...f,
-      lineItems: [...f.lineItems, { code: inv.code, name: inv.name, category: inv.category, unit: inv.unit, qty, rate, amount: qty * rate }],
+      // Phase 3 — snapshot the design at add-time so the PO retains what was attached
+      // even if the item's design is replaced later. attachDesign defaults to false.
+      lineItems: [...f.lineItems, { code: inv.code, name: inv.name, category: inv.category, unit: inv.unit, qty, rate, amount: qty * rate,
+                                    designFile: inv.designFile || "", designName: inv.designName || "", attachDesign: false }],
     }));
     setAddCode(""); setAddQty(""); setAddRate("");
   };
@@ -3160,7 +3163,8 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
               const rate = it.lastPurchaseRate || 0;
               setForm((f) => ({
                 ...f,
-                lineItems: [...(f.lineItems || []), { code: it.code, name: it.name, category: it.category, unit: it.unit, qty, rate, amount: qty * rate }],
+                lineItems: [...(f.lineItems || []), { code: it.code, name: it.name, category: it.category, unit: it.unit, qty, rate, amount: qty * rate,
+                                                      designFile: it.designFile || "", designName: it.designName || "", attachDesign: false }],
               }));
             };
             const addAllLowStockItems = () => {
@@ -3168,7 +3172,8 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                 const shortage = Math.max(0, (it.min || 0) - (it.stock || 0));
                 const qty  = Math.max(shortage, Math.max(1, it.min || 1));
                 const rate = it.lastPurchaseRate || 0;
-                return { code: it.code, name: it.name, category: it.category, unit: it.unit, qty, rate, amount: qty * rate };
+                return { code: it.code, name: it.name, category: it.category, unit: it.unit, qty, rate, amount: qty * rate,
+                         designFile: it.designFile || "", designName: it.designName || "", attachDesign: false };
               });
               setForm((f) => ({ ...f, lineItems: [...(f.lineItems || []), ...lines] }));
             };
@@ -3240,7 +3245,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-white/[0.06]" style={{ background: "rgba(255,255,255,0.02)" }}>
-                      {["Item","Qty","Rate ₹","Amount ₹",""].map((h) => (
+                      {["Item","Qty","Rate ₹","Amount ₹","📎 Design",""].map((h) => (
                         <th key={h} className="text-left text-[10px] font-medium text-slate-500 uppercase tracking-wider px-3 py-2">{h}</th>
                       ))}
                     </tr>
@@ -3255,6 +3260,34 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                         <td className="px-3 py-2 text-xs font-mono text-slate-300 text-right">{li.qty}</td>
                         <td className="px-3 py-2 text-xs font-mono text-slate-300 text-right">{li.rate.toLocaleString("en-IN")}</td>
                         <td className="px-3 py-2 text-xs font-bold font-mono text-green-400 text-right">₹{li.amount.toLocaleString("en-IN")}</td>
+                        {/* Phase 3 — per-line "Attach Design" checkbox. Enabled only when the
+                            item has a design file; disabled+tooltip otherwise. Unchecked = no
+                            extra PDF page produced for this line, preserving today's PDF. */}
+                        <td className="px-3 py-2">
+                          {li.designFile ? (
+                            <button
+                              onClick={() => setForm((f) => ({ ...f, lineItems: f.lineItems.map((x, i) => i === idx ? { ...x, attachDesign: !x.attachDesign } : x) }))}
+                              title={li.attachDesign ? `Will attach: ${li.designName || "design"}` : `Click to attach ${li.designName || "design"} as an extra PDF page`}
+                              className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-md transition-all"
+                              style={{
+                                background:  li.attachDesign ? "rgba(139,92,246,0.18)" : "rgba(255,255,255,0.04)",
+                                color:       li.attachDesign ? "#c4b5fd" : "#94a3b8",
+                                border:      `1px solid ${li.attachDesign ? "rgba(139,92,246,0.45)" : "rgba(255,255,255,0.08)"}`,
+                              }}>
+                              <span className="w-3 h-3 rounded-sm flex items-center justify-center"
+                                    style={{ background: li.attachDesign ? "#8b5cf6" : "transparent", border: `1.5px solid ${li.attachDesign ? "#8b5cf6" : "rgba(255,255,255,0.25)"}` }}>
+                                {li.attachDesign && <span className="text-white text-[8px] font-black">✓</span>}
+                              </span>
+                              {li.attachDesign ? "Attach" : "Attach"}
+                            </button>
+                          ) : (
+                            <span title="No design uploaded for this item — add one in Inventory → Edit Item → Item Media"
+                                  className="inline-flex items-center gap-1.5 text-[10px] text-slate-700 cursor-not-allowed">
+                              <span className="w-3 h-3 rounded-sm" style={{ border: "1.5px solid rgba(255,255,255,0.10)" }} />
+                              —
+                            </span>
+                          )}
+                        </td>
                         <td className="px-3 py-2">
                           <button onClick={() => setForm((f) => ({ ...f, lineItems: f.lineItems.filter((_, i) => i !== idx) }))}
                                   className="w-5 h-5 rounded text-xs text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all flex items-center justify-center">✕</button>
@@ -5262,6 +5295,8 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         code: item.code, name: item.name, category: item.category || Object.keys(items).find(cat => items[cat]?.some(i=>i.code===item.code)) || "Other",
         unit: item.unit, qty: suggestedQty, rate: item.lastPurchaseRate || 0,
         amount: suggestedQty * (item.lastPurchaseRate || 0),
+        // Phase 3 — snapshot design (unchecked by default; user opts in via checkbox)
+        designFile: item.designFile || "", designName: item.designName || "", attachDesign: false,
       }],
     });
     setShowCreatePO(true);

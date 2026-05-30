@@ -157,6 +157,48 @@ export function buildPOHtml(po, vendor = {}, company = {}, opts = {}) {
          <div>${sigImg}<div class="sig-lbl" style="margin-bottom:${sigImg ? "2px" : "22px"}">Authorized Signatory</div><div class="sig-line">${esc(company.signatoryName) || "For " + esc(company.name)}</div></div>
        </div>` : "";
 
+  // ── Phase 3 — per-line attached designs ──────────────────────────────────────
+  // For every line item with attachDesign === true AND a designFile URL, append an
+  // extra A4 page after the PO. Images are inlined; PDFs (which can't be reliably
+  // embedded in a print window) render a "Open attached PDF" link as fallback so
+  // the recipient still gets to the file. A PO with no boxes ticked produces zero
+  // extra HTML — bit-for-bit identical to the previous PDF output.
+  const isImageUrl = (u = "") =>
+    /^data:image\//i.test(u) ||
+    /\.(png|jpe?g|gif|webp|svg|bmp)(\?|#|$)/i.test(u);
+  const isPdfUrl = (u = "") =>
+    /^data:application\/pdf/i.test(u) ||
+    /\.pdf(\?|#|$)/i.test(u);
+  const designAttachments = (po.lineItems || []).filter((li) => li && li.attachDesign && li.designFile);
+  const designPagesHtml = designAttachments.map((li, i) => {
+    const url   = li.designFile;
+    const label = esc(li.name) + (li.code ? ` <span style="color:#888;font-family:monospace;font-size:10px">(${esc(li.code)})</span>` : "");
+    const body  = isImageUrl(url)
+      ? `<img src="${url}" alt="${esc(li.designName || li.name)}" style="max-width:100%;max-height:78vh;object-fit:contain;display:block;margin:0 auto" />`
+      : isPdfUrl(url)
+        ? `<div style="margin-top:30px;padding:20px;border:1px dashed #aaa;border-radius:8px;background:#fafbfd;font-size:12px;color:#444">
+             <div style="font-weight:700;margin-bottom:6px;color:${tpl.accent}">📄 Attached PDF design</div>
+             <div style="margin-bottom:10px">${esc(li.designName || "design.pdf")}</div>
+             <a href="${url}" target="_blank" style="color:${tpl.accent};font-weight:700">Open PDF design →</a>
+             <div style="margin-top:10px;font-size:10px;color:#888">Browsers can't always inline PDFs inside a print window. Open the link above to view/print the design.</div>
+           </div>`
+        : `<div style="margin-top:30px;padding:20px;border:1px dashed #aaa;border-radius:8px;background:#fafbfd;font-size:12px;color:#444">
+             <div style="font-weight:700;margin-bottom:6px;color:${tpl.accent}">📎 Attached design</div>
+             <div style="margin-bottom:10px">${esc(li.designName || "design")}</div>
+             <a href="${url}" target="_blank" style="color:${tpl.accent};font-weight:700">Open attached design →</a>
+           </div>`;
+    return `<div style="page-break-before:always;padding-top:12px">
+              <div style="border-bottom:2px solid ${tpl.accent};padding-bottom:8px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:baseline">
+                <div>
+                  <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#888">Attached Design ${i + 1} of ${designAttachments.length}</div>
+                  <div style="font-size:14px;font-weight:700;color:${tpl.accent};margin-top:2px">${label}</div>
+                </div>
+                <div style="font-size:10px;color:#888">PO ${esc(po.id)}</div>
+              </div>
+              ${body}
+            </div>`;
+  }).join("");
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><title>PO-${esc(po.id)}</title>
@@ -256,6 +298,7 @@ ${bankHtml}
 ${termsHtml}
 ${declHtml}
 ${sigHtml}
+${designPagesHtml}
 ${opts.preview ? "" : `<script>window.onload=function(){window.print()};<\/script>`}
 </body></html>`;
 }
