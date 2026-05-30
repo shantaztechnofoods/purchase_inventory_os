@@ -24,6 +24,7 @@ import { fetchMachines, createMachine as machineCreate, updateMachine as machine
 import { useRealtimeTables } from "./realtime/useRealtimeTables.js";
 import { fetchRecentMovements, MOVEMENT_META } from "./stores/stockMovementsStore.js";
 import { sendPOWhatsApp, openVendorWhatsApp, waErrorToast } from "./utils/whatsapp.js";
+import { uploadItemMedia, MAX_UPLOAD_BYTES } from "./utils/storage.js";
 import POSettings from "./components/POSettings.jsx";
 import { getActiveCompany, normalizePOSettings, openPOPdf, PO_TEMPLATE_OPTIONS } from "./utils/poTemplate.js";
 import {
@@ -35,7 +36,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-05-30a-phase1";
+const APP_BUILD = "2026-05-30b-phase1-storage";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -1836,31 +1837,41 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
   const vendorDropRef  = useRef(null);
   const vendorSearchRef = useRef(null);
 
-  // Optional media — Phase 1 item-media support (migration 016). Pure metadata; no
-  // impact on stock calculations or inventory logic. Capped at 800 KB per file.
+  // Optional media — Phase 1 item-media support. Files are uploaded to the
+  // Supabase Storage bucket "item-media" (migration 017) and only the public URL
+  // is stored in items.photo / items.design_file (migration 016). Pure metadata;
+  // no impact on stock calculations or inventory logic. 25 MB per file.
   const [photo,       setPhoto]       = useState(initialValues?.photo       || "");
   const [designFile,  setDesignFile]  = useState(initialValues?.designFile  || "");
   const [designName,  setDesignName]  = useState(initialValues?.designName  || "");
+  const [photoBusy,   setPhotoBusy]   = useState(false);
+  const [designBusy,  setDesignBusy]  = useState(false);
+  const [mediaErr,    setMediaErr]    = useState("");
   const photoInputRef  = useRef(null);
   const designInputRef = useRef(null);
+  const MAX_MB = Math.round(MAX_UPLOAD_BYTES / 1024 / 1024);
 
-  const onPickPhoto = (e) => {
+  const onPickPhoto = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (file.size > 800 * 1024) { alert("Please use a photo under 800 KB."); return; }
-    const reader = new FileReader();
-    reader.onload = (ev) => setPhoto(ev.target.result);
-    reader.readAsDataURL(file);
+    setMediaErr(""); setPhotoBusy(true);
+    try {
+      const res = await uploadItemMedia("photos", file);
+      if (!res.ok) { setMediaErr("Photo upload failed: " + res.error); return; }
+      setPhoto(res.url);
+    } finally { setPhotoBusy(false); }
   };
-  const onPickDesign = (e) => {
+  const onPickDesign = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (file.size > 800 * 1024) { alert("Please keep the design under 800 KB."); return; }
-    const reader = new FileReader();
-    reader.onload = (ev) => { setDesignFile(ev.target.result); setDesignName(file.name); };
-    reader.readAsDataURL(file);
+    setMediaErr(""); setDesignBusy(true);
+    try {
+      const res = await uploadItemMedia("designs", file);
+      if (!res.ok) { setMediaErr("Design upload failed: " + res.error); return; }
+      setDesignFile(res.url); setDesignName(file.name);
+    } finally { setDesignBusy(false); }
   };
 
   useEffect(() => {
@@ -2253,7 +2264,8 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
             )}
           </div>
 
-          {/* Row 6 — Optional media (photo + design). Phase 1 item-media support. */}
+          {/* Row 6 — Optional media (photo + design). Files upload to Supabase
+              Storage (bucket "item-media"); only the public URL is saved on the row. */}
           <div>
             <Label text="Item Media (optional)" />
             <div className="grid grid-cols-2 gap-3">
@@ -2268,12 +2280,14 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
                   <div className="text-[11px] font-semibold text-slate-300 mb-1">Item Photo</div>
                   <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={onPickPhoto} />
                   <div className="flex gap-1.5">
-                    <button onClick={() => photoInputRef.current?.click()}
-                            className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-white/[0.1] text-slate-300 hover:border-white/20 transition-all">Upload</button>
-                    {photo && <button onClick={() => setPhoto("")}
+                    <button onClick={() => photoInputRef.current?.click()} disabled={photoBusy}
+                            className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-white/[0.1] text-slate-300 hover:border-white/20 transition-all disabled:opacity-50">
+                      {photoBusy ? "Uploading…" : "Upload"}
+                    </button>
+                    {photo && !photoBusy && <button onClick={() => setPhoto("")}
                             className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-all">Remove</button>}
                   </div>
-                  <div className="text-[9px] text-slate-600 mt-1">PNG/JPG, under 800 KB</div>
+                  <div className="text-[9px] text-slate-600 mt-1">PNG/JPG, up to {MAX_MB} MB · stored in Supabase Storage</div>
                 </div>
               </div>
               {/* Design / Drawing */}
@@ -2282,23 +2296,33 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
                 <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
                   {designFile
-                    ? (designFile.startsWith("data:image/") ? <img src={designFile} alt="" className="w-full h-full object-cover" /> : <span className="text-lg">📄</span>)
+                    ? (/\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(designFile) || designFile.startsWith("data:image/")
+                        ? <img src={designFile} alt="" className="w-full h-full object-cover" />
+                        : <span className="text-lg">📄</span>)
                     : <span className="text-xl">📐</span>}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-[11px] font-semibold text-slate-300 mb-1">Design / Drawing</div>
                   <input ref={designInputRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={onPickDesign} />
                   <div className="flex gap-1.5">
-                    <button onClick={() => designInputRef.current?.click()}
-                            className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-white/[0.1] text-slate-300 hover:border-white/20 transition-all">Upload</button>
-                    {designFile && <button onClick={() => { setDesignFile(""); setDesignName(""); }}
+                    <button onClick={() => designInputRef.current?.click()} disabled={designBusy}
+                            className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-white/[0.1] text-slate-300 hover:border-white/20 transition-all disabled:opacity-50">
+                      {designBusy ? "Uploading…" : "Upload"}
+                    </button>
+                    {designFile && !designBusy && <button onClick={() => { setDesignFile(""); setDesignName(""); }}
                             className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-all">Remove</button>}
                   </div>
                   {designName && <div className="text-[9px] text-slate-500 mt-1 truncate" title={designName}>📎 {designName}</div>}
-                  <div className="text-[9px] text-slate-600 mt-0.5">PNG/JPG/PDF, under 800 KB</div>
+                  <div className="text-[9px] text-slate-600 mt-0.5">PNG/JPG/PDF, up to {MAX_MB} MB · stored in Supabase Storage</div>
                 </div>
               </div>
             </div>
+            {mediaErr && (
+              <div className="mt-2 px-3 py-2 rounded-lg text-[11px] text-red-300 break-words"
+                   style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)" }}>
+                ⚠️ {mediaErr}
+              </div>
+            )}
           </div>
         </div>
 
