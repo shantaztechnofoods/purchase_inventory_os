@@ -55,7 +55,7 @@ const FIELD_GROUPS = [
  *      "template" shows template preset + section toggles + T&C + preview
  *      defaults to "company"
  */
-export default function POSettings({ value, onChange, isSuperAdmin = false, settings = {}, mode = "company" }) {
+export default function POSettings({ value, onChange, onPersist, isSuperAdmin = false, settings = {}, mode = "company" }) {
   const po = useMemo(() => normalizePOSettings({ ...settings, po: value }), [value, settings]);
   const [editId, setEditId] = useState(po.activeCompanyId);
   const logoRef = useRef(null);
@@ -234,6 +234,16 @@ export default function POSettings({ value, onChange, isSuperAdmin = false, sett
             <div className="text-[13px] font-black text-white truncate">{active.name || "(unnamed)"}</div>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* Per-company explicit Save — calls parent.handleSave(po) directly so the
+                fresh edits persist even if React hasn't flushed local state yet. */}
+            {onPersist && (
+              <button onClick={() => onPersist(po)}
+                      title="Save all companies to Supabase"
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-white border border-blue-500/50 transition-all"
+                      style={{ background: "linear-gradient(135deg,#2563eb,#4f46e5)", boxShadow: "0 0 10px rgba(59,130,246,0.30)" }}>
+                💾 Save Company
+              </button>
+            )}
             {po.activeCompanyId === active.id
               ? <span className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-emerald-300 bg-emerald-500/10 border border-emerald-500/30">✓ Active for POs</span>
               : <button onClick={() => setActive(active.id)}

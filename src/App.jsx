@@ -36,7 +36,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-05-30f-uxpolish";
+const APP_BUILD = "2026-05-30g-cofix";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -4948,6 +4948,11 @@ const SETTINGS_DEFAULTS = {
 };
 
 function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, isSuperAdmin = false }) {
+  // Snapshot of the last KNOWN-PERSISTED settings — used for the dirty-state pill
+  // ("Unsaved changes") so operators see they need to click Save. Updated only after
+  // a save round-trips successfully.
+  const lastSavedSnapshotRef = useRef(JSON.stringify(initialSettings));
+  const [saveError, setSaveError] = useState("");   // surfaces Supabase upsert failures
   const [settings, setSettings] = useState(() => ({ ...SETTINGS_DEFAULTS, ...initialSettings }));
   const [tab,      setTab]      = useState("company");   // Settings tab: company | po | inventory | notifications | data
   const [saved,    setSaved]    = useState(false);
@@ -4964,8 +4969,20 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
     reader.readAsDataURL(file);
   };
 
-  const handleSave = () => {
-    onSave?.(settings);
+  // Save now AWAITS the result. Success → green "✅ Saved!" + snapshot updates.
+  // Failure → red banner with the error so operators know the company didn't persist.
+  // Optional latest-po payload lets the explicit "Save Company" button persist with the
+  // current edits even before React has flushed the local state update.
+  const handleSave = async (latestPo) => {
+    setSaveError("");
+    const next = latestPo ? { ...settings, po: latestPo } : settings;
+    if (latestPo) setSettings(next);  // commit any pending po edits before persistence
+    const res = await onSave?.(next);
+    if (res && res.success === false) {
+      setSaveError(res.error || "Save failed. Please retry.");
+      return;
+    }
+    lastSavedSnapshotRef.current = JSON.stringify(next);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
@@ -5015,6 +5032,11 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
   // top-level settings object) was superseded by the multi-company PO Settings; the PDF
   // and WhatsApp flows read from settings.po.companies, not the legacy fields. Hidden
   // from UI; the legacy fields stay on the settings object for backward compat.
+  // Dirty = working-copy diverges from the last-saved snapshot. Drives the orange pill
+  // on the Save button so operators see they need to click Save before navigating away.
+  // Inline compute (cheap; the settings object is small).
+  const isDirty = JSON.stringify(settings) !== lastSavedSnapshotRef.current;
+
   const SETTINGS_TABS = [
     { id: "company",       label: "🏭 Company",        desc: "Multiple companies + active selection" },
     { id: "po",            label: "🧾 Purchase Order", desc: "Template, T&C, declaration" },
@@ -5027,12 +5049,31 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
   return (
     <div className="flex-1 overflow-y-auto">
       <Topbar title="Settings" subtitle={`${activeTab.desc} · Build ${APP_BUILD}`}>
-        <button onClick={handleSave}
+        {isDirty && !saved && (
+          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full"
+                style={{ background: "rgba(249,115,22,0.15)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.35)" }}>
+            ● Unsaved changes
+          </span>
+        )}
+        <button onClick={() => handleSave()}
                 className="inline-flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl transition-all duration-200"
                 style={{ background: saved ? "rgba(34,197,94,0.18)" : "linear-gradient(135deg,#2563eb,#4f46e5)", color: saved ? "#4ade80" : "#fff", border: saved ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(99,130,255,0.5)", boxShadow: saved ? "none" : "0 0 12px rgba(59,130,246,0.3)" }}>
           {saved ? "✅ Saved!" : "💾 Save Changes"}
         </button>
       </Topbar>
+
+      {saveError && (
+        <div className="mx-6 mt-4 max-w-5xl px-4 py-3 rounded-xl flex items-start gap-3"
+             style={{ background: "rgba(239,68,68,0.10)", border: "1px solid rgba(239,68,68,0.40)" }}>
+          <span className="text-base flex-shrink-0">⚠️</span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[12px] font-bold text-red-200">Save failed — settings did NOT persist to Supabase</div>
+            <div className="text-[11px] text-slate-400 mt-0.5 break-words">{saveError}</div>
+            <div className="text-[11px] text-slate-500 mt-1">Your local edits are still here. Fix the issue (check console for details) and click Save again.</div>
+          </div>
+          <button onClick={() => setSaveError("")} className="flex-shrink-0 text-slate-500 hover:text-white text-sm">✕</button>
+        </div>
+      )}
 
       {/* Tab bar */}
       <div className="px-6 pt-4 max-w-5xl">
@@ -5064,6 +5105,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
             settings={settings}
             isSuperAdmin={isSuperAdmin}
             onChange={(po) => upd("po", po)}
+            onPersist={(latestPo) => handleSave(latestPo)}
           />
         )}
 
@@ -5075,6 +5117,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
             settings={settings}
             isSuperAdmin={isSuperAdmin}
             onChange={(po) => upd("po", po)}
+            onPersist={(latestPo) => handleSave(latestPo)}
           />
         )}
 
@@ -9760,14 +9803,18 @@ export default function App() {
   const [auditLog,   setAuditLog]   = useState(() => getAuditLog());
   const [settings,   setSettings]   = useState(() => { try { const s = localStorage.getItem("erp_settings"); if (s) return { ...SETTINGS_DEFAULTS, ...JSON.parse(s) }; } catch {} return { ...SETTINGS_DEFAULTS }; });
 
-  // Save settings + propagate to all pages (now async — Supabase upsert when enabled)
+  // Save settings + propagate to all pages (now async — Supabase upsert when enabled).
+  // Returns the save result so the UI can SURFACE failures (the previous console.warn
+  // was invisible — operators saw "✅ Saved!" while Supabase silently rejected the row,
+  // and the next hydration overrode the local copy with the stale remote value).
   const handleSaveSettings = async (newSettings) => {
     console.info("[App] handleSaveSettings called");
     setSettings(newSettings);                            // optimistic UI
-    const res = await saveSettings(newSettings);        // logs internally
-    if (!res.success && typeof console !== "undefined") {
+    const res = await saveSettings(newSettings);
+    if (!res.success) {
       console.warn("[App] handleSaveSettings: Supabase save failed —", res.error);
     }
+    return res;
   };
 
   // Realtime — re-fetch authoritative state on any row change. Handlers are stabilized with
@@ -9822,7 +9869,22 @@ export default function App() {
         fetchPending(), fetchFollowUps(), fetchMachines(),
       ]);
       if (cancelled) return;
-      if (s) setSettings((prev) => ({ ...prev, ...s }));
+      if (s) setSettings((prev) => {
+        // Hydration-safety: if the remote settings row is missing companies but the
+        // local cache has them (e.g. previous save Supabase-rejected, or a stale
+        // pre-PO-settings row), KEEP the local companies. Without this guard the blind
+        // spread used to silently wipe newly-added companies on every page reload.
+        const remotePo = s.po;
+        const localPo  = prev.po;
+        const remoteHasCompanies = remotePo && Array.isArray(remotePo.companies) && remotePo.companies.length > 0;
+        const localHasCompanies  = localPo  && Array.isArray(localPo.companies)  && localPo.companies.length > 0;
+        const merged = { ...prev, ...s };
+        if (localHasCompanies && !remoteHasCompanies) {
+          console.warn("[App] hydration: remote settings.po has no companies but local does — keeping local copy");
+          merged.po = localPo;
+        }
+        return merged;
+      });
       if (v) setVendorList(v);
       if (i && Object.keys(i).length >= 0) setItems(i);
       if (b && Object.keys(b).length >= 0) setBomDefs(b);
