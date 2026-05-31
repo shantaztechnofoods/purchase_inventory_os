@@ -36,7 +36,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-05-30e-fixes";
+const APP_BUILD = "2026-05-30f-uxpolish";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -4949,6 +4949,7 @@ const SETTINGS_DEFAULTS = {
 
 function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, isSuperAdmin = false }) {
   const [settings, setSettings] = useState(() => ({ ...SETTINGS_DEFAULTS, ...initialSettings }));
+  const [tab,      setTab]      = useState("company");   // Settings tab: company | po | inventory | notifications | data
   const [saved,    setSaved]    = useState(false);
   const [backupOk, setBackupOk] = useState(false);
   const logoRef = useRef(null);
@@ -5009,9 +5010,23 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
   // Defining them inside this component remounted every <Section> subtree on each
   // keystroke (new function identity per render), which stole focus from inputs.
 
+  // Settings tabs — compact, professional, no long scroll.
+  // The legacy single-company section (companyName/gst/phone/email/address/logo on the
+  // top-level settings object) was superseded by the multi-company PO Settings; the PDF
+  // and WhatsApp flows read from settings.po.companies, not the legacy fields. Hidden
+  // from UI; the legacy fields stay on the settings object for backward compat.
+  const SETTINGS_TABS = [
+    { id: "company",       label: "🏭 Company",        desc: "Multiple companies + active selection" },
+    { id: "po",            label: "🧾 Purchase Order", desc: "Template, T&C, declaration" },
+    { id: "inventory",     label: "📦 Inventory",      desc: "Currency + low-stock rules" },
+    { id: "notifications", label: "🔔 Notifications",  desc: "WhatsApp / email alerts" },
+    { id: "data",          label: "💾 Data & Backup",  desc: "Export + backup" },
+  ];
+  const activeTab = SETTINGS_TABS.find((t) => t.id === tab) || SETTINGS_TABS[0];
+
   return (
     <div className="flex-1 overflow-y-auto">
-      <Topbar title="Settings" subtitle={`Manage company details, alerts and data · Build ${APP_BUILD}`}>
+      <Topbar title="Settings" subtitle={`${activeTab.desc} · Build ${APP_BUILD}`}>
         <button onClick={handleSave}
                 className="inline-flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl transition-all duration-200"
                 style={{ background: saved ? "rgba(34,197,94,0.18)" : "linear-gradient(135deg,#2563eb,#4f46e5)", color: saved ? "#4ade80" : "#fff", border: saved ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(99,130,255,0.5)", boxShadow: saved ? "none" : "0 0 12px rgba(59,130,246,0.3)" }}>
@@ -5019,150 +5034,118 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
         </button>
       </Topbar>
 
-      <div className="p-6 max-w-2xl space-y-5">
+      {/* Tab bar */}
+      <div className="px-6 pt-4 max-w-5xl">
+        <div className="flex gap-1 border-b border-white/[0.07] overflow-x-auto">
+          {SETTINGS_TABS.map((t) => {
+            const sel = t.id === tab;
+            return (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                      className="text-[12px] font-bold px-3.5 py-2.5 -mb-px transition-all whitespace-nowrap"
+                      style={{
+                        color:       sel ? "#fff" : "#94a3b8",
+                        background:  sel ? "rgba(59,130,246,0.10)" : "transparent",
+                        borderBottom: `2px solid ${sel ? "#3b82f6" : "transparent"}`,
+                      }}>
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-        {/* ── 1. Company ── */}
-        <Section icon="🏭" title="Company">
-          <div className="space-y-4">
+      <div className="px-6 pb-8 pt-5 max-w-5xl">
 
-            {/* Logo upload */}
-            <div className="flex items-center gap-4 pb-4 border-b border-white/[0.06]">
-              <div className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"
-                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                {settings.logo
-                  ? <img src={settings.logo} alt="logo" className="w-full h-full object-contain" />
-                  : <span className="text-2xl">🏭</span>}
-              </div>
-              <div>
-                <div className="text-[12px] font-semibold text-slate-300 mb-1">Company Logo</div>
-                <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-                <div className="flex gap-2">
-                  <button onClick={() => logoRef.current?.click()}
-                          className="text-[11px] font-bold px-3 py-1.5 rounded-lg border border-white/[0.1] text-slate-300 hover:text-white hover:border-white/20 transition-all">
-                    Upload Logo
-                  </button>
-                  {settings.logo && (
-                    <button onClick={() => upd("logo", "")}
-                            className="text-[11px] font-bold px-3 py-1.5 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-all">
-                      Remove
-                    </button>
-                  )}
-                </div>
-                <div className="text-[10px] text-slate-600 mt-1">PNG, JPG — shown on printed POs</div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <SLabel text="Company Name" />
-                <input value={settings.companyName} onChange={(e) => upd("companyName", e.target.value)}
-                       placeholder="e.g. Shantaz Technofoods Pvt Ltd" className={inpCls} />
-              </div>
-              <div>
-                <SLabel text="GST Number" />
-                <input value={settings.gst} onChange={(e) => upd("gst", e.target.value)}
-                       placeholder="e.g. 24AABCS1234L1ZN" className={inpCls} />
-              </div>
-              <div>
-                <SLabel text="Phone" />
-                <input value={settings.phone} onChange={(e) => upd("phone", e.target.value)}
-                       placeholder="+91 98765 43210" className={inpCls} />
-              </div>
-              <div className="col-span-2">
-                <SLabel text="Email" />
-                <input type="email" value={settings.email} onChange={(e) => upd("email", e.target.value)}
-                       placeholder="purchase@yourcompany.com" className={inpCls} />
-              </div>
-              <div className="col-span-2">
-                <SLabel text="Address" />
-                <textarea value={settings.address} onChange={(e) => upd("address", e.target.value)}
-                          placeholder="Factory / office address" rows={2}
-                          className={inpCls + " resize-none"} />
-              </div>
-            </div>
-          </div>
-        </Section>
-
-        {/* ── 2. Purchase Order Templates & Company Profiles ── */}
-        <Section icon="🧾" title="Purchase Order Settings">
+        {/* ── Company tab ───────────────────────────────────────────────────── */}
+        {tab === "company" && (
           <POSettings
+            mode="company"
             value={settings.po}
             settings={settings}
             isSuperAdmin={isSuperAdmin}
             onChange={(po) => upd("po", po)}
           />
-        </Section>
+        )}
 
-        {/* ── 3. Inventory ── */}
-        <Section icon="📦" title="Inventory">
-          <SLabel text="Currency" hint="Shown throughout the ERP" />
-          <select value={settings.currency} onChange={(e) => upd("currency", e.target.value)}
-                  className={inpCls} style={{ background: "#0b0e17", color: "#f0f6ff" }}>
-            {["INR (₹)", "USD ($)", "EUR (€)", "GBP (£)", "AED (د.إ)"].map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-          <div className="mt-3 px-3.5 py-3 rounded-xl" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.18)" }}>
-            <div className="text-[11px] text-blue-300 font-semibold">ℹ️ Low Stock Alerts</div>
-            <div className="text-[11px] text-slate-400 mt-1">
-              Low stock thresholds are set per item in <span className="text-white font-semibold">Item Master → Minimum Stock</span>.
-              Items below their individual minimum are shown in Inventory and Order Pipeline automatically.
-            </div>
-          </div>
-        </Section>
+        {/* ── Purchase Order tab ────────────────────────────────────────────── */}
+        {tab === "po" && (
+          <POSettings
+            mode="template"
+            value={settings.po}
+            settings={settings}
+            isSuperAdmin={isSuperAdmin}
+            onChange={(po) => upd("po", po)}
+          />
+        )}
 
-        {/* ── 3. Notifications ── */}
-        <Section icon="🔔" title="Notifications">
-          <Toggle
-            checked={settings.whatsappAlerts}
-            onChange={(v) => upd("whatsappAlerts", v)}
-            label="WhatsApp Alerts"
-            desc="Send low stock and PO status updates via WhatsApp" />
-          <Toggle
-            checked={settings.emailAlerts}
-            onChange={(v) => upd("emailAlerts", v)}
-            label="Email Alerts"
-            desc="Send order confirmations and approval reminders via Email" />
-        </Section>
-
-        {/* ── 4. Data ── */}
-        <Section icon="💾" title="Data">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-4 rounded-xl border border-white/[0.07]"
-                 style={{ background: "rgba(255,255,255,0.02)" }}>
-              <div>
-                <div className="text-[13px] font-semibold text-white">Backup Data</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">Download a full JSON backup of all ERP data</div>
+        {/* ── Inventory tab ─────────────────────────────────────────────────── */}
+        {tab === "inventory" && (
+          <Section icon="📦" title="Inventory">
+            <SLabel text="Currency" hint="Shown throughout the ERP" />
+            <select value={settings.currency} onChange={(e) => upd("currency", e.target.value)}
+                    className={inpCls} style={{ background: "#0b0e17", color: "#f0f6ff" }}>
+              {["INR (₹)", "USD ($)", "EUR (€)", "GBP (£)", "AED (د.إ)"].map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <div className="mt-3 px-3.5 py-3 rounded-xl" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.18)" }}>
+              <div className="text-[11px] text-blue-300 font-semibold">ℹ️ Low Stock Alerts</div>
+              <div className="text-[11px] text-slate-400 mt-1">
+                Low stock thresholds are set per item in <span className="text-white font-semibold">Item Master → Minimum Stock</span>.
+                Items below their individual minimum are shown in Inventory and Order Pipeline automatically.
               </div>
-              <button onClick={handleBackup}
-                      className="flex-shrink-0 text-[12px] font-bold px-4 py-2 rounded-xl border transition-all"
-                      style={{ color: backupOk ? "#4ade80" : "#93c5fd", background: backupOk ? "rgba(34,197,94,0.1)" : "rgba(59,130,246,0.08)", borderColor: backupOk ? "rgba(34,197,94,0.3)" : "rgba(59,130,246,0.25)" }}>
-                {backupOk ? "✅ Downloaded" : "⬇ Backup Now"}
-              </button>
             </div>
+          </Section>
+        )}
 
-            <div className="flex items-center justify-between p-4 rounded-xl border border-white/[0.07]"
-                 style={{ background: "rgba(255,255,255,0.02)" }}>
-              <div>
-                <div className="text-[13px] font-semibold text-white">Export Inventory to Excel</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">Download all inventory items as a CSV file (opens in Excel)</div>
+        {/* ── Notifications tab ─────────────────────────────────────────────── */}
+        {tab === "notifications" && (
+          <Section icon="🔔" title="Notifications">
+            <Toggle
+              checked={settings.whatsappAlerts}
+              onChange={(v) => upd("whatsappAlerts", v)}
+              label="WhatsApp Alerts"
+              desc="Send low stock and PO status updates via WhatsApp" />
+            <Toggle
+              checked={settings.emailAlerts}
+              onChange={(v) => upd("emailAlerts", v)}
+              label="Email Alerts"
+              desc="Send order confirmations and approval reminders via Email" />
+          </Section>
+        )}
+
+        {/* ── Data & Backup tab ─────────────────────────────────────────────── */}
+        {tab === "data" && (
+          <Section icon="💾" title="Data & Backup">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-4 rounded-xl border border-white/[0.07]"
+                   style={{ background: "rgba(255,255,255,0.02)" }}>
+                <div>
+                  <div className="text-[13px] font-semibold text-white">Backup Data</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">Download a full JSON backup of all ERP data</div>
+                </div>
+                <button onClick={handleBackup}
+                        className="flex-shrink-0 text-[12px] font-bold px-4 py-2 rounded-xl border transition-all"
+                        style={{ color: backupOk ? "#4ade80" : "#93c5fd", background: backupOk ? "rgba(34,197,94,0.1)" : "rgba(59,130,246,0.08)", borderColor: backupOk ? "rgba(34,197,94,0.3)" : "rgba(59,130,246,0.25)" }}>
+                  {backupOk ? "✅ Downloaded" : "⬇ Backup Now"}
+                </button>
               </div>
-              <button onClick={handleExportExcel}
-                      className="flex-shrink-0 text-[12px] font-bold px-4 py-2 rounded-xl border transition-all text-green-400 hover:bg-green-500/10 border-green-500/20 hover:border-green-500/40">
-                ⬇ Export Excel
-              </button>
-            </div>
-          </div>
-        </Section>
 
-        {/* Bottom save shortcut */}
-        <div className="pt-1 pb-4">
-          <button onClick={handleSave}
-                  className="w-full py-3 rounded-xl text-[13px] font-bold transition-all duration-200"
-                  style={{ background: saved ? "rgba(34,197,94,0.12)" : "linear-gradient(135deg,#1d4ed8,#4338ca)", color: saved ? "#4ade80" : "#fff", border: saved ? "1px solid rgba(34,197,94,0.35)" : "1px solid rgba(99,130,255,0.4)", boxShadow: saved ? "none" : "0 4px 20px rgba(59,130,246,0.2)" }}>
-            {saved ? "✅ Changes Saved Successfully" : "💾 Save Changes"}
-          </button>
-        </div>
+              <div className="flex items-center justify-between p-4 rounded-xl border border-white/[0.07]"
+                   style={{ background: "rgba(255,255,255,0.02)" }}>
+                <div>
+                  <div className="text-[13px] font-semibold text-white">Export Inventory to Excel</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">Download all inventory items as a CSV file (opens in Excel)</div>
+                </div>
+                <button onClick={handleExportExcel}
+                        className="flex-shrink-0 text-[12px] font-bold px-4 py-2 rounded-xl border transition-all text-green-400 hover:bg-green-500/10 border-green-500/20 hover:border-green-500/40">
+                  ⬇ Export Excel
+                </button>
+              </div>
+            </div>
+          </Section>
+        )}
+
       </div>
     </div>
   );
