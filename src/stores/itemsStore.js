@@ -176,11 +176,16 @@ export async function createItem(category, item) {
     };
     console.log(`[${traceId}] step 4 — items.insert payload:`, fullRow);
 
+    // Track whether the schema-tolerant retry fired with user-supplied media so the
+    // caller can surface a visible warning (silent drop caused the persistence bug).
+    const userProvidedMedia = !!(item.photo || item.designFile);
+    let mediaStripped = false;
     let insertData, insertError;
     try {
       let resp = await c.from("items").insert(fullRow).select().single();
       if (resp.error && isMissingColumnError(resp.error)) {
         console.warn(`[${traceId}] step 4.5 — media columns missing (run migration 016) — retrying without`);
+        mediaStripped = userProvidedMedia;
         resp = await c.from("items").insert(baseRow).select().single();
       }
       insertData = resp.data; insertError = resp.error;
@@ -229,8 +234,8 @@ export async function createItem(category, item) {
     }
 
     newItem.history = [{ date: fmtDate(new Date()), event: "Opening", change: 0, qty: newItem.stock }];
-    console.log(`%c[items:create:${traceId}] DONE`, "color:#3b82f6;font-weight:bold", { itemId: newItem.id, historyOk: histRes?.success, schema: histRes?.schema });
-    return { success: true, item: newItem };
+    console.log(`%c[items:create:${traceId}] DONE`, "color:#3b82f6;font-weight:bold", { itemId: newItem.id, historyOk: histRes?.success, schema: histRes?.schema, mediaStripped });
+    return { success: true, item: newItem, mediaStripped };
   } catch (outerErr) {
     console.error(`%c[items:create:${traceId}] OUTER EXCEPTION — function aborted before completion`, "color:#ef4444;font-weight:bold", outerErr);
     return { success: false, error: `createItem threw: ${outerErr?.message || outerErr}` };
@@ -276,16 +281,22 @@ export async function updateItem(originalCode, originalCategory, updatedItem, ne
     design_file: updatedItem.designFile  || null,
     design_name: updatedItem.designName  || null,
   };
+  // Track whether the schema-tolerant retry actually fired AND the user had supplied
+  // media (so we can surface a visible warning — silent drop is what caused the
+  // "uploads succeed then disappear" bug).
+  const userProvidedMedia = !!(updatedItem.photo || updatedItem.designFile);
+  let mediaStripped = false;
   let resp = await c.from("items").update(fullRow).eq("code", originalCode).select().single();
   if (resp.error && isMissingColumnError(resp.error)) {
     console.warn("[items:update] media columns missing (run migration 016) — retrying without");
+    mediaStripped = userProvidedMedia;
     resp = await c.from("items").update(baseRow).eq("code", originalCode).select().single();
   }
   const { data, error } = resp;
   if (error) { console.error("[items:update] supabase failed", error); return { success: false, error: error.message }; }
   const updated = fromRow(data);
-  console.info("[items:update] supabase ok", { id: updated.id });
-  return { success: true, item: updated };
+  console.info("[items:update] supabase ok", { id: updated.id, mediaStripped });
+  return { success: true, item: updated, mediaStripped };
 }
 
 // Delete an item by code. Cascades to item_history via FK ON DELETE CASCADE.

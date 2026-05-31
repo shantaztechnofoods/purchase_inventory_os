@@ -9,7 +9,7 @@ import { AuthProvider } from './auth/AuthContext.jsx'
 // bottom-left corner on EVERY screen (even the login page) + a console banner.
 // If you do NOT see "build 2026-05-29f" bottom-left in production, the served bundle
 // is stale or the URL you opened is not this deployment.
-export const APP_BUILD_TAG = "2026-05-30d-phase3";
+export const APP_BUILD_TAG = "2026-05-30e-fixes";
 if (typeof console !== "undefined") {
   console.warn(`%c[APP BUILD] ${APP_BUILD_TAG}`, "background:#16a34a;color:#fff;padding:2px 6px;border-radius:4px;font-weight:bold");
 }
