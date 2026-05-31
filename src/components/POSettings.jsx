@@ -83,7 +83,15 @@ export default function POSettings({ value, onChange, onPersist, isSuperAdmin = 
     setEditId(companies[0].id);
   };
 
-  const setActive    = (id)        => commit({ ...po, activeCompanyId: id });
+  // Set Active AUTO-PERSISTS so a single click round-trips to Supabase. Without this,
+  // operators clicked "Set as Active", refreshed, and lost the change because the local
+  // state update wasn't followed by a Save — Supabase still had the old activeCompanyId
+  // and hydration reverted to the default "Shantaz Technofoods" first company.
+  const setActive    = (id)        => {
+    const next = { ...po, activeCompanyId: id };
+    commit(next);
+    if (onPersist) onPersist(next);
+  };
   const setTemplate  = (t)         => commit({ ...po, template: t });
   const setShow      = (key, val)  => commit({ ...po, show: { ...po.show, [key]: val } });
   const setText      = (key, val)  => commit({ ...po, [key]: val });
