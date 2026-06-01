@@ -40,21 +40,103 @@ export const ITEM_IMPORT_DEFAULTS = Object.freeze({
 });
 
 // ── Header normalisation ────────────────────────────────────────────────────
-const normHeader = (s) => String(s).trim().toLowerCase().replace(/\s+/g, " ");
-const stripParen = (s) => s.replace(/\s*\([^)]*\)\s*/g, "").replace(/\s+/g, " ").trim();
-const stripDots  = (s) => s.replace(/\./g, "").replace(/\s+/g, " ").trim();
+// The matcher reduces both sides to a canonical form: lowercased, trimmed, with
+// whitespace / dots / parens / dashes / underscores / slashes stripped. This is
+// the only normalisation needed in practice because the operator's headers
+// arrive in one of a small number of variants:
+//   "Name" | "Item Name" | "Product Name"          → all canonical "name" / "itemname" / "productname"
+//   "HSN Code" | "HSN" | "HSNCode" | "HSN No."     → all canonical "hsncode" / "hsn" / "hsnno"
+// Stripping all separators on both the header AND the alias makes "HSNCode"
+// (no space) and "HSN Code" (with space) compare equal — and "HSN/SAC" too.
+const canonHeader = (s) => {
+  let v = String(s == null ? "" : s).trim().toLowerCase();
+  v = v.replace(/\([^)]*\)/g, "");           // drop parenthesized portions entirely
+  v = v.replace(/[\s.()\-_/]+/g, "");        // collapse remaining separators
+  return v;
+};
 
 export function matchAlias(headerName, aliases) {
-  const n = normHeader(headerName);
-  if (aliases.includes(n)) return true;
-  const noParen = stripParen(n);
-  if (noParen && noParen !== n && aliases.includes(noParen)) return true;
-  // "HSN No." → "hsn no." → strip dot → "hsn no" matches "hsn no"
-  const noDots = stripDots(n);
-  if (noDots && noDots !== n && aliases.includes(noDots)) return true;
-  const both = stripDots(noParen);
-  if (both && both !== n && aliases.includes(both)) return true;
+  const c = canonHeader(headerName);
+  if (!c) return false;
+  for (const a of aliases) {
+    if (canonHeader(a) === c) return true;
+  }
   return false;
+}
+
+// ── Dynamic header-row detection ────────────────────────────────────────────
+// The operator's accounting sheet starts with a title row ("List of Items")
+// that's often a merged cell spanning the data columns. Row 2 is the real
+// header (Name | HSN Code | Purc. Price | Sale Price). XLSX's default
+// sheet_to_json treats row 1 as headers, so every "data" row comes out with
+// a blank Name and is skipped silently.
+//
+// Fix: read the sheet as an Array-of-Arrays (XLSX.utils.sheet_to_json with
+// header:1), then walk the first HEADER_SEARCH_LIMIT rows looking for one
+// that looks like a header row, then build data objects from the rows below
+// it. A header row is one whose cells contain — anywhere in the row —
+// a name-alias match. We prefer rows that also contain an HSN/code match
+// (operator's exact case), but fall back to name-only since HSN is optional.
+//
+// Returns { headerIndex, headers } where headers is the trimmed string row,
+// or null when no plausible header was found within the search window.
+export const HEADER_SEARCH_LIMIT = 10;
+
+function isPlausibleHeaderRow(row) {
+  if (!Array.isArray(row) || row.length === 0) return false;
+  const cells = row.map((c) => (c == null ? "" : String(c).trim()));
+  const hasName = cells.some((h) => h && matchAlias(h, NAME_ALIASES));
+  const hasCode = cells.some((h) => h && matchAlias(h, CODE_ALIASES));
+  return { hasName, hasCode, cells };
+}
+
+export function detectHeaderRow(rowsAOA) {
+  if (!Array.isArray(rowsAOA)) return null;
+  const limit = Math.min(HEADER_SEARCH_LIMIT, rowsAOA.length);
+
+  // First pass: prefer a row that has BOTH Name + HSN/code — this is the
+  // operator's exact case and unambiguously the header row.
+  for (let i = 0; i < limit; i++) {
+    const r = isPlausibleHeaderRow(rowsAOA[i]);
+    if (r && r.hasName && r.hasCode) {
+      return { headerIndex: i, headers: r.cells };
+    }
+  }
+  // Second pass: accept Name-only (HSN is optional per spec) — covers a
+  // sheet that uses just a single "Name" column.
+  for (let i = 0; i < limit; i++) {
+    const r = isPlausibleHeaderRow(rowsAOA[i]);
+    if (r && r.hasName) {
+      return { headerIndex: i, headers: r.cells };
+    }
+  }
+  return null;
+}
+
+// Walks an Array-of-Arrays sheet, detects the header row, and returns the
+// data rows below it converted to objects keyed by header name (the shape
+// mapRow / parseRows expect). Title rows above the header are discarded.
+// Fully empty data rows are dropped.
+export function buildRowsFromSheet(rowsAOA) {
+  const det = detectHeaderRow(rowsAOA);
+  if (!det) return { headers: null, headerIndex: -1, rows: [] };
+  const { headerIndex, headers } = det;
+  const rows = [];
+  for (let i = headerIndex + 1; i < rowsAOA.length; i++) {
+    const r = rowsAOA[i];
+    if (!Array.isArray(r)) continue;
+    const obj = {};
+    let anyValue = false;
+    for (let j = 0; j < headers.length; j++) {
+      const key = headers[j];
+      if (!key) continue;       // skip unnamed columns (e.g. trailing merged-cell blanks)
+      const cell = r[j];
+      if (cell != null && String(cell).trim() !== "") anyValue = true;
+      obj[key] = cell != null ? cell : "";
+    }
+    if (anyValue) rows.push(obj);
+  }
+  return { headers, headerIndex, rows };
 }
 
 // ── Cell-value reader ───────────────────────────────────────────────────────

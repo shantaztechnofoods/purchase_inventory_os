@@ -27,7 +27,7 @@ import { sendPOWhatsApp, openVendorWhatsApp, waErrorToast } from "./utils/whatsa
 import { uploadItemMedia, MAX_UPLOAD_BYTES } from "./utils/storage.js";
 import POSettings from "./components/POSettings.jsx";
 import { mapRow as vendorMapRow, parseRows as vendorParseRows } from "./utils/vendorImport.js";
-import { parseRows as itemParseRows, generateItemCode } from "./utils/itemImport.js";
+import { parseRows as itemParseRows, generateItemCode, buildRowsFromSheet as itemBuildRowsFromSheet } from "./utils/itemImport.js";
 import { getActiveCompany, normalizePOSettings, openPOPdf, PO_TEMPLATE_OPTIONS } from "./utils/poTemplate.js";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -38,7 +38,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-01b-itemimport";
+const APP_BUILD = "2026-06-01c-itemimport-headerfix";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -2376,11 +2376,37 @@ function ItemImportModal({ items, onImport, onClose }) {
       const data = await file.arrayBuffer();
       const wb   = XLSX.read(data, { type: "array" });
       const ws   = wb.Sheets[wb.SheetNames[0]];
-      const raw  = XLSX.utils.sheet_to_json(ws, { defval: "" });
-      if (!raw.length) { setError("The file appears to be empty."); return; }
-      const parsed = itemParseRows(raw, items);
+
+      // Read as Array-of-Arrays so we can find the real header row dynamically.
+      // The operator's sheet starts with a title row ("List of Items") above
+      // the actual headers — sheet_to_json with default options treats row 1
+      // as headers and everything after as data, which produced the "every
+      // row has blank Name" bug. With header:1 we get raw rows and can scan
+      // for the header ourselves (see itemImport.detectHeaderRow).
+      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", blankrows: false, raw: true });
+      if (!aoa.length) { setError("The file appears to be empty."); return; }
+
+      const { headers, headerIndex, rows: rawRows } = itemBuildRowsFromSheet(aoa);
+
+      // Required by spec — these three lines tell the operator exactly what
+      // the importer saw, so a misread sheet can be diagnosed from the console.
+      console.info("[item-import] Detected Header Row:", headerIndex >= 0 ? headerIndex + 1 : "(none found in first 10 rows)");
+      console.info("[item-import] Detected Columns:",   headers || []);
+      console.info("[item-import] Rows Parsed:",        rawRows.length);
+
+      if (!headers) {
+        setError("Couldn't find a header row. Make sure the sheet has a row with 'Name' (and optionally 'HSN Code') within the first 10 rows.");
+        return;
+      }
+      if (!rawRows.length) {
+        setError("Found the header row but no data rows below it.");
+        return;
+      }
+
+      const parsed = itemParseRows(rawRows, items);
       setRows(parsed);
-    } catch {
+    } catch (e) {
+      console.error("[item-import] parse failed", e);
       setError("Could not read the file. Make sure it is a valid CSV or Excel (.xlsx) file.");
     }
   };

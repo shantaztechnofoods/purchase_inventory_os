@@ -9,6 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   ITEM_IMPORT_DEFAULTS, matchAlias, mapRow, parseRows, generateItemCode,
+  detectHeaderRow, buildRowsFromSheet, HEADER_SEARCH_LIMIT,
 } from "../src/utils/itemImport.js";
 
 // ── matchAlias ──────────────────────────────────────────────────────────────
@@ -26,6 +27,22 @@ test("matchAlias — strips parens (so 'HSN Code (8 digit)' still matches)", () 
 
 test("matchAlias — strips dots ('HSN No.' → 'hsn no')", () => {
   assert.equal(matchAlias("HSN No.", ["hsn no"]), true);
+});
+
+test("matchAlias — 'HSNCode' (no space) matches 'hsn code'", () => {
+  assert.equal(matchAlias("HSNCode", ["hsn code"]), true);
+  assert.equal(matchAlias("hsncode", ["hsn code"]), true);
+});
+
+test("matchAlias — accepts 'Name', 'Item Name', 'Product Name'", () => {
+  const aliases = ["item name", "name", "product name"];
+  assert.equal(matchAlias("Name",         aliases), true);
+  assert.equal(matchAlias("Item Name",    aliases), true);
+  assert.equal(matchAlias("Product Name", aliases), true);
+});
+
+test("matchAlias — strips slashes ('HSN/SAC' → matches)", () => {
+  assert.equal(matchAlias("HSN/SAC", ["hsn sac"]), true);
 });
 
 // ── mapRow — Name only ──────────────────────────────────────────────────────
@@ -251,6 +268,158 @@ test("ITEM_IMPORT_DEFAULTS — frozen and exposes every spec field", () => {
 });
 
 // ── End-to-end: operator's exact sheet shape ────────────────────────────────
+
+// ── detectHeaderRow + buildRowsFromSheet ────────────────────────────────────
+
+test("detectHeaderRow — header at row 0 (no title row)", () => {
+  const aoa = [
+    ["Name", "HSN Code"],
+    ["Bearing", "84821011"],
+    ["Belt",    "40103990"],
+  ];
+  const det = detectHeaderRow(aoa);
+  assert.equal(det.headerIndex, 0);
+  assert.deepEqual(det.headers, ["Name", "HSN Code"]);
+});
+
+test("detectHeaderRow — operator's exact structure: title row, then headers, then data", () => {
+  const aoa = [
+    ["List of Items", "", "", ""],                                   // row 1 — title (merged cell)
+    ["Name", "HSN Code", "Purc. Price", "Sale Price"],               // row 2 — actual header
+    ["Bearing 6205",     "84821011", 150, 200],                       // row 3+ — data
+    ["V-Belt B-42",      "40103990",  55, ""],
+    ["Hydraulic Oil 46", 27101981,    37, ""],
+  ];
+  const det = detectHeaderRow(aoa);
+  assert.equal(det.headerIndex, 1);
+  assert.deepEqual(det.headers, ["Name", "HSN Code", "Purc. Price", "Sale Price"]);
+});
+
+test("detectHeaderRow — header several rows down (instructions block above)", () => {
+  const aoa = [
+    ["Shantaz Technofoods"],
+    ["Item Master Sheet"],
+    [""],
+    ["Update before 30th"],
+    [""],
+    ["Name", "HSN Code"],                                            // row 6 — header
+    ["Bearing", "111"],
+  ];
+  const det = detectHeaderRow(aoa);
+  assert.equal(det.headerIndex, 5);
+});
+
+test("detectHeaderRow — Name-only header is accepted (HSN optional per spec)", () => {
+  const aoa = [
+    ["Name"],
+    ["Item A"],
+    ["Item B"],
+  ];
+  const det = detectHeaderRow(aoa);
+  assert.equal(det.headerIndex, 0);
+  assert.deepEqual(det.headers, ["Name"]);
+});
+
+test("detectHeaderRow — returns null when no header in first 10 rows", () => {
+  const aoa = Array.from({ length: 20 }, (_, i) => [`Random row ${i}`, "x"]);
+  const det = detectHeaderRow(aoa);
+  assert.equal(det, null);
+});
+
+test("detectHeaderRow — handles null / undefined / empty input", () => {
+  assert.equal(detectHeaderRow(null),      null);
+  assert.equal(detectHeaderRow(undefined), null);
+  assert.equal(detectHeaderRow([]),        null);
+});
+
+test("detectHeaderRow — HEADER_SEARCH_LIMIT is 10", () => {
+  assert.equal(HEADER_SEARCH_LIMIT, 10);
+});
+
+test("detectHeaderRow — alias variants in header row ('Item Name' + 'HSNCode')", () => {
+  const aoa = [
+    ["Title"],
+    ["Item Name", "HSNCode"],            // both alternate aliases
+    ["Bearing 6205", "84821011"],
+  ];
+  const det = detectHeaderRow(aoa);
+  assert.equal(det.headerIndex, 1);
+  assert.deepEqual(det.headers, ["Item Name", "HSNCode"]);
+});
+
+test("buildRowsFromSheet — operator's sheet → data rows below the header", () => {
+  const aoa = [
+    ["List of Items", "", "", ""],
+    ["Name", "HSN Code", "Purc. Price", "Sale Price"],
+    ["Bearing 6205",     "84821011", 150, 200],
+    ["V-Belt B-42",      "40103990",  55, ""],
+    ["Hydraulic Oil 46", 27101981,    37, ""],
+  ];
+  const built = buildRowsFromSheet(aoa);
+  assert.equal(built.headerIndex, 1);
+  assert.equal(built.rows.length, 3);
+  assert.equal(built.rows[0]["Name"],     "Bearing 6205");
+  assert.equal(built.rows[0]["HSN Code"], "84821011");
+  assert.equal(built.rows[2]["HSN Code"], 27101981);                 // numeric preserved
+});
+
+test("buildRowsFromSheet — fully-empty data rows are dropped", () => {
+  const aoa = [
+    ["Name", "HSN Code"],
+    ["Bearing", "111"],
+    ["", ""],                            // empty data row
+    ["Belt", "222"],
+    [],                                  // empty array
+  ];
+  const built = buildRowsFromSheet(aoa);
+  assert.equal(built.rows.length, 2);
+  assert.equal(built.rows[0]["Name"], "Bearing");
+  assert.equal(built.rows[1]["Name"], "Belt");
+});
+
+test("buildRowsFromSheet — title row above + parseRows → preview shows items (regression)", () => {
+  // End-to-end of the bug the operator hit: title row was being mistaken for
+  // headers, so every data row produced { Name: "", ... } and was skipped.
+  const aoa = [
+    ["List of Items", "", "", ""],
+    ["Name", "HSN Code", "Purc. Price", "Sale Price"],
+    ["Bearing 6205",     "84821011", 150, 200],
+    ["V-Belt B-42",      "40103990",  55, ""],
+    ["",                 "XXXX",        0,   0],                       // blank name — still skipped
+    ["Hydraulic Oil 46", 27101981,    37, ""],
+  ];
+  const { rows: rawRows } = buildRowsFromSheet(aoa);
+  const parsed = parseRows(rawRows, {});
+  // 3 real items (blank-name row was skipped by parseRows)
+  assert.equal(parsed.length, 3);
+  assert.equal(parsed[0].name, "Bearing 6205");
+  assert.equal(parsed[0].code, "84821011");
+  assert.equal(parsed[1].name, "V-Belt B-42");
+  assert.equal(parsed[2].name, "Hydraulic Oil 46");
+  assert.equal(parsed[2].code, "27101981");                            // number → string
+  // Defaults applied; other sheet columns ignored
+  for (const r of parsed) {
+    assert.equal(r.unit,             "Nos");
+    assert.equal(r.category,         "Mechanical");
+    assert.equal(r.lastPurchaseRate, 0);
+    assert.equal(r._status,          "ready");
+  }
+});
+
+test("buildRowsFromSheet — alternate header aliases ('Product Name' + 'HSN')", () => {
+  const aoa = [
+    ["MASTER SHEET"],
+    ["Product Name", "HSN"],
+    ["Coolant", "38200000"],
+  ];
+  const { headers, rows } = buildRowsFromSheet(aoa);
+  assert.deepEqual(headers, ["Product Name", "HSN"]);
+  assert.equal(rows.length, 1);
+  // mapRow finds the alias-equivalents
+  const m = mapRow(rows[0]);
+  assert.equal(m.name, "Coolant");
+  assert.equal(m.code, "38200000");
+});
 
 test("operator's mixed sheet (Name + HSN), blank rows skipped, no duplicates", () => {
   const sheet = [
