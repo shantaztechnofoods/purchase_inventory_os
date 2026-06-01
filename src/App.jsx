@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { useAuth } from "./auth/AuthContext.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
@@ -43,7 +43,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-01f-erp-keyboard-po-upgrade";
+const APP_BUILD = "2026-06-01g-erp-audit-fixes";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -619,7 +619,7 @@ function Topbar({ title, subtitle, children }) {
 
 // ─── BUTTONS ─────────────────────────────────────────────────────────────────
 
-const Btn = ({ variant = "ghost", size = "sm", onClick, children, className = "" }) => {
+const Btn = ({ variant = "ghost", size = "sm", onClick, children, className = "", autoFocus = false, type = "button", title, disabled = false }) => {
   const base = "inline-flex items-center gap-1.5 font-medium rounded-lg cursor-pointer border transition-all duration-150 active:scale-[0.96] select-none whitespace-nowrap";
   const sizes = { xs: "text-[11px] px-2.5 py-1 leading-none", sm: "text-[12px] px-3 py-1.5", md: "text-[13px] px-4 py-2" };
   const variants = {
@@ -632,7 +632,8 @@ const Btn = ({ variant = "ghost", size = "sm", onClick, children, className = ""
     orange:  "bg-orange-500/10 text-orange-400 border-orange-500/30 hover:bg-orange-500/[0.18] hover:border-orange-500/50",
     purple:  "bg-purple-500/10 text-purple-400 border-purple-500/30 hover:bg-purple-500/[0.18] hover:border-purple-500/50",
   };
-  return <button onClick={onClick} className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}>{children}</button>;
+  // eslint-disable-next-line jsx-a11y/no-autofocus
+  return <button type={type} onClick={onClick} autoFocus={autoFocus} title={title} disabled={disabled} className={`${base} ${sizes[size]} ${variants[variant]} ${className} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}>{children}</button>;
 };
 
 // ─── METRIC CARD ─────────────────────────────────────────────────────────────
@@ -1029,6 +1030,11 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
   const [qty, setQty] = useState("");
   const inputRef = useRef(null);
   useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
 
   const isAdd = mode === "add";
 
@@ -1145,6 +1151,11 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
 // ─── ITEM DETAIL MODAL ───────────────────────────────────────────────────────
 
 function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onEdit, vendorList = [], outwardLog = [], bomDefs = {}, machineLog = [], inwardLog = [], pos = [] }) {
+  useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
   const [adjustMode, setAdjustMode] = useState(null);
   const [adjustQty,  setAdjustQty]  = useState("");
   const [mvFilter,   setMvFilter]   = useState("all");
@@ -1814,6 +1825,11 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
 
 function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorList = [] }) {
   const isEdit = Boolean(initialValues);
+  useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
 
   const initVendorLinks = () => {
     if (initialValues?.vendorLinks?.length) return initialValues.vendorLinks;
@@ -2385,6 +2401,11 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
 // ✓ New / ↻ Update Existing badges, summary footer.
 function ItemImportModal({ items, onImport, onClose }) {
   const fileRef = useRef(null);
+  useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
   const [rows,     setRows]     = useState(null);
   const [fileName, setFileName] = useState("");
   const [error,    setError]    = useState("");
@@ -2591,6 +2612,15 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
   const [quickAdjust,   setQuickAdjust]   = useState(null);
   const [deleteModal,   setDeleteModal]   = useState(null); // { item, category, blocks }
 
+  // Esc on the inline delete-confirm modal — without this, the operator has to
+  // reach for the mouse or click the backdrop to dismiss a destructive prompt.
+  useEffect(() => {
+    if (!deleteModal) return;
+    const h = (e) => { if (e.key === "Escape") setDeleteModal(null); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [deleteModal]);
+
   // ATTENTION panel — collapsed by default so the main table stays above the
   // fold. On desktop we honour the user's persisted preference; on mobile we
   // ALWAYS start collapsed (narrow viewports can't afford the chip strip).
@@ -2607,14 +2637,25 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
     try { localStorage.setItem(ATTENTION_KEY, attentionOpen ? "1" : "0"); } catch {}
   }, [attentionOpen]);
 
-  const machines = Object.keys(items);
-  const allItemsRaw = Object.entries(items).flatMap(([cat, arr]) => arr.map((item) => ({ ...item, category: cat })));
-  const allItems    = allItemsRaw.filter(i => !i.archived);
+  const machines = useMemo(() => Object.keys(items), [items]);
+  // Flatten + filter archived in a single useMemo so we don't reallocate the
+  // array on every keystroke in the search box. With 1000+ items the unmemoised
+  // version reflowed all four downstream metric calcs and the sort/filter on
+  // every render.
+  const allItems = useMemo(
+    () => Object.entries(items).flatMap(([cat, arr]) => arr.map((item) => ({ ...item, category: cat }))).filter((i) => !i.archived),
+    [items]
+  );
 
-  const criticalCount = allItems.filter((i) => i.status === "critical").length;
-  const warningCount  = allItems.filter((i) => i.status === "warning").length;
-  const safeCount     = allItems.filter((i) => i.status === "safe").length;
-  const totalSKUs     = allItems.length;
+  const { criticalCount, warningCount, safeCount, totalSKUs } = useMemo(() => {
+    let critical = 0, warning = 0, safe = 0;
+    for (const i of allItems) {
+      if (i.status === "critical") critical++;
+      else if (i.status === "warning") warning++;
+      else if (i.status === "safe") safe++;
+    }
+    return { criticalCount: critical, warningCount: warning, safeCount: safe, totalSKUs: allItems.length };
+  }, [allItems]);
 
   // Compute all blocking reasons that prevent permanent deletion
   const computeBlocks = (item) => {
@@ -2641,40 +2682,48 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
     return blocks;
   };
 
-  const q = search.trim().toLowerCase();
-  const filtered = allItems.filter((i) => {
-    if (statusFilter !== "all" && i.status !== statusFilter) return false;
-    if (catFilter !== "all" && i.category !== catFilter)    return false;
-    if (q && !i.name.toLowerCase().includes(q) && !i.code.toLowerCase().includes(q) &&
-             !(i.vendor   || "").toLowerCase().includes(q) &&
-             !(i.location || "").toLowerCase().includes(q)) return false;
-    return true;
-  });
+  // Memoize the filter + sort pipeline. 1000+ items × N keystrokes per second
+  // was the bottleneck the audit flagged: every render walked the full list
+  // four times (filter, sort, alerts, filteredVal). Now each only re-runs when
+  // its real dependencies change.
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return allItems.filter((i) => {
+      if (statusFilter !== "all" && i.status !== statusFilter) return false;
+      if (catFilter !== "all" && i.category !== catFilter)    return false;
+      if (q && !i.name.toLowerCase().includes(q) && !i.code.toLowerCase().includes(q) &&
+               !(i.vendor   || "").toLowerCase().includes(q) &&
+               !(i.location || "").toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [allItems, search, statusFilter, catFilter]);
 
-  const sorted = [...filtered].sort((a, b) => {
-    let av, bv;
-    switch (sortCol) {
-      case "code":     av = a.code;     bv = b.code;     break;
-      case "category": av = a.category; bv = b.category; break;
-      case "unit":     av = a.unit;     bv = b.unit;     break;
-      case "stock":    av = a.stock;    bv = b.stock;    break;
-      case "min":      av = a.min;      bv = b.min;      break;
-      case "rate":     av = a.lastPurchaseRate || 0; bv = b.lastPurchaseRate || 0; break;
-      case "status":   av = ["critical","warning","safe"].indexOf(a.status); bv = ["critical","warning","safe"].indexOf(b.status); break;
-      case "vendor":   av = a.vendor || ""; bv = b.vendor || ""; break;
-      default:         av = a.name;    bv = b.name;
-    }
-    if (typeof av === "number") return sortDir === "asc" ? av - bv : bv - av;
-    return sortDir === "asc" ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
-  });
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      let av, bv;
+      switch (sortCol) {
+        case "code":     av = a.code;     bv = b.code;     break;
+        case "category": av = a.category; bv = b.category; break;
+        case "unit":     av = a.unit;     bv = b.unit;     break;
+        case "stock":    av = a.stock;    bv = b.stock;    break;
+        case "min":      av = a.min;      bv = b.min;      break;
+        case "rate":     av = a.lastPurchaseRate || 0; bv = b.lastPurchaseRate || 0; break;
+        case "status":   av = ["critical","warning","safe"].indexOf(a.status); bv = ["critical","warning","safe"].indexOf(b.status); break;
+        case "vendor":   av = a.vendor || ""; bv = b.vendor || ""; break;
+        default:         av = a.name;    bv = b.name;
+      }
+      if (typeof av === "number") return sortDir === "asc" ? av - bv : bv - av;
+      return sortDir === "asc" ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
+    });
+  }, [filtered, sortCol, sortDir]);
 
   const toggleSort = (col) => {
     if (sortCol === col) setSortDir((d) => d === "asc" ? "desc" : "asc");
     else { setSortCol(col); setSortDir("asc"); }
   };
 
-  const alerts       = allItems.filter((i) => i.status !== "safe");
-  const filteredVal  = sorted.reduce((s, i) => s + (i.stock * (i.lastPurchaseRate || 0)), 0);
+  const alerts      = useMemo(() => allItems.filter((i) => i.status !== "safe"), [allItems]);
+  const filteredVal = useMemo(() => sorted.reduce((s, i) => s + (i.stock * (i.lastPurchaseRate || 0)), 0), [sorted]);
   const filtersActive = search || statusFilter !== "all" || catFilter !== "all";
   const clearFilters  = () => { setSearch(""); setStatusFilter("all"); setCatFilter("all"); };
 
@@ -2859,9 +2908,10 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
               </div>
             </div>
 
-            {/* Footer */}
+            {/* Footer — Cancel autofocuses so Enter on an accidental open
+                dismisses the destructive action by default. */}
             <div className="px-5 py-4 border-t border-white/[0.08] flex gap-2" style={{ background: "rgba(0,0,0,0.35)" }}>
-              <Btn variant="ghost" size="sm" onClick={() => setDeleteModal(null)}>Cancel</Btn>
+              <Btn variant="ghost" size="sm" autoFocus onClick={() => setDeleteModal(null)}>Cancel</Btn>
               <div className="flex-1" />
               <button onClick={() => handleConfirmDelete(deleteModal.category, deleteModal.item.code)}
                       className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-4 py-1.5 text-white border transition-all"
@@ -3133,6 +3183,13 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
 function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null, pos = [], settings = {} }) {
   const isEdit = Boolean(initialPO);
   const poCfg  = normalizePOSettings(settings);
+  // ERP keyboard workflow — Esc closes the modal. Backdrop click + X button
+  // already worked; this lets the operator dismiss with one hand on the keyboard.
+  useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
   const [form, setForm] = useState(() => {
     if (isEdit) return {
       vendor: initialPO.vendor, priority: initialPO.priority,
@@ -3732,6 +3789,11 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
 function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, onEdit, onDelete }) {
   const [confirmReceive, setConfirmReceive] = useState(false);
   const [confirmDelete,  setConfirmDelete]  = useState(false);
+  useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
 
   const steps = ["Draft","Pending","Approved","Ordered","Received"];
   const stepMap = { draft: 0, pending: 1, approved: 2, ordered: 3, received: 4, overdue: 2, review: 1 };
@@ -4064,6 +4126,11 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
 
 function VendorImportModal({ vendorList, onImport, onClose }) {
   const fileRef = useRef(null);
+  useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
   const [rows,      setRows]      = useState(null);
   const [fileName,  setFileName]  = useState("");
   const [error,     setError]     = useState("");
@@ -4265,6 +4332,11 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
 
 function VendorModal({ initialVendor, onSave, onClose }) {
   const isEdit = Boolean(initialVendor);
+  useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
   const [form, setForm] = useState(isEdit ? { ...initialVendor } : {
     name: "", contactPerson: "", phone: "", email: "", gst: "", location: "", category: "",
     paymentTerms: "30 days", status: "active", priority: "Approved", leadDays: "", performance: "",
