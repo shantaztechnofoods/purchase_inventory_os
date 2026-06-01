@@ -38,7 +38,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-01c-itemimport-headerfix";
+const APP_BUILD = "2026-06-01d-itemmaster-attention-ui";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -2572,6 +2572,22 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
   const [quickAdjust,   setQuickAdjust]   = useState(null);
   const [deleteModal,   setDeleteModal]   = useState(null); // { item, category, blocks }
 
+  // ATTENTION panel — collapsed by default so the main table stays above the
+  // fold. On desktop we honour the user's persisted preference; on mobile we
+  // ALWAYS start collapsed (narrow viewports can't afford the chip strip).
+  const ATTENTION_KEY = "erp_inventory_attention_open";
+  const [attentionOpen, setAttentionOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    if (window.matchMedia && window.matchMedia("(max-width: 768px)").matches) return false;
+    try {
+      const v = localStorage.getItem(ATTENTION_KEY);
+      return v === "1";
+    } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(ATTENTION_KEY, attentionOpen ? "1" : "0"); } catch {}
+  }, [attentionOpen]);
+
   const machines = Object.keys(items);
   const allItemsRaw = Object.entries(items).flatMap(([cat, arr]) => arr.map((item) => ({ ...item, category: cat })));
   const allItems    = allItemsRaw.filter(i => !i.archived);
@@ -2874,23 +2890,70 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                       barPct={totalSKUs ? Math.round((safeCount / totalSKUs) * 100) : 0} barColor="#22c55e" />
         </div>
 
-        {/* Alert strip */}
-        {alerts.length > 0 && (
-          <div className="px-4 py-3 rounded-xl flex items-center gap-3 flex-wrap"
-               style={{ background: "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.18)" }}>
-            <span className="text-[9px] font-black text-red-400 uppercase tracking-[0.08em] flex-shrink-0">⚠ Attention:</span>
-            <div className="flex flex-wrap gap-1.5">
-              {alerts.map((i) => (
-                <button key={i.code}
-                        onClick={() => setSelectedItem({ item: { ...i }, category: i.category })}
-                        className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-lg transition-all hover:opacity-80"
-                        style={{ background: i.status === "critical" ? "rgba(239,68,68,0.12)" : "rgba(249,115,22,0.1)", border: i.status === "critical" ? "1px solid rgba(239,68,68,0.28)" : "1px solid rgba(249,115,22,0.22)", color: i.status === "critical" ? "#f87171" : "#fb923c" }}>
-                  {i.code} · {i.stock} {i.unit}
-                </button>
-              ))}
+        {/* ATTENTION panel — collapsible. Default collapsed so the inventory
+            table stays visible above the fold. Summary always shows the
+            critical/warning counts; the chip list is only revealed when the
+            operator chooses to expand. State persists in localStorage. */}
+        {alerts.length > 0 && (() => {
+          const critCount = alerts.filter((i) => i.status === "critical").length;
+          const warnCount = alerts.filter((i) => i.status === "warning").length;
+          const summary   = critCount > 0 && warnCount > 0
+            ? `${critCount} Critical · ${warnCount} Low Stock`
+            : critCount > 0
+              ? `${critCount} Critical Item${critCount !== 1 ? "s" : ""}`
+              : `${warnCount} Low Stock Item${warnCount !== 1 ? "s" : ""}`;
+          const chipFor = (i) => (
+            <button key={i.code}
+                    onClick={() => setSelectedItem({ item: { ...i }, category: i.category })}
+                    className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-lg transition-all hover:opacity-80 flex-shrink-0"
+                    style={{
+                      background: i.status === "critical" ? "rgba(239,68,68,0.12)" : "rgba(249,115,22,0.1)",
+                      border: i.status === "critical" ? "1px solid rgba(239,68,68,0.28)" : "1px solid rgba(249,115,22,0.22)",
+                      color: i.status === "critical" ? "#f87171" : "#fb923c",
+                    }}>
+              {i.code} · {i.stock} {i.unit}
+            </button>
+          );
+          return (
+            <div className="rounded-xl"
+                 style={{ background: "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.18)" }}>
+              {/* Header row — clickable, ~60px tall. Always visible. */}
+              <button
+                onClick={() => setAttentionOpen((v) => !v)}
+                aria-expanded={attentionOpen}
+                aria-controls="erp-attention-body"
+                className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.02] rounded-xl"
+                style={{ minHeight: 48 }}>
+                <span className="text-[10px] font-black text-red-400 uppercase tracking-[0.08em] flex-shrink-0">⚠ Attention</span>
+                <span className="text-[11px] font-bold text-white">({summary})</span>
+                {/* Preview: first 10 chips inline when collapsed, +N more badge */}
+                {!attentionOpen && (
+                  <div className="hidden md:flex items-center gap-1.5 overflow-hidden flex-1 min-w-0">
+                    {alerts.slice(0, 10).map(chipFor)}
+                    {alerts.length > 10 && (
+                      <span className="text-[10px] font-bold text-slate-400 px-2 py-0.5 rounded-lg flex-shrink-0"
+                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                        +{alerts.length - 10} more
+                      </span>
+                    )}
+                  </div>
+                )}
+                <span className="ml-auto text-[10px] font-bold text-slate-400 flex items-center gap-1 flex-shrink-0">
+                  {attentionOpen ? "▲ Hide Items" : "▼ Show Items"}
+                </span>
+              </button>
+              {/* Body — only mounted when expanded. Internal scroll caps the
+                  height so 83 chips can't push the table off the page. */}
+              {attentionOpen && (
+                <div id="erp-attention-body"
+                     className="px-4 pb-3 pt-1 flex flex-wrap gap-1.5 overflow-y-auto"
+                     style={{ maxHeight: 180, borderTop: "1px solid rgba(239,68,68,0.12)" }}>
+                  {alerts.map(chipFor)}
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Filter bar */}
         <div className="flex flex-wrap items-center gap-2">
