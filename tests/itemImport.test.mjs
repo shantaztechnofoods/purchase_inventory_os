@@ -1,117 +1,113 @@
-// Node-only tests for src/utils/itemImport.js — verifies the operator's accounting
-// sheet columns ("Name", "HSN Code", "Purc. Price", "Sale Price") map correctly,
-// defaults are applied per spec, duplicates are detected by name, and bad rows are
-// isolated. Run with:  node --test tests/itemImport.test.mjs
+// Node-only tests for src/utils/itemImport.js — verifies the operator's actual
+// 2-column accounting sheet (Name + HSN Code) maps correctly, defaults are applied
+// per spec, duplicates are detected by Code first / Name fallback, re-import is
+// idempotent, and bad rows are isolated. Run with:
+//
+//   node --test tests/itemImport.test.mjs
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  ITEM_FIELDS, matchAlias, mapRow, parseRows, generateItemCode,
+  ITEM_IMPORT_DEFAULTS, matchAlias, mapRow, parseRows, generateItemCode,
 } from "../src/utils/itemImport.js";
 
-test("ITEM_FIELDS includes all spec keys", () => {
-  const keys = ITEM_FIELDS.map((f) => f.key);
-  assert.ok(keys.includes("name"));
-  assert.ok(keys.includes("unit"));
-  assert.ok(keys.includes("category"));
-  assert.ok(keys.includes("location"));
-  assert.ok(keys.includes("stock"));
-  assert.ok(keys.includes("min"));
-  assert.ok(keys.includes("lastPurchaseRate"));
-  assert.ok(keys.includes("salePrice"));
-});
+// ── matchAlias ──────────────────────────────────────────────────────────────
 
-test("matchAlias — exact + case-insensitive + whitespace collapse", () => {
+test("matchAlias — exact, case-insensitive, whitespace-collapsed", () => {
   assert.equal(matchAlias("Name", ["name"]), true);
   assert.equal(matchAlias("ITEM NAME", ["item name"]), true);
   assert.equal(matchAlias("  Item   Name  ", ["item name"]), true);
 });
 
-test("matchAlias — strips parens (operator's sheet: 'Purc. Price (₹)')", () => {
-  assert.equal(matchAlias("Purc. Price (₹)", ["purc price"]), true);
-  assert.equal(matchAlias("Opening Stock (Nos)", ["opening stock"]), true);
+test("matchAlias — strips parens (so 'HSN Code (8 digit)' still matches)", () => {
+  assert.equal(matchAlias("HSN Code (8 digit)", ["hsn code"]), true);
+  assert.equal(matchAlias("Name (English)",      ["name"]),     true);
 });
 
-test("matchAlias — strips dots ('Purc. Price' → 'purc price')", () => {
-  assert.equal(matchAlias("Purc. Price", ["purc price"]), true);
+test("matchAlias — strips dots ('HSN No.' → 'hsn no')", () => {
   assert.equal(matchAlias("HSN No.", ["hsn no"]), true);
 });
 
-test("mapRow — operator's exact sheet (Name + HSN Code + Purc. Price + Sale Price)", () => {
-  const r = mapRow({
-    "Name": "Spindle Bearing 6205 ZZ",
-    "HSN Code": "84821011",
-    "Purc. Price": 150,
-    "Sale Price": 200,
-  });
-  assert.equal(r.name, "Spindle Bearing 6205 ZZ");
-  assert.equal(r.code, "84821011");                 // HSN used as code when Item Code blank
-  assert.equal(r.lastPurchaseRate, 150);
-  assert.equal(r.salePrice, 200);
-  assert.equal(r.unit, "Nos");                       // default
-  assert.equal(r.category, "Mechanical");            // default
-  assert.equal(r.location, "");                      // blank per spec
-  assert.equal(r.stock, 0);                          // default
-  assert.equal(r.min, 0);                            // default
-});
+// ── mapRow — Name only ──────────────────────────────────────────────────────
 
-test("mapRow — Item Code wins over HSN (priority per spec)", () => {
-  const r = mapRow({
-    "Name": "Test Item",
-    "Item Code": "TEST-001",
-    "HSN Code": "12345678",
-  });
-  assert.equal(r.code, "TEST-001");
-});
-
-test("mapRow — HSN fallback when Item Code blank", () => {
-  const r = mapRow({
-    "Name": "Test Item",
-    "Item Code": "",
-    "HSN Code": "12345678",
-  });
-  assert.equal(r.code, "12345678");
-});
-
-test("mapRow — Name only (every other column blank)", () => {
-  const r = mapRow({ "Name": "Bare Item" });
-  assert.equal(r.name, "Bare Item");
-  assert.equal(r.code, "");
+test("mapRow — Name only (every other column blank): defaults applied", () => {
+  const r = mapRow({ "Name": "Spindle Bearing 6205 ZZ" });
+  assert.equal(r.name,             "Spindle Bearing 6205 ZZ");
+  assert.equal(r.code,             "");                       // no HSN → blank, App auto-gens
+  assert.equal(r.unit,             "Nos");
+  assert.equal(r.category,         "Mechanical");
+  assert.equal(r.stock,            0);
+  assert.equal(r.min,              0);
+  assert.equal(r.location,         "");
+  assert.deepEqual(r.vendorLinks,  []);
   assert.equal(r.lastPurchaseRate, 0);
-  assert.equal(r.salePrice, null);                   // null when blank, NOT 0
-  assert.equal(r.stock, 0);
-  assert.equal(r.min, 0);
-  assert.equal(r.unit, "Nos");
+  assert.equal(r.photo,            null);
+  assert.equal(r.designFile,       null);
+  assert.equal(r.designName,       null);
+});
+
+// ── mapRow — Name + HSN ─────────────────────────────────────────────────────
+
+test("mapRow — Name + HSN Code: HSN becomes the Item Code", () => {
+  const r = mapRow({ "Name": "Spindle Oil ISO 10", "HSN Code": "27101981" });
+  assert.equal(r.name, "Spindle Oil ISO 10");
+  assert.equal(r.code, "27101981");
+  // Defaults still apply for the non-spec columns
+  assert.equal(r.unit,     "Nos");
   assert.equal(r.category, "Mechanical");
+  assert.equal(r.stock,    0);
 });
 
-test("mapRow — Sale Price stays null when blank (so App can decide to drop)", () => {
-  const r = mapRow({ "Name": "X", "Purc. Price": 100 });
-  assert.equal(r.salePrice, null);
+test("mapRow — HSN delivered as a Number by XLSX (84821011) coerces to string", () => {
+  const r = mapRow({ "Name": "Bearing", "HSN Code": 84821011 });
+  assert.equal(r.code, "84821011");
 });
 
-test("mapRow — numeric cells (real numbers, not strings)", () => {
+test("mapRow — alternative HSN headers all work ('HSN', 'HSN No.', 'HSN/SAC')", () => {
+  assert.equal(mapRow({ "Name": "A", "HSN":      "111" }).code, "111");
+  assert.equal(mapRow({ "Name": "B", "HSN No.":  "222" }).code, "222");
+  assert.equal(mapRow({ "Name": "C", "HSN/SAC":  "333" }).code, "333");
+});
+
+test("mapRow — other columns in the sheet are IGNORED per spec", () => {
+  // Sheet has extra junk columns; importer must not pull anything from them
   const r = mapRow({
-    "Name": "Numeric Item",
-    "Purc. Price": 123.45,
-    "Opening Stock": 50,
-    "Min Stock": 10,
+    "Name":         "Hydraulic Oil",
+    "HSN Code":     "27101981",
+    "Purc. Price":  500,
+    "Sale Price":   650,
+    "Stock":        99,
+    "Min":          50,
+    "Unit":         "Ltrs",
+    "Category":     "Lubricants",
+    "Location":     "Tank B-1",
+    "Random Col":   "anything",
   });
-  assert.equal(r.lastPurchaseRate, 123.45);
-  assert.equal(r.stock, 50);
-  assert.equal(r.min, 10);
+  assert.equal(r.name, "Hydraulic Oil");
+  assert.equal(r.code, "27101981");
+  // Spec: every other field MUST come from defaults — sheet values ignored
+  assert.equal(r.unit,             "Nos");
+  assert.equal(r.category,         "Mechanical");
+  assert.equal(r.stock,            0);
+  assert.equal(r.min,              0);
+  assert.equal(r.location,         "");
+  assert.equal(r.lastPurchaseRate, 0);
 });
 
-test("mapRow — currency symbols stripped ('₹1,500.00' → 1500)", () => {
-  const r = mapRow({ "Name": "X", "Purc. Price": "₹1,500.00" });
-  assert.equal(r.lastPurchaseRate, 1500);
+test("mapRow — null / undefined / non-object input is safe", () => {
+  assert.equal(mapRow(null).name,      "");
+  assert.equal(mapRow(undefined).name, "");
+  assert.equal(mapRow("not an object").name, "");
 });
 
-test("parseRows — blank Name skipped silently", () => {
+// ── parseRows — blank Name skipped ──────────────────────────────────────────
+
+test("parseRows — blank Name is skipped silently (whitespace, empty, missing)", () => {
   const out = parseRows([
-    { "Name": "Good Item" },
-    { "Name": "" },                                   // blank → skip
-    { "Name": "   " },                                // whitespace-only → skip
-    { },                                              // missing → skip
+    { "Name": "Good Item",  "HSN Code": "111" },
+    { "Name": "",           "HSN Code": "222" },   // blank → skip
+    { "Name": "   ",        "HSN Code": "333" },   // whitespace → skip
+    { "HSN Code": "444" },                          // missing Name → skip
     { "Name": "Another Item" },
   ], {});
   assert.equal(out.length, 2);
@@ -119,53 +115,116 @@ test("parseRows — blank Name skipped silently", () => {
   assert.equal(out[1].name, "Another Item");
 });
 
-test("parseRows — new items marked 'ready'", () => {
-  const out = parseRows(
-    [{ "Name": "Brand New" }],
-    { Mechanical: [{ name: "Existing", code: "EX-1" }] }
-  );
+// ── parseRows — duplicate detection: by Code first, by Name fallback ────────
+
+test("parseRows — match by HSN Code (existing.code === row.code)", () => {
+  const existing = { Mechanical: [{ name: "Existing Bearing", code: "84821011", category: "Mechanical" }] };
+  // Name is different on purpose — code match must win
+  const out = parseRows([{ "Name": "Renamed In Sheet", "HSN Code": "84821011" }], existing);
+  assert.equal(out.length, 1);
+  assert.equal(out[0]._status, "update");
+  assert.equal(out[0]._existingCode, "84821011");
+  assert.equal(out[0]._matchedBy, "code");
+});
+
+test("parseRows — Name fallback when row has no HSN Code", () => {
+  const existing = { Mechanical: [{ name: "Spindle Bearing 6205 ZZ", code: "OLD-001", category: "Mechanical" }] };
+  const out = parseRows([{ "Name": "SPINDLE BEARING 6205 ZZ" }], existing);   // case-insensitive
+  assert.equal(out.length, 1);
+  assert.equal(out[0]._status, "update");
+  assert.equal(out[0]._matchedBy, "name");
+});
+
+test("parseRows — new items (no match by code OR name) marked 'ready'", () => {
+  const existing = { Mechanical: [{ name: "Existing", code: "EX-1" }] };
+  const out = parseRows([{ "Name": "Brand New", "HSN Code": "999" }], existing);
   assert.equal(out.length, 1);
   assert.equal(out[0]._status, "ready");
 });
 
-test("parseRows — duplicate name (case-insensitive) → 'update'", () => {
-  const out = parseRows(
-    [{ "Name": "EXISTING ITEM" }],
-    { Mechanical: [{ name: "Existing Item", code: "EX-1", category: "Mechanical" }] }
-  );
-  assert.equal(out.length, 1);
-  assert.equal(out[0]._status, "update");
-  assert.equal(out[0]._existingCode, "EX-1");
-  assert.equal(out[0]._existingCategory, "Mechanical");
-});
-
-test("parseRows — accepts grouped object OR flat array for existingItems", () => {
-  // grouped (App state)
-  const grouped = parseRows([{ "Name": "X" }], { Cat: [{ name: "X" }] });
+test("parseRows — accepts BOTH grouped object AND flat array for existingItems", () => {
+  const grouped = parseRows([{ "Name": "X", "HSN Code": "1" }], { Cat: [{ name: "X", code: "1" }] });
   assert.equal(grouped[0]._status, "update");
-  // flat (test helper)
-  const flat = parseRows([{ "Name": "X" }], [{ name: "X" }]);
+  const flat    = parseRows([{ "Name": "X", "HSN Code": "1" }], [{ name: "X", code: "1" }]);
   assert.equal(flat[0]._status, "update");
 });
 
-test("parseRows — handles null / undefined inputs safely", () => {
+test("parseRows — handles null / undefined / empty inputs safely", () => {
   assert.deepEqual(parseRows(null, {}), []);
   assert.deepEqual(parseRows([], null), []);
   assert.deepEqual(parseRows(undefined, undefined), []);
 });
 
-test("parseRows — bad row isolation (one bad row doesn't break batch)", () => {
-  // mapRow should not throw on weird cell types
+// ── parseRows — bad row isolation ───────────────────────────────────────────
+
+test("parseRows — one bad row does not break the batch", () => {
   const out = parseRows([
-    { "Name": "Good Item" },
-    { "Name": "Bad Numeric", "Purc. Price": "not-a-number" },
-    { "Name": "Another Good" },
+    { "Name": "Good 1", "HSN Code": "111" },
+    null,                                            // bad row
+    undefined,                                       // bad row
+    "garbage",                                       // bad row
+    { "Name": "Good 2", "HSN Code": "222" },
   ], {});
-  assert.equal(out.length, 3);
-  assert.equal(out[1].lastPurchaseRate, 0);          // unparseable → default 0
+  assert.equal(out.length, 2);
+  assert.equal(out[0].name, "Good 1");
+  assert.equal(out[1].name, "Good 2");
 });
 
-test("generateItemCode — uppercase + slug + 4-digit suffix", () => {
+// ── Re-import idempotency ───────────────────────────────────────────────────
+
+test("re-import same sheet → second pass marks every row as 'update'", () => {
+  const sheet = [
+    { "Name": "Item A", "HSN Code": "111" },
+    { "Name": "Item B", "HSN Code": "222" },
+    { "Name": "Item C" },                            // no HSN — relies on name fallback
+  ];
+
+  // First pass: empty state → everything is "ready"
+  const firstPass = parseRows(sheet, {});
+  assert.equal(firstPass.length, 3);
+  assert.ok(firstPass.every((r) => r._status === "ready"));
+
+  // Simulate App applying the first pass to state. Item C has no code — App
+  // auto-generates one. The auto-gen must NOT prevent the name fallback from
+  // matching on the second pass.
+  const appState = {
+    Mechanical: firstPass.map((r, i) => ({
+      name:     r.name,
+      code:     r.code || `AUTOGEN-${i}`,
+      category: "Mechanical",
+    })),
+  };
+
+  // Second pass: every row should now be "update"
+  const secondPass = parseRows(sheet, appState);
+  assert.equal(secondPass.length, 3);
+  assert.ok(secondPass.every((r) => r._status === "update"),
+    `expected all 3 to be 'update', got: ${JSON.stringify(secondPass.map((r) => r._status))}`);
+
+  // Match-by mode: A & B match by code, C matches by name
+  assert.equal(secondPass[0]._matchedBy, "code");
+  assert.equal(secondPass[1]._matchedBy, "code");
+  assert.equal(secondPass[2]._matchedBy, "name");
+});
+
+test("re-import — adding a NEW row alongside existing rows works correctly", () => {
+  const firstSheet = [
+    { "Name": "Item A", "HSN Code": "111" },
+  ];
+  const state = { Mechanical: [{ name: "Item A", code: "111", category: "Mechanical" }] };
+  const secondSheet = [
+    { "Name": "Item A", "HSN Code": "111" },          // existing → update
+    { "Name": "Item B", "HSN Code": "222" },          // new      → ready
+  ];
+  const out = parseRows(secondSheet, state);
+  assert.equal(out.length, 2);
+  assert.equal(out[0]._status, "update");
+  assert.equal(out[1]._status, "ready");
+});
+
+// ── generateItemCode ────────────────────────────────────────────────────────
+
+test("generateItemCode — uppercase slug + 4-digit suffix", () => {
   const c = generateItemCode("Hydraulic Oil ISO 46");
   assert.match(c, /^HYDRAULICOIL-\d{4}$/);
 });
@@ -175,42 +234,46 @@ test("generateItemCode — fallback when name has no alphanumerics", () => {
   assert.match(c, /^ITEM-[A-Z0-9]+$/);
 });
 
-test("generateItemCode — truncates long names to 12 chars before suffix", () => {
-  const c = generateItemCode("Supercalifragilisticexpialidocious");
-  const [slug] = c.split("-");
-  assert.equal(slug.length, 12);
+// ── ITEM_IMPORT_DEFAULTS sanity ─────────────────────────────────────────────
+
+test("ITEM_IMPORT_DEFAULTS — frozen and exposes every spec field", () => {
+  assert.ok(Object.isFrozen(ITEM_IMPORT_DEFAULTS));
+  assert.equal(ITEM_IMPORT_DEFAULTS.stock,            0);
+  assert.equal(ITEM_IMPORT_DEFAULTS.min,              0);
+  assert.equal(ITEM_IMPORT_DEFAULTS.unit,             "Nos");
+  assert.equal(ITEM_IMPORT_DEFAULTS.category,         "Mechanical");
+  assert.equal(ITEM_IMPORT_DEFAULTS.location,         "");
+  assert.deepEqual(ITEM_IMPORT_DEFAULTS.vendorLinks,  []);
+  assert.equal(ITEM_IMPORT_DEFAULTS.lastPurchaseRate, 0);
+  assert.equal(ITEM_IMPORT_DEFAULTS.photo,            null);
+  assert.equal(ITEM_IMPORT_DEFAULTS.designFile,       null);
+  assert.equal(ITEM_IMPORT_DEFAULTS.designName,       null);
 });
 
-// ─── Integration: re-import idempotency ───────────────────────────────────────
+// ── End-to-end: operator's exact sheet shape ────────────────────────────────
 
-test("re-import same sheet → all rows marked 'update' the second time", () => {
+test("operator's mixed sheet (Name + HSN), blank rows skipped, no duplicates", () => {
   const sheet = [
-    { "Name": "Item A", "HSN Code": "111", "Purc. Price": 10 },
-    { "Name": "Item B", "HSN Code": "222", "Purc. Price": 20 },
+    { "Name": "Bearing 6205",     "HSN Code": "84821011" },
+    { "Name": "V-Belt B-42",      "HSN Code": "40103990" },
+    { "Name": "",                 "HSN Code": "XXXX"     },   // skip (no name)
+    { "Name": "Hydraulic Oil 46", "HSN Code": 27101981   },   // numeric HSN
+    { "Name": "Generic Part" },                                // no HSN
   ];
-  const firstPass  = parseRows(sheet, {});
-  assert.ok(firstPass.every((r) => r._status === "ready"));
-
-  // Simulate App applying first pass → items state
-  const appState = { Mechanical: firstPass.map((r) => ({ name: r.name, code: r.code, category: "Mechanical" })) };
-
-  const secondPass = parseRows(sheet, appState);
-  assert.ok(secondPass.every((r) => r._status === "update"));
-});
-
-test("operator's mixed sheet: Name + HSN + Purc. Price + Sale Price (4 rows)", () => {
-  const out = parseRows([
-    { "Name": "Bearing 6205",      "HSN Code": "84821011", "Purc. Price": "₹150", "Sale Price": "₹200" },
-    { "Name": "V-Belt B-42",       "HSN Code": "40103990", "Purc. Price": 55,     "Sale Price": ""      },
-    { "Name": "",                  "HSN Code": "XXXX",     "Purc. Price": 99 },         // blank name — skip
-    { "Name": "Hydraulic Oil 46",  "HSN Code": "27101981", "Purc. Price": "₹37/L" },    // bad price → 37
-  ], {});
-  assert.equal(out.length, 3);
+  const out = parseRows(sheet, {});
+  assert.equal(out.length, 4);
   assert.equal(out[0].name, "Bearing 6205");
-  assert.equal(out[0].lastPurchaseRate, 150);
-  assert.equal(out[0].salePrice, 200);
-  assert.equal(out[1].lastPurchaseRate, 55);
-  assert.equal(out[1].salePrice, null);              // blank → null
-  assert.equal(out[2].name, "Hydraulic Oil 46");
-  assert.equal(out[2].lastPurchaseRate, 37);         // "₹37/L" → 37 via parseFloat
+  assert.equal(out[0].code, "84821011");
+  assert.equal(out[2].code, "27101981");   // number → string
+  assert.equal(out[3].code, "");            // blank HSN — App will auto-gen
+  // Defaults applied uniformly
+  for (const r of out) {
+    assert.equal(r.unit,             "Nos");
+    assert.equal(r.category,         "Mechanical");
+    assert.equal(r.stock,            0);
+    assert.equal(r.min,              0);
+    assert.equal(r.lastPurchaseRate, 0);
+    assert.equal(r.photo,            null);
+    assert.equal(r.designFile,       null);
+  }
 });

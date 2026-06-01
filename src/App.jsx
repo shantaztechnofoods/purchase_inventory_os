@@ -38,7 +38,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-01a-itemimport-deletefix";
+const APP_BUILD = "2026-06-01b-itemimport";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -2410,20 +2410,14 @@ function ItemImportModal({ items, onImport, onClose }) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          {/* Column guide */}
+          {/* Column guide — operator's actual 2-column sheet. Other columns ignored. */}
           <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)" }}>
             <div>
-              <div className="text-[11px] font-semibold text-blue-300 mb-1.5">Supported columns — use these exact header names in your sheet</div>
+              <div className="text-[11px] font-semibold text-blue-300 mb-1.5">Supported columns — only these two are read</div>
               <div className="grid grid-cols-2 gap-1.5">
                 {[
-                  { label: "Name",          req: true,  hint: "Required" },
-                  { label: "HSN Code",      req: false, hint: "Optional" },
-                  { label: "Purc. Price",   req: false, hint: "Optional" },
-                  { label: "Sale Price",    req: false, hint: "Optional" },
-                  { label: "Unit",          req: false, hint: "Optional" },
-                  { label: "Category",      req: false, hint: "Optional" },
-                  { label: "Opening Stock", req: false, hint: "Optional" },
-                  { label: "Min Stock",     req: false, hint: "Optional" },
+                  { label: "Name",     req: true,  hint: "Required" },
+                  { label: "HSN Code", req: false, hint: "Optional" },
                 ].map(({ label, req, hint }) => (
                   <div key={label} className="flex items-center gap-2">
                     <span className="text-[10px] font-mono font-semibold"
@@ -2440,8 +2434,10 @@ function ItemImportModal({ items, onImport, onClose }) {
             </div>
             <div className="text-[10px] text-slate-500 pt-1" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
               Only <span className="text-blue-300 font-semibold">Name</span> is required.
-              Item code uses <span className="text-blue-300 font-semibold">Item Code</span> if present, else <span className="text-blue-300 font-semibold">HSN Code</span>, else auto-generated.
-              Existing items (matched by name) are updated — blank fields filled, populated fields preserved.
+              Every other column in the sheet is ignored — defaults are applied
+              (Unit = <span className="text-slate-300">Nos</span>, Category = <span className="text-slate-300">Mechanical</span>,
+              Opening Stock / Min / Rate = <span className="text-slate-300">0</span>).
+              Re-importing the same sheet never creates duplicates.
             </div>
           </div>
 
@@ -2483,7 +2479,7 @@ function ItemImportModal({ items, onImport, onClose }) {
                   <table className="w-full">
                     <thead>
                       <tr style={{ background: "rgba(255,255,255,0.03)" }}>
-                        {["Status","Item Name","Code","Category","Unit","Purc. Rate","Sale Price"].map((h) => (
+                        {["Status","Item Name","HSN Code"].map((h) => (
                           <th key={h} className="text-left text-[10px] font-semibold text-slate-500 px-3 py-2 whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
@@ -2494,14 +2490,10 @@ function ItemImportModal({ items, onImport, onClose }) {
                           <td className="px-3 py-2.5 whitespace-nowrap">
                             {r._status === "ready"
                               ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-green-400" style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.25)" }}>✓ New</span>
-                              : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-yellow-300" style={{ background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.25)" }}>↻ Update</span>}
+                              : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-yellow-300" style={{ background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.25)" }}>↻ Update Existing</span>}
                           </td>
-                          <td className="px-3 py-2.5 text-[11px] font-semibold text-white whitespace-nowrap max-w-[180px] truncate">{r.name}</td>
-                          <td className="px-3 py-2.5 text-[11px] font-mono text-blue-400 whitespace-nowrap">{r.code || <span className="text-slate-700">auto</span>}</td>
-                          <td className="px-3 py-2.5 text-[11px] text-slate-400 whitespace-nowrap">{r.category}</td>
-                          <td className="px-3 py-2.5 text-[11px] text-slate-400 whitespace-nowrap">{r.unit}</td>
-                          <td className="px-3 py-2.5 text-[11px] font-mono text-slate-300 whitespace-nowrap">{r.lastPurchaseRate ? `₹${Number(r.lastPurchaseRate).toLocaleString("en-IN")}` : <span className="text-slate-700">—</span>}</td>
-                          <td className="px-3 py-2.5 text-[11px] font-mono text-slate-300 whitespace-nowrap">{r.salePrice != null ? `₹${Number(r.salePrice).toLocaleString("en-IN")}` : <span className="text-slate-700">—</span>}</td>
+                          <td className="px-3 py-2.5 text-[11px] font-semibold text-white whitespace-nowrap max-w-[280px] truncate">{r.name}</td>
+                          <td className="px-3 py-2.5 text-[11px] font-mono text-blue-400 whitespace-nowrap">{r.code || <span className="text-slate-700">— auto —</span>}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2736,11 +2728,10 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
               ? await onBulkAddItems(importRows)
               : { imported: 0, updated: 0, failed: 0 };
             const r = res || { imported: 0, updated: 0, failed: 0 };
-            const parts = [];
-            if (r.imported > 0) parts.push(`Imported ${r.imported}`);
-            if (r.updated  > 0) parts.push(`Updated ${r.updated}`);
-            if (r.failed   > 0) parts.push(`Failed ${r.failed}`);
-            setToast({ status: r.failed > 0 ? "warning" : "safe", name: parts.length ? parts.join(" · ") : "No rows imported", machine: "Import" });
+            // Spec format: "Imported X · Updated Y · Failed Z" — always show all
+            // three counters so the operator can see at a glance what happened.
+            const summary = `Imported ${r.imported} · Updated ${r.updated} · Failed ${r.failed}`;
+            setToast({ status: r.failed > 0 ? "warning" : "safe", name: summary, machine: "Import" });
             setTimeout(() => setToast(null), 4500);
           }}
           onClose={() => setShowImport(false)}
@@ -10731,18 +10722,24 @@ export default function App() {
     return { success: true };
   };
 
-  // Phase 1: per-row item import.
-  // Mirrors handleBulkAddVendors — each row is created OR merged independently so a
-  // single bad row never kills the batch. Update rows fill ONLY blank fields on the
-  // existing item (never overwrite populated values). Returns { imported, updated,
-  // failed, failures } for the toast.
+  // Per-row item import. Mirrors handleBulkAddVendors so a single bad row never
+  // kills the batch. Defaults (unit=Nos, category=Mechanical, stock=0, min=0,
+  // lastPurchaseRate=0, location="", vendorLinks=[], photo/designFile=null) are
+  // already baked into the row by itemImport.mapRow — the handler just shovels
+  // them at itemCreate / itemUpdate.
+  //
+  // Update rule: fill ONLY blank fields on the existing item — never overwrite
+  // a populated value. In practice the only thing the import can add to an
+  // existing item is the HSN code (if existing.code was empty, which is rare
+  // — code is the table's PK-style identifier so it's almost always set).
+  // Returns { imported, updated, failed, failures } for the toast.
   const handleBulkAddItems = async (importRows) => {
     let imported = 0, updated = 0, failed = 0;
     const failures = [];
     if (!Array.isArray(importRows) || importRows.length === 0) return { imported, updated, failed, failures };
 
     // Build a flat code-set across categories so auto-generated codes don't collide
-    // mid-batch (importRows themselves can also collide).
+    // mid-batch (importRows themselves can also collide on auto-gen).
     const usedCodes = new Set();
     for (const arr of Object.values(items)) for (const it of (arr || [])) if (it.code) usedCodes.add(String(it.code).toUpperCase());
 
@@ -10760,34 +10757,30 @@ export default function App() {
     for (const row of importRows) {
       try {
         if (row._status === "update") {
-          // Find existing by name across all categories — itemImport.parseRows already
-          // detected the match, but the local state is the source of truth here.
+          // Locate the existing item — parseRows tagged it, but local state is
+          // the source of truth at write time. Prefer the existing code (which
+          // can match the row code or come via the name-fallback path).
           const existingCat = row._existingCategory || Object.keys(items).find((cat) =>
-            (items[cat] || []).some((it) => String(it.name || "").toLowerCase() === String(row.name || "").toLowerCase())
+            (items[cat] || []).some((it) =>
+              (row._existingCode && it.code === row._existingCode) ||
+              String(it.name || "").toLowerCase() === String(row.name || "").toLowerCase()
+            )
           );
           const existing = (items[existingCat] || []).find((it) =>
+            (row._existingCode && it.code === row._existingCode) ||
             String(it.name || "").toLowerCase() === String(row.name || "").toLowerCase()
           );
           if (!existing) { failed++; failures.push({ name: row.name, error: "existing item not found in state" }); continue; }
 
-          // Fill ONLY blank fields per spec — never overwrite populated values.
-          const fillIfBlank = (cur, incoming) => {
-            if (cur != null && cur !== "" && Number(cur) !== 0) return cur;
-            return incoming != null && incoming !== "" ? incoming : cur;
-          };
-          const merged = {
-            ...existing,
-            name:             existing.name,                                            // never rename on import
-            code:             existing.code,                                            // never re-key on import
-            unit:             existing.unit && existing.unit !== "Nos" ? existing.unit : (row.unit || existing.unit || "Nos"),
-            location:         fillIfBlank(existing.location, row.location),
-            min:              existing.min > 0 ? existing.min : (Number(row.min) || existing.min || 0),
-            lastPurchaseRate: existing.lastPurchaseRate > 0 ? existing.lastPurchaseRate : (Number(row.lastPurchaseRate) || existing.lastPurchaseRate || 0),
-            vendorLinks:      existing.vendorLinks || [],
-          };
-          const dirty = ["unit","location","min","lastPurchaseRate"].some((k) => (existing[k] || "") !== (merged[k] || ""));
-          if (!dirty) { continue; }
+          // Fill ONLY blank fields. With the 2-column import the only field the
+          // sheet can contribute is `code` (HSN) — everything else came from
+          // DEFAULTS and would clobber a real value. So we only touch `code`,
+          // and only when the existing item has no code at all.
+          const incomingCode = String(row.code || "").trim();
+          const needsCode = !existing.code && incomingCode;
+          if (!needsCode) { continue; }   // nothing to fill — silent skip
 
+          const merged = { ...existing, code: incomingCode };
           const ures = await itemUpdate(existing.code, existingCat, merged, existingCat);
           if (ures?.success) {
             updated++;
@@ -10796,16 +10789,18 @@ export default function App() {
               next[existingCat] = (prev[existingCat] || []).map((it) => it.code === existing.code ? { ...ures.item, history: existing.history || [] } : it);
               return next;
             });
-            logAudit({ type: "inventory_edit", module: "Inventory", action: `Item Updated via Import: ${existing.name}`, ref: existing.code, itemCode: existing.code, itemName: existing.name });
+            logAudit({ type: "inventory_edit", module: "Inventory", action: `Item Updated via Import: ${existing.name}`, ref: incomingCode, itemCode: incomingCode, itemName: existing.name });
           } else {
             failed++; failures.push({ name: row.name, error: ures?.error || "update failed" });
           }
         } else {
-          // New item — apply defaults per spec, ensure unique code, then create.
+          // New item — defaults already in the row from mapRow. Auto-gen code
+          // only when HSN was blank, and ensure it's unique against state + this
+          // batch's prior auto-gens.
           const category = row.category || "Mechanical";
-          const code = ensureUniqueCode(row.code || generateItemCode(row.name));
-          const stock = Number(row.stock) || 0;
-          const min   = Number(row.min)   || 0;
+          const code     = ensureUniqueCode(row.code || generateItemCode(row.name));
+          const stock    = Number(row.stock) || 0;
+          const min      = Number(row.min)   || 0;
           const newItem = {
             code,
             name:             row.name,
@@ -10814,17 +10809,20 @@ export default function App() {
             stock, min, max: 0,
             status:           recomputeStatus(stock, min),
             trend:            [stock, stock, stock, stock, stock],
-            vendorLinks:      [],
+            vendorLinks:      row.vendorLinks || [],
             vendorId:         "",
             vendor:           "",
             vendorPhone:      "",
             lastPurchaseRate: Number(row.lastPurchaseRate) || 0,
+            photo:            row.photo       || "",
+            designFile:       row.designFile  || "",
+            designName:       row.designName  || "",
           };
           const cres = await itemCreate(category, newItem);
           if (cres?.success) {
             imported++;
             setItems((prev) => ({ ...prev, [category]: [...(prev[category] || []), cres.item] }));
-            logAudit({ type: "inventory_add", module: "Inventory", action: `Item Imported: ${newItem.name} (${newItem.code})`, ref: newItem.code, itemCode: newItem.code, itemName: newItem.name, qty: newItem.stock || 0 });
+            logAudit({ type: "inventory_add", module: "Inventory", action: `Item Imported: ${newItem.name} (${newItem.code})`, ref: newItem.code, itemCode: newItem.code, itemName: newItem.name, qty: 0 });
           } else {
             failed++; failures.push({ name: row.name, error: cres?.error || "create failed" });
           }
