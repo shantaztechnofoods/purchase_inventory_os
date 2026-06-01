@@ -36,7 +36,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-05-30h-activefix";
+const APP_BUILD = "2026-05-30i-vendorimport";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -3688,19 +3688,45 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
   const FIELD_MAP = [
     { key: "name",          aliases: ["vendor name","company name","name","vendor","supplier name","supplier"] },
     { key: "contactPerson", aliases: ["contact person","contact","person","contact name","representative"] },
-    { key: "phone",         aliases: ["mobile","phone","mobile number","phone number","contact number","whatsapp","mobile no","phone no"] },
-    { key: "email",         aliases: ["email","email address","mail","e-mail","email id"] },
-    { key: "gst",           aliases: ["gst","gst number","gstin","gst no","gst#","gst id"] },
-    { key: "address",       aliases: ["address","full address","billing address","street address","full_address"] },
+    { key: "phone",         aliases: ["mobile","phone","mobile no","mobile no.","mobile number","phone no","phone no.","phone number","contact number","whatsapp","cell","cell phone"] },
+    { key: "email",         aliases: ["email","email address","mail","e-mail","email id","email-id"] },
+    { key: "gst",           aliases: ["gst","gst no","gst no.","gst number","gstin","gst#","gst id","gstin no","gstin number"] },
     { key: "location",      aliases: ["location","city","state","city/state","city, state","place"] },
     { key: "category",      aliases: ["category","category / specialty","specialty","type","vendor type","supplier type","item type"] },
+    { key: "paymentTerms",  aliases: ["credit days","credit period","payment terms","payment days","credit","credit term","credit terms","payment term","net days"] },
   ];
+
+  // Address handling is a special case: real-world sheets often split the address
+  // across 2-4 columns ("Address Line 1/2/3/4" or "Address 1/2"). We collect every
+  // address-like column in sheet order, drop blanks, and comma-join.
+  const collectAddress = (raw) => {
+    const parts = [];
+    for (const k of Object.keys(raw)) {
+      const norm = String(k).trim().toLowerCase();
+      const isPlain = ["address","full address","billing address","street address","full_address"].includes(norm);
+      const isLine  = /^address(?:\s*line)?\s*[1-9]\d*$/.test(norm);
+      if (!isPlain && !isLine) continue;
+      const v = String(raw[k] || "").trim();
+      if (v) parts.push(v);
+    }
+    // Deduplicate (a sheet that has both "Address" and "Address Line 1" with the
+    // same text shouldn't produce "X, X")
+    return [...new Set(parts)].join(", ");
+  };
 
   const mapRow = (raw) => {
     const out = {};
     for (const { key, aliases } of FIELD_MAP) {
-      const found = Object.keys(raw).find((k) => aliases.includes(k.trim().toLowerCase()));
+      const found = Object.keys(raw).find((k) => aliases.includes(String(k).trim().toLowerCase()));
       out[key] = found !== undefined ? String(raw[found] || "").trim() : "";
+    }
+    out.address = collectAddress(raw);
+    // Normalise Credit Days: accept "30" → "30 days", keep "45 days" verbatim, default
+    // empty to "30 days" so vendors look identical to manually-created ones.
+    if (!out.paymentTerms) {
+      out.paymentTerms = "30 days";
+    } else if (/^\d+$/.test(out.paymentTerms)) {
+      out.paymentTerms = `${out.paymentTerms} days`;
     }
     return out;
   };
@@ -3714,19 +3740,26 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
       const raw   = XLSX.utils.sheet_to_json(ws, { defval: "" });
       if (!raw.length) { setError("The file appears to be empty."); return; }
 
-      const existingNames = new Set(vendorList.map((v) => v.name.trim().toLowerCase()));
+      // Build a quick lookup of existing vendors keyed by lowercase name → existing.id.
+      // Duplicate rows are NO LONGER skipped: the App-side processor will merge missing
+      // fields into the existing vendor (operator requirement #5).
+      const existing = new Map(
+        vendorList.map((v) => [String(v.name || "").trim().toLowerCase(), v])
+      );
 
       const parsed = raw
         .map((r) => {
           const mapped = mapRow(r);
-          const allBlank = Object.values(mapped).every((v) => !v);
-          if (allBlank) return null;
-          if (!mapped.name) return { ...mapped, _status: "skip" };
-          if (existingNames.has(mapped.name.toLowerCase())) return { ...mapped, _status: "dup" };
+          // Skip completely blank rows
+          const valueCount = Object.values(mapped).filter((v) => v && v !== "30 days").length;
+          if (!mapped.name && valueCount === 0) return null;
+          // Only Vendor Name is required (operator requirement #1)
+          if (!mapped.name) return null;
+          const match = existing.get(mapped.name.toLowerCase());
+          if (match) return { ...mapped, _status: "update", _existingId: match.id };
           return { ...mapped, _status: "ready" };
         })
-        .filter(Boolean)
-        .filter((r) => r._status !== "skip");
+        .filter(Boolean);
 
       setRows(parsed);
     } catch {
@@ -3734,13 +3767,18 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
     }
   };
 
-  const readyCount = (rows || []).filter((r) => r._status === "ready").length;
-  const dupCount   = (rows || []).filter((r) => r._status === "dup").length;
+  const readyCount  = (rows || []).filter((r) => r._status === "ready").length;
+  const updateCount = (rows || []).filter((r) => r._status === "update").length;
 
   const handleImport = () => {
-    const toImport = (rows || []).filter((r) => r._status === "ready");
-    const newVendors = toImport.map((r, i) => ({
-      id:            `V${Date.now().toString(36)}${i.toString(36)}`,
+    const toImport = (rows || []).filter((r) => r._status === "ready" || r._status === "update");
+    // Pass rows-with-status to the App-side processor so each row is created OR
+    // merged into the existing vendor independently. One bad row can no longer kill
+    // the whole batch (operator requirement #4).
+    const importRows = toImport.map((r, i) => ({
+      _status:     r._status,
+      _existingId: r._existingId || null,
+      _localId:    `V${Date.now().toString(36)}${i.toString(36)}`,
       name:          r.name,
       contactPerson: r.contactPerson,
       phone:         r.phone,
@@ -3749,18 +3787,9 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
       address:       r.address,
       location:      r.location,
       category:      r.category,
-      paymentTerms:  "30 days",
-      status:        "active",
-      priority:      "Approved",
-      leadDays:      0,
-      performance:   0,
-      notes:         "",
-      rating:        4.0,
-      years:         1,
-      annualValue:   "₹0",
-      poCount:       0,
+      paymentTerms:  r.paymentTerms || "30 days",
     }));
-    onImport(newVendors, readyCount, dupCount);
+    onImport(importRows, readyCount, updateCount);
   };
 
   return (
@@ -3843,8 +3872,8 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
               <div className="flex items-center justify-between mb-3">
                 <div className="text-[11px] font-semibold text-slate-300">{rows.length} row{rows.length !== 1 ? "s" : ""} detected</div>
                 <div className="flex items-center gap-3 text-[10px]">
-                  <span className="font-bold text-green-400">{readyCount} ready to import</span>
-                  {dupCount > 0 && <span className="text-yellow-400">{dupCount} duplicate{dupCount !== 1 ? "s" : ""} — will be skipped</span>}
+                  {readyCount  > 0 && <span className="font-bold text-green-400">{readyCount} new</span>}
+                  {updateCount > 0 && <span className="font-bold text-yellow-300">{updateCount} existing — missing fields will be filled in</span>}
                 </div>
               </div>
               <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
@@ -3859,11 +3888,11 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
                     </thead>
                     <tbody>
                       {rows.map((r, i) => (
-                        <tr key={i} style={{ borderTop: "1px solid rgba(255,255,255,0.04)", opacity: r._status === "dup" ? 0.45 : 1 }}>
+                        <tr key={i} style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
                           <td className="px-3 py-2.5 whitespace-nowrap">
                             {r._status === "ready"
-                              ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-green-400" style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.25)" }}>✓ Ready</span>
-                              : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-yellow-400" style={{ background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.25)" }}>↩ Duplicate</span>}
+                              ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-green-400" style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.25)" }}>✓ New</span>
+                              : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-yellow-300" style={{ background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.25)" }}>↻ Update existing</span>}
                           </td>
                           <td className="px-3 py-2.5 text-[11px] font-semibold text-white whitespace-nowrap">{r.name}</td>
                           <td className="px-3 py-2.5 text-[11px] text-slate-400 whitespace-nowrap">{r.contactPerson || <span className="text-slate-700">—</span>}</td>
@@ -3883,16 +3912,23 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
         {/* Footer */}
         <div className="px-6 py-4 border-t border-white/[0.07] flex items-center justify-between gap-3 flex-shrink-0">
           <div className="text-[10px] text-slate-600">
-            {rows ? `${readyCount} vendor${readyCount !== 1 ? "s" : ""} will be added to Vendor Master` : "Upload a file to preview and import"}
+            {rows
+              ? (readyCount + updateCount > 0
+                  ? `${readyCount} new · ${updateCount} update${updateCount !== 1 ? "s" : ""}`
+                  : "Nothing to import — every row had no Vendor Name.")
+              : "Upload a file to preview and import"}
           </div>
           <div className="flex items-center gap-3">
             <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
-            <button onClick={handleImport} disabled={!rows || readyCount === 0}
+            <button onClick={handleImport} disabled={!rows || (readyCount + updateCount) === 0}
                     className="text-xs font-black px-5 py-2 rounded-xl text-white transition-opacity"
                     style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 20px rgba(37,99,235,0.4)",
-                             opacity: (!rows || readyCount === 0) ? 0.4 : 1,
-                             cursor: (!rows || readyCount === 0) ? "not-allowed" : "pointer" }}>
-              Import {readyCount > 0 ? `${readyCount} Vendor${readyCount !== 1 ? "s" : ""}` : ""}
+                             opacity: (!rows || (readyCount + updateCount) === 0) ? 0.4 : 1,
+                             cursor: (!rows || (readyCount + updateCount) === 0) ? "not-allowed" : "pointer" }}>
+              {(() => {
+                const total = readyCount + updateCount;
+                return `Import${total > 0 ? ` ${total} Vendor${total !== 1 ? "s" : ""}` : ""}`;
+              })()}
             </button>
           </div>
         </div>
@@ -4094,13 +4130,15 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
       {showImport && (
         <VendorImportModal
           vendorList={vendorList}
-          onImport={(newVendors, readyCount, dupCount) => {
-            onBulkAddVendors(newVendors);
+          onImport={async (importRows /* , readyCount, updateCount */) => {
             setShowImport(false);
-            const msg = dupCount > 0
-              ? `${readyCount} vendor${readyCount !== 1 ? "s" : ""} imported · ${dupCount} duplicate${dupCount !== 1 ? "s" : ""} skipped`
-              : `${readyCount} vendor${readyCount !== 1 ? "s" : ""} imported successfully`;
-            showToast(msg);
+            const res = await onBulkAddVendors(importRows);
+            const r = res || { imported: 0, updated: 0, failed: 0 };
+            const parts = [];
+            if (r.imported > 0) parts.push(`${r.imported} imported`);
+            if (r.updated  > 0) parts.push(`${r.updated} updated`);
+            if (r.failed   > 0) parts.push(`${r.failed} failed`);
+            showToast(parts.length ? parts.join(" · ") : "No rows imported");
           }}
           onClose={() => setShowImport(false)}
         />
@@ -10506,11 +10544,85 @@ export default function App() {
     setVendorList((prev) => prev.filter((x) => x.id !== id));
     logAudit({ type: "vendor_delete", module: "Vendor", action: `Vendor Deleted: ${v?.name || id}`, ref: v?.name || "", vendor: v?.name || "" });
   };
-  const handleBulkAddVendors = async (vendors) => {
-    const res = await bulkCreateVendors(vendors);
-    if (!res.success) { console.warn("[App] handleBulkAddVendors failed:", res.error); return; }
-    setVendorList((prev) => [...prev, ...res.vendors]);
-    res.vendors.forEach((v) => logAudit({ type: "vendor_add", module: "Vendor", action: `Vendor Imported: ${v.name}`, ref: v.name, vendor: v.name }));
+  // Per-row vendor import. Replaces the previous all-or-nothing bulk insert so a single
+  // failing row no longer kills the whole batch. Rows tagged _status:"update" merge
+  // missing fields into the existing vendor (operator requirement #5); rows tagged
+  // _status:"ready" become new vendors. Returns { imported, updated, failed, failures }
+  // so the toast can show "Imported X · Updated Y · Failed Z".
+  const handleBulkAddVendors = async (importRows) => {
+    let imported = 0, updated = 0, failed = 0;
+    const failures = [];
+    if (!Array.isArray(importRows) || importRows.length === 0) {
+      return { imported, updated, failed, failures };
+    }
+    const buildNewVendor = (r) => ({
+      id:            r._localId || `V${Date.now().toString(36)}${Math.random().toString(36).slice(2,5)}`,
+      name:          r.name,
+      contactPerson: r.contactPerson || "",
+      phone:         r.phone         || "",
+      email:         r.email         || "",
+      gst:           r.gst           || "",
+      address:       r.address       || "",
+      location:      r.location      || "",
+      category:      r.category      || "",
+      paymentTerms:  r.paymentTerms  || "30 days",
+      status:        "active",
+      priority:      "Approved",
+      leadDays:      0,
+      performance:   0,
+      notes:         "",
+      rating:        4.0,
+      years:         1,
+      annualValue:   "₹0",
+      poCount:       0,
+    });
+    for (const row of importRows) {
+      try {
+        if (row._status === "update" && row._existingId) {
+          // Merge "missing fields only" — never overwrite a field that already has data.
+          const existing = vendorList.find((v) => v.id === row._existingId);
+          if (!existing) { failed++; failures.push({ name: row.name, error: "existing vendor not found" }); continue; }
+          const fillIfBlank = (key) => existing[key] && String(existing[key]).trim() ? existing[key] : (row[key] || existing[key] || "");
+          const merged = {
+            ...existing,
+            contactPerson: fillIfBlank("contactPerson"),
+            phone:         fillIfBlank("phone"),
+            email:         fillIfBlank("email"),
+            gst:           fillIfBlank("gst"),
+            address:       fillIfBlank("address"),
+            location:      fillIfBlank("location"),
+            category:      fillIfBlank("category"),
+            paymentTerms:  fillIfBlank("paymentTerms"),
+          };
+          // Skip the network call if nothing actually changed
+          const dirty = ["contactPerson","phone","email","gst","address","location","category","paymentTerms"]
+            .some((k) => (existing[k] || "") !== (merged[k] || ""));
+          if (!dirty) { continue; }
+          const ures = await updateVendor(merged);
+          if (ures?.success) {
+            updated++;
+            setVendorList((prev) => prev.map((v) => v.id === merged.id ? (ures.vendor || merged) : v));
+            logAudit({ type: "vendor_edit", module: "Vendor", action: `Vendor Updated via Import: ${merged.name}`, ref: merged.name, vendor: merged.name });
+          } else {
+            failed++; failures.push({ name: row.name, error: ures?.error || "update failed" });
+          }
+        } else {
+          const newVendor = buildNewVendor(row);
+          const cres = await createVendor(newVendor);
+          if (cres?.success) {
+            imported++;
+            setVendorList((prev) => [...prev, cres.vendor || newVendor]);
+            logAudit({ type: "vendor_add", module: "Vendor", action: `Vendor Imported: ${newVendor.name}`, ref: newVendor.name, vendor: newVendor.name });
+          } else {
+            failed++; failures.push({ name: row.name, error: cres?.error || "create failed" });
+          }
+        }
+      } catch (e) {
+        failed++; failures.push({ name: row?.name, error: e?.message || String(e) });
+      }
+    }
+    if (failures.length) console.warn("[App] handleBulkAddVendors — per-row failures:", failures);
+    return { imported, updated, failed, failures };
   };
 
   // ── BOM / Outward handlers ──
