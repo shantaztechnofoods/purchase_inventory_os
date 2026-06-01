@@ -68,6 +68,9 @@ function fromRow(r) {
     photo:            r.photo || "",
     designFile:       r.design_file || "",
     designName:       r.design_name || "",
+    // Optional GST rate per item (migration 018). NULL when missing — auto GST
+    // calculator falls back to 0 for items that haven't been set up yet.
+    gstRate:          r.gst_rate != null ? Number(r.gst_rate) : null,
   };
 }
 
@@ -166,13 +169,17 @@ export async function createItem(category, item) {
     console.log(`[${traceId}] step 3 — client OK`);
 
     const baseRow = toRow(item, category);
-    // Optional media columns (migration 016). Sent on the first attempt; stripped on retry
-    // if the columns don't exist yet so item creation never breaks before migration runs.
+    // Optional columns from later migrations (016 = media, 018 = gst_rate). Sent
+    // on the first attempt; stripped on retry when the columns don't exist yet
+    // so item creation never breaks before migrations are applied. We layer the
+    // 018 column on top of the 016 columns so a single missing-column error can
+    // strip both — the retry path below tries baseRow without either set.
     const fullRow = {
       ...baseRow,
       photo:       item.photo       || null,
       design_file: item.designFile  || null,
       design_name: item.designName  || null,
+      gst_rate:    item.gstRate != null ? Number(item.gstRate) : null,
     };
     console.log(`[${traceId}] step 4 — items.insert payload:`, fullRow);
 
@@ -300,12 +307,15 @@ export async function updateItem(originalCode, originalCategory, updatedItem, ne
   // index — omitting it removes one whole failure mode.
   if (codeChanged) baseRow.code = updatedItem.code;
 
-  // Optional media columns (migration 016). Retry without them on schema miss.
+  // Optional media + GST columns (migrations 016 + 018). Retry without them on
+  // schema miss. baseRow stays the pre-016/018 shape so a single fallback works
+  // for either missing migration.
   const fullRow = {
     ...baseRow,
     photo:       updatedItem.photo       || null,
     design_file: updatedItem.designFile  || null,
     design_name: updatedItem.designName  || null,
+    gst_rate:    updatedItem.gstRate != null ? Number(updatedItem.gstRate) : null,
   };
   // Track whether the schema-tolerant retry actually fired AND the user had supplied
   // media (so we can surface a visible warning — silent drop is what caused the

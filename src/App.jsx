@@ -26,6 +26,11 @@ import { fetchRecentMovements, MOVEMENT_META } from "./stores/stockMovementsStor
 import { sendPOWhatsApp, openVendorWhatsApp, waErrorToast } from "./utils/whatsapp.js";
 import { uploadItemMedia, MAX_UPLOAD_BYTES } from "./utils/storage.js";
 import POSettings from "./components/POSettings.jsx";
+import SearchableSelect from "./components/SearchableSelect.jsx";
+import {
+  PURCHASE_TYPES, ITEM_GST_RATES, DEFAULT_PURCHASE_TYPE_KEY,
+  getPurchaseType, calculateGSTBreakdown, filterPurchaseTypes, todayIso,
+} from "./utils/gst.js";
 import { mapRow as vendorMapRow, parseRows as vendorParseRows } from "./utils/vendorImport.js";
 import { parseRows as itemParseRows, generateItemCode, buildRowsFromSheet as itemBuildRowsFromSheet } from "./utils/itemImport.js";
 import { getActiveCompany, normalizePOSettings, openPOPdf, PO_TEMPLATE_OPTIONS } from "./utils/poTemplate.js";
@@ -38,7 +43,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-01d-itemmaster-attention-ui";
+const APP_BUILD = "2026-06-01f-erp-keyboard-po-upgrade";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -1828,9 +1833,11 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
     unit:             initialValues.unit    || "Nos",
     location:         initialValues.location || "",
     lastPurchaseRate: String(initialValues.lastPurchaseRate || ""),
+    gstRate:          initialValues.gstRate != null ? String(initialValues.gstRate) : "",
   } : {
     name: "", code: "", stock: "", min: "",
     machine: "Mechanical", unit: "Nos", location: "", lastPurchaseRate: "",
+    gstRate: "",
   });
   const [errors,       setErrors]       = useState({});
   const [vendorLinks,  setVendorLinks]  = useState(initVendorLinks);
@@ -1946,6 +1953,8 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
       vendor:           primaryVendor?.name || preferredLink?.vendorName || "",
       vendorPhone:      primaryVendor?.phone || "",
       lastPurchaseRate: Number(form.lastPurchaseRate) || 0,
+      // ERP 018 — per-item GST rate (used by auto GST calculator in PO modal)
+      gstRate:          form.gstRate === "" ? null : Number(form.gstRate),
       // Phase 1 — optional media metadata (no impact on stock)
       photo, designFile, designName,
     });
@@ -2063,6 +2072,16 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
               <input value={form.location} onChange={(e) => set("location", e.target.value)}
                      placeholder="e.g. Rack M-2, Bin 4" className={inp(false)} />
             </div>
+          </div>
+
+          {/* Row 2c — GST Rate (ERP migration 018) */}
+          <div>
+            <Label text="GST Rate" />
+            <select value={form.gstRate} onChange={(e) => set("gstRate", e.target.value)} className={inp(false)} style={selectStyle}>
+              <option value="">— Not set —</option>
+              {ITEM_GST_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+            </select>
+            <div className="text-[10px] text-slate-500 mt-1">Used by auto GST calculation in PO modal (multi-rate / itemwise purchases).</div>
           </div>
 
           {/* Row 3 — Min Stock */}
@@ -3121,6 +3140,9 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
       lineItems: initialPO.lineItems ? [...initialPO.lineItems] : [],
       companyId: initialPO.companyId || poCfg.activeCompanyId,
       template:  initialPO.template  || poCfg.template,
+      // ERP upgrade (migration 018) — fall back to today / 18% local for legacy POs.
+      purchaseType: initialPO.purchaseType || DEFAULT_PURCHASE_TYPE_KEY,
+      poDate:       initialPO.poDate || initialPO.date || todayIso(),
     };
     return {
       vendor:    prefill?.vendor || vendorList[0]?.name || "",
@@ -3130,6 +3152,8 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
       lineItems: prefill?.lineItems ? [...prefill.lineItems] : [],
       companyId: prefill?.companyId || poCfg.activeCompanyId,
       template:  prefill?.template  || poCfg.template,
+      purchaseType: prefill?.purchaseType || DEFAULT_PURCHASE_TYPE_KEY,
+      poDate:       prefill?.poDate || todayIso(),
     };
   });
 
@@ -3243,21 +3267,37 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
       ...f,
       // Phase 3 — snapshot the design at add-time so the PO retains what was attached
       // even if the item's design is replaced later. attachDesign defaults to false.
+      // ERP 018 — also snapshot the item's gstRate so the multi-rate / itemwise
+      // purchase types calculate tax against the rate that was current when the
+      // line was added.
       lineItems: [...f.lineItems, { code: inv.code, name: inv.name, category: inv.category, unit: inv.unit, qty, rate, amount: qty * rate,
-                                    designFile: inv.designFile || "", designName: inv.designName || "", attachDesign: false }],
+                                    designFile: inv.designFile || "", designName: inv.designName || "", attachDesign: false,
+                                    gstRate: inv.gstRate != null ? Number(inv.gstRate) : 0 }],
     }));
     setAddCode(""); setAddQty(""); setAddRate("");
   };
 
+  // Auto GST — driven by the chosen Purchase Type (single-rate / multi-rate /
+  // exempt) and per-line gstRate copied from the item master at add-time. Local
+  // POs split into CGST + SGST; interstate / import produce a single IGST line.
   const subtotal = form.lineItems.reduce((s, l) => s + l.amount, 0);
-  const gst      = Math.round(subtotal * 0.18);
-  const total    = subtotal + gst;
+  const taxBreakdown = calculateGSTBreakdown(subtotal, form.purchaseType, form.lineItems);
+  const { cgst, sgst, igst, gst, total } = taxBreakdown;
+  const purchaseTypeMeta = getPurchaseType(form.purchaseType);
 
   const handleSave = (status) => {
     if (!form.vendor) { setVendorErr(true); return; }
     if (form.lineItems.length === 0) return;
     setVendorErr(false);
-    onSave({ ...form, subtotal, gst, amount: total, status });
+    onSave({
+      ...form,
+      subtotal,
+      gst, cgst, sgst, igst,
+      amount: total,
+      status,
+      gstType: purchaseTypeMeta?.gstType || null,
+      date:    form.poDate || todayIso(),
+    });
   };
 
   const inpCls = `bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
@@ -3285,6 +3325,38 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
 
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
           <div className="grid grid-cols-2 gap-4">
+
+            {/* ── ERP step 1 — PO Date & Purchase Type (Busy-style keyboard nav) ── */}
+            <div>
+              <PLabel text="PO Date" req />
+              <input type="date" value={form.poDate} onChange={(e) => setF("poDate", e.target.value)}
+                     className={`w-full ${inpCls}`} style={{ colorScheme: "dark", fontFamily: "'Inter',system-ui,sans-serif" }} />
+            </div>
+            <div>
+              <PLabel text="Purchase Type" req />
+              <SearchableSelect
+                options={PURCHASE_TYPES.map((t) => ({ value: t.key, label: t.label, group: t.group }))}
+                value={form.purchaseType}
+                onChange={(v) => setF("purchaseType", v)}
+                filter={(q, opts) => {
+                  // Custom filter uses utils/gst.filterPurchaseTypes so the
+                  // group metadata stays attached to the option objects.
+                  const matches = filterPurchaseTypes(q, PURCHASE_TYPES);
+                  const map = new Map(opts.map((o) => [o.value, o]));
+                  return matches.map((t) => map.get(t.key)).filter(Boolean);
+                }}
+                placeholder="Type 'L' for Local, 'I' for Interstate, 'IMP' for Import…"
+              />
+              {purchaseTypeMeta && (
+                <div className="mt-1 text-[10px] text-slate-500">
+                  {purchaseTypeMeta.exempt
+                    ? "No GST charged on this PO."
+                    : purchaseTypeMeta.multi
+                      ? `Per-item GST — uses each line's gst_rate (${purchaseTypeMeta.gstType === "local" ? "CGST + SGST" : "IGST"}).`
+                      : `${purchaseTypeMeta.rate}% ${purchaseTypeMeta.gstType === "local" ? "split CGST + SGST" : "IGST single line"}.`}
+                </div>
+              )}
+            </div>
 
             {/* Vendor Picker Cards — shown only when creating from Low Stock flow */}
             {linkedVendors.length > 0 && (
@@ -3452,7 +3524,8 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
               setForm((f) => ({
                 ...f,
                 lineItems: [...(f.lineItems || []), { code: it.code, name: it.name, category: it.category, unit: it.unit, qty, rate, amount: qty * rate,
-                                                      designFile: it.designFile || "", designName: it.designName || "", attachDesign: false }],
+                                                      designFile: it.designFile || "", designName: it.designName || "", attachDesign: false,
+                                                      gstRate: it.gstRate != null ? Number(it.gstRate) : 0 }],
               }));
             };
             const addAllLowStockItems = () => {
@@ -3461,7 +3534,8 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                 const qty  = Math.max(shortage, Math.max(1, it.min || 1));
                 const rate = it.lastPurchaseRate || 0;
                 return { code: it.code, name: it.name, category: it.category, unit: it.unit, qty, rate, amount: qty * rate,
-                         designFile: it.designFile || "", designName: it.designName || "", attachDesign: false };
+                         designFile: it.designFile || "", designName: it.designName || "", attachDesign: false,
+                         gstRate: it.gstRate != null ? Number(it.gstRate) : 0 };
               });
               setForm((f) => ({ ...f, lineItems: [...(f.lineItems || []), ...lines] }));
             };
@@ -3598,10 +3672,31 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                 <span className="text-slate-400">Subtotal</span>
                 <span className="font-mono font-bold text-white">₹{subtotal.toLocaleString("en-IN")}</span>
               </div>
-              <div className="flex justify-between text-[11px]">
-                <span className="text-slate-400">GST (18%)</span>
-                <span className="font-mono font-bold text-orange-400">₹{gst.toLocaleString("en-IN")}</span>
-              </div>
+              {/* GST breakdown — driven by the chosen Purchase Type. Local POs
+                  show CGST + SGST; interstate / import show a single IGST line;
+                  exempt / nil / zero show "GST exempt — ₹0". */}
+              {purchaseTypeMeta?.exempt ? (
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-slate-400">GST ({purchaseTypeMeta.label})</span>
+                  <span className="font-mono font-bold text-slate-500">Exempt</span>
+                </div>
+              ) : purchaseTypeMeta?.gstType === "local" ? (
+                <>
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-slate-400">CGST{purchaseTypeMeta.rate ? ` (${purchaseTypeMeta.rate / 2}%)` : ""}</span>
+                    <span className="font-mono font-bold text-orange-300">₹{cgst.toLocaleString("en-IN")}</span>
+                  </div>
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-slate-400">SGST{purchaseTypeMeta.rate ? ` (${purchaseTypeMeta.rate / 2}%)` : ""}</span>
+                    <span className="font-mono font-bold text-orange-300">₹{sgst.toLocaleString("en-IN")}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-slate-400">IGST{purchaseTypeMeta?.rate ? ` (${purchaseTypeMeta.rate}%)` : ""}</span>
+                  <span className="font-mono font-bold text-orange-300">₹{igst.toLocaleString("en-IN")}</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm border-t border-white/[0.06] pt-2">
                 <span className="font-bold text-white">Total</span>
                 <span className="font-mono font-black text-green-400">₹{total.toLocaleString("en-IN")}</span>
@@ -5557,6 +5652,19 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
   const [qtyInput,     setQtyInput]     = useState("");
   const [waToast,      setWaToast]      = useState(null);
 
+  // Low Stock collapse — default to the collapsed view so a 400-item list
+  // doesn't push the rest of the pipeline columns off the screen. Persists in
+  // localStorage so the operator's preference survives reloads.
+  const LOW_STOCK_COLLAPSED_LIMIT = 10;
+  const LOW_STOCK_KEY = "erp_pipeline_lowstock_expanded";
+  const [lowStockExpanded, setLowStockExpanded] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try { return localStorage.getItem(LOW_STOCK_KEY) === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(LOW_STOCK_KEY, lowStockExpanded ? "1" : "0"); } catch {}
+  }, [lowStockExpanded]);
+
   // Phase 2 — Vendor-first PO wizard. Additive entry point ("📦 Create Vendor PO"
   // button) that opens Step 1 (Company) → Step 2 (Vendor) → POModal pre-filled.
   // The existing "+ New PO" and per-item "Order Now" buttons are unchanged.
@@ -5769,7 +5877,10 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                   <div className="text-3xl mb-2">✅</div>All stock levels healthy
                 </div>
               )}
-              {lowStock.map(item => {
+              {/* Collapse to first 10 items by default — a 400-item low-stock
+                  list would otherwise dominate the viewport. State persists in
+                  localStorage so the operator's preference survives reloads. */}
+              {(lowStockExpanded ? lowStock : lowStock.slice(0, LOW_STOCK_COLLAPSED_LIMIT)).map(item => {
                 const poPct          = item.min > 0 ? Math.min(100, Math.round((item.stock / item.min) * 100)) : 0;
                 const shortage       = Math.max(0, item.min - item.stock);
                 const recommendedQty = Math.max(item.min * 2 - item.stock, item.min);
@@ -5844,6 +5955,16 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                   </div>
                 );
               })}
+              {/* "+N more items" toggle — only shown when there's more to reveal.
+                  Default state is collapsed so the table stays above the fold. */}
+              {lowStock.length > LOW_STOCK_COLLAPSED_LIMIT && (
+                <button onClick={() => setLowStockExpanded((v) => !v)}
+                        className="w-full text-[10px] font-bold py-2 rounded-lg text-red-300 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-all">
+                  {lowStockExpanded
+                    ? `▲ Show fewer (hide ${lowStock.length - LOW_STOCK_COLLAPSED_LIMIT})`
+                    : `▼ +${lowStock.length - LOW_STOCK_COLLAPSED_LIMIT} more items`}
+                </button>
+              )}
             </div>
           </div>
 

@@ -36,13 +36,29 @@ function fromRow(r) {
     priority:      r.priority || "normal",
     amount:        Number(r.amount) || 0,
     gst:           Number(r.gst)    || 0,
+    cgst:          Number(r.cgst)   || 0,    // migration 018 — split tax for local
+    sgst:          Number(r.sgst)   || 0,    // migration 018
+    igst:          Number(r.igst)   || 0,    // migration 018 — interstate
     notes:         r.notes        || "",
     rejectReason:  r.reject_reason || "",
     lineItems:     Array.isArray(r.line_items)   ? r.line_items   : [],
     activityLog:   Array.isArray(r.activity_log) ? r.activity_log : [],
-    companyId:     r.company_id || null,   // PO Settings company profile (migration 015)
-    template:      r.template   || null,   // PO template preset (migration 015)
+    companyId:     r.company_id || null,     // PO Settings company profile (migration 015)
+    template:      r.template   || null,     // PO template preset (migration 015)
+    purchaseType:  r.purchase_type || null,  // migration 018 — operator-chosen GST class
+    gstType:       r.gst_type      || null,  // migration 018 — local | interstate | …
+    poDate:        r.po_date       || r.date || "",  // migration 018 — explicit PO Date
   };
+}
+
+// Detect schema-cache / column-missing errors so we can retry without the newest
+// optional columns when the migration hasn't been applied in production yet.
+// Same pattern as itemsStore.isMissingColumnError — kept local so the import
+// graph stays flat (this file already has zero deps besides supabase/env).
+function isMissingColumnError(err) {
+  if (!err) return false;
+  if (err.code === "42703" || err.code === "PGRST204") return true;
+  return /column .* does not exist|schema cache|could not find the .* column/i.test(err.message || err.details || err.hint || "");
 }
 function toIsoDate(s) {
   if (!s) return null;
@@ -69,16 +85,33 @@ export async function fetchPOs() {
 }
 
 export async function createPO(po) {
-  console.info("[pos:create] start", { id: po.id });
+  console.info("[pos:create] start", { id: po.id, purchaseType: po.purchaseType });
   if (!isSupabaseEnabled()) { setLocal([po, ...getLocal()]); return { success: true, po }; }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
   const baseRow = toRow(po);
-  const fullRow = { ...baseRow, company_id: po.companyId || null, template: po.template || null };
+  // 015 columns
+  const with015 = { ...baseRow, company_id: po.companyId || null, template: po.template || null };
+  // 018 columns — purchase type, GST split, explicit PO date
+  const fullRow = {
+    ...with015,
+    purchase_type: po.purchaseType || null,
+    gst_type:      po.gstType      || null,
+    po_date:       po.poDate ? toIsoDate(po.poDate) : (po.date ? toIsoDate(po.date) : null),
+    cgst:          po.cgst || null,
+    sgst:          po.sgst || null,
+    igst:          po.igst || null,
+  };
   let { data, error } = await c.from("purchase_orders").insert(fullRow).select().single();
-  // Schema-tolerant: if company_id/template columns aren't there yet (migration 015 not run),
-  // retry without them so PO creation never breaks.
-  if (error && (error.code === "42703" || error.code === "PGRST204" || /column .* does not exist|schema cache/i.test(error.message || ""))) {
-    console.warn("[pos:create] company_id/template columns missing — run migration 015. Creating PO without them.");
+
+  // Three-tier retry mirrors the way migrations have rolled out:
+  //   018 missing → drop purchase_type / gst_type / po_date / cgst / sgst / igst
+  //   015 missing → drop company_id / template too
+  if (error && isMissingColumnError(error)) {
+    console.warn("[pos:create] migration 018 columns missing — retrying without purchase_type/gst_type/po_date/cgst/sgst/igst");
+    ({ data, error } = await c.from("purchase_orders").insert(with015).select().single());
+  }
+  if (error && isMissingColumnError(error)) {
+    console.warn("[pos:create] migration 015 columns missing — retrying without company_id/template");
     ({ data, error } = await c.from("purchase_orders").insert(baseRow).select().single());
   }
   if (error) { console.error("[pos:create] failed", error); return { success: false, error: error.message }; }
@@ -96,7 +129,28 @@ export async function updatePO(id, updates) {
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
   const row = toRow({ id, ...updates }); delete row.id;
   Object.keys(row).forEach((k) => updates[mapCamel(k)] === undefined && updates[k] === undefined && delete row[k]);
-  const { error } = await c.from("purchase_orders").update(row).eq("id", id);
+  // Layer the 015 + 018 columns on top — only when the caller actually touched them.
+  if (updates.companyId !== undefined) row.company_id = updates.companyId || null;
+  if (updates.template  !== undefined) row.template   = updates.template  || null;
+  if (updates.purchaseType !== undefined) row.purchase_type = updates.purchaseType || null;
+  if (updates.gstType      !== undefined) row.gst_type      = updates.gstType      || null;
+  if (updates.poDate       !== undefined) row.po_date       = updates.poDate ? toIsoDate(updates.poDate) : null;
+  if (updates.cgst         !== undefined) row.cgst          = updates.cgst || null;
+  if (updates.sgst         !== undefined) row.sgst          = updates.sgst || null;
+  if (updates.igst         !== undefined) row.igst          = updates.igst || null;
+
+  let { error } = await c.from("purchase_orders").update(row).eq("id", id);
+  if (error && isMissingColumnError(error)) {
+    console.warn("[pos:update] migration 018 columns missing — stripping purchase_type/gst_type/po_date/cgst/sgst/igst");
+    delete row.purchase_type; delete row.gst_type; delete row.po_date;
+    delete row.cgst; delete row.sgst; delete row.igst;
+    ({ error } = await c.from("purchase_orders").update(row).eq("id", id));
+  }
+  if (error && isMissingColumnError(error)) {
+    console.warn("[pos:update] migration 015 columns missing — stripping company_id/template");
+    delete row.company_id; delete row.template;
+    ({ error } = await c.from("purchase_orders").update(row).eq("id", id));
+  }
   if (error) { console.error("[pos:update] failed", error); return { success: false, error: error.message }; }
   console.info("[pos:update] ok");
   return { success: true };
