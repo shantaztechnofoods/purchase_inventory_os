@@ -26,6 +26,7 @@ import { fetchRecentMovements, MOVEMENT_META } from "./stores/stockMovementsStor
 import { sendPOWhatsApp, openVendorWhatsApp, waErrorToast } from "./utils/whatsapp.js";
 import { uploadItemMedia, MAX_UPLOAD_BYTES } from "./utils/storage.js";
 import POSettings from "./components/POSettings.jsx";
+import { mapRow as vendorMapRow, parseRows as vendorParseRows } from "./utils/vendorImport.js";
 import { getActiveCompany, normalizePOSettings, openPOPdf, PO_TEMPLATE_OPTIONS } from "./utils/poTemplate.js";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -36,7 +37,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-05-30i-vendorimport";
+const APP_BUILD = "2026-05-30j-vendorimport2";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -3685,51 +3686,9 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
   const [fileName,  setFileName]  = useState("");
   const [error,     setError]     = useState("");
 
-  const FIELD_MAP = [
-    { key: "name",          aliases: ["vendor name","company name","name","vendor","supplier name","supplier"] },
-    { key: "contactPerson", aliases: ["contact person","contact","person","contact name","representative"] },
-    { key: "phone",         aliases: ["mobile","phone","mobile no","mobile no.","mobile number","phone no","phone no.","phone number","contact number","whatsapp","cell","cell phone"] },
-    { key: "email",         aliases: ["email","email address","mail","e-mail","email id","email-id"] },
-    { key: "gst",           aliases: ["gst","gst no","gst no.","gst number","gstin","gst#","gst id","gstin no","gstin number"] },
-    { key: "location",      aliases: ["location","city","state","city/state","city, state","place"] },
-    { key: "category",      aliases: ["category","category / specialty","specialty","type","vendor type","supplier type","item type"] },
-    { key: "paymentTerms",  aliases: ["credit days","credit period","payment terms","payment days","credit","credit term","credit terms","payment term","net days"] },
-  ];
-
-  // Address handling is a special case: real-world sheets often split the address
-  // across 2-4 columns ("Address Line 1/2/3/4" or "Address 1/2"). We collect every
-  // address-like column in sheet order, drop blanks, and comma-join.
-  const collectAddress = (raw) => {
-    const parts = [];
-    for (const k of Object.keys(raw)) {
-      const norm = String(k).trim().toLowerCase();
-      const isPlain = ["address","full address","billing address","street address","full_address"].includes(norm);
-      const isLine  = /^address(?:\s*line)?\s*[1-9]\d*$/.test(norm);
-      if (!isPlain && !isLine) continue;
-      const v = String(raw[k] || "").trim();
-      if (v) parts.push(v);
-    }
-    // Deduplicate (a sheet that has both "Address" and "Address Line 1" with the
-    // same text shouldn't produce "X, X")
-    return [...new Set(parts)].join(", ");
-  };
-
-  const mapRow = (raw) => {
-    const out = {};
-    for (const { key, aliases } of FIELD_MAP) {
-      const found = Object.keys(raw).find((k) => aliases.includes(String(k).trim().toLowerCase()));
-      out[key] = found !== undefined ? String(raw[found] || "").trim() : "";
-    }
-    out.address = collectAddress(raw);
-    // Normalise Credit Days: accept "30" → "30 days", keep "45 days" verbatim, default
-    // empty to "30 days" so vendors look identical to manually-created ones.
-    if (!out.paymentTerms) {
-      out.paymentTerms = "30 days";
-    } else if (/^\d+$/.test(out.paymentTerms)) {
-      out.paymentTerms = `${out.paymentTerms} days`;
-    }
-    return out;
-  };
+  // Header → field mapping, address merging and Credit Days normalisation all live
+  // in src/utils/vendorImport.js so they are unit-testable from Node against the
+  // operator's real accounting-sheet column headers. See FIELD_MAP in that file.
 
   const parseFile = async (file) => {
     setError(""); setRows(null); setFileName(file.name);
@@ -3740,27 +3699,10 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
       const raw   = XLSX.utils.sheet_to_json(ws, { defval: "" });
       if (!raw.length) { setError("The file appears to be empty."); return; }
 
-      // Build a quick lookup of existing vendors keyed by lowercase name → existing.id.
-      // Duplicate rows are NO LONGER skipped: the App-side processor will merge missing
-      // fields into the existing vendor (operator requirement #5).
-      const existing = new Map(
-        vendorList.map((v) => [String(v.name || "").trim().toLowerCase(), v])
-      );
-
-      const parsed = raw
-        .map((r) => {
-          const mapped = mapRow(r);
-          // Skip completely blank rows
-          const valueCount = Object.values(mapped).filter((v) => v && v !== "30 days").length;
-          if (!mapped.name && valueCount === 0) return null;
-          // Only Vendor Name is required (operator requirement #1)
-          if (!mapped.name) return null;
-          const match = existing.get(mapped.name.toLowerCase());
-          if (match) return { ...mapped, _status: "update", _existingId: match.id };
-          return { ...mapped, _status: "ready" };
-        })
-        .filter(Boolean);
-
+      // Classify rows using the shared util (pure, Node-testable). Result entries
+      // carry _status="ready" (new vendor) or _status="update" (existing — only
+      // blank fields will be filled in by handleBulkAddVendors).
+      const parsed = vendorParseRows(raw, vendorList);
       setRows(parsed);
     } catch {
       setError("Could not read the file. Make sure it is a valid CSV or Excel (.xlsx) file.");
