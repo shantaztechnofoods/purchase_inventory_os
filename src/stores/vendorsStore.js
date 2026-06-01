@@ -4,6 +4,12 @@ import { getSupabase } from "../supabase/client.js";
 
 const LOCAL_KEY = "erp_vendors";
 
+// Archive sentinel — when a vendor has POs / items, deleteVendor sets status='archived'
+// (encoded in the notes payload since the vendors table has no dedicated archive column,
+// and adding one requires a migration we can't run from this client). Archived vendors
+// are filtered out of the active list by the UI but preserved for PO/item history joins.
+const ARCHIVED_MARKER = "__archived__";
+
 function toRow(v) {
   return {
     id:             v.id || undefined,
@@ -15,10 +21,14 @@ function toRow(v) {
     gst:            v.gst            || null,
     address:        v.address        || null,
     city:           v.city           || null,
-    notes:          v.notes          || null,
+    notes:          v.archived
+                      ? `${ARCHIVED_MARKER} ${v.notes || ""}`.trim()
+                      : (v.notes || null),
   };
 }
 function fromRow(r) {
+  const notes = r.notes || "";
+  const archived = notes.startsWith(ARCHIVED_MARKER);
   return {
     id:            r.id,
     name:          r.name,
@@ -29,7 +39,8 @@ function fromRow(r) {
     gst:           r.gst            || "",
     address:       r.address        || "",
     city:          r.city           || "",
-    notes:         r.notes          || "",
+    notes:         archived ? notes.slice(ARCHIVED_MARKER.length).trim() : notes,
+    archived,
   };
 }
 
@@ -97,6 +108,8 @@ export async function updateVendor(v) {
   return { success: true, vendor: updated };
 }
 
+// Hard delete a vendor row. Used by the App handler when the vendor has no purchase
+// history / POs / linked items — no FK ripple to worry about.
 export async function deleteVendor(id) {
   console.info("[vendors:delete] start", { id });
   if (!isSupabaseEnabled()) {
@@ -111,6 +124,28 @@ export async function deleteVendor(id) {
   setLocal(getLocal().filter((v) => v.id !== id));
   console.info("[vendors:delete] supabase ok");
   return { success: true };
+}
+
+// Archive a vendor (keeps the row so PO history / item-link references stay intact,
+// but the vendor disappears from active selectors). Implemented as an update of the
+// notes column with a marker prefix — see toRow/fromRow.
+export async function archiveVendor(vendor) {
+  console.info("[vendors:archive] start", { id: vendor?.id, name: vendor?.name });
+  const archived = { ...vendor, archived: true };
+  if (!isSupabaseEnabled()) {
+    setLocal(getLocal().map((v) => v.id === archived.id ? archived : v));
+    console.info("[vendors:archive] local ok");
+    return { success: true, vendor: archived };
+  }
+  const c = getSupabase();
+  if (!c) return { success: false, error: "Supabase not configured" };
+  const row = toRow(archived); const rid = row.id; delete row.id;
+  const { data, error } = await c.from("vendors").update(row).eq("id", rid).select().single();
+  if (error) { console.error("[vendors:archive] failed", error); return { success: false, error: error.message }; }
+  const updated = fromRow(data);
+  setLocal(getLocal().map((v) => v.id === updated.id ? updated : v));
+  console.info("[vendors:archive] supabase ok");
+  return { success: true, vendor: updated };
 }
 
 export async function bulkCreateVendors(arr) {

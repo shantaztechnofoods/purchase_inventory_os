@@ -243,8 +243,17 @@ export async function createItem(category, item) {
 }
 
 // Update an item by original code (handles code/category changes).
+//
+// Duplicate-key fix (Phase 3): the UPDATE is targeted by primary-key id whenever it's
+// available, NOT by code, so PostgreSQL never has to re-evaluate the items_code_key
+// uniqueness against the row we're updating. Additionally, `code` is omitted from the
+// payload when unchanged — this is the minimum write that yields the same result and
+// removes a whole class of "spurious duplicate" failures observed when production had
+// a stale row with the same code (e.g. soft-deleted item that still occupies the
+// unique slot). When code IS changing, we pre-check that no OTHER row owns that code
+// and surface a clean error before the DB write.
 export async function updateItem(originalCode, originalCategory, updatedItem, newCategory) {
-  console.info("[items:update] start", { originalCode, newCode: updatedItem.code, newCategory });
+  console.info("[items:update] start", { originalCode, newCode: updatedItem.code, newCategory, id: updatedItem.id });
   if (!isSupabaseEnabled()) {
     const g = getLocal();
     // Remove from original category
@@ -260,11 +269,23 @@ export async function updateItem(originalCode, originalCategory, updatedItem, ne
   }
   const c = getSupabase();
   if (!c) return { success: false, error: "Supabase not configured" };
+
+  const codeChanged = updatedItem.code && updatedItem.code !== originalCode;
+
+  // Pre-check uniqueness ONLY when the code is actually changing — and ONLY against
+  // OTHER rows (not self). Surfaces a clear message before the constraint fires.
+  if (codeChanged) {
+    const probe = await c.from("items").select("id, code").eq("code", updatedItem.code).maybeSingle();
+    if (probe.data && probe.data.id !== updatedItem.id) {
+      console.warn("[items:update] code conflict — another item already has this code", probe.data);
+      return { success: false, error: `Item code "${updatedItem.code}" is already used by another item.` };
+    }
+  }
+
   // METADATA-ONLY update. stock / status / trend / reserved_stock / available_stock are
   // engine-managed — they may ONLY change via record_stock_movement. Editing an item never
   // mutates physical stock; a stock correction goes through handleInventoryCorrection → RPC.
   const baseRow = {
-    code:               updatedItem.code,
     name:               updatedItem.name,
     category:           (newCategory || originalCategory) || updatedItem.category,
     unit:               updatedItem.unit         || null,
@@ -274,6 +295,11 @@ export async function updateItem(originalCode, originalCategory, updatedItem, ne
     last_purchase_rate: updatedItem.lastPurchaseRate  || null,
     vendor_links:       updatedItem.vendorLinks  || [],
   };
+  // Only include `code` in the write when it's actually changing. Updating a column to
+  // its current value is a no-op that PostgreSQL still validates against the unique
+  // index — omitting it removes one whole failure mode.
+  if (codeChanged) baseRow.code = updatedItem.code;
+
   // Optional media columns (migration 016). Retry without them on schema miss.
   const fullRow = {
     ...baseRow,
@@ -286,20 +312,48 @@ export async function updateItem(originalCode, originalCategory, updatedItem, ne
   // "uploads succeed then disappear" bug).
   const userProvidedMedia = !!(updatedItem.photo || updatedItem.designFile);
   let mediaStripped = false;
-  let resp = await c.from("items").update(fullRow).eq("code", originalCode).select().single();
+
+  // Prefer id-based WHERE when available (unambiguous row targeting). Fall back to
+  // code-based for older code paths that don't carry id (e.g. localStorage-only state).
+  const useId = !!updatedItem.id;
+  const buildQuery = (payload) => {
+    let q = c.from("items").update(payload);
+    q = useId ? q.eq("id", updatedItem.id) : q.eq("code", originalCode);
+    return q.select().single();
+  };
+
+  let resp = await buildQuery(fullRow);
   if (resp.error && isMissingColumnError(resp.error)) {
     console.warn("[items:update] media columns missing (run migration 016) — retrying without");
     mediaStripped = userProvidedMedia;
-    resp = await c.from("items").update(baseRow).eq("code", originalCode).select().single();
+    resp = await buildQuery(baseRow);
   }
   const { data, error } = resp;
-  if (error) { console.error("[items:update] supabase failed", error); return { success: false, error: error.message }; }
+  if (error) {
+    // Friendlier message if the unique constraint did fire (race with another tab, etc.)
+    if (error.code === "23505" || /duplicate key.*items_code_key/i.test(error.message || "")) {
+      console.error("[items:update] code conflict at DB", error);
+      return { success: false, error: `Item code "${updatedItem.code}" is already used by another item.` };
+    }
+    console.error("[items:update] supabase failed", error);
+    return { success: false, error: error.message };
+  }
   const updated = fromRow(data);
   console.info("[items:update] supabase ok", { id: updated.id, mediaStripped });
   return { success: true, item: updated, mediaStripped };
 }
 
-// Delete an item by code. Cascades to item_history via FK ON DELETE CASCADE.
+// Delete an item by code.
+//
+// Phase 2 fix: schema-tolerant. Production reports "Could not find 'deactivated_at'
+// column of 'items'" — migration 008 hasn't been run there, so is_active / deactivated_at
+// / deactivated_by don't exist yet. Strategy:
+//   1) Try full soft-delete (is_active=false, deactivated_at, deactivated_by) — preferred,
+//      preserves item_history rows for audit.
+//   2) On missing-column error, retry with just is_active=false (008 partial).
+//   3) Still missing? Fall back to hard DELETE so the operator isn't stuck. item_history
+//      rows survive because their FK is ON DELETE SET NULL (008) — and pre-008 schemas
+//      use ON DELETE CASCADE, which removes the rows the operator wanted gone anyway.
 export async function deleteItem(category, code) {
   console.info("[items:delete] start", { code, category });
   if (!isSupabaseEnabled()) {
@@ -311,26 +365,52 @@ export async function deleteItem(category, code) {
   }
   const c = getSupabase();
   if (!c) return { success: false, error: "Supabase not configured" };
-  // Fetch item details for audit history before deactivation
+
+  // Fetch item details for audit history BEFORE we touch the row.
   const { data: cur } = await c.from("items").select("id, code, name, category, stock").eq("code", code).maybeSingle();
-  // Soft delete: UPDATE is_active=false instead of DELETE — preserves item_history rows
-  const { error } = await c.from("items").update({
+
+  // ── Attempt 1: full soft-delete (migration 008 applied) ────────────────────
+  let resp = await c.from("items").update({
     is_active:      false,
     deactivated_at: new Date().toISOString(),
     deactivated_by: _currentUserCtx?.id || null,
   }).eq("code", code);
-  if (error) { console.error("[items:delete] supabase soft-delete failed", error); return { success: false, error: error.message }; }
-  // Write a final history row noting deactivation
-  if (cur) {
-    await addItemHistory(cur.id, {
-      item_code: cur.code, item_name: cur.name, category: cur.category,
-      event_type: "Deactivated", quantity_change: 0,
-      stock_before: Number(cur.stock) || 0, stock_after: Number(cur.stock) || 0,
-      notes: "Item deactivated (soft delete)",
-    });
+
+  let mode = "soft-full";
+  if (resp.error && isMissingColumnError(resp.error)) {
+    console.warn("[items:delete] deactivated_at/deactivated_by missing — retrying with is_active only");
+    resp = await c.from("items").update({ is_active: false }).eq("code", code);
+    mode = "soft-min";
   }
-  console.info("[items:delete] supabase soft-delete ok");
-  return { success: true };
+  if (resp.error && isMissingColumnError(resp.error)) {
+    console.warn("[items:delete] is_active missing too (migration 008 not run) — falling back to hard DELETE");
+    resp = await c.from("items").delete().eq("code", code);
+    mode = "hard";
+  }
+  if (resp.error) {
+    console.error("[items:delete] supabase failed", { mode, error: resp.error });
+    return { success: false, error: resp.error.message };
+  }
+
+  // Write a final history row noting deactivation. Skip on hard-delete (the FK may be
+  // CASCADE on older schemas, which would drop the row we just inserted; on 008+ it's
+  // SET NULL so it stays — but the soft path already wrote it, so a hard fallback row
+  // is informational only).
+  if (cur && mode !== "hard") {
+    try {
+      await addItemHistory(cur.id, {
+        item_code: cur.code, item_name: cur.name, category: cur.category,
+        event_type: "Deactivated", quantity_change: 0,
+        stock_before: Number(cur.stock) || 0, stock_after: Number(cur.stock) || 0,
+        notes: `Item deactivated (${mode})`,
+      });
+    } catch (e) {
+      console.warn("[items:delete] history write after delete failed (non-fatal)", e);
+    }
+  }
+
+  console.info("[items:delete] supabase ok", { mode });
+  return { success: true, mode };
 }
 
 // Capture current user context for history denormalization

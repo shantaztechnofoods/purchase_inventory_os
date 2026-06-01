@@ -12,7 +12,7 @@ import { appendAuditWithUser, getAuditLog, subscribeAudit } from "./auth/auditSt
 import AuditHistoryPage from "./pages/AuditHistoryPage.jsx";
 import { isSupabaseEnabled, IS_PROD, ALLOW_DEMO } from "./config/env.js";
 import { loadSettings, saveSettings } from "./stores/settingsStore.js";
-import { listVendors, createVendor, updateVendor, deleteVendor, bulkCreateVendors } from "./stores/vendorsStore.js";
+import { listVendors, createVendor, updateVendor, deleteVendor, archiveVendor, bulkCreateVendors } from "./stores/vendorsStore.js";
 import { fetchItems, createItem as itemCreate, updateItem as itemUpdate, deleteItem as itemDelete, updateStockAndHistory, addItemHistory } from "./stores/itemsStore.js";
 import { fetchBOMs, createBOM as bomCreate, updateBOM as bomUpdate, renameBOM as bomRename, deleteBOM as bomDelete } from "./stores/bomsStore.js";
 import { fetchPOs, createPO as poCreate, updatePO as poUpdate, deletePO as poDelete } from "./stores/posStore.js";
@@ -27,6 +27,7 @@ import { sendPOWhatsApp, openVendorWhatsApp, waErrorToast } from "./utils/whatsa
 import { uploadItemMedia, MAX_UPLOAD_BYTES } from "./utils/storage.js";
 import POSettings from "./components/POSettings.jsx";
 import { mapRow as vendorMapRow, parseRows as vendorParseRows } from "./utils/vendorImport.js";
+import { parseRows as itemParseRows, generateItemCode } from "./utils/itemImport.js";
 import { getActiveCompany, normalizePOSettings, openPOPdf, PO_TEMPLATE_OPTIONS } from "./utils/poTemplate.js";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -37,7 +38,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-05-30j-vendorimport2";
+const APP_BUILD = "2026-06-01a-itemimport-deletefix";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -2359,15 +2360,193 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
   );
 }
 
+// ─── ITEM IMPORT MODAL ────────────────────────────────────────────────────────
+// Mirrors VendorImportModal. Parsing + classification lives in src/utils/itemImport.js
+// so it's testable from Node. UI surfaces: column guide, drop-zone, preview table with
+// ✓ New / ↻ Update Existing badges, summary footer.
+function ItemImportModal({ items, onImport, onClose }) {
+  const fileRef = useRef(null);
+  const [rows,     setRows]     = useState(null);
+  const [fileName, setFileName] = useState("");
+  const [error,    setError]    = useState("");
+
+  const parseFile = async (file) => {
+    setError(""); setRows(null); setFileName(file.name);
+    try {
+      const data = await file.arrayBuffer();
+      const wb   = XLSX.read(data, { type: "array" });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const raw  = XLSX.utils.sheet_to_json(ws, { defval: "" });
+      if (!raw.length) { setError("The file appears to be empty."); return; }
+      const parsed = itemParseRows(raw, items);
+      setRows(parsed);
+    } catch {
+      setError("Could not read the file. Make sure it is a valid CSV or Excel (.xlsx) file.");
+    }
+  };
+
+  const readyCount  = (rows || []).filter((r) => r._status === "ready").length;
+  const updateCount = (rows || []).filter((r) => r._status === "update").length;
+
+  const handleImport = () => {
+    const toImport = (rows || []).filter((r) => r._status === "ready" || r._status === "update");
+    onImport(toImport, readyCount, updateCount);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+         style={{ background: "rgba(4,6,12,0.88)", backdropFilter: "blur(14px)" }}
+         onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl overflow-hidden"
+           style={{ background: "linear-gradient(180deg,#0d1018,#090c14)", border: "1px solid rgba(59,130,246,0.35)", boxShadow: "0 32px 80px rgba(0,0,0,0.92)", animation: "slideUp 0.2s ease both" }}>
+
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-white/[0.07] flex items-center justify-between flex-shrink-0">
+          <div>
+            <div className="text-sm font-black text-white">Import Items</div>
+            <div className="text-[11px] text-slate-500 mt-0.5">Upload a CSV or Excel file exported from Google Sheets</div>
+          </div>
+          <button onClick={onClose} className="text-slate-500 hover:text-white text-lg leading-none">✕</button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          {/* Column guide */}
+          <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)" }}>
+            <div>
+              <div className="text-[11px] font-semibold text-blue-300 mb-1.5">Supported columns — use these exact header names in your sheet</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { label: "Name",          req: true,  hint: "Required" },
+                  { label: "HSN Code",      req: false, hint: "Optional" },
+                  { label: "Purc. Price",   req: false, hint: "Optional" },
+                  { label: "Sale Price",    req: false, hint: "Optional" },
+                  { label: "Unit",          req: false, hint: "Optional" },
+                  { label: "Category",      req: false, hint: "Optional" },
+                  { label: "Opening Stock", req: false, hint: "Optional" },
+                  { label: "Min Stock",     req: false, hint: "Optional" },
+                ].map(({ label, req, hint }) => (
+                  <div key={label} className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono font-semibold"
+                          style={{ color: req ? "#93c5fd" : "#64748b" }}>{label}</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full"
+                          style={{ background: req ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.04)",
+                                   color: req ? "#93c5fd" : "#475569",
+                                   border: req ? "1px solid rgba(59,130,246,0.3)" : "1px solid rgba(255,255,255,0.06)" }}>
+                      {hint}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="text-[10px] text-slate-500 pt-1" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+              Only <span className="text-blue-300 font-semibold">Name</span> is required.
+              Item code uses <span className="text-blue-300 font-semibold">Item Code</span> if present, else <span className="text-blue-300 font-semibold">HSN Code</span>, else auto-generated.
+              Existing items (matched by name) are updated — blank fields filled, populated fields preserved.
+            </div>
+          </div>
+
+          {/* Drop zone */}
+          <div onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) parseFile(f); }}
+               onDragOver={(e) => e.preventDefault()}
+               onClick={() => fileRef.current?.click()}
+               className="rounded-xl border-2 border-dashed cursor-pointer flex flex-col items-center justify-center py-10 transition-all"
+               style={{ borderColor: "rgba(255,255,255,0.1)" }}
+               onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(59,130,246,0.4)"}
+               onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"}>
+            <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
+                   onChange={(e) => { const f = e.target.files[0]; if (f) parseFile(f); e.target.value = ""; }} />
+            <div className="text-4xl mb-3">{fileName ? "📄" : "📂"}</div>
+            <div className="text-sm font-semibold text-white mb-1">{fileName || "Click or drag file here"}</div>
+            <div className="text-[11px] text-slate-500">Supports .csv and .xlsx (Excel) — exported from Google Sheets</div>
+          </div>
+
+          {error && (
+            <div className="text-[11px] text-red-400 px-4 py-3 rounded-xl"
+                 style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>{error}</div>
+          )}
+
+          {/* Preview table */}
+          {rows && rows.length === 0 && (
+            <div className="text-center py-6 text-slate-500 text-sm">No valid item rows found (every row had a blank Name).</div>
+          )}
+          {rows && rows.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-[11px] font-semibold text-slate-300">{rows.length} row{rows.length !== 1 ? "s" : ""} detected</div>
+                <div className="flex items-center gap-3 text-[10px]">
+                  {readyCount  > 0 && <span className="font-bold text-green-400">{readyCount} new</span>}
+                  {updateCount > 0 && <span className="font-bold text-yellow-300">{updateCount} existing — missing fields will be filled in</span>}
+                </div>
+              </div>
+              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+                <div className="overflow-x-auto max-h-[40vh]">
+                  <table className="w-full">
+                    <thead>
+                      <tr style={{ background: "rgba(255,255,255,0.03)" }}>
+                        {["Status","Item Name","Code","Category","Unit","Purc. Rate","Sale Price"].map((h) => (
+                          <th key={h} className="text-left text-[10px] font-semibold text-slate-500 px-3 py-2 whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((r, i) => (
+                        <tr key={i} style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+                          <td className="px-3 py-2.5 whitespace-nowrap">
+                            {r._status === "ready"
+                              ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-green-400" style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.25)" }}>✓ New</span>
+                              : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-yellow-300" style={{ background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.25)" }}>↻ Update</span>}
+                          </td>
+                          <td className="px-3 py-2.5 text-[11px] font-semibold text-white whitespace-nowrap max-w-[180px] truncate">{r.name}</td>
+                          <td className="px-3 py-2.5 text-[11px] font-mono text-blue-400 whitespace-nowrap">{r.code || <span className="text-slate-700">auto</span>}</td>
+                          <td className="px-3 py-2.5 text-[11px] text-slate-400 whitespace-nowrap">{r.category}</td>
+                          <td className="px-3 py-2.5 text-[11px] text-slate-400 whitespace-nowrap">{r.unit}</td>
+                          <td className="px-3 py-2.5 text-[11px] font-mono text-slate-300 whitespace-nowrap">{r.lastPurchaseRate ? `₹${Number(r.lastPurchaseRate).toLocaleString("en-IN")}` : <span className="text-slate-700">—</span>}</td>
+                          <td className="px-3 py-2.5 text-[11px] font-mono text-slate-300 whitespace-nowrap">{r.salePrice != null ? `₹${Number(r.salePrice).toLocaleString("en-IN")}` : <span className="text-slate-700">—</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-white/[0.07] flex items-center justify-between gap-3 flex-shrink-0">
+          <div className="text-[10px] text-slate-600">
+            {rows
+              ? (readyCount + updateCount > 0
+                  ? `${readyCount} new · ${updateCount} update${updateCount !== 1 ? "s" : ""}`
+                  : "Nothing to import — every row had a blank Name.")
+              : "Upload a file to preview and import"}
+          </div>
+          <div className="flex items-center gap-3">
+            <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
+            <button onClick={handleImport} disabled={!rows || (readyCount + updateCount) === 0}
+                    className="text-xs font-black px-5 py-2 rounded-xl text-white transition-opacity"
+                    style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 20px rgba(37,99,235,0.4)",
+                             opacity: (!rows || (readyCount + updateCount) === 0) ? 0.4 : 1,
+                             cursor: (!rows || (readyCount + updateCount) === 0) ? "not-allowed" : "pointer" }}>
+              {(() => { const total = readyCount + updateCount; return `Import${total > 0 ? ` ${total} Item${total !== 1 ? "s" : ""}` : ""}`; })()}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── INVENTORY PAGE ───────────────────────────────────────────────────────────
 
-function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog = [], outwardLog = [], pendingLog = [], bomDefs = {}, machineLog = [], onLogAudit = () => {}, canDo = () => true, vendorList = [], onCreateItem, onUpdateItem, onDeleteItem }) {
+function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog = [], outwardLog = [], pendingLog = [], bomDefs = {}, machineLog = [], onLogAudit = () => {}, canDo = () => true, vendorList = [], onCreateItem, onUpdateItem, onDeleteItem, onBulkAddItems }) {
   const [search,        setSearch]        = useState("");
   const [statusFilter,  setStatusFilter]  = useState("all");
   const [catFilter,     setCatFilter]     = useState("all");
   const [sortCol,       setSortCol]       = useState("name");
   const [sortDir,       setSortDir]       = useState("asc");
   const [showModal,     setShowModal]     = useState(false);
+  const [showImport,    setShowImport]    = useState(false);
   const [toast,         setToast]         = useState(null);
   const [lastAddedCode, setLastAddedCode] = useState(null);
   const [selectedItem,  setSelectedItem]  = useState(null);
@@ -2545,6 +2724,28 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
   return (
     <div className="flex-1 overflow-y-auto">
       {showModal && <AddItemModal machines={machines} onSave={handleAddItem} onClose={() => setShowModal(false)} vendorList={vendorList} />}
+      {showImport && (
+        <ItemImportModal
+          items={items}
+          onImport={async (importRows /* , readyCount, updateCount */) => {
+            setShowImport(false);
+            // Delegate to App-side handler (per-row, mirrors handleBulkAddVendors so a
+            // single bad row never kills the batch). Falls back to a no-op summary if
+            // the parent didn't pass onBulkAddItems (e.g. legacy render).
+            const res = onBulkAddItems
+              ? await onBulkAddItems(importRows)
+              : { imported: 0, updated: 0, failed: 0 };
+            const r = res || { imported: 0, updated: 0, failed: 0 };
+            const parts = [];
+            if (r.imported > 0) parts.push(`Imported ${r.imported}`);
+            if (r.updated  > 0) parts.push(`Updated ${r.updated}`);
+            if (r.failed   > 0) parts.push(`Failed ${r.failed}`);
+            setToast({ status: r.failed > 0 ? "warning" : "safe", name: parts.length ? parts.join(" · ") : "No rows imported", machine: "Import" });
+            setTimeout(() => setToast(null), 4500);
+          }}
+          onClose={() => setShowImport(false)}
+        />
+      )}
       {selectedItem && (
         <ItemDetailModal
           item={selectedItem.item} category={selectedItem.category}
@@ -2635,6 +2836,12 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
 
       <Topbar title="Item Master" subtitle="Unified inventory across all categories">
         <Btn variant="ghost" size="sm">⬇️ Export</Btn>
+        {canDo("inventory","add") && (
+          <button onClick={() => setShowImport(true)}
+                  className="text-xs font-bold px-3 py-1.5 rounded-lg border border-white/[0.1] text-slate-300 hover:text-white hover:border-white/[0.25] transition-all flex items-center gap-1.5">
+            ⬆ Import Items
+          </button>
+        )}
         {canDo("inventory","add") && <Btn variant="primary" size="sm" onClick={() => setShowModal(true)}>+ Add Item</Btn>}
       </Topbar>
 
@@ -4028,6 +4235,10 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3500); };
 
+  // Hide archived vendors from the active list — they live on so PO/item references
+  // still resolve, but they shouldn't show up in cards or selectors.
+  const activeVendors = vendorList.filter((v) => !v.archived);
+
   const allFlatItems = Object.entries(items).flatMap(([cat, list]) =>
     list.map((item) => ({ ...item, category: cat }))
   );
@@ -4037,7 +4248,16 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
     return acc;
   }, {});
 
-  const filtered = vendorList.filter((v) => {
+  // Pre-compute usage so the delete-confirm modal can choose archive vs hard delete.
+  const usageFor = (v) => {
+    const hasPOs = pos.some((p) => p.vendor === v.name);
+    const hasLinkedItems = allFlatItems.some((it) =>
+      (it.vendorLinks || []).some((l) => l.vendorId === v.id) || it.vendor === v.name
+    );
+    return { hasPOs, hasLinkedItems, anyRefs: hasPOs || hasLinkedItems };
+  };
+
+  const filtered = activeVendors.filter((v) => {
     const q = search.toLowerCase();
     return (v.name     || "").toLowerCase().includes(q)
         || (v.category || "").toLowerCase().includes(q)
@@ -4086,28 +4306,73 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
         />
       )}
 
-      {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-             style={{ background: "rgba(4,6,12,0.88)", backdropFilter: "blur(14px)" }}>
-          <div className="w-80 rounded-2xl p-6" style={{ background: "#0d1018", border: "1px solid rgba(239,68,68,0.35)" }}>
-            <div className="text-sm font-black text-white mb-2">Delete Vendor?</div>
-            <div className="text-[11px] text-slate-400 mb-5">
-              Remove <span className="text-white font-bold">{confirmDelete.name}</span> from the vendor list? This cannot be undone.
-            </div>
-            <div className="flex gap-3 justify-end">
-              <Btn variant="ghost" size="sm" onClick={() => setConfirmDelete(null)}>Cancel</Btn>
-              <Btn variant="red" size="sm" onClick={() => {
-                onDeleteVendor(confirmDelete.id);
-                showToast(`${confirmDelete.name} removed`);
-                setConfirmDelete(null);
-                if (profileVendor?.id === confirmDelete.id) setProfileVendor(null);
-              }}>Delete</Btn>
+      {confirmDelete && (() => {
+        const use = usageFor(confirmDelete);
+        const poCount  = pos.filter((p) => p.vendor === confirmDelete.name).length;
+        const itmCount = allFlatItems.filter((it) =>
+          (it.vendorLinks || []).some((l) => l.vendorId === confirmDelete.id) || it.vendor === confirmDelete.name
+        ).length;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+               style={{ background: "rgba(4,6,12,0.88)", backdropFilter: "blur(14px)" }}
+               onClick={(e) => e.target === e.currentTarget && setConfirmDelete(null)}>
+            <div className="w-96 rounded-2xl p-6" style={{ background: "#0d1018", border: `1px solid ${use.anyRefs ? "rgba(234,179,8,0.4)" : "rgba(239,68,68,0.35)"}` }}>
+              <div className="text-sm font-black text-white mb-2">
+                {use.anyRefs ? "Archive Vendor?" : "Delete Vendor?"}
+              </div>
+              {use.anyRefs ? (
+                <div className="space-y-2.5 mb-5">
+                  <div className="text-[11px] text-slate-400">
+                    <span className="text-white font-bold">{confirmDelete.name}</span> has live references — archiving keeps the name visible on existing records.
+                  </div>
+                  <div className="space-y-1.5">
+                    {use.hasPOs && (
+                      <div className="flex items-start gap-2 px-3 py-2 rounded-xl"
+                           style={{ background: "rgba(234,179,8,0.05)", border: "1px solid rgba(234,179,8,0.15)" }}>
+                        <span className="text-yellow-500 flex-shrink-0 text-xs mt-0.5">⚠</span>
+                        <div>
+                          <div className="text-[10px] font-bold text-yellow-300">Purchase Orders</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">{poCount} PO{poCount !== 1 ? "s" : ""} reference this vendor</div>
+                        </div>
+                      </div>
+                    )}
+                    {use.hasLinkedItems && (
+                      <div className="flex items-start gap-2 px-3 py-2 rounded-xl"
+                           style={{ background: "rgba(234,179,8,0.05)", border: "1px solid rgba(234,179,8,0.15)" }}>
+                        <span className="text-yellow-500 flex-shrink-0 text-xs mt-0.5">⚠</span>
+                        <div>
+                          <div className="text-[10px] font-bold text-yellow-300">Linked Items</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">{itmCount} item{itmCount !== 1 ? "s" : ""} link to this vendor</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-slate-500">Archived vendors disappear from selectors but stay attached to historical records.</div>
+                </div>
+              ) : (
+                <div className="text-[11px] text-slate-400 mb-5">
+                  Remove <span className="text-white font-bold">{confirmDelete.name}</span> from the vendor list? No purchase history will be lost — this vendor has no live references.
+                </div>
+              )}
+              <div className="flex gap-3 justify-end">
+                <Btn variant="ghost" size="sm" onClick={() => setConfirmDelete(null)}>Cancel</Btn>
+                <Btn variant={use.anyRefs ? "orange" : "red"} size="sm" onClick={async () => {
+                  const res = await onDeleteVendor(confirmDelete.id);
+                  if (res?.success) {
+                    showToast(res.mode === "archived" ? `${confirmDelete.name} archived` : `${confirmDelete.name} removed`);
+                  } else {
+                    showToast(`Failed: ${res?.error || "unknown error"}`);
+                  }
+                  setConfirmDelete(null);
+                  if (profileVendor?.id === confirmDelete.id) setProfileVendor(null);
+                }}>{use.anyRefs ? "Archive" : "Delete"}</Btn>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
-      <Topbar title="Vendor Management" subtitle={`${vendorList.length} suppliers · ${vendorList.filter((v) => v.status === "preferred").length} preferred`}>
+      <Topbar title="Vendor Management" subtitle={`${activeVendors.length} suppliers · ${activeVendors.filter((v) => v.status === "preferred").length} preferred`}>
         <input value={search} onChange={(e) => setSearch(e.target.value)}
                placeholder="Search vendors..." className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-slate-300 placeholder-slate-600 outline-none w-44" />
         {canDo("vendors","add") && (
@@ -4120,12 +4385,12 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
       </Topbar>
 
       <div className="p-6 space-y-6">
-        {/* Stats */}
+        {/* Stats — driven by active (non-archived) vendors */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <MetricCard label="Total Vendors"  value={vendorList.length.toString()} icon="🏭" barPct={100} barColor="#3b82f6" />
-          <MetricCard label="Preferred"      value={vendorList.filter((v) => v.status === "preferred").length.toString()} icon="⭐" barPct={vendorList.length ? Math.round((vendorList.filter((v) => v.status === "preferred").length / vendorList.length) * 100) : 0} barColor="#22c55e" valueColor="text-green-400" />
-          <MetricCard label="Under Review"   value={vendorList.filter((v) => v.status === "review").length.toString()} icon="🔍" barPct={vendorList.length ? Math.round((vendorList.filter((v) => v.status === "review").length / vendorList.length) * 100) : 0} barColor="#f97316" valueColor="text-orange-400" />
-          <MetricCard label="Poor"           value={vendorList.filter((v) => v.status === "poor").length.toString()} icon="⚠️" barPct={vendorList.length ? Math.round((vendorList.filter((v) => v.status === "poor").length / vendorList.length) * 100) : 0} barColor="#ef4444" valueColor="text-red-400" />
+          <MetricCard label="Total Vendors"  value={activeVendors.length.toString()} icon="🏭" barPct={100} barColor="#3b82f6" />
+          <MetricCard label="Preferred"      value={activeVendors.filter((v) => v.status === "preferred").length.toString()} icon="⭐" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "preferred").length / activeVendors.length) * 100) : 0} barColor="#22c55e" valueColor="text-green-400" />
+          <MetricCard label="Under Review"   value={activeVendors.filter((v) => v.status === "review").length.toString()} icon="🔍" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "review").length / activeVendors.length) * 100) : 0} barColor="#f97316" valueColor="text-orange-400" />
+          <MetricCard label="Poor"           value={activeVendors.filter((v) => v.status === "poor").length.toString()} icon="⚠️" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "poor").length / activeVendors.length) * 100) : 0} barColor="#ef4444" valueColor="text-red-400" />
         </div>
 
         <div className={`grid gap-4 ${profileVendor ? "grid-cols-1 xl:grid-cols-3" : "grid-cols-1"}`}>
@@ -10466,6 +10731,112 @@ export default function App() {
     return { success: true };
   };
 
+  // Phase 1: per-row item import.
+  // Mirrors handleBulkAddVendors — each row is created OR merged independently so a
+  // single bad row never kills the batch. Update rows fill ONLY blank fields on the
+  // existing item (never overwrite populated values). Returns { imported, updated,
+  // failed, failures } for the toast.
+  const handleBulkAddItems = async (importRows) => {
+    let imported = 0, updated = 0, failed = 0;
+    const failures = [];
+    if (!Array.isArray(importRows) || importRows.length === 0) return { imported, updated, failed, failures };
+
+    // Build a flat code-set across categories so auto-generated codes don't collide
+    // mid-batch (importRows themselves can also collide).
+    const usedCodes = new Set();
+    for (const arr of Object.values(items)) for (const it of (arr || [])) if (it.code) usedCodes.add(String(it.code).toUpperCase());
+
+    const ensureUniqueCode = (base) => {
+      let c = String(base || "").toUpperCase();
+      if (!c) c = generateItemCode("ITEM").toUpperCase();
+      if (!usedCodes.has(c)) { usedCodes.add(c); return c; }
+      let n = 2;
+      while (usedCodes.has(`${c}-${n}`)) n++;
+      const final = `${c}-${n}`;
+      usedCodes.add(final);
+      return final;
+    };
+
+    for (const row of importRows) {
+      try {
+        if (row._status === "update") {
+          // Find existing by name across all categories — itemImport.parseRows already
+          // detected the match, but the local state is the source of truth here.
+          const existingCat = row._existingCategory || Object.keys(items).find((cat) =>
+            (items[cat] || []).some((it) => String(it.name || "").toLowerCase() === String(row.name || "").toLowerCase())
+          );
+          const existing = (items[existingCat] || []).find((it) =>
+            String(it.name || "").toLowerCase() === String(row.name || "").toLowerCase()
+          );
+          if (!existing) { failed++; failures.push({ name: row.name, error: "existing item not found in state" }); continue; }
+
+          // Fill ONLY blank fields per spec — never overwrite populated values.
+          const fillIfBlank = (cur, incoming) => {
+            if (cur != null && cur !== "" && Number(cur) !== 0) return cur;
+            return incoming != null && incoming !== "" ? incoming : cur;
+          };
+          const merged = {
+            ...existing,
+            name:             existing.name,                                            // never rename on import
+            code:             existing.code,                                            // never re-key on import
+            unit:             existing.unit && existing.unit !== "Nos" ? existing.unit : (row.unit || existing.unit || "Nos"),
+            location:         fillIfBlank(existing.location, row.location),
+            min:              existing.min > 0 ? existing.min : (Number(row.min) || existing.min || 0),
+            lastPurchaseRate: existing.lastPurchaseRate > 0 ? existing.lastPurchaseRate : (Number(row.lastPurchaseRate) || existing.lastPurchaseRate || 0),
+            vendorLinks:      existing.vendorLinks || [],
+          };
+          const dirty = ["unit","location","min","lastPurchaseRate"].some((k) => (existing[k] || "") !== (merged[k] || ""));
+          if (!dirty) { continue; }
+
+          const ures = await itemUpdate(existing.code, existingCat, merged, existingCat);
+          if (ures?.success) {
+            updated++;
+            setItems((prev) => {
+              const next = { ...prev };
+              next[existingCat] = (prev[existingCat] || []).map((it) => it.code === existing.code ? { ...ures.item, history: existing.history || [] } : it);
+              return next;
+            });
+            logAudit({ type: "inventory_edit", module: "Inventory", action: `Item Updated via Import: ${existing.name}`, ref: existing.code, itemCode: existing.code, itemName: existing.name });
+          } else {
+            failed++; failures.push({ name: row.name, error: ures?.error || "update failed" });
+          }
+        } else {
+          // New item — apply defaults per spec, ensure unique code, then create.
+          const category = row.category || "Mechanical";
+          const code = ensureUniqueCode(row.code || generateItemCode(row.name));
+          const stock = Number(row.stock) || 0;
+          const min   = Number(row.min)   || 0;
+          const newItem = {
+            code,
+            name:             row.name,
+            unit:             row.unit || "Nos",
+            location:         row.location || "",
+            stock, min, max: 0,
+            status:           recomputeStatus(stock, min),
+            trend:            [stock, stock, stock, stock, stock],
+            vendorLinks:      [],
+            vendorId:         "",
+            vendor:           "",
+            vendorPhone:      "",
+            lastPurchaseRate: Number(row.lastPurchaseRate) || 0,
+          };
+          const cres = await itemCreate(category, newItem);
+          if (cres?.success) {
+            imported++;
+            setItems((prev) => ({ ...prev, [category]: [...(prev[category] || []), cres.item] }));
+            logAudit({ type: "inventory_add", module: "Inventory", action: `Item Imported: ${newItem.name} (${newItem.code})`, ref: newItem.code, itemCode: newItem.code, itemName: newItem.name, qty: newItem.stock || 0 });
+          } else {
+            failed++; failures.push({ name: row.name, error: cres?.error || "create failed" });
+          }
+        }
+      } catch (e) {
+        failed++; failures.push({ name: row?.name, error: e?.message || String(e) });
+      }
+    }
+    if (failures.length) console.warn("[App] handleBulkAddItems — per-row failures:", failures);
+    return { imported, updated, failed, failures };
+  };
+
   // ── Vendor handlers ── (routed through vendorsStore: Supabase when enabled, localStorage otherwise)
   const handleAddVendor = async (v) => {
     const res = await createVendor(v);
@@ -10479,12 +10850,37 @@ export default function App() {
     setVendorList((prev) => prev.map((v) => v.id === res.vendor.id ? res.vendor : v));
     logAudit({ type: "vendor_edit", module: "Vendor", action: `Vendor Updated: ${res.vendor.name}`, ref: res.vendor.name, vendor: res.vendor.name });
   };
+  // Phase 4: vendor delete = hard delete when unused, archive when referenced.
+  // History-safe: hard delete leaves POs intact (po.vendor is the NAME string, not a
+  // FK), but archive is preferred whenever live data references the vendor so the
+  // operator can still see the vendor name on existing rows.
   const handleDeleteVendor = async (id) => {
     const v = vendorList.find((x) => x.id === id);
+    if (!v) return { success: false, error: "vendor not found" };
+
+    const hasPOs           = pos.some((p) => p.vendor === v.name);
+    const hasLinkedItems   = Object.values(items).some((arr) => (arr || []).some((it) =>
+      (it.vendorLinks || []).some((l) => l.vendorId === v.id) || it.vendor === v.name
+    ));
+    const shouldArchive    = hasPOs || hasLinkedItems;
+
+    if (shouldArchive) {
+      const res = await archiveVendor(v);
+      if (!res.success) { console.warn("[App] handleDeleteVendor archive failed:", res.error); return { success: false, error: res.error }; }
+      setVendorList((prev) => prev.map((x) => x.id === id ? (res.vendor || { ...v, archived: true }) : x));
+      logAudit({
+        type: "vendor_archive", module: "Vendor",
+        action: `Vendor Archived: ${v.name} (referenced by ${hasPOs ? "POs" : ""}${hasPOs && hasLinkedItems ? " + " : ""}${hasLinkedItems ? "items" : ""})`,
+        ref: v.name, vendor: v.name,
+      });
+      return { success: true, mode: "archived" };
+    }
+
     const res = await deleteVendor(id);
-    if (!res.success) { console.warn("[App] handleDeleteVendor failed:", res.error); return; }
+    if (!res.success) { console.warn("[App] handleDeleteVendor failed:", res.error); return { success: false, error: res.error }; }
     setVendorList((prev) => prev.filter((x) => x.id !== id));
-    logAudit({ type: "vendor_delete", module: "Vendor", action: `Vendor Deleted: ${v?.name || id}`, ref: v?.name || "", vendor: v?.name || "" });
+    logAudit({ type: "vendor_delete", module: "Vendor", action: `Vendor Deleted: ${v.name}`, ref: v.name, vendor: v.name });
+    return { success: true, mode: "deleted" };
   };
   // Per-row vendor import. Replaces the previous all-or-nothing bulk insert so a single
   // failing row no longer kills the whole batch. Rows tagged _status:"update" merge
@@ -10843,7 +11239,8 @@ export default function App() {
                               pos={pos} inwardLog={inwardLog} outwardLog={outwardLog}
                               pendingLog={pendingLog} bomDefs={bomDefs} machineLog={machineLog}
                               onLogAudit={logAudit} canDo={canDo} vendorList={vendorList} settings={settings}
-                              onCreateItem={handleCreateItemRow} onUpdateItem={handleUpdateItemRow} onDeleteItem={handleDeleteItemRow} />,
+                              onCreateItem={handleCreateItemRow} onUpdateItem={handleUpdateItemRow} onDeleteItem={handleDeleteItemRow}
+                              onBulkAddItems={handleBulkAddItems} />,
     inward:    <InwardPage    items={items} handleUpdateStock={handleUpdateStock} vendorList={vendorList} onInwardComplete={handleInwardComplete} onAddInward={(entry) => { setInwardLog(prev => [entry, ...prev]); if (isSupabaseEnabled()) createInward(entry).then((r) => { if (!r.success) console.warn("[App] Inward create Supabase failed:", r.error); }); logAudit({ type: "inward_manual", module: "Inward", action: `Manual Inward: ${entry.item} × ${entry.qty}`, ref: entry.code, itemCode: entry.code, itemName: entry.item, vendor: entry.vendor, qty: entry.qty, details: { unit: entry.unit, notes: entry.notes } }); }} appInwardLog={inwardLog} canDo={canDo} />,
     outward:   <OutwardPage   items={items} handleUpdateStock={handleUpdateStock}
                               bomDefs={bomDefs} onUpdateBOM={handleUpdateBOM}
