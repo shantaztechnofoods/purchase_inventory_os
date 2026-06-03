@@ -43,7 +43,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-01h-additive-erp-pass";
+const APP_BUILD = "2026-06-02a-po-save-default-rate";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -3195,7 +3195,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
 
 // ─── PO MODAL ─────────────────────────────────────────────────────────────────
 
-function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null, pos = [], settings = {} }) {
+function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null, pos = [], settings = {}, onSetItemDefaultRate }) {
   const isEdit = Boolean(initialPO);
   const poCfg  = normalizePOSettings(settings);
   // ERP keyboard workflow — Esc closes the modal. Backdrop click + X button
@@ -3235,6 +3235,10 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
   const [addErr,       setAddErr]       = useState("");
   const [vendorErr,    setVendorErr]    = useState(false);
   const [vendorSearch, setVendorSearch] = useState("");
+  // 2026-06-02 — Save the operator-typed rate back to the item master so the
+  // next PO line for the same item auto-fills from it. Only meaningful when
+  // the item currently has no historical rate (last & default both 0).
+  const [saveAsDefault, setSaveAsDefault] = useState(false);
 
   const allFlatItems = Object.entries(items).flatMap(([cat, list]) =>
     list.map((it) => ({ ...it, category: cat }))
@@ -3262,7 +3266,12 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
   // using the fallback chain (last → default → 0). Operator can still override.
   // Only fires when the rate field is empty so we don't clobber the operator's
   // in-progress typing.
+  //
+  // 2026-06-02: also reset saveAsDefault when the item changes — the operator's
+  // intent to save-as-default belongs to the item they were typing for, not the
+  // next one they pick.
   useEffect(() => {
+    setSaveAsDefault(false);
     if (!addCode) return;
     const inv = allFlatItems.find((i) => i.code === addCode);
     if (!inv) return;
@@ -3362,7 +3371,14 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                                     designFile: inv.designFile || "", designName: inv.designName || "", attachDesign: false,
                                     gstRate: inv.gstRate != null ? Number(inv.gstRate) : 0 }],
     }));
-    setAddCode(""); setAddQty(""); setAddRate("");
+    // 2026-06-02 — persist rate to item.defaultPurchaseRate when the operator
+    // ticked "Save as Default Rate". Fire-and-forget so the line save isn't
+    // blocked on a slow network. The handler is a no-op if the value didn't
+    // actually change, so re-ticking on a known-rate item is harmless.
+    if (saveAsDefault && onSetItemDefaultRate && rate > 0) {
+      onSetItemDefaultRate(inv.code, rate);
+    }
+    setAddCode(""); setAddQty(""); setAddRate(""); setSaveAsDefault(false);
   };
 
   // Auto GST — driven by the chosen Purchase Type (single-rate / multi-rate /
@@ -3688,6 +3704,35 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                 + Add
               </button>
             </div>
+
+            {/* Save-as-Default-Rate (2026-06-02). Shown only when the picked
+                item has no historical rate (last & default both 0) AND the
+                operator has typed a non-zero rate. Ticking it makes the new
+                rate the item's default so the next PO line auto-fills from
+                it via the existing fallback chain (last → default → 0). */}
+            {(() => {
+              if (!onSetItemDefaultRate) return null;
+              if (!addCode) return null;
+              const inv = allFlatItems.find((i) => i.code === addCode);
+              if (!inv) return null;
+              const last = Number(inv.lastPurchaseRate) || 0;
+              const def  = Number(inv.defaultPurchaseRate) || 0;
+              const rate = parseFloat(addRate) || 0;
+              if (last > 0 || def > 0)  return null;   // already has a baseline rate
+              if (rate <= 0)            return null;   // nothing to save yet
+              return (
+                <label className="flex items-center gap-2 mb-2 cursor-pointer select-none">
+                  <input type="checkbox" checked={saveAsDefault}
+                         onChange={(e) => setSaveAsDefault(e.target.checked)}
+                         className="accent-blue-500" />
+                  <span className={`text-[11px] ${saveAsDefault ? "text-blue-300 font-bold" : "text-slate-400"}`}>
+                    Save ₹{rate.toLocaleString("en-IN")} as Default Rate for <span className="font-mono">{inv.code}</span>
+                  </span>
+                  <span className="text-[9px] text-slate-600 ml-auto">Future POs auto-fill</span>
+                </label>
+              );
+            })()}
+
             {addErr && <div className="text-[10px] text-red-400 mb-2">⚠ {addErr}</div>}
 
             {form.lineItems.length > 0 ? (
@@ -3987,7 +4032,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
 
 // ─── PURCHASE ORDERS PAGE (legacy — kept for reference, not mounted) ──────────
 
-function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceivePO, onDeletePO }) {
+function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceivePO, onDeletePO, onSetItemDefaultRate }) {
   const [search,    setSearch]    = useState("");
   const [filter,    setFilter]    = useState("all");
   const [showModal, setShowModal] = useState(false);
@@ -4037,6 +4082,7 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
           vendorList={vendorList}
           items={items}
           pos={pos}
+          onSetItemDefaultRate={onSetItemDefaultRate}
           onSave={(data) => {
             if (editingPO) {
               onUpdatePO(editingPO.id, data);
@@ -5965,7 +6011,7 @@ function POSearchCenter({
 
 // ─── ORDER PIPELINE PAGE ─────────────────────────────────────────────────────
 
-function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCreatePO, onReceivePO, onConfirmOrder, onFollowUpDone, onDeletePO, pendingLog = [], onFulfillPending, handleUpdateStock, inwardLog = [], canDo = () => true, settings = {}, isSuperAdmin = false, onReverseReceive }) {
+function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCreatePO, onReceivePO, onConfirmOrder, onFollowUpDone, onDeletePO, pendingLog = [], onFulfillPending, handleUpdateStock, inwardLog = [], canDo = () => true, settings = {}, isSuperAdmin = false, onReverseReceive, onSetItemDefaultRate }) {
   // modal states
   const [rejectModal,  setRejectModal]  = useState(null); // poId
   const [rejectReason, setRejectReason] = useState("");
@@ -6529,6 +6575,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
           prefill={createPrefill}
           pos={pos}
           settings={settings}
+          onSetItemDefaultRate={onSetItemDefaultRate}
           onSave={(data) => {
             onCreatePO(data);
             setShowCreatePO(false); setCreatePrefill(null);
@@ -11415,6 +11462,41 @@ export default function App() {
     return { success: true };
   };
 
+  // 2026-06-02 — Save-as-Default-Rate from PO modal.
+  // When the operator types a rate on a PO line for an item that has no
+  // historical rate (last == 0 and default == 0) and ticks "Save as Default
+  // Rate", this handler persists the new rate to the item so the next PO line
+  // for the same item auto-fills from it. Fire-and-forget — the line save
+  // shouldn't wait on this round trip.
+  const handleSetItemDefaultRate = async (code, rate) => {
+    const r = Number(rate);
+    if (!code || !isFinite(r) || r <= 0) return { success: false, error: "invalid rate" };
+    // Find which category holds the item — items are grouped that way in state.
+    let cat = null, existing = null;
+    for (const [c, list] of Object.entries(items)) {
+      const hit = (list || []).find((i) => i.code === code);
+      if (hit) { cat = c; existing = hit; break; }
+    }
+    if (!cat || !existing) return { success: false, error: "item not found" };
+    // Only update if the value actually changes — keeps audit noise down.
+    if (Number(existing.defaultPurchaseRate || 0) === r) return { success: true, noop: true };
+    const merged = { ...existing, defaultPurchaseRate: r };
+    const res = await itemUpdate(existing.code, cat, merged, cat);
+    if (!res.success) { console.warn("[App] handleSetItemDefaultRate failed", res.error); return res; }
+    setItems((prev) => ({
+      ...prev,
+      [cat]: (prev[cat] || []).map((i) => i.code === code ? { ...i, defaultPurchaseRate: r } : i),
+    }));
+    logAudit({
+      type: "inventory_edit", module: "Inventory",
+      action: `Default Rate Updated via PO: ${existing.name} (${existing.code}) → ₹${r}`,
+      ref: existing.code, itemCode: existing.code, itemName: existing.name,
+      oldValue: { defaultPurchaseRate: existing.defaultPurchaseRate || 0 },
+      newValue: { defaultPurchaseRate: r },
+    });
+    return { success: true };
+  };
+
   // Per-row item import. Mirrors handleBulkAddVendors so a single bad row never
   // kills the batch. Defaults (unit=Nos, category=Mechanical, stock=0, min=0,
   // lastPurchaseRate=0, location="", vendorLinks=[], photo/designFile=null) are
@@ -12039,7 +12121,8 @@ export default function App() {
                               handleUpdateStock={handleUpdateStock} inwardLog={inwardLog} canDo={canDo}
                               settings={settings}
                               isSuperAdmin={currentUser?.role === "super_admin"}
-                              onReverseReceive={handleReverseReceive} />,
+                              onReverseReceive={handleReverseReceive}
+                              onSetItemDefaultRate={handleSetItemDefaultRate} />,
     machines:  <MachinePage   machineLog={machineLog} onUpdateStage={handleUpdateMachineStage} onNavigate={setActivePage} canDo={canDo}
                               bomDefs={bomDefs} onStartProduction={handleStartProduction} />,
     vendors:   <VendorsPage   vendorList={vendorList} pos={pos} items={items}
