@@ -43,7 +43,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-02c-destination-popup";
+const APP_BUILD = "2026-06-02d-bom-lifecycle";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -7505,24 +7505,27 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     );
   };
 
+  // 2026-06-02d — Rack Capacity = 0 means "no rack tracking for this BOM".
+  // Machines issued from a capacity-0 BOM skip the rack and land directly in
+  // Assembly, no destination popup needed. This matches operator intent for
+  // R&D / prototype models that don't follow batch-rack workflow.
+  const directOnly = Number(bom?.rackCapacity || 0) === 0;
+
   // Two-step commit: when this is a serial-tracked BOM issue (i.e. a machine
   // will be created), the operator must explicitly choose Save To Rack vs
   // Direct Production. We surface that choice as a popup gate — calling
   // doIssue() without a chosen destination opens the popup; the popup buttons
   // call doIssue("rack") / doIssue("direct") to actually commit.
   //
-  // When there's no serial (rare — confirmSerial requires one), or when a
-  // destination is explicitly passed, we proceed straight through.
+  // Exceptions: no serial (manual outward path) OR rackCapacity = 0 (no rack
+  // tracking) both proceed straight through with a sensible default.
   const doIssue = (chosenDest) => {
     if (issuing) return;                    // duplicate production-issue guard
-    // Gate: if we'd create a machine but the operator hasn't picked a
-    // destination yet, open the popup and bail. The popup will call back
-    // with a destination argument.
-    if (serialNo && !chosenDest) {
+    if (serialNo && !chosenDest && !directOnly) {
       setShowDestChoice(true);
       return;
     }
-    const finalDest = chosenDest || destination || "rack";
+    const finalDest = chosenDest || (directOnly ? "direct" : destination) || "rack";
     setShowDestChoice(false);
     setIssuing(true);
     const issued = []; const pending = [];
@@ -7905,11 +7908,23 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
 // ─── OUTWARD PAGE ─────────────────────────────────────────────────────────────
 
-function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateBOM, onRenameBOM, outwardLog, onAddOutward, pendingLog, onClearPending, onCreateMachine, machineLog = [], canDo = () => true, onRemoveRackMachine }) {
+function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateBOM, onRenameBOM, outwardLog, onAddOutward, pendingLog, onClearPending, onCreateMachine, machineLog = [], canDo = () => true, onRemoveRackMachine, onDuplicateBOM, onDeleteBOM, computeBOMDeletionInfo }) {
   // Feature 3: confirm + remove rack machine. The button only appears when a
   // remover prop is provided AND the operator has the permission. Stays in
   // local state so the confirmation persists across re-renders of the modal.
   const [removeRackConfirm, setRemoveRackConfirm] = useState(null); // { machineId, serialNo, bomKey }
+  // 2026-06-02d — BOM card actions menu (⋮) state. `actionsKey` is the open
+  // card; `confirmDeleteBOM` is the safe-delete confirmation modal.
+  const [actionsKey,       setActionsKey]       = useState(null);
+  const [confirmDeleteBOM, setConfirmDeleteBOM] = useState(null); // { key, info }
+  const [bomActionToast,   setBomActionToast]   = useState(null);
+  // Close the actions menu on any outside click.
+  useEffect(() => {
+    if (!actionsKey) return;
+    const close = () => setActionsKey(null);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [actionsKey]);
   const [openBOM,       setOpenBOM]       = useState(null);
   const [activeSerial,  setActiveSerial]  = useState("");
   const [serialModal,   setSerialModal]   = useState(null); // bomKey waiting for S/N
@@ -7961,9 +7976,14 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
       setSerialErr("Rack capacity reached. Start production or increase rack capacity.");
       return;
     }
-    // Block duplicate serials sitting on the rack for this model.
-    if (machineLog.some((m) => m.bomKey === key && m.stage === "BOM Issued" && (m.serialNo || "").toLowerCase() === sn.toLowerCase())) {
-      setSerialErr(`Serial "${sn}" is already on the rack for ${key}.`);
+    // 2026-06-02d — Block duplicate serials on ANY active machine for this
+    // model (rack OR in-production). The earlier rule only checked the rack;
+    // with capacity=0 → Direct Production, machines never sit on the rack so
+    // the same serial could be reissued indefinitely. Active = status !==
+    // "completed"; completed builds with the same serial are fine because
+    // they're history.
+    if (machineLog.some((m) => m.bomKey === key && m.status !== "completed" && (m.serialNo || "").toLowerCase() === sn.toLowerCase())) {
+      setSerialErr(`Serial "${sn}" is already active for ${key} (rack or in production).`);
       return;
     }
     setActiveSerial(sn);
@@ -8066,7 +8086,11 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                 <div>
                   <div className="text-sm font-bold text-white">{serialModal} — {bomDefs[serialModal].label}</div>
                   <div className="text-[11px] text-slate-500 mt-0.5">
-                    Enter serial to issue to rack · Rack {rackReadyCount(serialModal)}{(Number(bomDefs[serialModal].rackCapacity) || 0) > 0 ? ` / ${Number(bomDefs[serialModal].rackCapacity)}` : ""} ready
+                    {(() => {
+                      const cap = Number(bomDefs[serialModal].rackCapacity) || 0;
+                      if (cap === 0) return "Direct production — capacity 0, no rack tracking. Machine goes straight to Active Builds.";
+                      return `Enter serial to issue to rack · Rack ${rackReadyCount(serialModal)} / ${cap} ready`;
+                    })()}
                   </div>
                 </div>
               </div>
@@ -8097,6 +8121,117 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                   Proceed to Issue →
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2026-06-02d — BOM action toast (Duplicate / Delete result) */}
+      {bomActionToast && (
+        <div className="fixed bottom-6 right-6 z-[65] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
+             style={{ background: "linear-gradient(135deg,#0d1018,#0a0c14)", border: "1px solid rgba(59,130,246,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+          <span className="text-lg">📋</span>
+          <div>
+            <div className="text-xs font-bold text-white">{bomActionToast.text}</div>
+            {bomActionToast.sub && <div className="text-[10px] text-slate-500 mt-0.5">{bomActionToast.sub}</div>}
+          </div>
+          <button onClick={() => setBomActionToast(null)} className="ml-2 text-slate-600 hover:text-slate-300 text-xs">✕</button>
+        </div>
+      )}
+
+      {/* 2026-06-02d — Safe BOM delete confirmation */}
+      {confirmDeleteBOM && (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center p-4"
+             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
+             onClick={(e) => e.target === e.currentTarget && setConfirmDeleteBOM(null)}>
+          <div className="w-full max-w-md rounded-2xl overflow-hidden"
+               style={{ background: "#0d1018", border: `1px solid ${confirmDeleteBOM.info.canDelete ? "rgba(239,68,68,0.4)" : "rgba(245,158,11,0.4)"}`, boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+            <div className="px-5 py-4 border-b border-white/[0.08]"
+                 style={{ background: confirmDeleteBOM.info.canDelete ? "rgba(239,68,68,0.06)" : "rgba(245,158,11,0.06)" }}>
+              <div className={`text-sm font-black ${confirmDeleteBOM.info.canDelete ? "text-red-400" : "text-amber-300"}`}>
+                {confirmDeleteBOM.info.canDelete ? "🗑 Delete BOM?" : "⚠ Cannot Delete BOM"}
+              </div>
+              <div className="text-[10px] text-slate-500 mt-0.5">
+                {confirmDeleteBOM.key} · {confirmDeleteBOM.label}
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-3 text-[11px]">
+              {!confirmDeleteBOM.info.canDelete ? (
+                <>
+                  <div className="text-slate-300">
+                    This BOM has <span className="font-bold text-white">{confirmDeleteBOM.info.active.length}</span> active production build{confirmDeleteBOM.info.active.length !== 1 ? "s" : ""} past the rack stage. Complete or cancel them first, then delete.
+                  </div>
+                  <div className="max-h-32 overflow-y-auto rounded-lg" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    {confirmDeleteBOM.info.active.slice(0, 10).map((m) => (
+                      <div key={m.id} className="px-3 py-1.5 text-[10px] flex items-center justify-between border-b border-white/[0.04] last:border-0">
+                        <span className="font-mono font-bold text-white">{m.serialNo || "(no serial)"}</span>
+                        <span className="text-slate-500">{m.stage}</span>
+                      </div>
+                    ))}
+                    {confirmDeleteBOM.info.active.length > 10 && (
+                      <div className="px-3 py-1.5 text-[10px] text-slate-600 text-center">… and {confirmDeleteBOM.info.active.length - 10} more</div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {confirmDeleteBOM.info.rack.length > 0 ? (
+                    <>
+                      <div className="text-slate-300">
+                        <span className="font-bold text-white">{confirmDeleteBOM.info.rack.length}</span> rack machine{confirmDeleteBOM.info.rack.length !== 1 ? "s" : ""} will be removed. Materials will be returned to stock.
+                      </div>
+                      <ul className="space-y-1 ml-1">
+                        <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Reverse stock for {confirmDeleteBOM.info.rack.length} rack build{confirmDeleteBOM.info.rack.length !== 1 ? "s" : ""}</span></li>
+                        <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Clear pending materials for these issues</span></li>
+                        <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Remove outward entries from reports</span></li>
+                        <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Delete the BOM definition</span></li>
+                        {confirmDeleteBOM.info.completed.length > 0 && (
+                          <li className="flex gap-2"><span className="text-blue-400">ℹ</span><span className="text-slate-400">{confirmDeleteBOM.info.completed.length} completed build{confirmDeleteBOM.info.completed.length !== 1 ? "s" : ""} stay in history</span></li>
+                        )}
+                      </ul>
+                    </>
+                  ) : confirmDeleteBOM.info.completed.length > 0 ? (
+                    <div className="text-slate-300">
+                      BOM has <span className="font-bold text-white">{confirmDeleteBOM.info.completed.length}</span> completed build{confirmDeleteBOM.info.completed.length !== 1 ? "s" : ""} in history. They will remain visible in Machine Tracker after deletion (history is denormalised).
+                    </div>
+                  ) : (
+                    <div className="text-slate-300">
+                      This BOM has never been issued. Safe to delete directly.
+                    </div>
+                  )}
+                  <div className="text-[10px] text-slate-500 pt-1">This action cannot be undone.</div>
+                </>
+              )}
+            </div>
+            <div className="px-5 py-4 border-t border-white/[0.08] flex items-center gap-2" style={{ background: "rgba(0,0,0,0.35)" }}>
+              <button autoFocus onClick={() => setConfirmDeleteBOM(null)}
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+                Cancel
+              </button>
+              <div className="flex-1" />
+              {confirmDeleteBOM.info.canDelete && (
+                <button onClick={async () => {
+                            const cfm = confirmDeleteBOM;
+                            setConfirmDeleteBOM(null);
+                            if (!onDeleteBOM) return;
+                            const res = await onDeleteBOM(cfm.key);
+                            if (res?.success) {
+                              const parts = [];
+                              if (res.rackCount > 0)      parts.push(`${res.rackCount} rack build${res.rackCount !== 1 ? "s" : ""} cleared`);
+                              if (res.restored > 0)       parts.push(`${res.restored} component${res.restored !== 1 ? "s" : ""} returned to stock`);
+                              if (res.completedCount > 0) parts.push(`${res.completedCount} completed retained in history`);
+                              setBomActionToast({ text: `BOM Deleted: ${cfm.key}`, sub: parts.join(" · ") || cfm.label });
+                              setTimeout(() => setBomActionToast(null), 4500);
+                            } else {
+                              setBomActionToast({ text: `Failed to delete ${cfm.key}`, sub: res?.error || "unknown error" });
+                              setTimeout(() => setBomActionToast(null), 4500);
+                            }
+                          }}
+                        className="inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-4 py-1.5 text-white border transition-all"
+                        style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", borderColor: "rgba(239,68,68,0.5)" }}>
+                  🗑 Delete BOM
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -8325,9 +8460,11 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
               const units     = bomUnits[bomKey] || 1;
               const feasibleN = bom.items.filter(({ code, qty }) => { const inv = findItem(code); return inv && inv.stock >= qty * units; }).length;
               const allFeas   = feasibleN === bom.items.length;
+              const directOnly = Number(bom.rackCapacity || 0) === 0;
+              const openBomFlow = () => { setSerialModal(bomKey); setPendingSerial(""); setSerialErr(""); };
               return (
-                <div key={bomKey} onClick={() => canDo("outward","bom") && (setSerialModal(bomKey), setPendingSerial(""), setSerialErr(""))}
-                     className={`bg-[#0e1117] rounded-xl overflow-hidden transition-all duration-200 group ${canDo("outward","bom") ? "cursor-pointer hover:bg-[#111620]" : "opacity-60 cursor-not-allowed"}`}
+                <div key={bomKey} onClick={() => canDo("outward","bom") && openBomFlow()}
+                     className={`bg-[#0e1117] rounded-xl overflow-hidden transition-all duration-200 group relative ${canDo("outward","bom") ? "cursor-pointer hover:bg-[#111620]" : "opacity-60 cursor-not-allowed"}`}
                      style={{ border: "1px solid rgba(255,255,255,0.07)" }}
                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = bom.color + "55"; e.currentTarget.style.boxShadow = `0 0 24px ${bom.color}12`; }}
                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)"; e.currentTarget.style.boxShadow = "none"; }}>
@@ -8343,6 +8480,53 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                             style={{ background: allFeas ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", color: allFeas ? "#4ade80" : "#f87171", border: `1px solid ${allFeas ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}` }}>
                         {feasibleN}/{bom.items.length} ready
                       </span>
+                      {/* 2026-06-02d — ⋮ actions menu */}
+                      <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setActionsKey(actionsKey === bomKey ? null : bomKey); }}
+                          title="BOM actions"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/[0.06] transition-all"
+                          aria-haspopup="menu" aria-expanded={actionsKey === bomKey}>
+                          ⋮
+                        </button>
+                        {actionsKey === bomKey && (
+                          <div role="menu" onMouseDown={(e) => e.stopPropagation()}
+                               className="absolute right-0 top-full mt-1 z-30 w-44 rounded-lg overflow-hidden"
+                               style={{ background: "#0d1018", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 24px 60px rgba(0,0,0,0.85)" }}>
+                            <button onClick={() => { setActionsKey(null); if (canDo("outward","bom")) openBomFlow(); }}
+                                    className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-300 hover:bg-white/[0.06] hover:text-white transition-all flex items-center gap-2">
+                              <span>📤</span>Open BOM (Issue)
+                            </button>
+                            <button onClick={() => { setActionsKey(null); setOpenBOM(bomKey); }}
+                                    className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-300 hover:bg-white/[0.06] hover:text-white transition-all flex items-center gap-2">
+                              <span>✏️</span>Edit BOM
+                            </button>
+                            {onDuplicateBOM && canDo("outward","bom") && (
+                              <button onClick={() => {
+                                        setActionsKey(null);
+                                        const res = onDuplicateBOM(bomKey);
+                                        if (res?.success) {
+                                          setBomActionToast({ text: `Duplicated → ${res.newKey}`, sub: bom.label });
+                                          setTimeout(() => setBomActionToast(null), 3000);
+                                        }
+                                      }}
+                                      className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-300 hover:bg-white/[0.06] hover:text-white transition-all flex items-center gap-2">
+                                <span>📑</span>Duplicate BOM
+                              </button>
+                            )}
+                            {onDeleteBOM && computeBOMDeletionInfo && (
+                              <button onClick={() => {
+                                        setActionsKey(null);
+                                        const info = computeBOMDeletionInfo(bomKey);
+                                        setConfirmDeleteBOM({ key: bomKey, label: bom.label, info });
+                                      }}
+                                      className="w-full text-left px-3 py-2 text-[11px] font-bold text-red-400 hover:bg-red-500/10 transition-all flex items-center gap-2 border-t border-white/[0.05]">
+                                <span>🗑</span>Delete BOM
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-1 mt-3">
                       {bom.items.slice(0, 4).map(({ code, qty }) => {
@@ -8356,9 +8540,17 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                       })}
                       {bom.items.length > 4 && <span className="text-[9px] text-slate-600">+{bom.items.length - 4} more</span>}
                     </div>
-                    <div className="mt-3 pt-3 border-t border-white/[0.05] flex items-center justify-between">
+                    <div className="mt-3 pt-3 border-t border-white/[0.05] flex items-center justify-between gap-2">
                       <span className="text-[10px] text-slate-600">{bom.items.length} components</span>
-                      <span className="text-[10px] font-bold text-blue-400 group-hover:text-blue-300 transition-colors">Open BOM →</span>
+                      {/* Feature 3 of 2026-06-02d — visible badge so the
+                          operator knows this BOM bypasses the rack on issue. */}
+                      {directOnly && (
+                        <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded-full"
+                              style={{ background: "rgba(139,92,246,0.12)", color: "#c4b5fd", border: "1px solid rgba(139,92,246,0.3)" }}>
+                          ▶ Direct production
+                        </span>
+                      )}
+                      <span className="text-[10px] font-bold text-blue-400 group-hover:text-blue-300 transition-colors ml-auto">Open BOM →</span>
                     </div>
                   </div>
                 </div>
@@ -11878,6 +12070,96 @@ export default function App() {
     return { success: true };
   };
 
+  // 2026-06-02d — BOM duplicate. Copies the source BOM under a fresh key
+  // (default "<src>-COPY", then "-COPY-2", "-COPY-3" if the operator already
+  // has copies). The new BOM gets the same items / capacity but a new color
+  // (next entry in the palette) so cards stay visually distinguishable.
+  const handleDuplicateBOM = (srcKey) => {
+    const src = bomDefs[srcKey];
+    if (!src) return { success: false, error: "BOM not found" };
+    let newKey = `${srcKey}-COPY`;
+    let n = 2;
+    while (bomDefs[newKey]) { newKey = `${srcKey}-COPY-${n++}`; }
+    const palette = ["#3b82f6","#6366f1","#8b5cf6","#ec4899","#f59e0b","#22c55e","#06b6d4","#14b8a6","#f97316","#a855f7"];
+    const newBom = {
+      label:        src.label ? `${src.label} (Copy)` : newKey,
+      color:        palette[Object.keys(bomDefs).length % palette.length],
+      items:        (src.items || []).map((i) => ({ code: i.code, qty: Number(i.qty) || 0 })),
+      rackCapacity: Number(src.rackCapacity) || 0,
+    };
+    setBomDefs((prev) => ({ ...prev, [newKey]: newBom }));
+    if (isSupabaseEnabled()) bomCreate(newKey, newBom).then((r) => { if (!r.success) console.warn("[App] BOM duplicate Supabase failed:", r.error); });
+    logAudit({
+      type: "bom_duplicated", module: "BOM",
+      action: `BOM Duplicated: ${srcKey} → ${newKey}`,
+      ref: newKey,
+      details: { sourceKey: srcKey, items: newBom.items.length, rackCapacity: newBom.rackCapacity },
+    });
+    return { success: true, newKey };
+  };
+
+  // 2026-06-02d — Safe BOM delete with reference-aware rules.
+  //   Never issued (no machines, no outward entries) → direct delete.
+  //   Has rack machines (stage "BOM Issued") → reverse stock via the existing
+  //     handleRemoveRackMachine engine for each, then delete the BOM.
+  //   Has active builds past BOM Issued (stage in MACHINE_STAGES post-rack,
+  //     status not "completed") → BLOCK. Operator must finish or complete those.
+  //   Completed builds → KEEP the BOM rows; history must survive (denormalized
+  //     bomKey on machine_log stays valid even after BOM deletion).
+  //
+  // Pre-check phase exposes the counts so the UI can present an accurate
+  // confirmation. The commit phase reverses rack machines + deletes the BOM.
+  const computeBOMDeletionInfo = useCallback((key) => {
+    const refs = machineLog.filter((m) => m.bomKey === key);
+    const rack       = refs.filter((m) => m.stage === "BOM Issued");
+    const active     = refs.filter((m) => m.stage !== "BOM Issued" && m.status !== "completed");
+    const completed  = refs.filter((m) => m.status === "completed");
+    const canDelete  = active.length === 0;
+    const needsReverseStock = rack.length > 0;
+    return { rack, active, completed, canDelete, needsReverseStock };
+  }, [machineLog]);
+
+  const handleDeleteBOM = async (key) => {
+    if (!bomDefs[key]) return { success: false, error: "BOM not found" };
+    const info = computeBOMDeletionInfo(key);
+    if (!info.canDelete) {
+      return { success: false, error: `Cannot delete — ${info.active.length} active production build(s) still reference this BOM. Complete or cancel them first.` };
+    }
+    // Step 1: reverse stock + clean up for each rack machine. Reuses the
+    // existing handleRemoveRackMachine engine so stock integrity follows the
+    // same audited path as a manual rack remove.
+    let restored = 0;
+    for (const m of info.rack) {
+      try {
+        const res = await handleRemoveRackMachine(m.id);
+        if (res?.success) restored += (res.restored || 0);
+        else console.warn("[App] handleDeleteBOM: rack remove failed for machine", m.id, res?.error);
+      } catch (e) {
+        console.error("[App] handleDeleteBOM: rack remove threw for machine", m.id, e);
+      }
+    }
+    // Step 2: drop the BOM definition. Completed machine_log rows survive —
+    // they carry denormalized bomKey/bomLabel so history reads stay intact.
+    const oldDef = bomDefs[key];
+    setBomDefs((prev) => { const next = { ...prev }; delete next[key]; return next; });
+    if (isSupabaseEnabled()) {
+      const r = await bomDelete(key);
+      if (!r.success) {
+        console.warn("[App] handleDeleteBOM: Supabase delete failed", r.error);
+        // Roll back local state so the operator can retry without ghost
+        setBomDefs((prev) => ({ ...prev, [key]: oldDef }));
+        return { success: false, error: r.error };
+      }
+    }
+    logAudit({
+      type: "bom_deleted", module: "BOM",
+      action: `BOM Deleted: ${key} — ${info.rack.length} rack machine(s) cleared, ${restored} component(s) returned to stock`,
+      ref: key,
+      details: { rackCount: info.rack.length, completedCount: info.completed.length, restored },
+    });
+    return { success: true, rackCount: info.rack.length, completedCount: info.completed.length, restored };
+  };
+
   const handleRenameBOM = (oldKey, newKey, newLabel) => {
     const nk = (newKey || "").trim();
     const nl = (newLabel || "").trim();
@@ -12214,7 +12496,10 @@ export default function App() {
                               outwardLog={outwardLog} onAddOutward={handleAddOutward}
                               pendingLog={pendingLog} onClearPending={handleClearPending}
                               onCreateMachine={handleCreateMachine} machineLog={machineLog} canDo={canDo}
-                              onRemoveRackMachine={handleRemoveRackMachine} />,
+                              onRemoveRackMachine={handleRemoveRackMachine}
+                              onDuplicateBOM={handleDuplicateBOM}
+                              onDeleteBOM={handleDeleteBOM}
+                              computeBOMDeletionInfo={computeBOMDeletionInfo} />,
     pending:   <PendingPage   pendingLog={pendingLog} items={items} bomDefs={bomDefs}
                               machineLog={machineLog}
                               onFulfillPending={handleFulfillPending}
