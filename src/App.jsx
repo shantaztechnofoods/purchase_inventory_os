@@ -43,7 +43,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-02b-machine-rack-click-hotfix";
+const APP_BUILD = "2026-06-02c-destination-popup";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -7364,11 +7364,14 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   const [addErr,       setAddErr]       = useState("");
   const [issueNote,    setIssueNote]    = useState("");
   const [confirmIssue, setConfirmIssue] = useState(false);
-  // Feature 1 (2026-06-01h): destination for the issued build. Default goes to
-  // the rack (the existing workflow). "direct" skips the rack stage entirely
-  // and lands the machine in Assembly so R&D / prototype / custom one-off jobs
-  // don't have to detour through the rack-replenishment flow.
-  const [destination,  setDestination]  = useState("rack");
+  // Feature 1 (2026-06-01h, refined 2026-06-02c): destination for the issued
+  // build. Default "rack" preserves the existing workflow. "direct" skips the
+  // rack stage and lands the machine in Assembly so R&D / prototype / custom
+  // one-off jobs don't detour through rack-replenishment. The choice is now
+  // surfaced as a dedicated popup at commit time (showDestChoice) because the
+  // earlier inline radio in the summary bar was missed by operators.
+  const [destination,    setDestination]    = useState("rack");
+  const [showDestChoice, setShowDestChoice] = useState(false);
 
   const allFlat  = Object.entries(items).flatMap(([cat, list]) => list.map((i) => ({ ...i, category: cat })));
   const findInv  = (code) => allFlat.find((i) => i.code === code);
@@ -7502,8 +7505,25 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     );
   };
 
-  const doIssue = () => {
+  // Two-step commit: when this is a serial-tracked BOM issue (i.e. a machine
+  // will be created), the operator must explicitly choose Save To Rack vs
+  // Direct Production. We surface that choice as a popup gate — calling
+  // doIssue() without a chosen destination opens the popup; the popup buttons
+  // call doIssue("rack") / doIssue("direct") to actually commit.
+  //
+  // When there's no serial (rare — confirmSerial requires one), or when a
+  // destination is explicitly passed, we proceed straight through.
+  const doIssue = (chosenDest) => {
     if (issuing) return;                    // duplicate production-issue guard
+    // Gate: if we'd create a machine but the operator hasn't picked a
+    // destination yet, open the popup and bail. The popup will call back
+    // with a destination argument.
+    if (serialNo && !chosenDest) {
+      setShowDestChoice(true);
+      return;
+    }
+    const finalDest = chosenDest || destination || "rack";
+    setShowDestChoice(false);
     setIssuing(true);
     const issued = []; const pending = [];
     checkedE.forEach((item) => {
@@ -7512,7 +7532,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
       if (item.issueQty > 0) issued.push({ ...item });
       if (item.pendingQty > 0) pending.push({ ...item });
     });
-    onIssue({ bomKey, label: bom.label, units, issued, pending, note: issueNote, date: fmtDate(new Date()), serialNo, destination });
+    onIssue({ bomKey, label: bom.label, units, issued, pending, note: issueNote, date: fmtDate(new Date()), serialNo, destination: finalDest });
     onClose();
   };
 
@@ -7766,35 +7786,14 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
       {/* ── Sticky summary bar ── */}
       {!editMode && (
         <div className="flex-shrink-0" style={{ background: "linear-gradient(0deg,#0a0c14,#0c1018)", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-          <div className="px-6 pt-3 space-y-2">
+          <div className="px-6 pt-3">
             <input value={issueNote} onChange={(e) => setIssueNote(e.target.value)}
                    placeholder="Issue reference / note (optional)..."
                    className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-4 py-2 text-xs text-slate-300 placeholder-slate-600 outline-none focus:border-blue-500/30" />
-            {/* Feature 1 (2026-06-01h): destination radio. Default Save to Rack
-                preserves the existing workflow (BOM Issued → rack waiting → Start
-                Production). Direct Production skips rack and lands in Assembly. */}
-            {serialNo && (
-              <div className="flex items-center gap-3 px-1 text-[11px]">
-                <span className="text-slate-500 font-bold uppercase tracking-wider text-[9px]">Destination:</span>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="bom-destination" value="rack"
-                         checked={destination === "rack"}
-                         onChange={() => setDestination("rack")}
-                         className="accent-blue-500" />
-                  <span className={destination === "rack" ? "text-white font-bold" : "text-slate-400"}>Save To Rack</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="bom-destination" value="direct"
-                         checked={destination === "direct"}
-                         onChange={() => setDestination("direct")}
-                         className="accent-purple-500" />
-                  <span className={destination === "direct" ? "text-purple-300 font-bold" : "text-slate-400"}>Direct Production</span>
-                </label>
-                <span className="text-[9px] text-slate-600 ml-auto">
-                  {destination === "direct" ? "Skips rack — goes straight to Assembly" : "Sits on rack until Start Production"}
-                </span>
-              </div>
-            )}
+            {/* The inline destination radio was removed (2026-06-02c) because
+                operators couldn't see it. The destination choice now appears as
+                a dedicated popup at commit time — see "Destination popup" below
+                near doIssue. */}
           </div>
           {confirmIssue && hasOverIssue && (
             <div className="mx-6 mt-2 px-4 py-2.5 rounded-xl" style={{ background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.28)" }}>
@@ -7841,12 +7840,62 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                   : <span className="text-[10px] font-bold text-orange-400">Confirm issue?</span>
                 }
                 <button onClick={() => setConfirmIssue(false)} className="text-xs font-bold text-slate-500 px-3 py-2 rounded-lg border border-white/[0.08] hover:text-white transition-all">No</button>
-                <button onClick={doIssue} disabled={issuing} className="text-xs font-black text-white px-5 py-2 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                <button onClick={() => doIssue()} disabled={issuing} className="text-xs font-black text-white px-5 py-2 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{ background: hasOverIssue ? "linear-gradient(135deg,#d97706,#b45309)" : "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: hasOverIssue ? "0 0 14px rgba(217,119,6,0.4)" : "0 0 14px rgba(34,197,94,0.3)" }}>
                   {issuing ? "⏳ Issuing…" : hasOverIssue ? "⚠ Confirm Over-Issue" : "✓ Confirm Issue"}
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Destination popup (2026-06-02c) ─────────────────────────────────
+          Surfaces the rack-vs-direct choice as an unmistakable two-button
+          modal. Triggered by doIssue() when there's a serial number and no
+          destination has been chosen yet. Either button commits the issue
+          with the chosen destination. */}
+      {showDestChoice && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
+             onClick={(e) => e.target === e.currentTarget && !issuing && setShowDestChoice(false)}>
+          <div className="w-full max-w-md rounded-2xl overflow-hidden"
+               style={{ background: "#0d1018", border: "1px solid rgba(59,130,246,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+            <div className="px-6 py-5 border-b border-white/[0.08]"
+                 style={{ background: "linear-gradient(90deg,rgba(59,130,246,0.10),rgba(99,102,241,0.05))" }}>
+              <div className="text-sm font-black text-white">Where should this build go?</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">
+                {bomKey}{serialNo ? ` · S/N ${serialNo}` : ""}
+              </div>
+            </div>
+            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button onClick={() => doIssue("rack")} disabled={issuing} autoFocus
+                      className="text-left rounded-xl p-4 transition-all border disabled:opacity-50"
+                      style={{ background: "rgba(34,197,94,0.08)", borderColor: "rgba(34,197,94,0.4)" }}>
+                <div className="text-2xl mb-1.5">📦</div>
+                <div className="text-sm font-black text-emerald-300 mb-1">Save To Rack</div>
+                <div className="text-[10px] text-slate-400 leading-relaxed">
+                  Default flow. Sits on the rack until an operator starts production from the rack view.
+                </div>
+              </button>
+              <button onClick={() => doIssue("direct")} disabled={issuing}
+                      className="text-left rounded-xl p-4 transition-all border disabled:opacity-50"
+                      style={{ background: "rgba(139,92,246,0.08)", borderColor: "rgba(139,92,246,0.4)" }}>
+                <div className="text-2xl mb-1.5">▶</div>
+                <div className="text-sm font-black text-purple-300 mb-1">Direct Production</div>
+                <div className="text-[10px] text-slate-400 leading-relaxed">
+                  Skips rack — machine appears in Active Builds at the Assembly stage immediately. For R&D, prototype, custom builds.
+                </div>
+              </button>
+            </div>
+            <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between"
+                 style={{ background: "rgba(0,0,0,0.35)" }}>
+              <div className="text-[10px] text-slate-500">Choose a destination to commit the issue.</div>
+              <button onClick={() => !issuing && setShowDestChoice(false)} disabled={issuing}
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
