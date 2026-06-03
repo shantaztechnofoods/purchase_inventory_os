@@ -39,6 +39,10 @@ function toRow(item, category) {
     last_purchase_rate: item.lastPurchaseRate   || null,
     vendor_links:       item.vendorLinks   || [],
     trend:              item.trend         || [0, 0, 0, 0, item.stock || 0],
+    // Migration 020 — operator-set fallback rate. Sent on every write; the
+    // schema-tolerant retry in updateItem strips it if the migration hasn't
+    // been applied yet.
+    default_purchase_rate: item.defaultPurchaseRate != null ? Number(item.defaultPurchaseRate) : null,
   };
 }
 
@@ -71,6 +75,9 @@ function fromRow(r) {
     // Optional GST rate per item (migration 018). NULL when missing — auto GST
     // calculator falls back to 0 for items that haven't been set up yet.
     gstRate:          r.gst_rate != null ? Number(r.gst_rate) : null,
+    // Operator-set fallback rate (migration 020). PO line rate prefers
+    // last_purchase_rate, then this, then 0.
+    defaultPurchaseRate: r.default_purchase_rate != null ? Number(r.default_purchase_rate) : null,
   };
 }
 
@@ -169,11 +176,10 @@ export async function createItem(category, item) {
     console.log(`[${traceId}] step 3 — client OK`);
 
     const baseRow = toRow(item, category);
-    // Optional columns from later migrations (016 = media, 018 = gst_rate). Sent
-    // on the first attempt; stripped on retry when the columns don't exist yet
-    // so item creation never breaks before migrations are applied. We layer the
-    // 018 column on top of the 016 columns so a single missing-column error can
-    // strip both — the retry path below tries baseRow without either set.
+    // Optional columns from later migrations (016 = media, 018 = gst_rate,
+    // 020 = default_purchase_rate via toRow). Sent on the first attempt;
+    // stripped on retry when the columns don't exist yet so item creation
+    // never breaks before migrations are applied.
     const fullRow = {
       ...baseRow,
       photo:       item.photo       || null,
@@ -181,6 +187,12 @@ export async function createItem(category, item) {
       design_name: item.designName  || null,
       gst_rate:    item.gstRate != null ? Number(item.gstRate) : null,
     };
+    // Strip 020 from baseRow for the retry path; if 020 column is missing the
+    // first insert will fail with isMissingColumnError and retry without media,
+    // but baseRow itself still has default_purchase_rate. So we also strip it
+    // off the fallback baseRow before retry.
+    const baseRowWithoutOptional = { ...baseRow };
+    delete baseRowWithoutOptional.default_purchase_rate;
     console.log(`[${traceId}] step 4 — items.insert payload:`, fullRow);
 
     // Track whether the schema-tolerant retry fired with user-supplied media so the
@@ -191,9 +203,9 @@ export async function createItem(category, item) {
     try {
       let resp = await c.from("items").insert(fullRow).select().single();
       if (resp.error && isMissingColumnError(resp.error)) {
-        console.warn(`[${traceId}] step 4.5 — media columns missing (run migration 016) — retrying without`);
+        console.warn(`[${traceId}] step 4.5 — optional columns missing (run migrations 016 / 018 / 020) — retrying without`);
         mediaStripped = userProvidedMedia;
-        resp = await c.from("items").insert(baseRow).select().single();
+        resp = await c.from("items").insert(baseRowWithoutOptional).select().single();
       }
       insertData = resp.data; insertError = resp.error;
       console.log(`[${traceId}] step 5 — items.insert response:`, { data: insertData, error: insertError, status: resp.status, statusText: resp.statusText });
@@ -301,6 +313,8 @@ export async function updateItem(originalCode, originalCategory, updatedItem, ne
     location:           updatedItem.location          || null,
     last_purchase_rate: updatedItem.lastPurchaseRate  || null,
     vendor_links:       updatedItem.vendorLinks  || [],
+    // Migration 020 — operator-set fallback rate.
+    default_purchase_rate: updatedItem.defaultPurchaseRate != null ? Number(updatedItem.defaultPurchaseRate) : null,
   };
   // Only include `code` in the write when it's actually changing. Updating a column to
   // its current value is a no-op that PostgreSQL still validates against the unique

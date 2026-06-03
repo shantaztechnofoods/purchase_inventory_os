@@ -77,3 +77,19 @@ export async function createOutward(entry) {
   console.info("[outward:create] ok");
   return { success: true, entry: fromRow(data) };
 }
+
+// Feature 3: delete an outward entry by its issue_id. Used when cancelling a
+// rack build — the App layer reverses stock first, then deletes the outward
+// row so reports don't double-count the issued qty.
+export async function deleteOutwardByIssueId(issueId) {
+  console.info("[outward:deleteByIssueId] start", { issueId });
+  if (!isSupabaseEnabled()) {
+    setLocal(getLocal().filter((e) => String(e.id) !== String(issueId) && String(e.issueId) !== String(issueId)));
+    return { success: true };
+  }
+  const c = getSupabase(); if (!c) return { success: false, error: "no client" };
+  const { error } = await c.from("outward_log").delete().eq("issue_id", issueId);
+  if (error) { console.error("[outward:deleteByIssueId] failed", error); return { success: false, error: error.message }; }
+  console.info("[outward:deleteByIssueId] ok");
+  return { success: true };
+}

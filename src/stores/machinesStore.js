@@ -91,3 +91,20 @@ export async function updateMachine(id, updates) {
   console.info("[machines:update] ok");
   return { success: true };
 }
+
+// Feature 3: hard-delete a machine row. Used by the rack remove flow when the
+// operator wants to cancel a rack build entirely. The App layer is responsible
+// for reversing stock + audit logging BEFORE calling this — this is just the
+// row-removal primitive.
+export async function deleteMachine(id) {
+  console.info("[machines:delete] start", { id });
+  if (!isSupabaseEnabled()) {
+    setLocal(getLocal().filter((m) => m.id !== id));
+    return { success: true };
+  }
+  const c = getSupabase(); if (!c) return { success: false, error: "no client" };
+  const { error } = await c.from("machine_log").delete().eq("id", id);
+  if (error) { console.error("[machines:delete] failed", error); return { success: false, error: error.message }; }
+  console.info("[machines:delete] ok");
+  return { success: true };
+}

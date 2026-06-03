@@ -17,10 +17,10 @@ import { fetchItems, createItem as itemCreate, updateItem as itemUpdate, deleteI
 import { fetchBOMs, createBOM as bomCreate, updateBOM as bomUpdate, renameBOM as bomRename, deleteBOM as bomDelete } from "./stores/bomsStore.js";
 import { fetchPOs, createPO as poCreate, updatePO as poUpdate, deletePO as poDelete } from "./stores/posStore.js";
 import { fetchInward, createInward, bulkCreateInward, deleteInwardByPO } from "./stores/inwardStore.js";
-import { fetchOutward, createOutward, updateOutwardRef } from "./stores/outwardStore.js";
+import { fetchOutward, createOutward, updateOutwardRef, deleteOutwardByIssueId } from "./stores/outwardStore.js";
 import { fetchPending, bulkCreatePending, updatePending as pendingUpdate, deletePending as pendingDelete, clearAllPending, updatePendingBomKey } from "./stores/pendingStore.js";
 import { fetchFollowUps, createFollowUp as followupCreate, updateFollowUp as followupUpdate, deleteFollowUpsByPO } from "./stores/followupsStore.js";
-import { fetchMachines, createMachine as machineCreate, updateMachine as machineUpdate, updateMachineBomKey } from "./stores/machinesStore.js";
+import { fetchMachines, createMachine as machineCreate, updateMachine as machineUpdate, updateMachineBomKey, deleteMachine as machineDelete } from "./stores/machinesStore.js";
 import { useRealtimeTables } from "./realtime/useRealtimeTables.js";
 import { fetchRecentMovements, MOVEMENT_META } from "./stores/stockMovementsStore.js";
 import { sendPOWhatsApp, openVendorWhatsApp, waErrorToast } from "./utils/whatsapp.js";
@@ -28,7 +28,7 @@ import { uploadItemMedia, MAX_UPLOAD_BYTES } from "./utils/storage.js";
 import POSettings from "./components/POSettings.jsx";
 import SearchableSelect from "./components/SearchableSelect.jsx";
 import {
-  PURCHASE_TYPES, ITEM_GST_RATES, DEFAULT_PURCHASE_TYPE_KEY,
+  PURCHASE_TYPES, PURCHASE_TYPE_BY_KEY, ITEM_GST_RATES, DEFAULT_PURCHASE_TYPE_KEY,
   getPurchaseType, calculateGSTBreakdown, filterPurchaseTypes, todayIso,
 } from "./utils/gst.js";
 import { mapRow as vendorMapRow, parseRows as vendorParseRows } from "./utils/vendorImport.js";
@@ -43,7 +43,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-01g-erp-audit-fixes";
+const APP_BUILD = "2026-06-01h-additive-erp-pass";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -1841,18 +1841,20 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
   };
 
   const [form, setForm] = useState(() => isEdit ? {
-    name:             initialValues.name,
-    code:             initialValues.code,
-    stock:            String(initialValues.stock),
-    min:              String(initialValues.min),
-    machine:          initialValues.machine || "Mechanical",
-    unit:             initialValues.unit    || "Nos",
-    location:         initialValues.location || "",
-    lastPurchaseRate: String(initialValues.lastPurchaseRate || ""),
-    gstRate:          initialValues.gstRate != null ? String(initialValues.gstRate) : "",
+    name:                initialValues.name,
+    code:                initialValues.code,
+    stock:               String(initialValues.stock),
+    min:                 String(initialValues.min),
+    machine:             initialValues.machine || "Mechanical",
+    unit:                initialValues.unit    || "Nos",
+    location:            initialValues.location || "",
+    lastPurchaseRate:    String(initialValues.lastPurchaseRate || ""),
+    defaultPurchaseRate: initialValues.defaultPurchaseRate != null ? String(initialValues.defaultPurchaseRate) : "",
+    gstRate:             initialValues.gstRate != null ? String(initialValues.gstRate) : "",
   } : {
     name: "", code: "", stock: "", min: "",
     machine: "Mechanical", unit: "Nos", location: "", lastPurchaseRate: "",
+    defaultPurchaseRate: "",
     gstRate: "",
   });
   const [errors,       setErrors]       = useState({});
@@ -1968,9 +1970,11 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
       vendorId:         preferredLink?.vendorId || "",
       vendor:           primaryVendor?.name || preferredLink?.vendorName || "",
       vendorPhone:      primaryVendor?.phone || "",
-      lastPurchaseRate: Number(form.lastPurchaseRate) || 0,
+      lastPurchaseRate:    Number(form.lastPurchaseRate) || 0,
+      // ERP 020 — operator-set fallback rate for PO line creation.
+      defaultPurchaseRate: form.defaultPurchaseRate === "" ? null : Number(form.defaultPurchaseRate),
       // ERP 018 — per-item GST rate (used by auto GST calculator in PO modal)
-      gstRate:          form.gstRate === "" ? null : Number(form.gstRate),
+      gstRate:             form.gstRate === "" ? null : Number(form.gstRate),
       // Phase 1 — optional media metadata (no impact on stock)
       photo, designFile, designName,
     });
@@ -2090,14 +2094,25 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
             </div>
           </div>
 
-          {/* Row 2c — GST Rate (ERP migration 018) */}
-          <div>
-            <Label text="GST Rate" />
-            <select value={form.gstRate} onChange={(e) => set("gstRate", e.target.value)} className={inp(false)} style={selectStyle}>
-              <option value="">— Not set —</option>
-              {ITEM_GST_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
-            </select>
-            <div className="text-[10px] text-slate-500 mt-1">Used by auto GST calculation in PO modal (multi-rate / itemwise purchases).</div>
+          {/* Row 2c — GST Rate (ERP migration 018) + Default Purchase Rate (020) */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label text="GST Rate" />
+              <select value={form.gstRate} onChange={(e) => set("gstRate", e.target.value)} className={inp(false)} style={selectStyle}>
+                <option value="">— Not set —</option>
+                {ITEM_GST_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+              </select>
+              <div className="text-[10px] text-slate-500 mt-1">Used by auto GST calculation in PO modal (multi-rate / itemwise purchases).</div>
+            </div>
+            <div>
+              <Label text="Default Purchase Rate (₹)" />
+              <input type="number" min="0" step="0.01" value={form.defaultPurchaseRate}
+                     onChange={(e) => set("defaultPurchaseRate", e.target.value)}
+                     placeholder="e.g. 150"
+                     className={inp(false)}
+                     style={{ fontVariantNumeric: "tabular-nums" }} />
+              <div className="text-[10px] text-slate-500 mt-1">PO line rate fallback when Last Purchase Rate is 0.</div>
+            </div>
           </div>
 
           {/* Row 3 — Min Stock */}
@@ -3242,6 +3257,22 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
       setAddErr("");
     }
   }, [form.vendor]);
+
+  // Feature 5: when the operator picks an item, auto-fill the Rate field
+  // using the fallback chain (last → default → 0). Operator can still override.
+  // Only fires when the rate field is empty so we don't clobber the operator's
+  // in-progress typing.
+  useEffect(() => {
+    if (!addCode) return;
+    const inv = allFlatItems.find((i) => i.code === addCode);
+    if (!inv) return;
+    if (addRate !== "") return;
+    const last    = Number(inv.lastPurchaseRate)    || 0;
+    const defRate = Number(inv.defaultPurchaseRate) || 0;
+    const suggest = last > 0 ? last : (defRate > 0 ? defRate : 0);
+    if (suggest > 0) setAddRate(String(suggest));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addCode]);
 
   // Vendors linked to the item currently selected in the add-line row — Preferred → Approved → Backup.
   // Supports both vendorLinks (new) and legacy item.vendor field.
@@ -4479,6 +4510,15 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
   const [profileVendor, setProfileVendor] = useState(null);
   const [toast,         setToast]         = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  // Feature 7 (2026-06-01h): Vendor ledger search + filter + show-all so the
+  // profile panel scales as a vendor accumulates thousands of POs over years.
+  const [vendorPOSearch,   setVendorPOSearch]   = useState("");
+  const [vendorPOStatus,   setVendorPOStatus]   = useState("all");
+  const [vendorPOExpanded, setVendorPOExpanded] = useState(false);
+  // Reset the ledger search when the operator switches vendors.
+  useEffect(() => {
+    setVendorPOSearch(""); setVendorPOStatus("all"); setVendorPOExpanded(false);
+  }, [profileVendor?.id]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3500); };
 
@@ -4857,33 +4897,75 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                   </div>
                 )}
 
-                {/* Full PO history */}
+                {/* Full PO history — with search + status filter so the panel
+                    scales to thousands of POs per vendor (Feature 7). */}
                 <div>
-                  <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-2">
-                    PO History ({vendorPOs.length} total)
+                  <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-2 flex items-center justify-between">
+                    <span>PO History ({vendorPOs.length} total)</span>
                   </div>
-                  {recentPOs.length === 0 ? (
-                    <div className="text-[11px] text-slate-600">No purchase orders yet.</div>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {recentPOs.map((po) => (
-                        <div key={po.id} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
-                          <div>
-                            <div className="text-[11px] font-mono font-bold text-blue-400">{po.id}</div>
-                            <div className="text-[10px] text-slate-500">
-                              {po.date} · ₹{(po.amount || 0).toLocaleString("en-IN")}
-                            </div>
-                            {(po.lineItems || []).length > 0 && (
-                              <div className="text-[9px] text-slate-600 mt-0.5 truncate max-w-[160px]">
-                                {(po.lineItems || []).map((li) => li.name || li.code).join(", ")}
-                              </div>
-                            )}
-                          </div>
-                          <StatusBadge status={po.status} />
-                        </div>
-                      ))}
+                  {/* Search + filter bar */}
+                  {vendorPOs.length > 0 && (
+                    <div className="space-y-1.5 mb-2">
+                      <input value={vendorPOSearch} onChange={(e) => setVendorPOSearch(e.target.value)}
+                             placeholder="Search PO id, item…"
+                             className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-slate-600 outline-none focus:border-blue-500/40" />
+                      <select value={vendorPOStatus} onChange={(e) => setVendorPOStatus(e.target.value)}
+                              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-[11px] text-white outline-none"
+                              style={{ background: "#0b0e17" }}>
+                        <option value="all">All statuses</option>
+                        {["draft","pending","approved","ordered","received","overdue","rejected","review"].map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
                     </div>
                   )}
+                  {(() => {
+                    const q = vendorPOSearch.trim().toLowerCase();
+                    const filteredVendorPOs = sortedByDate.filter((po) => {
+                      if (vendorPOStatus !== "all" && po.status !== vendorPOStatus) return false;
+                      if (!q) return true;
+                      if ((po.id || "").toLowerCase().includes(q)) return true;
+                      return (po.lineItems || []).some((li) =>
+                        (li.code || "").toLowerCase().includes(q) ||
+                        (li.name || "").toLowerCase().includes(q)
+                      );
+                    });
+                    const filterActive = vendorPOSearch || vendorPOStatus !== "all";
+                    const visible = vendorPOExpanded || filterActive
+                      ? filteredVendorPOs
+                      : filteredVendorPOs.slice(0, 8);
+                    if (filteredVendorPOs.length === 0) {
+                      return <div className="text-[11px] text-slate-600">
+                        {vendorPOs.length === 0 ? "No purchase orders yet." : "No POs match your filters."}
+                      </div>;
+                    }
+                    return (
+                      <>
+                        <div className="space-y-1.5 max-h-[420px] overflow-y-auto pr-1">
+                          {visible.map((po) => (
+                            <div key={po.id} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                              <div className="min-w-0 flex-1">
+                                <div className="text-[11px] font-mono font-bold text-blue-400">{po.id}</div>
+                                <div className="text-[10px] text-slate-500">
+                                  {po.poDate || po.date} · ₹{(po.amount || 0).toLocaleString("en-IN")}
+                                </div>
+                                {(po.lineItems || []).length > 0 && (
+                                  <div className="text-[9px] text-slate-600 mt-0.5 truncate max-w-[180px]">
+                                    {(po.lineItems || []).map((li) => li.name || li.code).join(", ")}
+                                  </div>
+                                )}
+                              </div>
+                              <StatusBadge status={po.status} />
+                            </div>
+                          ))}
+                        </div>
+                        {!filterActive && filteredVendorPOs.length > 8 && (
+                          <button onClick={() => setVendorPOExpanded((x) => !x)}
+                                  className="w-full mt-2 text-[10px] font-bold py-1.5 rounded-lg text-blue-300 border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-all">
+                            {vendorPOExpanded ? `▲ Show fewer (hide ${filteredVendorPOs.length - 8})` : `▼ Show all ${filteredVendorPOs.length}`}
+                          </button>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* Notes */}
@@ -5700,6 +5782,187 @@ function generatePOPdf(po, vendor, settings = {}) {
   });
 }
 
+// ─── PO SEARCH CENTER ────────────────────────────────────────────────────────
+// Feature 6 (2026-06-01h): ERP-style table view of POs designed to scale to
+// 100,000+ records. Free-text search across PO id / vendor / item code+name
+// + status / purchase-type filters + date range + pagination. Click a row to
+// open the existing detail modal (the card view's ViewBtn flow). Sorting is
+// newest-first by PO date.
+function POSearchCenter({
+  pos, searchQ, setSearchQ, searchStatus, setSearchStatus,
+  searchPurchaseType, setSearchPurchaseType,
+  searchDateFrom, setSearchDateFrom, searchDateTo, setSearchDateTo,
+  page, setPage, pageSize, onOpenPO,
+}) {
+  // Memoize the filter pipeline so 100k rows × every keystroke doesn't melt.
+  const filtered = useMemo(() => {
+    const q = String(searchQ || "").trim().toLowerCase();
+    return pos.filter((p) => {
+      if (searchStatus !== "all" && p.status !== searchStatus) return false;
+      if (searchPurchaseType !== "all" && p.purchaseType !== searchPurchaseType) return false;
+      // ISO date comparison works as string compare for yyyy-mm-dd.
+      const pd = p.poDate || p.date || "";
+      if (searchDateFrom && pd && pd < searchDateFrom) return false;
+      if (searchDateTo   && pd && pd > searchDateTo)   return false;
+      if (!q) return true;
+      if ((p.id     || "").toLowerCase().includes(q)) return true;
+      if ((p.vendor || "").toLowerCase().includes(q)) return true;
+      // Line item names / codes
+      const lis = p.lineItems || [];
+      for (const li of lis) {
+        if ((li.code || "").toLowerCase().includes(q)) return true;
+        if ((li.name || "").toLowerCase().includes(q)) return true;
+      }
+      return false;
+    });
+  }, [pos, searchQ, searchStatus, searchPurchaseType, searchDateFrom, searchDateTo]);
+
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      const ad = a.poDate || a.date || "";
+      const bd = b.poDate || b.date || "";
+      if (ad !== bd) return ad < bd ? 1 : -1;       // newest first
+      return String(b.id || "").localeCompare(String(a.id || ""));
+    });
+  }, [filtered]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const pageSafe   = Math.min(page, totalPages - 1);
+  const pageRows   = sorted.slice(pageSafe * pageSize, (pageSafe + 1) * pageSize);
+
+  // Reset to first page when the result set shrinks below the current page.
+  useEffect(() => {
+    if (page > 0 && pageSafe !== page) setPage(pageSafe);
+  }, [pageSafe, page, setPage]);
+
+  const clearAll = () => {
+    setSearchQ(""); setSearchStatus("all"); setSearchPurchaseType("all");
+    setSearchDateFrom(""); setSearchDateTo(""); setPage(0);
+  };
+
+  const statusColor = (s) => ({
+    draft:    "#94a3b8", pending:  "#f59e0b", approved: "#3b82f6",
+    ordered:  "#8b5cf6", received: "#22c55e", overdue:  "#ef4444",
+    rejected: "#ef4444", review:   "#f97316",
+  }[s] || "#94a3b8");
+
+  return (
+    <div className="flex-1 overflow-y-auto p-5 space-y-4">
+      {/* Search + filter bar */}
+      <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-2.5">
+          <div className="md:col-span-2">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Search</div>
+            <input value={searchQ} onChange={(e) => { setSearchQ(e.target.value); setPage(0); }}
+                   placeholder="PO number, vendor, item code, item name…"
+                   className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-blue-500/40" />
+          </div>
+          <div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Status</div>
+            <select value={searchStatus} onChange={(e) => { setSearchStatus(e.target.value); setPage(0); }}
+                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none"
+                    style={{ background: "#0b0e17" }}>
+              <option value="all">All</option>
+              {["draft","pending","approved","ordered","received","overdue","rejected","review"].map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Purchase Type</div>
+            <select value={searchPurchaseType} onChange={(e) => { setSearchPurchaseType(e.target.value); setPage(0); }}
+                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none"
+                    style={{ background: "#0b0e17" }}>
+              <option value="all">All</option>
+              {PURCHASE_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">From</div>
+            <input type="date" value={searchDateFrom} onChange={(e) => { setSearchDateFrom(e.target.value); setPage(0); }}
+                   className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none"
+                   style={{ colorScheme: "dark" }} />
+          </div>
+          <div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">To</div>
+            <input type="date" value={searchDateTo} onChange={(e) => { setSearchDateTo(e.target.value); setPage(0); }}
+                   className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none"
+                   style={{ colorScheme: "dark" }} />
+          </div>
+        </div>
+        <div className="flex items-center justify-between mt-3 text-[10px]">
+          <div className="text-slate-500">
+            <span className="text-white font-bold">{sorted.length.toLocaleString("en-IN")}</span> result{sorted.length !== 1 ? "s" : ""}
+            {sorted.length !== pos.length && <span className="text-slate-600"> · of {pos.length.toLocaleString("en-IN")} total</span>}
+          </div>
+          <button onClick={clearAll}
+                  className="text-[10px] font-bold text-slate-500 hover:text-red-400 px-2.5 py-1 rounded-lg border border-white/[0.08] hover:border-red-500/30 transition-all">
+            ✕ Clear
+          </button>
+        </div>
+      </div>
+
+      {/* Results table */}
+      <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-white/[0.07]" style={{ background: "rgba(255,255,255,0.025)" }}>
+                {["PO Number","Vendor","Date","Purchase Type","Status","Amount","Items"].map((h) => (
+                  <th key={h} className="text-left text-[10px] font-semibold text-slate-500 uppercase tracking-[0.06em] px-4 py-3">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {pageRows.length === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-xs text-slate-600">
+                  {pos.length === 0 ? "No POs yet." : "No POs match your filters."}
+                </td></tr>
+              ) : pageRows.map((po) => {
+                const pt = PURCHASE_TYPE_BY_KEY[po.purchaseType];
+                const sc = statusColor(po.status);
+                return (
+                  <tr key={po.id} onClick={() => onOpenPO?.(po)}
+                      className="border-b border-white/[0.05] cursor-pointer hover:bg-white/[0.04] transition-colors">
+                    <td className="px-4 py-3 text-xs font-mono font-bold text-blue-400 whitespace-nowrap">{po.id}</td>
+                    <td className="px-4 py-3 text-xs font-semibold text-white max-w-[200px]"><div className="truncate">{po.vendor}</div></td>
+                    <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap font-mono">{po.poDate || po.date || "—"}</td>
+                    <td className="px-4 py-3 text-[11px] text-slate-400 max-w-[180px]"><div className="truncate">{pt?.label || <span className="text-slate-700">—</span>}</div></td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
+                            style={{ color: sc, background: `${sc}18`, border: `1px solid ${sc}38` }}>
+                        {po.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs font-mono font-bold text-green-400 whitespace-nowrap text-right">
+                      ₹{Number(po.amount || 0).toLocaleString("en-IN")}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-400 text-center">{(po.lineItems || []).length}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="px-4 py-3 border-t border-white/[0.06] flex items-center justify-between text-[10px]"
+               style={{ background: "rgba(255,255,255,0.015)" }}>
+            <div className="text-slate-500">
+              Page <span className="text-white font-bold">{pageSafe + 1}</span> of <span className="text-white font-bold">{totalPages}</span>
+              <span className="text-slate-600"> · showing {(pageSafe * pageSize) + 1}–{Math.min((pageSafe + 1) * pageSize, sorted.length)}</span>
+            </div>
+            <div className="flex gap-1">
+              <button onClick={() => setPage(0)}            disabled={pageSafe === 0}              className="px-2 py-1 rounded-md border border-white/[0.08] text-slate-300 hover:bg-white/[0.06] transition-all disabled:opacity-30 disabled:cursor-not-allowed">⏮ First</button>
+              <button onClick={() => setPage(pageSafe - 1)} disabled={pageSafe === 0}              className="px-2 py-1 rounded-md border border-white/[0.08] text-slate-300 hover:bg-white/[0.06] transition-all disabled:opacity-30 disabled:cursor-not-allowed">◀ Prev</button>
+              <button onClick={() => setPage(pageSafe + 1)} disabled={pageSafe >= totalPages - 1}  className="px-2 py-1 rounded-md border border-white/[0.08] text-slate-300 hover:bg-white/[0.06] transition-all disabled:opacity-30 disabled:cursor-not-allowed">Next ▶</button>
+              <button onClick={() => setPage(totalPages - 1)} disabled={pageSafe >= totalPages - 1} className="px-2 py-1 rounded-md border border-white/[0.08] text-slate-300 hover:bg-white/[0.06] transition-all disabled:opacity-30 disabled:cursor-not-allowed">Last ⏭</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── ORDER PIPELINE PAGE ─────────────────────────────────────────────────────
 
 function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCreatePO, onReceivePO, onConfirmOrder, onFollowUpDone, onDeletePO, pendingLog = [], onFulfillPending, handleUpdateStock, inwardLog = [], canDo = () => true, settings = {}, isSuperAdmin = false, onReverseReceive }) {
@@ -5736,6 +5999,26 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
   useEffect(() => {
     try { localStorage.setItem(LOW_STOCK_KEY, lowStockExpanded ? "1" : "0"); } catch {}
   }, [lowStockExpanded]);
+
+  // Feature 6 (2026-06-01h): PO Search Center. Additive view-mode toggle —
+  // "pipeline" is the existing card flow, "search" is the new ERP table that
+  // scales to 100,000+ POs. Persists across reloads.
+  const VIEW_MODE_KEY = "erp_pipeline_view_mode";
+  const [viewMode, setViewMode] = useState(() => {
+    if (typeof window === "undefined") return "pipeline";
+    try { return localStorage.getItem(VIEW_MODE_KEY) === "search" ? "search" : "pipeline"; } catch { return "pipeline"; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(VIEW_MODE_KEY, viewMode); } catch {}
+  }, [viewMode]);
+  // Search state — kept here so switching view modes doesn't lose filters.
+  const [searchQ,            setSearchQ]            = useState("");
+  const [searchStatus,       setSearchStatus]       = useState("all");
+  const [searchPurchaseType, setSearchPurchaseType] = useState("all");
+  const [searchDateFrom,     setSearchDateFrom]     = useState("");
+  const [searchDateTo,       setSearchDateTo]       = useState("");
+  const [searchPage,         setSearchPage]         = useState(0);
+  const SEARCH_PAGE_SIZE = 25;
 
   // Phase 2 — Vendor-first PO wizard. Additive entry point ("📦 Create Vendor PO"
   // button) that opens Step 1 (Company) → Step 2 (Vendor) → POModal pre-filled.
@@ -5921,6 +6204,19 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
       )}
 
       <Topbar title="Order Pipeline" subtitle={`${lowStock.length} low stock · ${approvalPOs.length} pending approval · ${makeOrderPOs.length} ready to order · ${enrichedFU.length} follow-ups · ${receivedPOs.length} received`}>
+        {/* View-mode toggle — Pipeline (cards) vs Search (table). Card view stays
+            the default; Search is the new ERP table that scales to 100k+ POs. */}
+        <div className="flex gap-0.5 bg-white/[0.03] rounded-lg p-0.5 border border-white/[0.06]">
+          {[
+            { k: "pipeline", label: "📋 Pipeline" },
+            { k: "search",   label: "🔍 Search" },
+          ].map(({ k, label }) => (
+            <button key={k} onClick={() => setViewMode(k)}
+                    className={`px-2.5 py-1 rounded-md text-[10.5px] font-bold transition-all ${viewMode === k ? "bg-blue-500/20 text-blue-300 border border-blue-500/40" : "text-slate-500 hover:text-slate-300"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
         {canDo("pipeline","create") && (
           <button onClick={openVendorWizard}
                   className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
@@ -5937,6 +6233,19 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         )}
       </Topbar>
 
+      {viewMode === "search" ? (
+        <POSearchCenter
+          pos={pos}
+          searchQ={searchQ} setSearchQ={setSearchQ}
+          searchStatus={searchStatus} setSearchStatus={setSearchStatus}
+          searchPurchaseType={searchPurchaseType} setSearchPurchaseType={setSearchPurchaseType}
+          searchDateFrom={searchDateFrom} setSearchDateFrom={setSearchDateFrom}
+          searchDateTo={searchDateTo} setSearchDateTo={setSearchDateTo}
+          page={searchPage} setPage={setSearchPage}
+          pageSize={SEARCH_PAGE_SIZE}
+          onOpenPO={(po) => setViewPO(po)}
+        />
+      ) : (
       <div className="flex-1 overflow-x-auto overflow-y-hidden p-5">
         <div className="flex gap-4 h-full" style={{ minWidth: "1160px" }}>
 
@@ -6209,6 +6518,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
 
         </div>
       </div>
+      )}
 
       {/* ── Create PO Modal ── */}
       {showCreatePO && (
@@ -7007,6 +7317,11 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   const [addErr,       setAddErr]       = useState("");
   const [issueNote,    setIssueNote]    = useState("");
   const [confirmIssue, setConfirmIssue] = useState(false);
+  // Feature 1 (2026-06-01h): destination for the issued build. Default goes to
+  // the rack (the existing workflow). "direct" skips the rack stage entirely
+  // and lands the machine in Assembly so R&D / prototype / custom one-off jobs
+  // don't have to detour through the rack-replenishment flow.
+  const [destination,  setDestination]  = useState("rack");
 
   const allFlat  = Object.entries(items).flatMap(([cat, list]) => list.map((i) => ({ ...i, category: cat })));
   const findInv  = (code) => allFlat.find((i) => i.code === code);
@@ -7150,7 +7465,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
       if (item.issueQty > 0) issued.push({ ...item });
       if (item.pendingQty > 0) pending.push({ ...item });
     });
-    onIssue({ bomKey, label: bom.label, units, issued, pending, note: issueNote, date: fmtDate(new Date()), serialNo });
+    onIssue({ bomKey, label: bom.label, units, issued, pending, note: issueNote, date: fmtDate(new Date()), serialNo, destination });
     onClose();
   };
 
@@ -7404,10 +7719,35 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
       {/* ── Sticky summary bar ── */}
       {!editMode && (
         <div className="flex-shrink-0" style={{ background: "linear-gradient(0deg,#0a0c14,#0c1018)", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-          <div className="px-6 pt-3">
+          <div className="px-6 pt-3 space-y-2">
             <input value={issueNote} onChange={(e) => setIssueNote(e.target.value)}
                    placeholder="Issue reference / note (optional)..."
                    className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-4 py-2 text-xs text-slate-300 placeholder-slate-600 outline-none focus:border-blue-500/30" />
+            {/* Feature 1 (2026-06-01h): destination radio. Default Save to Rack
+                preserves the existing workflow (BOM Issued → rack waiting → Start
+                Production). Direct Production skips rack and lands in Assembly. */}
+            {serialNo && (
+              <div className="flex items-center gap-3 px-1 text-[11px]">
+                <span className="text-slate-500 font-bold uppercase tracking-wider text-[9px]">Destination:</span>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" name="bom-destination" value="rack"
+                         checked={destination === "rack"}
+                         onChange={() => setDestination("rack")}
+                         className="accent-blue-500" />
+                  <span className={destination === "rack" ? "text-white font-bold" : "text-slate-400"}>Save To Rack</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" name="bom-destination" value="direct"
+                         checked={destination === "direct"}
+                         onChange={() => setDestination("direct")}
+                         className="accent-purple-500" />
+                  <span className={destination === "direct" ? "text-purple-300 font-bold" : "text-slate-400"}>Direct Production</span>
+                </label>
+                <span className="text-[9px] text-slate-600 ml-auto">
+                  {destination === "direct" ? "Skips rack — goes straight to Assembly" : "Sits on rack until Start Production"}
+                </span>
+              </div>
+            )}
           </div>
           {confirmIssue && hasOverIssue && (
             <div className="mx-6 mt-2 px-4 py-2.5 rounded-xl" style={{ background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.28)" }}>
@@ -7469,7 +7809,11 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
 // ─── OUTWARD PAGE ─────────────────────────────────────────────────────────────
 
-function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateBOM, onRenameBOM, outwardLog, onAddOutward, pendingLog, onClearPending, onCreateMachine, machineLog = [], canDo = () => true }) {
+function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateBOM, onRenameBOM, outwardLog, onAddOutward, pendingLog, onClearPending, onCreateMachine, machineLog = [], canDo = () => true, onRemoveRackMachine }) {
+  // Feature 3: confirm + remove rack machine. The button only appears when a
+  // remover prop is provided AND the operator has the permission. Stays in
+  // local state so the confirmation persists across re-renders of the modal.
+  const [removeRackConfirm, setRemoveRackConfirm] = useState(null); // { machineId, serialNo, bomKey }
   const [openBOM,       setOpenBOM]       = useState(null);
   const [activeSerial,  setActiveSerial]  = useState("");
   const [serialModal,   setSerialModal]   = useState(null); // bomKey waiting for S/N
@@ -7542,9 +7886,12 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
     };
     onAddOutward(entry, data.pending);
     if (data.serialNo && onCreateMachine) {
-      onCreateMachine(data.bomKey, data.label, data.serialNo, data.date, id);
+      // Feature 1: forward the destination so the machine can skip the rack
+      // stage when the operator picked Direct Production (R&D / one-off builds).
+      onCreateMachine(data.bomKey, data.label, data.serialNo, data.date, id, data.destination || "rack");
     }
-    showToast(`${data.bomKey} × ${data.units} issued`, data.serialNo ? `S/N: ${data.serialNo}` : data.label);
+    const destSuffix = data.destination === "direct" ? " · direct production" : "";
+    showToast(`${data.bomKey} × ${data.units} issued${destSuffix}`, data.serialNo ? `S/N: ${data.serialNo}` : data.label);
     setActiveSerial("");
   };
 
@@ -7654,6 +8001,58 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                   Proceed to Issue →
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Feature 3: confirm-then-remove rack build modal */}
+      {removeRackConfirm && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
+             onClick={(e) => e.target === e.currentTarget && setRemoveRackConfirm(null)}>
+          <div className="w-full max-w-sm rounded-2xl overflow-hidden"
+               style={{ background: "#0d1018", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
+            <div className="px-5 py-4 border-b border-white/[0.08]" style={{ background: "rgba(239,68,68,0.06)" }}>
+              <div className="text-sm font-black text-red-400">🗑 Remove Machine From Rack?</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">
+                {removeRackConfirm.bomKey}{removeRackConfirm.serialNo ? ` · S/N ${removeRackConfirm.serialNo}` : ""}
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-2.5 text-[11px]">
+              <div className="text-slate-300">This will:</div>
+              <ul className="space-y-1 ml-1">
+                <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Restore the issued components to inventory</span></li>
+                <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Cancel any pending material requests for this build</span></li>
+                <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Remove the outward entry from reports</span></li>
+                <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Write an audit log entry</span></li>
+              </ul>
+              <div className="text-[10px] text-slate-500 pt-1">This action cannot be undone.</div>
+            </div>
+            <div className="px-5 py-4 border-t border-white/[0.08] flex gap-2" style={{ background: "rgba(0,0,0,0.35)" }}>
+              <button autoFocus
+                      onClick={() => setRemoveRackConfirm(null)}
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+                Cancel
+              </button>
+              <div className="flex-1" />
+              <button onClick={async () => {
+                          const cfm = removeRackConfirm;
+                          setRemoveRackConfirm(null);
+                          const res = await onRemoveRackMachine(cfm.machineId);
+                          if (res?.success) {
+                            showToast(`Removed ${cfm.bomKey}${cfm.serialNo ? ` · ${cfm.serialNo}` : ""}`, `${res.restored || 0} component(s) returned to stock`);
+                            // Close the start-prod modal too if it was the last machine on rack
+                            const remaining = rackMachinesFor(startProd?.key || "").filter((m) => m.id !== cfm.machineId);
+                            if (startProd && remaining.length === 0) setStartProd(null);
+                          } else {
+                            showToast("Failed to remove", res?.error || "unknown error", "error");
+                          }
+                        }}
+                      className="inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-4 py-1.5 text-white border transition-all"
+                      style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", borderColor: "rgba(239,68,68,0.5)" }}>
+                🗑 Remove
+              </button>
             </div>
           </div>
         </div>
@@ -8068,7 +8467,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       };
     });
   })();
-  const replenishAlerts = rackData.filter((r) => r.configured && r.ready < r.capacity);
+  // replenishAlerts was the data source for the now-removed banner — kept the
+  // line as a comment so the rationale is recoverable from blame. (Computed
+  // on-demand inside the card render if ever needed again.)
 
   // Rack machines (serial-wise, oldest first) waiting to start for a model.
   const rackMachinesFor = (key) =>
@@ -8156,28 +8557,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             </div>
           </div>
 
-          {/* Replenishment alerts */}
-          {replenishAlerts.length > 0 && (
-            <div className="mb-3 rounded-xl p-3.5" style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.25)" }}>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-base">⚠️</span>
-                <div className="text-[11px] font-bold text-amber-300">Rack Requires Replenishment</div>
-                <span className="text-[9px] font-semibold text-amber-400 px-1.5 py-0.5 rounded-full" style={{ background: "rgba(245,158,11,0.18)" }}>{replenishAlerts.length}</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {replenishAlerts.map((r) => (
-                  <div key={r.key} className="px-3 py-2 rounded-lg text-[10.5px]" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(245,158,11,0.18)" }}>
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-white">{r.key}</span>
-                      <span className="text-amber-400 font-bold">{r.empty} empty slot{r.empty !== 1 ? "s" : ""}</span>
-                    </div>
-                    <div className="text-slate-500 truncate mt-0.5">{r.label}</div>
-                    <div className="text-slate-600 text-[9.5px] mt-0.5">Ready {r.ready} / Capacity {r.capacity}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Replenishment alerts removed — the rack cards below now carry
+              FULL/PARTIAL/EMPTY status badges and per-card shortage info, so
+              the separate banner was duplicate noise that pushed the cards
+              below the fold. Feature 2 of 2026-06-01h. */}
 
           {rackData.length === 0 ? (
             <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl py-10 text-center">
@@ -8461,16 +8844,31 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 {rackMachinesFor(startProd.key).map((m) => {
                   const sel = startSel.has(m.id);
                   return (
-                    <button key={m.id} onClick={() => { toggleStartSel(m.id); setStartErr(""); }}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all"
-                            style={{ background: sel ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.03)", border: `1px solid ${sel ? "rgba(34,197,94,0.45)" : "rgba(255,255,255,0.08)"}` }}>
-                      <span className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 text-[10px] font-black"
-                            style={{ background: sel ? "#16a34a" : "transparent", border: `1.5px solid ${sel ? "#16a34a" : "rgba(255,255,255,0.25)"}`, color: "#fff" }}>
-                        {sel ? "✓" : ""}
-                      </span>
-                      <span className="text-[12px] font-mono font-bold text-white flex-1 truncate">{m.serialNo || "(no serial)"}</span>
-                      <span className="text-[9px] text-slate-500 flex-shrink-0">Issued {m.createdDate}</span>
-                    </button>
+                    <div key={m.id}
+                         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all"
+                         style={{ background: sel ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.03)", border: `1px solid ${sel ? "rgba(34,197,94,0.45)" : "rgba(255,255,255,0.08)"}` }}>
+                      <button onClick={() => { toggleStartSel(m.id); setStartErr(""); }}
+                              className="flex items-center gap-3 flex-1 min-w-0 text-left">
+                        <span className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 text-[10px] font-black"
+                              style={{ background: sel ? "#16a34a" : "transparent", border: `1.5px solid ${sel ? "#16a34a" : "rgba(255,255,255,0.25)"}`, color: "#fff" }}>
+                          {sel ? "✓" : ""}
+                        </span>
+                        <span className="text-[12px] font-mono font-bold text-white flex-1 truncate">{m.serialNo || "(no serial)"}</span>
+                        <span className="text-[9px] text-slate-500 flex-shrink-0">Issued {m.createdDate}</span>
+                      </button>
+                      {/* Feature 3: remove from rack — stock is reversed via the
+                          engine and audit is logged. Only shown when prop is
+                          provided. */}
+                      {onRemoveRackMachine && canDo("outward","delete") && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setRemoveRackConfirm({ machineId: m.id, serialNo: m.serialNo, bomKey: m.bomKey }); }}
+                          title="Remove from rack (restore materials to stock)"
+                          className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-black text-red-400 hover:text-white hover:bg-red-500/20 transition-all flex-shrink-0"
+                          style={{ border: "1px solid rgba(239,68,68,0.25)" }}>
+                          🗑
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -10375,12 +10773,24 @@ export default function App() {
     // onAuditChange omitted — AuditHistoryPage re-fetches itself via subscribeAudit
   });
 
-  // Hydrate all tables from Supabase on mount when Supabase enabled
+  // Hydrate all tables from Supabase whenever we get an authenticated session.
+  //
+  // Bug previously: this effect had an empty dependency array and ran once on
+  // mount, BEFORE the AuthProvider had finished restoring / establishing the
+  // Supabase session. Without the auth token attached, RLS blocked every read,
+  // each fetch returned empty/local-fallback, and the dashboard rendered zeros.
+  // Hard-refreshing the page made it work because the token was already in
+  // localStorage by the time the effect fired. Fresh logins were broken until
+  // a manual refresh.
+  //
+  // Fix: re-run hydration when `currentUser` transitions from null → set. The
+  // `currentUser?.id` dep ensures it also reloads on user switch.
   useEffect(() => {
     if (!isSupabaseEnabled()) return;
+    if (!currentUser?.id) return;        // wait for AuthContext to land the session
     let cancelled = false;
     (async () => {
-      console.info("[App] hydrating Supabase state on mount");
+      console.info("[App] hydrating Supabase state for user", currentUser.id);
       const [s, v, i, b, p, inw, out, pend, fu, mac] = await Promise.all([
         loadSettings(), listVendors(), fetchItems(), fetchBOMs(),
         fetchPOs(), fetchInward(), fetchOutward(),
@@ -10420,7 +10830,8 @@ export default function App() {
       });
     })();
     return () => { cancelled = true; };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
 
 
   // Persist all mutable state to localStorage so data survives page refresh
@@ -11341,20 +11752,35 @@ export default function App() {
   };
 
   // ── Machine Tracker handlers ──
-  const handleCreateMachine = (bomKey, bomLabel, serialNo, date, issueId) => {
+  const handleCreateMachine = (bomKey, bomLabel, serialNo, date, issueId, destination = "rack") => {
     const dateStr = date || fmtDate(new Date());
-    logAudit({ type: "machine_created", module: "Machine", action: `Machine Created: ${bomKey}`, ref: bomKey, serialNo: serialNo || "", details: { bomLabel, issueId } });
+    // Feature 1: direct production lands the machine in Assembly immediately,
+    // skipping the BOM Issued / rack waiting stage. Used for R&D, prototypes,
+    // one-off / custom builds where there's no batch to wait for.
+    const directMode = destination === "direct";
+    const initialStage = directMode ? "Assembly" : "BOM Issued";
+    const initialNote  = directMode ? "BOM issued — direct production" : "BOM issued";
+    logAudit({
+      type: "machine_created", module: "Machine",
+      action: `Machine Created: ${bomKey}${directMode ? " (direct production)" : ""}`,
+      ref: bomKey, serialNo: serialNo || "",
+      details: { bomLabel, issueId, destination, initialStage },
+    });
+    const history = [{ stage: initialStage, date: dateStr, note: initialNote }];
+    // If we skipped the rack, also record the implicit BOM Issued → Assembly
+    // transition so the machine's history is honest about what happened.
+    if (directMode) history.unshift({ stage: "BOM Issued", date: dateStr, note: "BOM issued (auto-promoted)" });
     const newMachine = {
       id:          Date.now(),
       issueId:     issueId || null,
       bomKey,
       bomLabel,
       serialNo,
-      stage:       "BOM Issued",
+      stage:       initialStage,
       status:      "active",
       createdDate: dateStr,
       completedDate: null,
-      history:     [{ stage: "BOM Issued", date: dateStr, note: "BOM issued" }],
+      history,
     };
     setMachineLog((prev) => [newMachine, ...prev]);
     if (isSupabaseEnabled()) machineCreate(newMachine).then((r) => { if (!r.success) console.warn("[App] Machine create Supabase failed:", r.error); });
@@ -11427,6 +11853,74 @@ export default function App() {
       details: { serialNos: serials },
     });
     return { success: true, count: targets.length, serials };
+  };
+
+  // Feature 3: remove a machine from the rack. Restores the materials that
+  // were issued to inventory, deletes the outward + pending rows for the
+  // issue, and removes the machine. Refuses if the machine isn't on the rack
+  // anymore — anything past Assembly is already being built and reversing
+  // would break stock integrity.
+  const handleRemoveRackMachine = async (machineId) => {
+    const machine = machineLog.find((m) => m.id === machineId);
+    if (!machine) return { success: false, error: "Machine not found" };
+    if (machine.stage !== "BOM Issued") {
+      return { success: false, error: `Cannot remove — machine is in ${machine.stage}, not on rack` };
+    }
+    // Find the matching outward entry by issueId
+    const outwardEntry = outwardLog.find((e) => String(e.id) === String(machine.issueId));
+    const issuedLines  = (outwardEntry?.items || []).filter((it) => Number(it.issueQty) > 0);
+
+    // 1) Reverse stock for each issued component. Fire one stock movement
+    //    per line via the canonical engine so the audit trail mentions the
+    //    machine's serial number.
+    if (issuedLines.length > 0) {
+      const reversalRef = `Rack remove: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}`;
+      for (const li of issuedLines) {
+        const cat = li.category || Object.keys(items).find((c) => (items[c] || []).some((i) => i.code === li.code));
+        if (!cat) continue;
+        try {
+          await handleUpdateStock(cat, li.code, +Number(li.issueQty) || 0, reversalRef);
+        } catch (e) {
+          console.error("[App] handleRemoveRackMachine: stock reversal failed", e);
+        }
+      }
+    }
+
+    // 2) Remove pending entries for this issue (these were waiting on inward)
+    if (machine.issueId) {
+      const orphans = pendingLog.filter((p) => String(p.issueId) === String(machine.issueId));
+      if (orphans.length > 0) {
+        setPendingLog((prev) => prev.filter((p) => String(p.issueId) !== String(machine.issueId)));
+        if (isSupabaseEnabled()) {
+          orphans.forEach((p) => {
+            if (p.id) pendingDelete(p.id).then((r) => { if (!r.success) console.warn("[App] handleRemoveRackMachine: pending delete failed", r.error); });
+          });
+        }
+      }
+    }
+
+    // 3) Remove the outward entry so reports don't double-count
+    if (machine.issueId) {
+      setOutwardLog((prev) => prev.filter((e) => String(e.id) !== String(machine.issueId)));
+      if (isSupabaseEnabled()) {
+        deleteOutwardByIssueId(machine.issueId).then((r) => { if (!r.success) console.warn("[App] handleRemoveRackMachine: outward delete failed", r.error); });
+      }
+    }
+
+    // 4) Remove the machine itself
+    setMachineLog((prev) => prev.filter((m) => m.id !== machineId));
+    if (isSupabaseEnabled()) {
+      machineDelete(machineId).then((r) => { if (!r.success) console.warn("[App] handleRemoveRackMachine: machine delete failed", r.error); });
+    }
+
+    logAudit({
+      type: "machine_rack_removed", module: "Machine",
+      action: `Rack build removed: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""} — ${issuedLines.length} component(s) returned to stock`,
+      ref: machine.bomKey, serialNo: machine.serialNo || "",
+      details: { issueId: machine.issueId, restored: issuedLines.map((l) => ({ code: l.code, qty: l.issueQty })) },
+    });
+
+    return { success: true, restored: issuedLines.length };
   };
 
   // Adds a "materials fully issued" note to Machine Tracker when an issueId is cleared
@@ -11527,7 +12021,8 @@ export default function App() {
                               onCreateBOM={handleCreateBOM} onRenameBOM={handleRenameBOM}
                               outwardLog={outwardLog} onAddOutward={handleAddOutward}
                               pendingLog={pendingLog} onClearPending={handleClearPending}
-                              onCreateMachine={handleCreateMachine} machineLog={machineLog} canDo={canDo} />,
+                              onCreateMachine={handleCreateMachine} machineLog={machineLog} canDo={canDo}
+                              onRemoveRackMachine={handleRemoveRackMachine} />,
     pending:   <PendingPage   pendingLog={pendingLog} items={items} bomDefs={bomDefs}
                               machineLog={machineLog}
                               onFulfillPending={handleFulfillPending}
