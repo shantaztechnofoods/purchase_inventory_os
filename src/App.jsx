@@ -43,7 +43,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-02a-po-save-default-rate";
+const APP_BUILD = "2026-06-02b-machine-rack-click-hotfix";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -8470,7 +8470,7 @@ const STAGE_COLORS = {
   "Ready":      "#22c55e",
 };
 
-function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo = () => true, bomDefs = {}, onStartProduction }) {
+function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo = () => true, bomDefs = {}, onStartProduction, onRemoveRackMachine }) {
   const [filter,   setFilter]   = useState("active");
   const [expanded, setExpanded] = useState(null);
   const [stageMap, setStageMap] = useState({});
@@ -8478,6 +8478,12 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   const [startProd, setStartProd] = useState(null); // rack object { key, label, ready, capacity }
   const [startSel,  setStartSel]  = useState(() => new Set()); // selected rack-machine ids
   const [startErr,  setStartErr]  = useState("");
+  // 2026-06-02 — confirm-modal state for rack remove. Feature 3 (rack remove)
+  // shipped without these declarations in MachinePage, so referencing them
+  // inside the Start Production modal threw ReferenceError and blanked the
+  // page on any rack-card click. This restores the state + the confirm modal
+  // render so both Outward and Machine Tracker can remove rack machines.
+  const [removeRackConfirm, setRemoveRackConfirm] = useState(null); // { machineId, serialNo, bomKey }
 
   const showToast = (text, sub) => { setToast({ text, sub }); setTimeout(() => setToast(null), 3000); };
 
@@ -8935,6 +8941,61 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 className="flex-1 py-2.5 rounded-xl text-xs font-black text-white transition-all"
                 style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.35)" }}>
                 ▶ Start Production
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2026-06-02 — Confirm-then-remove rack build modal. Mirrors the
+          OutwardPage version. Without this modal AND its state, the parent
+          Start Production modal threw a ReferenceError on render because
+          setRemoveRackConfirm was undefined in scope. */}
+      {removeRackConfirm && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
+             onClick={(e) => e.target === e.currentTarget && setRemoveRackConfirm(null)}>
+          <div className="w-full max-w-sm rounded-2xl overflow-hidden"
+               style={{ background: "#0d1018", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
+            <div className="px-5 py-4 border-b border-white/[0.08]" style={{ background: "rgba(239,68,68,0.06)" }}>
+              <div className="text-sm font-black text-red-400">🗑 Remove Machine From Rack?</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">
+                {removeRackConfirm.bomKey}{removeRackConfirm.serialNo ? ` · S/N ${removeRackConfirm.serialNo}` : ""}
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-2.5 text-[11px]">
+              <div className="text-slate-300">This will:</div>
+              <ul className="space-y-1 ml-1">
+                <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Restore the issued components to inventory</span></li>
+                <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Cancel any pending material requests for this build</span></li>
+                <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Remove the outward entry from reports</span></li>
+                <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Write an audit log entry</span></li>
+              </ul>
+              <div className="text-[10px] text-slate-500 pt-1">This action cannot be undone.</div>
+            </div>
+            <div className="px-5 py-4 border-t border-white/[0.08] flex gap-2" style={{ background: "rgba(0,0,0,0.35)" }}>
+              <button autoFocus
+                      onClick={() => setRemoveRackConfirm(null)}
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+                Cancel
+              </button>
+              <div className="flex-1" />
+              <button onClick={async () => {
+                          const cfm = removeRackConfirm;
+                          setRemoveRackConfirm(null);
+                          if (!onRemoveRackMachine) { showToast("Remove unavailable", "Permission missing"); return; }
+                          const res = await onRemoveRackMachine(cfm.machineId);
+                          if (res?.success) {
+                            showToast(`Removed ${cfm.bomKey}${cfm.serialNo ? ` · ${cfm.serialNo}` : ""}`, `${res.restored || 0} component(s) returned to stock`);
+                            const remaining = rackMachinesFor(startProd?.key || "").filter((m) => m.id !== cfm.machineId);
+                            if (startProd && remaining.length === 0) setStartProd(null);
+                          } else {
+                            showToast("Failed to remove", res?.error || "unknown error");
+                          }
+                        }}
+                      className="inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-4 py-1.5 text-white border transition-all"
+                      style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", borderColor: "rgba(239,68,68,0.5)" }}>
+                🗑 Remove
               </button>
             </div>
           </div>
@@ -12124,7 +12185,8 @@ export default function App() {
                               onReverseReceive={handleReverseReceive}
                               onSetItemDefaultRate={handleSetItemDefaultRate} />,
     machines:  <MachinePage   machineLog={machineLog} onUpdateStage={handleUpdateMachineStage} onNavigate={setActivePage} canDo={canDo}
-                              bomDefs={bomDefs} onStartProduction={handleStartProduction} />,
+                              bomDefs={bomDefs} onStartProduction={handleStartProduction}
+                              onRemoveRackMachine={handleRemoveRackMachine} />,
     vendors:   <VendorsPage   vendorList={vendorList} pos={pos} items={items}
                               onAddVendor={handleAddVendor} onEditVendor={handleEditVendor}
                               onDeleteVendor={handleDeleteVendor} onBulkAddVendors={handleBulkAddVendors} canDo={canDo} />,
