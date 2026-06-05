@@ -44,7 +44,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-05a-login-blank-fix";
+const APP_BUILD = "2026-06-05b-root-boundary-defensive";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -11221,36 +11221,51 @@ export default function App() {
   if (!currentUser) return <LoginPage />;
 
   // ── Computed notifications (live, derived from existing state) ──
-  const allItemsForNotif = Object.entries(items).flatMap(([cat, list]) => list.map((i) => ({ ...i, category: cat })));
+  // Defensive shape coercion. `items` / `pos` / `followUps` / `pendingLog` /
+  // `machineLog` can land in unexpected shapes during the brief window between
+  // login → hydration → realtime reconcile (e.g. a category mapped to `null`
+  // by a stale cache, a pos row with no lineItems). This computation runs in
+  // App's render body — ABOVE both PageErrorBoundary wrappers — so any throw
+  // here unmounts the whole tree (= blank screen) and no boundary catches it.
+  // Every iteration uses Array.isArray + ?. so a malformed row can never
+  // brick the dashboard render.
+  const safeItems     = items     && typeof items === "object" && !Array.isArray(items) ? items : {};
+  const safePos       = Array.isArray(pos)        ? pos        : [];
+  const safeFollowUps = Array.isArray(followUps)  ? followUps  : [];
+  const safePending   = Array.isArray(pendingLog) ? pendingLog : [];
+  const safeMachines  = Array.isArray(machineLog) ? machineLog : [];
+  const allItemsForNotif = Object.entries(safeItems).flatMap(([cat, list]) =>
+    Array.isArray(list) ? list.map((i) => ({ ...(i || {}), category: cat })) : []
+  );
   const notifications = [
-    ...allItemsForNotif.filter((i) => i.status === "critical").map((i) => ({
+    ...allItemsForNotif.filter((i) => i?.status === "critical").map((i) => ({
       id: `critical-${i.code}`, type: "critical",
       title: `Critical: ${i.name}`,
       desc:  `Only ${i.stock} ${i.unit} remaining — minimum is ${i.min} ${i.unit}`,
     })),
-    ...allItemsForNotif.filter((i) => i.status === "warning").map((i) => ({
+    ...allItemsForNotif.filter((i) => i?.status === "warning").map((i) => ({
       id: `warning-${i.code}`, type: "warning",
       title: `Low Stock: ${i.name}`,
       desc:  `${i.stock} ${i.unit} left, below minimum of ${i.min} ${i.unit}`,
     })),
-    ...pos.filter((p) => p.status === "pending").map((p) => ({
+    ...safePos.filter((p) => p?.status === "pending").map((p) => ({
       id: `approval-${p.id}`, type: "approval",
       title: `PO Approval Needed: ${p.id}`,
-      desc:  `${p.vendor} · ₹${(p.amount || 0).toLocaleString("en-IN")} · ${(p.lineItems || []).length} item(s)`,
+      desc:  `${p.vendor || ""} · ₹${(p.amount || 0).toLocaleString("en-IN")} · ${(p.lineItems || []).length} item(s)`,
     })),
-    ...followUps.map((f) => ({
-      id: `followup-${f.id}`, type: "followup",
-      title: `Follow-Up Due: ${f.poId}`,
-      desc:  `${f.vendor} · Next: ${f.nextFollowUp}`,
+    ...safeFollowUps.map((f) => ({
+      id: `followup-${f?.id}`, type: "followup",
+      title: `Follow-Up Due: ${f?.poId || ""}`,
+      desc:  `${f?.vendor || ""} · Next: ${f?.nextFollowUp || ""}`,
     })),
-    ...(pendingLog.length > 0 ? [{
+    ...(safePending.length > 0 ? [{
       id: "pending_alert-all", type: "pending_alert",
-      title: `${pendingLog.length} Pending Material${pendingLog.length > 1 ? "s" : ""} Awaiting`,
-      desc:  `${[...new Set(pendingLog.map((p) => p.bomKey))].slice(0, 3).join(", ")}${pendingLog.length > 3 ? "…" : ""}`,
+      title: `${safePending.length} Pending Material${safePending.length > 1 ? "s" : ""} Awaiting`,
+      desc:  `${[...new Set(safePending.map((p) => p?.bomKey).filter(Boolean))].slice(0, 3).join(", ")}${safePending.length > 3 ? "…" : ""}`,
     }] : []),
-    ...machineLog.filter((m) => m.status === "completed" && m.stage === "Ready").slice(0, 3).map((m) => ({
+    ...safeMachines.filter((m) => m?.status === "completed" && m?.stage === "Ready").slice(0, 3).map((m) => ({
       id: `machine_ready-${m.id}`, type: "machine_ready",
-      title: `Machine Ready: ${m.bomKey}`,
+      title: `Machine Ready: ${m.bomKey || ""}`,
       desc:  `${m.bomLabel || ""}${m.serialNo ? " · S/N: " + m.serialNo : ""} · Completed ${m.completedDate || ""}`,
     })),
   ];
@@ -12478,9 +12493,13 @@ export default function App() {
 
   const canDo = authCanDo;
 
-  const allItemsFlat     = Object.values(items).flat();
-  const lowStockN        = allItemsFlat.filter(i => i.status === "critical" || i.status === "warning").length;
-  const pipelineBadge    = lowStockN + pos.filter(p => !["received","rejected"].includes(p.status)).length;
+  // Same defensive coercion as the notifications block above — this also runs
+  // ABOVE the per-page boundary, so a malformed state cannot be allowed to
+  // crash the render and unmount the tree.
+  const allItemsFlat  = Object.values(safeItems)
+                              .flatMap((list) => Array.isArray(list) ? list : []);
+  const lowStockN     = allItemsFlat.filter((i) => i?.status === "critical" || i?.status === "warning").length;
+  const pipelineBadge = lowStockN + safePos.filter((p) => !["received","rejected"].includes(p?.status)).length;
 
   const pages = {
     dashboard: <DashboardPage items={items} pos={pos} vendorList={vendorList} machineLog={machineLog} pendingLog={pendingLog} followUps={followUps} onNavigate={setActivePage} settings={settings} />,
