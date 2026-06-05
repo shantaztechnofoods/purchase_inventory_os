@@ -44,7 +44,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-05b-root-boundary-defensive";
+const APP_BUILD = "2026-06-05c-react-310-hook-fix";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -12125,7 +12125,15 @@ export default function App() {
   //
   // Pre-check phase exposes the counts so the UI can present an accurate
   // confirmation. The commit phase reverses rack machines + deletes the BOM.
-  const computeBOMDeletionInfo = useCallback((key) => {
+  //
+  // Plain arrow, not useCallback: this declaration sits AFTER the auth-gate
+  // early returns (if (!currentUser) return <LoginPage/>) — wrapping it in
+  // useCallback violated the Rules of Hooks (hook count differed between
+  // pre- and post-login renders), which React 18 reported as Error #310
+  // and the RootErrorBoundary surfaced as a blank-app crash. No call site
+  // depends on a stable reference (event-handler prop only, no useEffect
+  // dep), so memoisation was unnecessary anyway.
+  const computeBOMDeletionInfo = (key) => {
     const refs = machineLog.filter((m) => m.bomKey === key);
     const rack       = refs.filter((m) => m.stage === "BOM Issued");
     const active     = refs.filter((m) => m.stage !== "BOM Issued" && m.status !== "completed");
@@ -12133,7 +12141,7 @@ export default function App() {
     const canDelete  = active.length === 0;
     const needsReverseStock = rack.length > 0;
     return { rack, active, completed, canDelete, needsReverseStock };
-  }, [machineLog]);
+  };
 
   const handleDeleteBOM = async (key) => {
     if (!bomDefs[key]) return { success: false, error: "BOM not found" };
