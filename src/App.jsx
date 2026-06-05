@@ -44,7 +44,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-05d-bom-popup-always";
+const APP_BUILD = "2026-06-05e-rack-tracking-config";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -7507,24 +7507,32 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     );
   };
 
-  // Two-step commit: when this is a serial-tracked BOM issue (i.e. a machine
-  // will be created), the operator must explicitly choose Save To Rack vs
-  // Direct Production. We surface that choice as a popup gate — calling
-  // doIssue() without a chosen destination opens the popup; the popup buttons
-  // call doIssue("rack") / doIssue("direct") to actually commit.
-  //
-  // Single exception: no serial (manual outward path) — there is no machine
-  // to route, so nothing to ask. Rack-capacity is enforced at the rack-path
-  // level in OutwardPage.handleBOMIssue, NOT here — so the operator can still
-  // pick Direct Production when the rack is full instead of being blocked.
+  // Rack tracking gate. The BOM definition's rackCapacity decides whether the
+  // operator is offered a choice at all:
+  //   capacity > 0 (rack-tracked BOM)  → show Save To Rack / Direct Production
+  //                                       popup, let the operator pick.
+  //   capacity = 0 or blank (no rack) → no rack card exists for this BOM, so
+  //                                       skip the popup and route straight to
+  //                                       Direct Production. Capacity is the
+  //                                       *configuration* signal, not a runtime
+  //                                       fallback.
+  // Single additional bypass: no serial (manual outward path) — there is no
+  // machine to route.
+  const rackTracked = Number(bom?.rackCapacity) > 0;
   const doIssue = (chosenDest) => {
     if (issuing) return;                    // duplicate production-issue guard
     if (serialNo && !chosenDest) {
+      if (!rackTracked) {
+        // Capacity blank → auto-route. Skip the popup entirely and commit
+        // straight to direct production so capacity-blank BOMs flow directly
+        // into Active Builds without any rack detour.
+        return doIssue("direct");
+      }
       setDestError("");
       setShowDestChoice(true);
       return;
     }
-    const finalDest = chosenDest || destination || "rack";
+    const finalDest = chosenDest || destination || (rackTracked ? "rack" : "direct");
     // Rack-capacity gate, scoped to the rack branch. Direct Production is
     // intentionally NOT subject to this check — the rack being full is the
     // exact case where operators need Direct Production as the escape hatch.
@@ -8100,13 +8108,15 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                     {(() => {
                       const cap = Number(bomDefs[serialModal].rackCapacity) || 0;
                       const ready = rackReadyCount(serialModal);
-                      // Operator picks Rack vs Direct Production in the next step
-                      // (destination popup inside BOMDrawer). This subtitle just
-                      // states current rack utilization for context — it never
-                      // implies the issue will auto-route based on capacity.
+                      // Capacity > 0 → rack-tracked, the destination popup at
+                      //   commit lets the operator pick Save To Rack vs Direct
+                      //   Production.
+                      // Capacity = 0 / blank → no rack tracking for this BOM,
+                      //   the issue routes straight to Active Builds (Direct
+                      //   Production) without prompting.
                       return cap > 0
                         ? `Enter serial · Rack ${ready} / ${cap} ready · choose destination on commit`
-                        : `Enter serial · No rack capacity configured · choose destination on commit`;
+                        : "Enter serial · No rack tracking — goes straight to Active Builds (Direct Production)";
                     })()}
                   </div>
                 </div>
@@ -8478,6 +8488,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
               const units     = bomUnits[bomKey] || 1;
               const feasibleN = bom.items.filter(({ code, qty }) => { const inv = findItem(code); return inv && inv.stock >= qty * units; }).length;
               const allFeas   = feasibleN === bom.items.length;
+              const noRackTracking = !(Number(bom.rackCapacity) > 0);
               const openBomFlow = () => { setSerialModal(bomKey); setPendingSerial(""); setSerialErr(""); };
               return (
                 <div key={bomKey} onClick={() => canDo("outward","bom") && openBomFlow()}
@@ -8559,9 +8570,16 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                     </div>
                     <div className="mt-3 pt-3 border-t border-white/[0.05] flex items-center justify-between gap-2">
                       <span className="text-[10px] text-slate-600">{bom.items.length} components</span>
-                      {/* No auto-routing badge: per spec, the operator always
-                          picks Save To Rack vs Direct Production at commit
-                          time. Rack capacity is informational only. */}
+                      {/* Capacity-blank BOMs skip the rack entirely. Surface
+                          that on the card so operators know the destination
+                          popup won't appear and the issue lands directly in
+                          Active Builds. */}
+                      {noRackTracking && (
+                        <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded-full"
+                              style={{ background: "rgba(139,92,246,0.12)", color: "#c4b5fd", border: "1px solid rgba(139,92,246,0.3)" }}>
+                          ▶ Direct production
+                        </span>
+                      )}
                       <span className="text-[10px] font-bold text-blue-400 group-hover:text-blue-300 transition-colors ml-auto">Open BOM →</span>
                     </div>
                   </div>
@@ -8751,27 +8769,40 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
   // ─── Production Rack view (computed from existing data) ────────────────────
   // Rack Ready Qty = count of machines for this bomKey still at "BOM Issued" stage.
-  // BOMs without machines or capacity still get a card (per "Each machine model must have a Rack Card").
+  //
+  // Inclusion rule (per the manufacturing flow spec):
+  //   - A BOM appears in Rack View only when it is rack-tracked
+  //     (rackCapacity > 0). Capacity = 0 / blank means "no rack tracking for
+  //     this BOM" — those BOMs route directly to Active Builds and must NOT
+  //     show a rack card.
+  //   - Orphan rack machines (BOM was deleted, but rack-stage entries still
+  //     exist for the now-missing key) are kept visible so the operator can
+  //     remove them and reclaim stock. They show up as cards with capacity
+  //     reported as 0 but ready > 0; the state is still "partial".
   const rackData = (() => {
     const allKeys = new Set([
       ...Object.keys(bomDefs || {}),
       ...machineLog.map((m) => m.bomKey).filter(Boolean),
     ]);
-    return [...allKeys].sort().map((key) => {
-      const def      = bomDefs[key] || {};
-      const ready    = machineLog.filter((m) => m.bomKey === key && m.stage === "BOM Issued").length;
-      const capacity = Number(def.rackCapacity) || 0;
-      const empty    = Math.max(0, capacity - ready);
-      let state;
-      if (capacity > 0 && ready >= capacity)        state = "full";
-      else if (ready > 0)                           state = "partial";
-      else                                          state = "empty";
-      return {
-        key, label: def.label || key,
-        capacity, ready, empty, state,
-        configured: capacity > 0,
-      };
-    });
+    return [...allKeys].sort()
+      .map((key) => {
+        const def      = bomDefs[key] || {};
+        const ready    = machineLog.filter((m) => m.bomKey === key && m.stage === "BOM Issued").length;
+        const capacity = Number(def.rackCapacity) || 0;
+        const empty    = Math.max(0, capacity - ready);
+        let state;
+        if (capacity > 0 && ready >= capacity)        state = "full";
+        else if (ready > 0)                           state = "partial";
+        else                                          state = "empty";
+        return {
+          key, label: def.label || key,
+          capacity, ready, empty, state,
+          configured: capacity > 0,
+        };
+      })
+      // Filter: only rack-tracked BOMs (configured) get a card. Non-rack BOMs
+      // are hidden unless they have orphan rack machines waiting for clean-up.
+      .filter((r) => r.configured || r.ready > 0);
   })();
   // replenishAlerts was the data source for the now-removed banner — kept the
   // line as a comment so the rationale is recoverable from blame. (Computed
