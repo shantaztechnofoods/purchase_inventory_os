@@ -6,6 +6,7 @@ import UserManagementPage from "./pages/UserManagementPage.jsx";
 import RoleManagementPage from "./pages/RoleManagementPage.jsx";
 import AccessDeniedPage from "./components/AccessDeniedPage.jsx";
 import UserProfileMenu from "./components/UserProfileMenu.jsx";
+import PageErrorBoundary from "./components/PageErrorBoundary.jsx";
 import ItemSearchSelect from "./components/ItemSearchSelect.jsx";
 import VendorSearchSelect from "./components/VendorSearchSelect.jsx";
 import { appendAuditWithUser, getAuditLog, subscribeAudit } from "./auth/auditStore.js";
@@ -43,7 +44,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-02d-bom-lifecycle";
+const APP_BUILD = "2026-06-05a-login-blank-fix";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -12537,21 +12538,37 @@ export default function App() {
     <div className="flex h-screen bg-[#080a0f] text-white overflow-hidden"
          style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif", fontFeatureSettings: '"cv02","cv03","cv04","cv11"' }}>
 
-      <Sidebar
-        activePage={activePage} setActivePage={setActivePage}
-        collapsed={collapsed} setCollapsed={setCollapsed}
-        badges={{ pending: pendingLog.length, pipeline: pipelineBadge, machines: machineLog.filter((m) => m.status !== "completed" && m.stage !== "BOM Issued").length }}
-        canView={canView}
-        onSearchOpen={() => setShowSearch(true)}
-        onNotifsOpen={() => setShowNotifs((v) => !v)}
-        notifCount={activeNotifs.length}
-        settings={settings}
-      />
+      {/* Sidebar in its own boundary — historically the blast site (UserProfileMenu
+          dereferenced currentUser.fullName, which is nullable in Supabase, blanking
+          the entire app post-login). Even with that bug fixed, isolating the shell
+          here means any future sidebar-side crash leaves the page area usable. */}
+      <PageErrorBoundary pageId="sidebar" buildTag={APP_BUILD}>
+        <Sidebar
+          activePage={activePage} setActivePage={setActivePage}
+          collapsed={collapsed} setCollapsed={setCollapsed}
+          badges={{ pending: pendingLog.length, pipeline: pipelineBadge, machines: machineLog.filter((m) => m.status !== "completed" && m.stage !== "BOM Issued").length }}
+          canView={canView}
+          onSearchOpen={() => setShowSearch(true)}
+          onNotifsOpen={() => setShowNotifs((v) => !v)}
+          notifCount={activeNotifs.length}
+          settings={settings}
+        />
+      </PageErrorBoundary>
 
-      {canView(activePage)
-        ? (pages[activePage] || <DashboardPage />)
-        : <AccessDeniedPage onNavigateHome={() => setActivePage("dashboard")} />
-      }
+      {/* Page render guarded by its own boundary. A render error in any page now
+          surfaces a recoverable fallback (Try again / Go to Dashboard / Reload)
+          instead of unmounting the React tree → blank screen. The boundary
+          auto-resets when activePage changes, so navigating away clears it. */}
+      <PageErrorBoundary
+        pageId={activePage}
+        buildTag={APP_BUILD}
+        onNavigateHome={() => setActivePage("dashboard")}
+      >
+        {canView(activePage)
+          ? (pages[activePage] || <DashboardPage />)
+          : <AccessDeniedPage onNavigateHome={() => setActivePage("dashboard")} />
+        }
+      </PageErrorBoundary>
 
       {/* ── Global overlays ── */}
       {showSearch && (

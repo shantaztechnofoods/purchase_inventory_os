@@ -46,7 +46,15 @@ export default function UserProfileMenu({ collapsed = false }) {
 
   if (!currentUser) return null;
 
-  const initials  = currentUser.fullName.split(" ").map((s) => s[0]).join("").slice(0, 2).toUpperCase() || "U";
+  // Display name resolution. `full_name` is nullable in Supabase; users created
+  // via the admin Edge Function or migrated from another system can land here
+  // without one. Previously `currentUser.fullName.split(...)` threw on first
+  // render → no error boundary above → blank screen post-login. Fall back to
+  // username, then a stable placeholder so the sidebar always renders.
+  const displayName = (currentUser.fullName && String(currentUser.fullName).trim())
+                   || currentUser.username
+                   || "User";
+  const initials  = displayName.split(" ").map((s) => s[0]).join("").slice(0, 2).toUpperCase() || "U";
   const isSA      = currentUser.role === "super_admin";
 
   return (
@@ -56,7 +64,7 @@ export default function UserProfileMenu({ collapsed = false }) {
         ref={triggerRef}
         onClick={() => setIsOpen((v) => !v)}
         className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-xl transition-all ${collapsed ? "justify-center" : ""} ${isOpen ? "bg-white/[0.06]" : "hover:bg-white/[0.04]"}`}
-        title={collapsed ? `${currentUser.fullName} — ${roleLabel}` : ""}
+        title={collapsed ? `${displayName} — ${roleLabel}` : ""}
       >
         {/* Avatar */}
         <div className="relative flex-shrink-0">
@@ -78,7 +86,7 @@ export default function UserProfileMenu({ collapsed = false }) {
         {!collapsed && (
           <>
             <div className="flex-1 min-w-0 text-left">
-              <div className="text-[11px] font-black text-white truncate leading-none">{currentUser.fullName}</div>
+              <div className="text-[11px] font-black text-white truncate leading-none">{displayName}</div>
               <div className="text-[9px] font-semibold mt-0.5 leading-none truncate" style={{ color: roleColor }}>
                 {roleLabel}
               </div>
@@ -128,7 +136,7 @@ export default function UserProfileMenu({ collapsed = false }) {
                   {initials}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[13px] font-bold text-white truncate">{currentUser.fullName}</div>
+                  <div className="text-[13px] font-bold text-white truncate">{displayName}</div>
                   <div className="text-[10px] text-slate-500 truncate font-mono">@{currentUser.username}</div>
                 </div>
               </div>
@@ -273,13 +281,13 @@ function MenuItem({ icon, label, desc, onClick, danger = false }) {
 
 // ─── My Profile Modal ────────────────────────────────────────────────────────
 function ProfileModal({ user, roleLabel, roleColor, onClose, onSave }) {
-  const [fullName, setFullName] = useState(user.fullName);
+  const [fullName, setFullName] = useState(user.fullName || "");
   const [mobile,   setMobile]   = useState(user.mobile || "");
   const [errors,   setErrors]   = useState({});
 
   const inputCls   = "w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all";
   const inputStyle = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" };
-  const initials = fullName.split(" ").map((s) => s[0]).join("").slice(0, 2).toUpperCase() || "U";
+  const initials = (fullName || user.username || "U").split(" ").map((s) => s[0]).join("").slice(0, 2).toUpperCase() || "U";
 
   const handleSave = () => {
     const e = {};
@@ -304,7 +312,7 @@ function ProfileModal({ user, roleLabel, roleColor, onClose, onSave }) {
               {initials}
             </div>
             <div>
-              <div className="text-sm font-bold text-white">{fullName || user.fullName}</div>
+              <div className="text-sm font-bold text-white">{fullName || user.fullName || user.username || "User"}</div>
               <div className="text-[10px] text-slate-500 font-mono">@{user.username}</div>
               <div className="text-[10px] font-semibold mt-1" style={{ color: roleColor }}>{roleLabel}</div>
             </div>
