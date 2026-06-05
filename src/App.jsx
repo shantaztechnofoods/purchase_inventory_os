@@ -44,7 +44,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-05c-react-310-hook-fix";
+const APP_BUILD = "2026-06-05d-bom-popup-always";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -7347,7 +7347,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
 
 // ─── BOM DRAWER ───────────────────────────────────────────────────────────────
 
-function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock, onClose, onIssue, onUpdateBOM, onRenameBOM, allBomKeys = [], onAfterRename, serialNo = "" }) {
+function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock, onClose, onIssue, onUpdateBOM, onRenameBOM, allBomKeys = [], onAfterRename, serialNo = "", rackReady = 0 }) {
   const [search,       setSearch]       = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [catCollapsed, setCatCollapsed] = useState({});
@@ -7373,6 +7373,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   // earlier inline radio in the summary bar was missed by operators.
   const [destination,    setDestination]    = useState("rack");
   const [showDestChoice, setShowDestChoice] = useState(false);
+  const [destError,      setDestError]      = useState("");      // surfaced inside the dest-choice popup when rack is full
 
   const allFlat  = Object.entries(items).flatMap(([cat, list]) => list.map((i) => ({ ...i, category: cat })));
   const findInv  = (code) => allFlat.find((i) => i.code === code);
@@ -7506,28 +7507,37 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     );
   };
 
-  // 2026-06-02d — Rack Capacity = 0 means "no rack tracking for this BOM".
-  // Machines issued from a capacity-0 BOM skip the rack and land directly in
-  // Assembly, no destination popup needed. This matches operator intent for
-  // R&D / prototype models that don't follow batch-rack workflow.
-  const directOnly = Number(bom?.rackCapacity || 0) === 0;
-
   // Two-step commit: when this is a serial-tracked BOM issue (i.e. a machine
   // will be created), the operator must explicitly choose Save To Rack vs
   // Direct Production. We surface that choice as a popup gate — calling
   // doIssue() without a chosen destination opens the popup; the popup buttons
   // call doIssue("rack") / doIssue("direct") to actually commit.
   //
-  // Exceptions: no serial (manual outward path) OR rackCapacity = 0 (no rack
-  // tracking) both proceed straight through with a sensible default.
+  // Single exception: no serial (manual outward path) — there is no machine
+  // to route, so nothing to ask. Rack-capacity is enforced at the rack-path
+  // level in OutwardPage.handleBOMIssue, NOT here — so the operator can still
+  // pick Direct Production when the rack is full instead of being blocked.
   const doIssue = (chosenDest) => {
     if (issuing) return;                    // duplicate production-issue guard
-    if (serialNo && !chosenDest && !directOnly) {
+    if (serialNo && !chosenDest) {
+      setDestError("");
       setShowDestChoice(true);
       return;
     }
-    const finalDest = chosenDest || (directOnly ? "direct" : destination) || "rack";
+    const finalDest = chosenDest || destination || "rack";
+    // Rack-capacity gate, scoped to the rack branch. Direct Production is
+    // intentionally NOT subject to this check — the rack being full is the
+    // exact case where operators need Direct Production as the escape hatch.
+    if (finalDest === "rack") {
+      const cap = Number(bom?.rackCapacity) || 0;
+      if (cap > 0 && rackReady >= cap) {
+        setDestError(`Rack is full (${rackReady} / ${cap}). Pick Direct Production, or start production / increase capacity to free a slot.`);
+        setShowDestChoice(true);
+        return;
+      }
+    }
     setShowDestChoice(false);
+    setDestError("");
     setIssuing(true);
     const issued = []; const pending = [];
     checkedE.forEach((item) => {
@@ -7872,6 +7882,12 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 {bomKey}{serialNo ? ` · S/N ${serialNo}` : ""}
               </div>
             </div>
+            {destError && (
+              <div className="mx-5 mt-4 px-3 py-2 rounded-lg text-[11px] font-semibold"
+                   style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                ⚠ {destError}
+              </div>
+            )}
             <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button onClick={() => doIssue("rack")} disabled={issuing} autoFocus
                       className="text-left rounded-xl p-4 transition-all border disabled:opacity-50"
@@ -7970,19 +7986,13 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
     const sn = pendingSerial.trim();
     if (!sn) { setSerialErr("Serial number is required to proceed."); return; }
     const key = serialModal;
-    const capacity = Number(bomDefs?.[key]?.rackCapacity) || 0;
-    const ready    = rackReadyCount(key);
-    // Capacity rule: a configured rack (capacity > 0) cannot overflow.
-    if (capacity > 0 && ready >= capacity) {
-      setSerialErr("Rack capacity reached. Start production or increase rack capacity.");
-      return;
-    }
-    // 2026-06-02d — Block duplicate serials on ANY active machine for this
-    // model (rack OR in-production). The earlier rule only checked the rack;
-    // with capacity=0 → Direct Production, machines never sit on the rack so
-    // the same serial could be reissued indefinitely. Active = status !==
-    // "completed"; completed builds with the same serial are fine because
-    // they're history.
+    // Rack-capacity gate moved into handleBOMIssue's rack branch — at this
+    // step the operator hasn't yet picked rack vs direct production, so we
+    // can no longer block here. A full rack still refuses a Save-To-Rack
+    // commit; Direct Production remains available.
+    // Block duplicate serials on ANY active machine for this model (rack OR
+    // in-production). Active = status !== "completed"; completed builds with
+    // the same serial are fine because they're history.
     if (machineLog.some((m) => m.bomKey === key && m.status !== "completed" && (m.serialNo || "").toLowerCase() === sn.toLowerCase())) {
       setSerialErr(`Serial "${sn}" is already active for ${key} (rack or in production).`);
       return;
@@ -8089,8 +8099,14 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                   <div className="text-[11px] text-slate-500 mt-0.5">
                     {(() => {
                       const cap = Number(bomDefs[serialModal].rackCapacity) || 0;
-                      if (cap === 0) return "Direct production — capacity 0, no rack tracking. Machine goes straight to Active Builds.";
-                      return `Enter serial to issue to rack · Rack ${rackReadyCount(serialModal)} / ${cap} ready`;
+                      const ready = rackReadyCount(serialModal);
+                      // Operator picks Rack vs Direct Production in the next step
+                      // (destination popup inside BOMDrawer). This subtitle just
+                      // states current rack utilization for context — it never
+                      // implies the issue will auto-route based on capacity.
+                      return cap > 0
+                        ? `Enter serial · Rack ${ready} / ${cap} ready · choose destination on commit`
+                        : `Enter serial · No rack capacity configured · choose destination on commit`;
                     })()}
                   </div>
                 </div>
@@ -8306,6 +8322,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
           allBomKeys={Object.keys(bomDefs || {})}
           onAfterRename={(newKey) => setOpenBOM(newKey)}
           serialNo={activeSerial}
+          rackReady={rackReadyCount(openBOM)}
         />
       )}
 
@@ -8461,7 +8478,6 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
               const units     = bomUnits[bomKey] || 1;
               const feasibleN = bom.items.filter(({ code, qty }) => { const inv = findItem(code); return inv && inv.stock >= qty * units; }).length;
               const allFeas   = feasibleN === bom.items.length;
-              const directOnly = Number(bom.rackCapacity || 0) === 0;
               const openBomFlow = () => { setSerialModal(bomKey); setPendingSerial(""); setSerialErr(""); };
               return (
                 <div key={bomKey} onClick={() => canDo("outward","bom") && openBomFlow()}
@@ -8543,14 +8559,9 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                     </div>
                     <div className="mt-3 pt-3 border-t border-white/[0.05] flex items-center justify-between gap-2">
                       <span className="text-[10px] text-slate-600">{bom.items.length} components</span>
-                      {/* Feature 3 of 2026-06-02d — visible badge so the
-                          operator knows this BOM bypasses the rack on issue. */}
-                      {directOnly && (
-                        <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded-full"
-                              style={{ background: "rgba(139,92,246,0.12)", color: "#c4b5fd", border: "1px solid rgba(139,92,246,0.3)" }}>
-                          ▶ Direct production
-                        </span>
-                      )}
+                      {/* No auto-routing badge: per spec, the operator always
+                          picks Save To Rack vs Direct Production at commit
+                          time. Rack capacity is informational only. */}
                       <span className="text-[10px] font-bold text-blue-400 group-hover:text-blue-300 transition-colors ml-auto">Open BOM →</span>
                     </div>
                   </div>
