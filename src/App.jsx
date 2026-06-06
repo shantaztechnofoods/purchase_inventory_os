@@ -44,7 +44,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-05h-bom-overflow-fix";
+const APP_BUILD = "2026-06-05i-keyboard-first";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -2615,6 +2615,10 @@ function ItemImportModal({ items, onImport, onClose }) {
 
 function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog = [], outwardLog = [], pendingLog = [], bomDefs = {}, machineLog = [], onLogAudit = () => {}, canDo = () => true, vendorList = [], onCreateItem, onUpdateItem, onDeleteItem, onBulkAddItems }) {
   const [search,        setSearch]        = useState("");
+  // Search input ref so we can auto-focus on page mount (Tally-style: land
+  // the cursor in search so the operator types straight away). Same pattern
+  // on VendorsPage and InwardPage where applicable.
+  const searchRef = useRef(null);
   const [statusFilter,  setStatusFilter]  = useState("all");
   const [catFilter,     setCatFilter]     = useState("all");
   const [sortCol,       setSortCol]       = useState("name");
@@ -2627,6 +2631,19 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
   const [editingItem,   setEditingItem]   = useState(null);
   const [quickAdjust,   setQuickAdjust]   = useState(null);
   const [deleteModal,   setDeleteModal]   = useState(null); // { item, category, blocks }
+
+  // Auto-focus the search input on mount. Skips if any modal is open or if
+  // focus already landed somewhere meaningful (e.g. operator tabbed away).
+  useEffect(() => {
+    if (showModal || showImport || selectedItem || editingItem || quickAdjust || deleteModal) return;
+    const t = setTimeout(() => {
+      if (searchRef.current && document.activeElement === document.body) {
+        searchRef.current.focus();
+      }
+    }, 50);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Esc on the inline delete-confirm modal — without this, the operator has to
   // reach for the mouse or click the backdrop to dismiss a destructive prompt.
@@ -3065,7 +3082,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
 
           <div className="relative ml-auto">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 text-[11px] pointer-events-none">🔍</span>
-            <input value={search} onChange={(e) => setSearch(e.target.value)}
+            <input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)}
                    placeholder="Search code, name, vendor, location..."
                    className="bg-white/[0.04] border border-white/[0.09] rounded-lg pl-7 pr-3 py-1.5 text-xs text-white placeholder-slate-600 outline-none focus:border-blue-500/40 w-72 transition-all" />
           </div>
@@ -4551,12 +4568,24 @@ function VendorModal({ initialVendor, onSave, onClose }) {
 
 function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDeleteVendor, onBulkAddVendors, canDo = () => true }) {
   const [search,        setSearch]        = useState("");
+  // Auto-focus on mount — same Tally-style pattern as InventoryPage.
+  const searchRef = useRef(null);
   const [showModal,     setShowModal]     = useState(false);
   const [showImport,    setShowImport]    = useState(false);
   const [editingVendor, setEditingVendor] = useState(null);
   const [profileVendor, setProfileVendor] = useState(null);
   const [toast,         setToast]         = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  useEffect(() => {
+    if (showModal || showImport || editingVendor || profileVendor || confirmDelete) return;
+    const t = setTimeout(() => {
+      if (searchRef.current && document.activeElement === document.body) {
+        searchRef.current.focus();
+      }
+    }, 50);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Feature 7 (2026-06-01h): Vendor ledger search + filter + show-all so the
   // profile panel scales as a vendor accumulates thousands of POs over years.
   const [vendorPOSearch,   setVendorPOSearch]   = useState("");
@@ -4707,7 +4736,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
       })()}
 
       <Topbar title="Vendor Management" subtitle={`${activeVendors.length} suppliers · ${activeVendors.filter((v) => v.status === "preferred").length} preferred`}>
-        <input value={search} onChange={(e) => setSearch(e.target.value)}
+        <input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)}
                placeholder="Search vendors..." className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-slate-300 placeholder-slate-600 outline-none w-44" />
         {canDo("vendors","add") && (
           <button onClick={() => setShowImport(true)}
@@ -11287,6 +11316,7 @@ export default function App() {
   const [collapsed,     setCollapsed]     = useState(false);
   const [showSearch,    setShowSearch]    = useState(false);
   const [showNotifs,    setShowNotifs]    = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [dismissedIds,  setDismissedIds]  = useState(() => new Set());
 
   const [items, setItems] = useState(() => {
@@ -11460,14 +11490,73 @@ export default function App() {
   // auditLog is persisted by auditStore; just subscribe to keep state in sync
   useEffect(() => subscribeAudit((next) => setAuditLog(next)), []);
 
-  // ── Ctrl+K global search ──
+  // ── Global keyboard layer (2026-06-05i) ──
+  // Tally-style operator workflow: keyboard-first navigation across the app.
+  //
+  // Alt + H : Dashboard
+  // Alt + I : Item Master
+  // Alt + N : Inward
+  // Alt + O : Outward
+  // Alt + P : Pending Stock
+  // Alt + M : Machine Tracker
+  // Alt + V : Vendors
+  // Ctrl/Cmd + K : Global Search toggle
+  // ?      : Keyboard cheatsheet overlay (Shift + / on US layouts)
+  // Esc    : Close in priority order — cheatsheet > search > notifs
+  //          (modals/drawers own their own Esc handlers and take precedence
+  //          because we ignore the keystroke while focus is in an input.)
+  //
+  // Skip handling when the user is typing in a text field so Alt-combos and
+  // arrows don't fight native input shortcuts. canView is silently honoured —
+  // a denied page is a no-op rather than a flash to AccessDeniedPage.
   useEffect(() => {
+    const NAV = { h: "dashboard", i: "inventory", n: "inward", o: "outward", p: "pending", m: "machines", v: "vendors" };
+    const isTyping = () => {
+      const el = document.activeElement;
+      if (!el) return false;
+      const tag = (el.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") return true;
+      if (el.isContentEditable) return true;
+      return false;
+    };
     const handler = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") { e.preventDefault(); setShowSearch((v) => !v); }
+      // Ctrl/Cmd + K — global search (works even inside inputs so the
+      // operator can jump out of a form into search.)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setShowSearch((v) => !v);
+        return;
+      }
+      // Esc — close one overlay at a time, top-most first.
+      if (e.key === "Escape" && !isTyping()) {
+        if (showShortcuts) { setShowShortcuts(false); return; }
+        if (showSearch)    { setShowSearch(false);    return; }
+        if (showNotifs)    { setShowNotifs(false);    return; }
+        // modals/drawers have their own Esc handlers; don't preventDefault
+      }
+      // Alt + nav — only fires outside text fields so it doesn't compete
+      // with browser/OS Alt-shortcuts inside an active editor.
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        const target = NAV[e.key.toLowerCase()];
+        if (target && !isTyping()) {
+          e.preventDefault();
+          if (typeof canView !== "function" || canView(target)) {
+            setActivePage(target);
+            setShowSearch(false);
+            setShowNotifs(false);
+          }
+        }
+        return;
+      }
+      // ? — open cheatsheet. Shift+/ on US layouts; e.key === '?' covers it.
+      if (e.key === "?" && !isTyping()) {
+        e.preventDefault();
+        setShowShortcuts(true);
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }, [showShortcuts, showSearch, showNotifs, canView]);
 
   // Auth gate — after all hooks
   if (authLoading) {
@@ -12877,6 +12966,75 @@ export default function App() {
           onDismiss={dismissNotif}
           onDismissAll={dismissAllNotifs}
         />
+      )}
+
+      {/* ── 2026-06-05i — Keyboard shortcuts cheatsheet (press ? to open) ── */}
+      {showShortcuts && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4"
+             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
+             onClick={(e) => e.target === e.currentTarget && setShowShortcuts(false)}>
+          <div className="w-full max-w-2xl rounded-2xl overflow-hidden"
+               style={{ background: "#0d1018", border: "1px solid rgba(99,102,241,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+            <div className="px-5 py-4 border-b border-white/[0.08] flex items-center justify-between"
+                 style={{ background: "linear-gradient(90deg,rgba(59,130,246,0.10),rgba(99,102,241,0.05))" }}>
+              <div>
+                <div className="text-sm font-black text-white">⌨ Keyboard Shortcuts</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">Press <kbd className="px-1 py-0.5 text-[9px] font-mono rounded bg-white/[0.08] border border-white/[0.1]">Esc</kbd> to close</div>
+              </div>
+              <button onClick={() => setShowShortcuts(false)} className="text-slate-500 hover:text-white transition-colors text-lg leading-none">✕</button>
+            </div>
+            <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-[11px]">
+              <div>
+                <div className="text-[10px] font-black text-blue-300 uppercase tracking-wider mb-2">Navigation</div>
+                {[
+                  ["Alt", "H", "Dashboard"],
+                  ["Alt", "I", "Item Master"],
+                  ["Alt", "N", "Inward"],
+                  ["Alt", "O", "Outward"],
+                  ["Alt", "P", "Pending Stock"],
+                  ["Alt", "M", "Machine Tracker"],
+                  ["Alt", "V", "Vendors"],
+                ].map(([m, k, label]) => (
+                  <div key={k} className="flex items-center justify-between py-1 border-b border-white/[0.04] last:border-0">
+                    <span className="text-slate-300">{label}</span>
+                    <span className="flex items-center gap-1">
+                      <kbd className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-white/[0.08] border border-white/[0.12] text-slate-200">{m}</kbd>
+                      <span className="text-slate-600">+</span>
+                      <kbd className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-white/[0.08] border border-white/[0.12] text-slate-200">{k}</kbd>
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div className="text-[10px] font-black text-purple-300 uppercase tracking-wider mb-2">Global</div>
+                {[
+                  [["Ctrl", "K"], "Global search (works in forms)"],
+                  [["?"],         "This shortcut sheet"],
+                  [["Esc"],       "Close overlay / modal / drawer"],
+                  [["Enter"],     "Submit form / confirm action"],
+                  [["Tab"],       "Next field"],
+                  [["Shift", "Tab"], "Previous field"],
+                ].map(([keys, label], i) => (
+                  <div key={i} className="flex items-center justify-between py-1 border-b border-white/[0.04] last:border-0">
+                    <span className="text-slate-300">{label}</span>
+                    <span className="flex items-center gap-1">
+                      {keys.map((k, j) => (
+                        <span key={k} className="flex items-center gap-1">
+                          {j > 0 && <span className="text-slate-600">+</span>}
+                          <kbd className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-white/[0.08] border border-white/[0.12] text-slate-200">{k}</kbd>
+                        </span>
+                      ))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="px-5 py-3 text-[10px] text-slate-500 border-t border-white/[0.08]"
+                 style={{ background: "rgba(0,0,0,0.25)" }}>
+              <strong className="text-slate-400">Tip:</strong> Alt-combos are ignored while you're typing in a text field, so they don't fight in-form shortcuts. Modals support <kbd className="px-1 py-0.5 text-[9px] font-mono rounded bg-white/[0.06] border border-white/[0.08]">Esc</kbd> to cancel and <kbd className="px-1 py-0.5 text-[9px] font-mono rounded bg-white/[0.06] border border-white/[0.08]">Enter</kbd> on the primary action.
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Supabase misconfiguration banner — deployed build without DB env vars shows this

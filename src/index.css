@@ -26,6 +26,36 @@ html, body, #root {
 ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.15); }
 ::-webkit-scrollbar-corner { background: transparent; }
 
+/* ── Keyboard focus indicators (2026-06-05i) ──
+   Operators run this ERP with the keyboard. :focus-visible draws a ring only
+   when focus came from a keyboard interaction (Tab, Shift+Tab, arrow keys),
+   never from a mouse click — so buttons don't grow a permanent ring after
+   clicking them. The ring uses the brand blue with a subtle outer halo so it
+   stays visible against the dark theme. Inputs already have their own border
+   styling and get a slightly different ring colour to disambiguate. */
+:focus { outline: none; }
+*:focus-visible {
+  outline: 2px solid rgba(96, 165, 250, 0.95);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.22);
+  border-radius: 6px;
+}
+button:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.95);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.25);
+}
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  /* inputs keep their existing border colour; ring is the halo only */
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.28);
+  border-color: rgba(99, 102, 241, 0.55) !important;
+}
+
 input, button, select, textarea {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
