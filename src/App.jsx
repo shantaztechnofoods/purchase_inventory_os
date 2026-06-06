@@ -44,7 +44,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-05f-rack-management";
+const APP_BUILD = "2026-06-05g-bom-delete-visible";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -8542,7 +8542,22 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                                 <span>📑</span>Duplicate BOM
                               </button>
                             )}
-                            {onDeleteBOM && computeBOMDeletionInfo && (
+                            {/* Delete BOM — gating mirrors Duplicate so the
+                                two destructive/configuration actions follow
+                                the same permission rule. handleDeleteBOM in
+                                App.jsx enforces:
+                                  never issued     → direct delete + audit
+                                  rack machines    → confirm + reverse stock
+                                                     via handleRemoveRackMachine
+                                                     + delete BOM definition
+                                  active production → block, list blocking
+                                                       serials in the modal
+                                  completed builds  → retained (denormalised
+                                                       bomKey on machine_log)
+                                The action is ALWAYS rendered when the operator
+                                has bom-edit permission; the destructive rules
+                                are enforced by the confirm modal that follows. */}
+                            {onDeleteBOM && computeBOMDeletionInfo && canDo("outward","bom") && (
                               <button onClick={() => {
                                         setActionsKey(null);
                                         const info = computeBOMDeletionInfo(bomKey);
