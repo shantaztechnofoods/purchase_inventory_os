@@ -44,7 +44,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-05e-rack-tracking-config";
+const APP_BUILD = "2026-06-05f-rack-management";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -8741,7 +8741,7 @@ const STAGE_COLORS = {
   "Ready":      "#22c55e",
 };
 
-function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo = () => true, bomDefs = {}, onStartProduction, onRemoveRackMachine }) {
+function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo = () => true, bomDefs = {}, onStartProduction, onRemoveRackMachine, onUpdateBOM }) {
   const [filter,   setFilter]   = useState("active");
   const [expanded, setExpanded] = useState(null);
   const [stageMap, setStageMap] = useState({});
@@ -8755,6 +8755,22 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   // page on any rack-card click. This restores the state + the confirm modal
   // render so both Outward and Machine Tracker can remove rack machines.
   const [removeRackConfirm, setRemoveRackConfirm] = useState(null); // { machineId, serialNo, bomKey }
+
+  // 2026-06-05f — Rack management on rack cards (parity with BOM card ⋮ menu in
+  // Outward). Lets the operator edit Rack Capacity or Delete Rack from inside
+  // Machine Tracker, without going back to Outward to edit the BOM.
+  //   rackActionsKey   → which rack card's menu is open (closes on outside click)
+  //   editRackModal    → { key, label, capacity }   while the operator enters new capacity
+  //   deleteRackConfirm → { key, label, ready }     while the operator confirms delete
+  const [rackActionsKey,   setRackActionsKey]   = useState(null);
+  const [editRackModal,    setEditRackModal]    = useState(null);
+  const [deleteRackConfirm, setDeleteRackConfirm] = useState(null);
+  useEffect(() => {
+    if (!rackActionsKey) return;
+    const close = () => setRackActionsKey(null);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [rackActionsKey]);
 
   const showToast = (text, sub) => { setToast({ text, sub }); setTimeout(() => setToast(null), 3000); };
 
@@ -8914,12 +8930,20 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   empty:   { color: "#ef4444", bg: "rgba(239,68,68,0.06)",  border: "rgba(239,68,68,0.22)", label: "Empty",   icon: "○" },
                 }[r.state];
                 const pct = r.capacity > 0 ? Math.min(100, Math.round((r.ready / r.capacity) * 100)) : 0;
+                const canManage = !!(onUpdateBOM && bomDefs[r.key] && canDo("outward","bom"));
+                const activateRack = () => { if (r.ready > 0) openStartProd(r); };
                 return (
-                  <button
+                  // role="button" wrapper so we can nest the actions ⋮ button
+                  // inside without invalid <button>-inside-<button> HTML. The
+                  // outer click + Enter/Space activate Start Production, same
+                  // UX as before.
+                  <div
                     key={r.key}
-                    onClick={() => openStartProd(r)}
-                    disabled={r.ready === 0}
-                    className="text-left rounded-xl p-4 transition-all relative"
+                    role="button"
+                    tabIndex={r.ready > 0 ? 0 : -1}
+                    onClick={activateRack}
+                    onKeyDown={(e) => { if (r.ready > 0 && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); activateRack(); } }}
+                    className="text-left rounded-xl p-4 transition-all relative outline-none"
                     style={{
                       background: STATE.bg,
                       border: `1px solid ${STATE.border}`,
@@ -8934,10 +8958,46 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         <div className="text-sm font-black text-white">{r.key}</div>
                         <div className="text-[10px] text-slate-500 truncate mt-0.5">{r.label}</div>
                       </div>
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
-                            style={{ background: STATE.color + "22", color: STATE.color, border: `1px solid ${STATE.color}40` }}>
-                        {STATE.icon} {STATE.label}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                              style={{ background: STATE.color + "22", color: STATE.color, border: `1px solid ${STATE.color}40` }}>
+                          {STATE.icon} {STATE.label}
+                        </span>
+                        {canManage && (
+                          <div className="relative" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setRackActionsKey(rackActionsKey === r.key ? null : r.key); }}
+                              title="Rack actions"
+                              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.08] transition-all"
+                              aria-haspopup="menu" aria-expanded={rackActionsKey === r.key}>
+                              ⋮
+                            </button>
+                            {rackActionsKey === r.key && (
+                              <div role="menu" onMouseDown={(e) => e.stopPropagation()}
+                                   className="absolute right-0 top-full mt-1 z-30 w-44 rounded-lg overflow-hidden"
+                                   style={{ background: "#0d1018", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 24px 60px rgba(0,0,0,0.85)" }}>
+                                <button type="button"
+                                        onClick={() => {
+                                          setRackActionsKey(null);
+                                          setEditRackModal({ key: r.key, label: r.label, capacity: r.capacity || 0 });
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-300 hover:bg-white/[0.06] hover:text-white transition-all flex items-center gap-2">
+                                  <span>✏️</span>Edit Rack Capacity
+                                </button>
+                                <button type="button"
+                                        onClick={() => {
+                                          setRackActionsKey(null);
+                                          setDeleteRackConfirm({ key: r.key, label: r.label, ready: r.ready });
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-[11px] font-bold text-red-400 hover:bg-red-500/10 transition-all flex items-center gap-2 border-t border-white/[0.05]">
+                                  <span>🗑</span>Delete Rack
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 mb-2.5">
@@ -8966,7 +9026,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                     {r.ready > 0 && (
                       <div className="mt-2 text-[10px] font-bold text-blue-400">▶ Click to start production</div>
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -9147,6 +9207,139 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         </div>
 
       </div>
+
+      {/* ── 2026-06-05f — Edit Rack Capacity Modal ──
+          Updates the BOM definition's rackCapacity in place. The rack card
+          re-renders immediately (capacity, empty, state, progress bar) because
+          rackData reads bomDefs from props. */}
+      {editRackModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
+             onClick={(e) => e.target === e.currentTarget && setEditRackModal(null)}>
+          <div className="w-full max-w-sm rounded-2xl overflow-hidden"
+               style={{ background: "#0d1018", border: "1px solid rgba(59,130,246,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+            <div className="px-5 py-4 border-b border-white/[0.08]"
+                 style={{ background: "rgba(59,130,246,0.06)" }}>
+              <div className="text-sm font-black text-blue-300">✏️ Edit Rack Capacity</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">
+                {editRackModal.key} · {editRackModal.label}
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div>
+                <div className="text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">New Capacity</div>
+                <input
+                  autoFocus
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={editRackModal.capacity}
+                  onChange={(e) => setEditRackModal((prev) => prev ? { ...prev, capacity: e.target.value } : prev)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") { setEditRackModal(null); return; }
+                    if (e.key === "Enter") {
+                      const cap = Math.max(0, parseInt(editRackModal.capacity, 10) || 0);
+                      const def = bomDefs[editRackModal.key];
+                      if (def && onUpdateBOM) onUpdateBOM(editRackModal.key, { ...def, rackCapacity: cap });
+                      showToast(`${editRackModal.key} rack capacity → ${cap}`, cap === 0 ? "Rack tracking disabled" : `${cap} slot${cap === 1 ? "" : "s"}`);
+                      setEditRackModal(null);
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none transition-all text-right font-mono"
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+                />
+                <div className="text-[10px] text-slate-600 mt-1">0 = no rack tracking. The card disappears from Production Rack View when capacity drops to 0.</div>
+              </div>
+            </div>
+            <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-end gap-2"
+                 style={{ background: "rgba(0,0,0,0.35)" }}>
+              <button onClick={() => setEditRackModal(null)}
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+                Cancel
+              </button>
+              <button onClick={() => {
+                        const cap = Math.max(0, parseInt(editRackModal.capacity, 10) || 0);
+                        const def = bomDefs[editRackModal.key];
+                        if (def && onUpdateBOM) onUpdateBOM(editRackModal.key, { ...def, rackCapacity: cap });
+                        showToast(`${editRackModal.key} rack capacity → ${cap}`, cap === 0 ? "Rack tracking disabled" : `${cap} slot${cap === 1 ? "" : "s"}`);
+                        setEditRackModal(null);
+                      }}
+                      className="text-[11px] font-bold px-4 py-1.5 rounded-lg text-white border transition-all"
+                      style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", borderColor: "rgba(99,130,255,0.5)" }}>
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 2026-06-05f — Delete Rack Confirmation ──
+          Delete just sets rackCapacity = 0 on the BOM. The rackData filter
+          (r.configured || r.ready > 0) hides the card when capacity is 0 and
+          no rack machines exist, so the card disappears instantly. Stock,
+          completed history, and the BOM definition's items/label/colour are
+          untouched. */}
+      {deleteRackConfirm && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
+             onClick={(e) => e.target === e.currentTarget && setDeleteRackConfirm(null)}>
+          <div className="w-full max-w-sm rounded-2xl overflow-hidden"
+               style={{ background: "#0d1018", border: `1px solid ${deleteRackConfirm.ready > 0 ? "rgba(245,158,11,0.4)" : "rgba(239,68,68,0.4)"}`, boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+            <div className="px-5 py-4 border-b border-white/[0.08]"
+                 style={{ background: deleteRackConfirm.ready > 0 ? "rgba(245,158,11,0.06)" : "rgba(239,68,68,0.06)" }}>
+              <div className={`text-sm font-black ${deleteRackConfirm.ready > 0 ? "text-amber-300" : "text-red-400"}`}>
+                {deleteRackConfirm.ready > 0 ? "⚠ Cannot Delete Rack" : "🗑 Delete Rack?"}
+              </div>
+              <div className="text-[10px] text-slate-500 mt-0.5">
+                {deleteRackConfirm.key} · {deleteRackConfirm.label}
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-2 text-[11px]">
+              {deleteRackConfirm.ready > 0 ? (
+                <>
+                  <div className="text-slate-300">
+                    This rack has <span className="font-bold text-white">{deleteRackConfirm.ready}</span> machine{deleteRackConfirm.ready === 1 ? "" : "s"} waiting on it.
+                  </div>
+                  <div className="text-slate-400">
+                    <span className="font-bold text-amber-300">Remove rack machines first</span> (open the rack card → Start Production modal → ✕ Remove From Rack). Then return here to delete.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-slate-300">
+                    Removes the rack configuration / card only. The BOM definition stays in Outward; you can re-enable rack tracking later by editing capacity.
+                  </div>
+                  <ul className="space-y-1 ml-1 mt-2">
+                    <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Stock is not touched</span></li>
+                    <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Production history is preserved</span></li>
+                    <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Completed machines stay in Machine Tracker</span></li>
+                    <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">BOM definition (items, label) retained</span></li>
+                  </ul>
+                </>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-end gap-2"
+                 style={{ background: "rgba(0,0,0,0.35)" }}>
+              <button autoFocus onClick={() => setDeleteRackConfirm(null)}
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+                {deleteRackConfirm.ready > 0 ? "Close" : "Cancel"}
+              </button>
+              {deleteRackConfirm.ready === 0 && (
+                <button onClick={() => {
+                          const def = bomDefs[deleteRackConfirm.key];
+                          if (def && onUpdateBOM) onUpdateBOM(deleteRackConfirm.key, { ...def, rackCapacity: 0 });
+                          showToast(`${deleteRackConfirm.key} rack deleted`, "Rack tracking disabled — BOM definition retained");
+                          setDeleteRackConfirm(null);
+                        }}
+                        className="text-[11px] font-bold px-4 py-1.5 rounded-lg text-white border transition-all"
+                        style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", borderColor: "rgba(239,68,68,0.5)" }}>
+                  🗑 Delete Rack
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Start Production Modal ── */}
       {startProd && (
@@ -12590,7 +12783,8 @@ export default function App() {
                               onSetItemDefaultRate={handleSetItemDefaultRate} />,
     machines:  <MachinePage   machineLog={machineLog} onUpdateStage={handleUpdateMachineStage} onNavigate={setActivePage} canDo={canDo}
                               bomDefs={bomDefs} onStartProduction={handleStartProduction}
-                              onRemoveRackMachine={handleRemoveRackMachine} />,
+                              onRemoveRackMachine={handleRemoveRackMachine}
+                              onUpdateBOM={handleUpdateBOM} />,
     vendors:   <VendorsPage   vendorList={vendorList} pos={pos} items={items}
                               onAddVendor={handleAddVendor} onEditVendor={handleEditVendor}
                               onDeleteVendor={handleDeleteVendor} onBulkAddVendors={handleBulkAddVendors} canDo={canDo} />,
