@@ -44,7 +44,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-05g-bom-delete-visible";
+const APP_BUILD = "2026-06-05h-bom-overflow-fix";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -8491,8 +8491,20 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
               const noRackTracking = !(Number(bom.rackCapacity) > 0);
               const openBomFlow = () => { setSerialModal(bomKey); setPendingSerial(""); setSerialErr(""); };
               return (
+                // 2026-06-05h — overflow-hidden REMOVED. The actions menu
+                // (Open / Edit / Duplicate / Delete BOM) is absolutely positioned
+                // inside the card and is taller than what fits within the card
+                // bounds. With overflow-hidden on, the bottom items — Delete
+                // BOM specifically — were clipped invisibly, which is why
+                // operators reported "Delete BOM is missing from the ⋮ menu"
+                // even though the JSX renders it. The rack-card menu on
+                // Machine Tracker doesn't have overflow-hidden and shows all
+                // items fine; this aligns the BOM card with that pattern.
+                // The card has no descendants that would visually overflow
+                // its rounded corners, so removing overflow-hidden has no
+                // visual side effect.
                 <div key={bomKey} onClick={() => canDo("outward","bom") && openBomFlow()}
-                     className={`bg-[#0e1117] rounded-xl overflow-hidden transition-all duration-200 group relative ${canDo("outward","bom") ? "cursor-pointer hover:bg-[#111620]" : "opacity-60 cursor-not-allowed"}`}
+                     className={`bg-[#0e1117] rounded-xl transition-all duration-200 group relative ${canDo("outward","bom") ? "cursor-pointer hover:bg-[#111620]" : "opacity-60 cursor-not-allowed"}`}
                      style={{ border: "1px solid rgba(255,255,255,0.07)" }}
                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = bom.color + "55"; e.currentTarget.style.boxShadow = `0 0 24px ${bom.color}12`; }}
                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)"; e.currentTarget.style.boxShadow = "none"; }}>
