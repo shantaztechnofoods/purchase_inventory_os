@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 import { useAuth } from "./auth/AuthContext.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
@@ -6,45 +6,15 @@ import UserManagementPage from "./pages/UserManagementPage.jsx";
 import RoleManagementPage from "./pages/RoleManagementPage.jsx";
 import AccessDeniedPage from "./components/AccessDeniedPage.jsx";
 import UserProfileMenu from "./components/UserProfileMenu.jsx";
-import PageErrorBoundary from "./components/PageErrorBoundary.jsx";
-import ItemSearchSelect from "./components/ItemSearchSelect.jsx";
-import VendorSearchSelect from "./components/VendorSearchSelect.jsx";
 import { appendAuditWithUser, getAuditLog, subscribeAudit } from "./auth/auditStore.js";
 import AuditHistoryPage from "./pages/AuditHistoryPage.jsx";
-import { isSupabaseEnabled, IS_PROD, ALLOW_DEMO } from "./config/env.js";
-import { loadSettings, saveSettings } from "./stores/settingsStore.js";
-import { listVendors, createVendor, updateVendor, deleteVendor, archiveVendor, bulkCreateVendors } from "./stores/vendorsStore.js";
-import { fetchItems, createItem as itemCreate, updateItem as itemUpdate, deleteItem as itemDelete, updateStockAndHistory, addItemHistory } from "./stores/itemsStore.js";
-import { fetchBOMs, createBOM as bomCreate, updateBOM as bomUpdate, renameBOM as bomRename, deleteBOM as bomDelete } from "./stores/bomsStore.js";
-import { fetchPOs, createPO as poCreate, updatePO as poUpdate, deletePO as poDelete } from "./stores/posStore.js";
-import { fetchInward, createInward, bulkCreateInward, deleteInwardByPO } from "./stores/inwardStore.js";
-import { fetchOutward, createOutward, updateOutwardRef, deleteOutwardByIssueId } from "./stores/outwardStore.js";
-import { fetchPending, bulkCreatePending, updatePending as pendingUpdate, deletePending as pendingDelete, clearAllPending, updatePendingBomKey } from "./stores/pendingStore.js";
-import { fetchFollowUps, createFollowUp as followupCreate, updateFollowUp as followupUpdate, deleteFollowUpsByPO } from "./stores/followupsStore.js";
-import { fetchMachines, createMachine as machineCreate, updateMachine as machineUpdate, updateMachineBomKey, deleteMachine as machineDelete } from "./stores/machinesStore.js";
-import { useRealtimeTables } from "./realtime/useRealtimeTables.js";
-import { fetchRecentMovements, MOVEMENT_META } from "./stores/stockMovementsStore.js";
-import { sendPOWhatsApp, openVendorWhatsApp, waErrorToast } from "./utils/whatsapp.js";
-import { uploadItemMedia, MAX_UPLOAD_BYTES } from "./utils/storage.js";
-import POSettings from "./components/POSettings.jsx";
-import SearchableSelect from "./components/SearchableSelect.jsx";
-import {
-  PURCHASE_TYPES, PURCHASE_TYPE_BY_KEY, ITEM_GST_RATES, DEFAULT_PURCHASE_TYPE_KEY,
-  getPurchaseType, calculateGSTBreakdown, filterPurchaseTypes, todayIso,
-} from "./utils/gst.js";
-import { mapRow as vendorMapRow, parseRows as vendorParseRows } from "./utils/vendorImport.js";
-import { parseRows as itemParseRows, generateItemCode, buildRowsFromSheet as itemBuildRowsFromSheet } from "./utils/itemImport.js";
-import { getActiveCompany, normalizePOSettings, openPOPdf, PO_TEMPLATE_OPTIONS } from "./utils/poTemplate.js";
+import { getSupabase } from "./supabase/client.js";
+import { isSupabaseEnabled } from "./config/env.js";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer, RadialBarChart, RadialBar
 } from "recharts";
-
-// Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
-// which bundle is live. If you don't see this tag on the Settings page, the deployed
-// build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-06-05i-keyboard-first";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -342,12 +312,10 @@ const approvals = [
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
-// Business rule: stock <= min is low-stock (NOT stock < min).
-// Items exactly at minimum must surface in Low Stock Alerts, Order Pipeline, and Create PO.
 const recomputeStatus = (stock, min) =>
-  stock <= 0                            ? "critical"
-  : stock <= min && stock / min < 0.15 ? "critical"
-  : stock <= min                        ? "warning"
+  stock <= 0                           ? "critical"
+  : stock < min && stock / min < 0.15 ? "critical"
+  : stock < min                        ? "warning"
   : "safe";
 
 // Extract "₹" from "INR (₹)" or "$" from "USD ($)" etc.
@@ -620,7 +588,7 @@ function Topbar({ title, subtitle, children }) {
 
 // ─── BUTTONS ─────────────────────────────────────────────────────────────────
 
-const Btn = ({ variant = "ghost", size = "sm", onClick, children, className = "", autoFocus = false, type = "button", title, disabled = false }) => {
+const Btn = ({ variant = "ghost", size = "sm", onClick, children, className = "" }) => {
   const base = "inline-flex items-center gap-1.5 font-medium rounded-lg cursor-pointer border transition-all duration-150 active:scale-[0.96] select-none whitespace-nowrap";
   const sizes = { xs: "text-[11px] px-2.5 py-1 leading-none", sm: "text-[12px] px-3 py-1.5", md: "text-[13px] px-4 py-2" };
   const variants = {
@@ -633,8 +601,7 @@ const Btn = ({ variant = "ghost", size = "sm", onClick, children, className = ""
     orange:  "bg-orange-500/10 text-orange-400 border-orange-500/30 hover:bg-orange-500/[0.18] hover:border-orange-500/50",
     purple:  "bg-purple-500/10 text-purple-400 border-purple-500/30 hover:bg-purple-500/[0.18] hover:border-purple-500/50",
   };
-  // eslint-disable-next-line jsx-a11y/no-autofocus
-  return <button type={type} onClick={onClick} autoFocus={autoFocus} title={title} disabled={disabled} className={`${base} ${sizes[size]} ${variants[variant]} ${className} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}>{children}</button>;
+  return <button onClick={onClick} className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}>{children}</button>;
 };
 
 // ─── METRIC CARD ─────────────────────────────────────────────────────────────
@@ -708,17 +675,6 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
   const totalSKUs     = allItems.length;
   const criticalN     = criticalItems.length;
 
-  // Live recent stock movement feed from the immutable ledger (Supabase mode only).
-  // Re-fetches whenever total on-hand changes (i.e. a movement was recorded), so the feed
-  // tracks realtime stock changes without a separate subscription here.
-  const [recentMoves, setRecentMoves] = useState([]);
-  const moveSignal = allItems.reduce((s, i) => s + (i.stock || 0), 0) + ":" + allItems.length;
-  useEffect(() => {
-    let cancelled = false;
-    fetchRecentMovements({ limit: 8 }).then((rows) => { if (!cancelled) setRecentMoves(rows || []); });
-    return () => { cancelled = true; };
-  }, [moveSignal]);
-
   const pendingPOs  = pos.filter((p) => ["pending","review","draft"].includes(p.status));
   const openPOValue = pos.filter((p) => p.status !== "received").reduce((s, p) => s + p.amount, 0);
 
@@ -738,14 +694,14 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
   })();
 
   // Active machines (in-progress builds that need stage updates)
-  const activeMachines = machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").slice(0, 4);
+  const activeMachines = machineLog.filter((m) => m.status === "active").slice(0, 4);
 
   const kpis = [
     { label: "Total SKUs",        value: totalSKUs,                                              icon: "📦", color: "#3b82f6", nav: "inventory",  sub: `${safeItems.length} safe` },
     { label: "Critical Stock",    value: criticalN,                                              icon: "🔴", color: "#ef4444", nav: "inventory",  sub: `${warningItems.length} warning`,  alert: criticalN > 0 },
     { label: "Pending POs",       value: pendingPOs.length,                                      icon: "⚠️", color: "#f97316", nav: "pipeline",   sub: "awaiting approval",               alert: pendingPOs.length > 0 },
     { label: "Open PO Value",     value: fmtVal(openPOValue),                                    icon: "💰", color: "#22c55e", nav: "pipeline",   sub: `${pos.filter(p=>p.status!=="received").length} open` },
-    { label: "In Production",     value: machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").length, icon: "⚙️", color: "#6366f1", nav: "machines",   sub: "machines active" },
+    { label: "In Production",     value: machineLog.filter((m) => m.status === "active").length, icon: "⚙️", color: "#6366f1", nav: "machines",   sub: "machines active" },
     { label: "Machines Ready",    value: machineLog.filter((m) => m.status === "completed").length, icon: "🏆", color: "#22c55e", nav: "machines", sub: "completed" },
     { label: "Pending Materials", value: pendingLog.length,                                      icon: "⏳", color: "#f97316", nav: "pending",    sub: "items pending",                   alert: pendingLog.length > 0 },
     { label: "Pending Approvals", value: pos.filter((p) => p.status === "pending").length,       icon: "📋", color: "#3b82f6", nav: "pipeline",   sub: "awaiting review",                 alert: pos.filter((p) => p.status === "pending").length > 0 },
@@ -940,7 +896,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
               <button onClick={() => onNavigate?.("machines")} className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors">View Tracker →</button>
             </div>
             {activeMachines.length === 0 ? (
-              <EmptyState icon="🔧" title="No active builds" sub="Start a machine from the rack (Machine Tracker) to begin a build." />
+              <EmptyState icon="🔧" title="No active builds" sub="Issue a BOM from Outward to start tracking." />
             ) : (
               <div className="space-y-2.5">
                 {activeMachines.map((m) => {
@@ -966,59 +922,15 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                     </div>
                   );
                 })}
-                {machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").length > 4 && (
+                {machineLog.filter((m) => m.status === "active").length > 4 && (
                   <button onClick={() => onNavigate?.("machines")} className="w-full text-[10px] text-slate-500 hover:text-blue-400 transition-colors py-1">
-                    +{machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").length - 4} more active builds →
+                    +{machineLog.filter((m) => m.status === "active").length - 4} more active builds →
                   </button>
                 )}
               </div>
             )}
           </div>
 
-        </div>
-
-        {/* ── Recent Stock Movements (live ledger feed) ── */}
-        <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <span className="text-[12px] font-semibold text-white">🔄 Recent Stock Movements</span>
-              {recentMoves.length > 0 && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#3b82f622", color: "#60a5fa", border: "1px solid #3b82f644" }}>{recentMoves.length}</span>
-              )}
-            </div>
-            <button onClick={() => onNavigate?.("history")} className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors">Full Ledger →</button>
-          </div>
-          {recentMoves.length === 0 ? (
-            <EmptyState icon="📒" title="No movements recorded yet" sub="Stock changes appear here in real time (Supabase mode)." />
-          ) : (
-            <div className="space-y-1.5">
-              {recentMoves.map((m) => {
-                const meta = MOVEMENT_META[m.movementType] || { label: m.movementType, sign: "±", color: "#8b5cf6" };
-                const isIn = m.qty > 0;
-                return (
-                  <div key={m.id} className="flex items-center gap-3 px-3 py-2 rounded-lg" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: meta.color }} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[11px] font-bold text-white truncate">{m.itemName || m.itemCode}</span>
-                        <span className="text-[9px] font-mono text-slate-600 bg-white/[0.05] px-1.5 py-0.5 rounded flex-shrink-0">{m.itemCode}</span>
-                      </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5 truncate">
-                        <span style={{ color: meta.color }}>{meta.label}</span>
-                        {m.createdByName ? ` · ${m.createdByName}` : ""}
-                      </div>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <div className="text-[11px] font-black font-mono" style={{ color: isIn ? "#4ade80" : "#f87171", fontVariantNumeric: "tabular-nums" }}>
-                        {isIn ? "+" : ""}{m.qty}
-                      </div>
-                      <div className="text-[9px] text-slate-600">→ {m.afterStock}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -1031,11 +943,6 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
   const [qty, setQty] = useState("");
   const inputRef = useRef(null);
   useEffect(() => { inputRef.current?.focus(); }, []);
-  useEffect(() => {
-    const h = (e) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
 
   const isAdd = mode === "add";
 
@@ -1152,11 +1059,6 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
 // ─── ITEM DETAIL MODAL ───────────────────────────────────────────────────────
 
 function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onEdit, vendorList = [], outwardLog = [], bomDefs = {}, machineLog = [], inwardLog = [], pos = [] }) {
-  useEffect(() => {
-    const h = (e) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
   const [adjustMode, setAdjustMode] = useState(null);
   const [adjustQty,  setAdjustQty]  = useState("");
   const [mvFilter,   setMvFilter]   = useState("all");
@@ -1197,30 +1099,14 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
         {/* Header */}
         <div className="px-6 py-5 border-b border-white/[0.08] flex items-start justify-between flex-shrink-0"
              style={{ background: "linear-gradient(90deg,rgba(59,130,246,0.1),rgba(99,102,241,0.05))" }}>
-          <div className="flex-1 min-w-0 pr-3 flex items-start gap-3">
-            {/* Optional item photo (Phase 1 item media) */}
-            {item.photo && (
-              <a href={item.photo} target="_blank" rel="noreferrer" title="Open photo"
-                 className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0"
-                 style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
-                <img src={item.photo} alt={item.name} className="w-full h-full object-cover" />
-              </a>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="text-[15px] font-semibold text-white leading-snug truncate">{item.name}</div>
-              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                <span className="text-[10px] font-mono font-bold text-blue-400">{item.code}</span>
-                <span className="text-slate-700">·</span>
-                <StatusBadge status={item.status} />
-                <span className="text-slate-700">·</span>
-                <span className="text-[10px] text-slate-500">{category}</span>
-                {item.designFile && (
-                  <a href={item.designFile} target="_blank" rel="noreferrer" title={item.designName || "Open design"}
-                     className="text-[10px] font-bold text-violet-300 bg-violet-500/10 border border-violet-500/30 px-2 py-0.5 rounded-full hover:bg-violet-500/20 transition-all">
-                    📐 View Design
-                  </a>
-                )}
-              </div>
+          <div className="flex-1 min-w-0 pr-3">
+            <div className="text-[15px] font-semibold text-white leading-snug truncate">{item.name}</div>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              <span className="text-[10px] font-mono font-bold text-blue-400">{item.code}</span>
+              <span className="text-slate-700">·</span>
+              <StatusBadge status={item.status} />
+              <span className="text-slate-700">·</span>
+              <span className="text-[10px] text-slate-500">{category}</span>
             </div>
           </div>
           <button onClick={onClose}
@@ -1259,32 +1145,6 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
               <span className="text-[10px] text-slate-700">0</span>
               <span className="text-[10px] text-slate-700">Min: {item.min} {item.unit}</span>
             </div>
-
-            {/* Reserved / Available — live from the inventory engine (Supabase mode) */}
-            {item.reservedStock != null && (
-              <div className="grid grid-cols-2 gap-2 mt-3">
-                <div className="px-3 py-2 rounded-lg text-center" style={{ background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.18)" }}>
-                  <div className="text-[9px] font-black uppercase tracking-[0.06em] text-violet-400 mb-0.5">Reserved</div>
-                  <div className="text-sm font-black text-violet-300" style={{ fontVariantNumeric: "tabular-nums" }}>
-                    {item.reservedStock} <span className="text-[10px] text-slate-600">{item.unit}</span>
-                  </div>
-                </div>
-                <div className="px-3 py-2 rounded-lg text-center" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.18)" }}>
-                  <div className="text-[9px] font-black uppercase tracking-[0.06em] text-emerald-400 mb-0.5">Available</div>
-                  <div className="text-sm font-black text-emerald-300" style={{ fontVariantNumeric: "tabular-nums" }}>
-                    {item.availableStock} <span className="text-[10px] text-slate-600">{item.unit}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Reorder warning — available has dropped to/below the reorder level */}
-            {item.reorderLevel > 0 && (item.availableStock ?? item.stock) <= item.reorderLevel && (
-              <div className="mt-3 px-3 py-2 rounded-lg flex items-center gap-2" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)" }}>
-                <span className="text-sm">⚠️</span>
-                <span className="text-[11px] font-bold text-red-300">Below reorder level ({item.reorderLevel} {item.unit}) — reorder recommended</span>
-              </div>
-            )}
           </div>
 
           {/* Details grid */}
@@ -1814,8 +1674,8 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
           {onEdit   && <Btn variant="ghost" size="sm" onClick={onEdit}>✏️ Edit</Btn>}
           {onDelete && <Btn variant="red"   size="sm" onClick={() => { setAdjustMode(null); onDelete(); }}>🗑️ Delete</Btn>}
           <div className="flex-1" />
-          {onUpdateStock && <Btn variant="green"  size="sm" onClick={() => { setAdjustMode("add");    setConfirmDelete(false); }}>+ Add Stock</Btn>}
-          {onUpdateStock && <Btn variant="orange" size="sm" onClick={() => { setAdjustMode("remove"); setConfirmDelete(false); }}>− Remove Stock</Btn>}
+          {onUpdateStock && <Btn variant="green"  size="sm" onClick={() => setAdjustMode("add")}>+ Add Stock</Btn>}
+          {onUpdateStock && <Btn variant="orange" size="sm" onClick={() => setAdjustMode("remove")}>− Remove Stock</Btn>}
         </div>
       </div>
     </div>
@@ -1826,11 +1686,6 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
 
 function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorList = [] }) {
   const isEdit = Boolean(initialValues);
-  useEffect(() => {
-    const h = (e) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
 
   const initVendorLinks = () => {
     if (initialValues?.vendorLinks?.length) return initialValues.vendorLinks;
@@ -1842,21 +1697,17 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
   };
 
   const [form, setForm] = useState(() => isEdit ? {
-    name:                initialValues.name,
-    code:                initialValues.code,
-    stock:               String(initialValues.stock),
-    min:                 String(initialValues.min),
-    machine:             initialValues.machine || "Mechanical",
-    unit:                initialValues.unit    || "Nos",
-    location:            initialValues.location || "",
-    lastPurchaseRate:    String(initialValues.lastPurchaseRate || ""),
-    defaultPurchaseRate: initialValues.defaultPurchaseRate != null ? String(initialValues.defaultPurchaseRate) : "",
-    gstRate:             initialValues.gstRate != null ? String(initialValues.gstRate) : "",
+    name:             initialValues.name,
+    code:             initialValues.code,
+    stock:            String(initialValues.stock),
+    min:              String(initialValues.min),
+    machine:          initialValues.machine || "Mechanical",
+    unit:             initialValues.unit    || "Nos",
+    location:         initialValues.location || "",
+    lastPurchaseRate: String(initialValues.lastPurchaseRate || ""),
   } : {
     name: "", code: "", stock: "", min: "",
     machine: "Mechanical", unit: "Nos", location: "", lastPurchaseRate: "",
-    defaultPurchaseRate: "",
-    gstRate: "",
   });
   const [errors,       setErrors]       = useState({});
   const [vendorLinks,  setVendorLinks]  = useState(initVendorLinks);
@@ -1864,43 +1715,6 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
   const [dropOpen,     setDropOpen]     = useState(false);
   const vendorDropRef  = useRef(null);
   const vendorSearchRef = useRef(null);
-
-  // Optional media — Phase 1 item-media support. Files are uploaded to the
-  // Supabase Storage bucket "item-media" (migration 017) and only the public URL
-  // is stored in items.photo / items.design_file (migration 016). Pure metadata;
-  // no impact on stock calculations or inventory logic. 25 MB per file.
-  const [photo,       setPhoto]       = useState(initialValues?.photo       || "");
-  const [designFile,  setDesignFile]  = useState(initialValues?.designFile  || "");
-  const [designName,  setDesignName]  = useState(initialValues?.designName  || "");
-  const [photoBusy,   setPhotoBusy]   = useState(false);
-  const [designBusy,  setDesignBusy]  = useState(false);
-  const [mediaErr,    setMediaErr]    = useState("");
-  const photoInputRef  = useRef(null);
-  const designInputRef = useRef(null);
-  const MAX_MB = Math.round(MAX_UPLOAD_BYTES / 1024 / 1024);
-
-  const onPickPhoto = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setMediaErr(""); setPhotoBusy(true);
-    try {
-      const res = await uploadItemMedia("photos", file);
-      if (!res.ok) { setMediaErr("Photo upload failed: " + res.error); return; }
-      setPhoto(res.url);
-    } finally { setPhotoBusy(false); }
-  };
-  const onPickDesign = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setMediaErr(""); setDesignBusy(true);
-    try {
-      const res = await uploadItemMedia("designs", file);
-      if (!res.ok) { setMediaErr("Design upload failed: " + res.error); return; }
-      setDesignFile(res.url); setDesignName(file.name);
-    } finally { setDesignBusy(false); }
-  };
 
   useEffect(() => {
     if (!dropOpen) return;
@@ -1971,13 +1785,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
       vendorId:         preferredLink?.vendorId || "",
       vendor:           primaryVendor?.name || preferredLink?.vendorName || "",
       vendorPhone:      primaryVendor?.phone || "",
-      lastPurchaseRate:    Number(form.lastPurchaseRate) || 0,
-      // ERP 020 — operator-set fallback rate for PO line creation.
-      defaultPurchaseRate: form.defaultPurchaseRate === "" ? null : Number(form.defaultPurchaseRate),
-      // ERP 018 — per-item GST rate (used by auto GST calculator in PO modal)
-      gstRate:             form.gstRate === "" ? null : Number(form.gstRate),
-      // Phase 1 — optional media metadata (no impact on stock)
-      photo, designFile, designName,
+      lastPurchaseRate: Number(form.lastPurchaseRate) || 0,
     });
   };
 
@@ -2062,15 +1870,12 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
           {/* Row 2 — Quantity + Unit */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label text={isEdit ? "Current Stock" : "Opening Stock"} req={!isEdit} />
-              <input ref={stockRef} type="number" min="0" value={form.stock}
-                     onChange={(e) => set("stock", e.target.value)}
-                     onKeyDown={onEnter(minRef)} disabled={isEdit} readOnly={isEdit}
+              <Label text="Quantity" req />
+              <input ref={stockRef} type="number" min="0" value={form.stock} onChange={(e) => set("stock", e.target.value)}
+                     onKeyDown={onEnter(minRef)}
                      placeholder="0" className={inp(errors.stock)}
-                     style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "0.04em", opacity: isEdit ? 0.6 : 1, cursor: isEdit ? "not-allowed" : "text" }} />
-              {isEdit
-                ? <div className="text-[10px] text-slate-500 mt-1.5">Stock is engine-managed — use <span className="text-blue-400 font-semibold">+ Add / − Remove Stock</span> to change it (creates a ledger entry).</div>
-                : errors.stock && <div className="text-[10px] text-red-400 mt-1.5">{errors.stock}</div>}
+                     style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "0.04em" }} />
+              {errors.stock && <div className="text-[10px] text-red-400 mt-1.5">{errors.stock}</div>}
             </div>
             <div>
               <Label text="Unit of Measure" req />
@@ -2092,27 +1897,6 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
               <Label text="Storage Location" />
               <input value={form.location} onChange={(e) => set("location", e.target.value)}
                      placeholder="e.g. Rack M-2, Bin 4" className={inp(false)} />
-            </div>
-          </div>
-
-          {/* Row 2c — GST Rate (ERP migration 018) + Default Purchase Rate (020) */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label text="GST Rate" />
-              <select value={form.gstRate} onChange={(e) => set("gstRate", e.target.value)} className={inp(false)} style={selectStyle}>
-                <option value="">— Not set —</option>
-                {ITEM_GST_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
-              </select>
-              <div className="text-[10px] text-slate-500 mt-1">Used by auto GST calculation in PO modal (multi-rate / itemwise purchases).</div>
-            </div>
-            <div>
-              <Label text="Default Purchase Rate (₹)" />
-              <input type="number" min="0" step="0.01" value={form.defaultPurchaseRate}
-                     onChange={(e) => set("defaultPurchaseRate", e.target.value)}
-                     placeholder="e.g. 150"
-                     className={inp(false)}
-                     style={{ fontVariantNumeric: "tabular-nums" }} />
-              <div className="text-[10px] text-slate-500 mt-1">PO line rate fallback when Last Purchase Rate is 0.</div>
             </div>
           </div>
 
@@ -2316,67 +2100,6 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
               </div>
             )}
           </div>
-
-          {/* Row 6 — Optional media (photo + design). Files upload to Supabase
-              Storage (bucket "item-media"); only the public URL is saved on the row. */}
-          <div>
-            <Label text="Item Media (optional)" />
-            <div className="grid grid-cols-2 gap-3">
-              {/* Photo */}
-              <div className="flex items-center gap-3 p-3 rounded-xl"
-                   style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
-                     style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                  {photo ? <img src={photo} alt="" className="w-full h-full object-cover" /> : <span className="text-xl">📷</span>}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-semibold text-slate-300 mb-1">Item Photo</div>
-                  <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={onPickPhoto} />
-                  <div className="flex gap-1.5">
-                    <button onClick={() => photoInputRef.current?.click()} disabled={photoBusy}
-                            className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-white/[0.1] text-slate-300 hover:border-white/20 transition-all disabled:opacity-50">
-                      {photoBusy ? "Uploading…" : "Upload"}
-                    </button>
-                    {photo && !photoBusy && <button onClick={() => setPhoto("")}
-                            className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-all">Remove</button>}
-                  </div>
-                  <div className="text-[9px] text-slate-600 mt-1">PNG/JPG, up to {MAX_MB} MB · stored in Supabase Storage</div>
-                </div>
-              </div>
-              {/* Design / Drawing */}
-              <div className="flex items-center gap-3 p-3 rounded-xl"
-                   style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
-                     style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                  {designFile
-                    ? (/\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(designFile) || designFile.startsWith("data:image/")
-                        ? <img src={designFile} alt="" className="w-full h-full object-cover" />
-                        : <span className="text-lg">📄</span>)
-                    : <span className="text-xl">📐</span>}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-semibold text-slate-300 mb-1">Design / Drawing</div>
-                  <input ref={designInputRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={onPickDesign} />
-                  <div className="flex gap-1.5">
-                    <button onClick={() => designInputRef.current?.click()} disabled={designBusy}
-                            className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-white/[0.1] text-slate-300 hover:border-white/20 transition-all disabled:opacity-50">
-                      {designBusy ? "Uploading…" : "Upload"}
-                    </button>
-                    {designFile && !designBusy && <button onClick={() => { setDesignFile(""); setDesignName(""); }}
-                            className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-all">Remove</button>}
-                  </div>
-                  {designName && <div className="text-[9px] text-slate-500 mt-1 truncate" title={designName}>📎 {designName}</div>}
-                  <div className="text-[9px] text-slate-600 mt-0.5">PNG/JPG/PDF, up to {MAX_MB} MB · stored in Supabase Storage</div>
-                </div>
-              </div>
-            </div>
-            {mediaErr && (
-              <div className="mt-2 px-3 py-2 rounded-lg text-[11px] text-red-300 break-words"
-                   style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)" }}>
-                ⚠️ {mediaErr}
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Footer */}
@@ -2411,220 +2134,15 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
   );
 }
 
-// ─── ITEM IMPORT MODAL ────────────────────────────────────────────────────────
-// Mirrors VendorImportModal. Parsing + classification lives in src/utils/itemImport.js
-// so it's testable from Node. UI surfaces: column guide, drop-zone, preview table with
-// ✓ New / ↻ Update Existing badges, summary footer.
-function ItemImportModal({ items, onImport, onClose }) {
-  const fileRef = useRef(null);
-  useEffect(() => {
-    const h = (e) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
-  const [rows,     setRows]     = useState(null);
-  const [fileName, setFileName] = useState("");
-  const [error,    setError]    = useState("");
-
-  const parseFile = async (file) => {
-    setError(""); setRows(null); setFileName(file.name);
-    try {
-      const data = await file.arrayBuffer();
-      const wb   = XLSX.read(data, { type: "array" });
-      const ws   = wb.Sheets[wb.SheetNames[0]];
-
-      // Read as Array-of-Arrays so we can find the real header row dynamically.
-      // The operator's sheet starts with a title row ("List of Items") above
-      // the actual headers — sheet_to_json with default options treats row 1
-      // as headers and everything after as data, which produced the "every
-      // row has blank Name" bug. With header:1 we get raw rows and can scan
-      // for the header ourselves (see itemImport.detectHeaderRow).
-      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", blankrows: false, raw: true });
-      if (!aoa.length) { setError("The file appears to be empty."); return; }
-
-      const { headers, headerIndex, rows: rawRows } = itemBuildRowsFromSheet(aoa);
-
-      // Required by spec — these three lines tell the operator exactly what
-      // the importer saw, so a misread sheet can be diagnosed from the console.
-      console.info("[item-import] Detected Header Row:", headerIndex >= 0 ? headerIndex + 1 : "(none found in first 10 rows)");
-      console.info("[item-import] Detected Columns:",   headers || []);
-      console.info("[item-import] Rows Parsed:",        rawRows.length);
-
-      if (!headers) {
-        setError("Couldn't find a header row. Make sure the sheet has a row with 'Name' (and optionally 'HSN Code') within the first 10 rows.");
-        return;
-      }
-      if (!rawRows.length) {
-        setError("Found the header row but no data rows below it.");
-        return;
-      }
-
-      const parsed = itemParseRows(rawRows, items);
-      setRows(parsed);
-    } catch (e) {
-      console.error("[item-import] parse failed", e);
-      setError("Could not read the file. Make sure it is a valid CSV or Excel (.xlsx) file.");
-    }
-  };
-
-  const readyCount  = (rows || []).filter((r) => r._status === "ready").length;
-  const updateCount = (rows || []).filter((r) => r._status === "update").length;
-
-  const handleImport = () => {
-    const toImport = (rows || []).filter((r) => r._status === "ready" || r._status === "update");
-    onImport(toImport, readyCount, updateCount);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-         style={{ background: "rgba(4,6,12,0.88)", backdropFilter: "blur(14px)" }}
-         onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl overflow-hidden"
-           style={{ background: "linear-gradient(180deg,#0d1018,#090c14)", border: "1px solid rgba(59,130,246,0.35)", boxShadow: "0 32px 80px rgba(0,0,0,0.92)", animation: "slideUp 0.2s ease both" }}>
-
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-white/[0.07] flex items-center justify-between flex-shrink-0">
-          <div>
-            <div className="text-sm font-black text-white">Import Items</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">Upload a CSV or Excel file exported from Google Sheets</div>
-          </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-white text-lg leading-none">✕</button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          {/* Column guide — operator's actual 2-column sheet. Other columns ignored. */}
-          <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)" }}>
-            <div>
-              <div className="text-[11px] font-semibold text-blue-300 mb-1.5">Supported columns — only these two are read</div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {[
-                  { label: "Name",     req: true,  hint: "Required" },
-                  { label: "HSN Code", req: false, hint: "Optional" },
-                ].map(({ label, req, hint }) => (
-                  <div key={label} className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono font-semibold"
-                          style={{ color: req ? "#93c5fd" : "#64748b" }}>{label}</span>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-full"
-                          style={{ background: req ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.04)",
-                                   color: req ? "#93c5fd" : "#475569",
-                                   border: req ? "1px solid rgba(59,130,246,0.3)" : "1px solid rgba(255,255,255,0.06)" }}>
-                      {hint}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="text-[10px] text-slate-500 pt-1" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-              Only <span className="text-blue-300 font-semibold">Name</span> is required.
-              Every other column in the sheet is ignored — defaults are applied
-              (Unit = <span className="text-slate-300">Nos</span>, Category = <span className="text-slate-300">Mechanical</span>,
-              Opening Stock / Min / Rate = <span className="text-slate-300">0</span>).
-              Re-importing the same sheet never creates duplicates.
-            </div>
-          </div>
-
-          {/* Drop zone */}
-          <div onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) parseFile(f); }}
-               onDragOver={(e) => e.preventDefault()}
-               onClick={() => fileRef.current?.click()}
-               className="rounded-xl border-2 border-dashed cursor-pointer flex flex-col items-center justify-center py-10 transition-all"
-               style={{ borderColor: "rgba(255,255,255,0.1)" }}
-               onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(59,130,246,0.4)"}
-               onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"}>
-            <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
-                   onChange={(e) => { const f = e.target.files[0]; if (f) parseFile(f); e.target.value = ""; }} />
-            <div className="text-4xl mb-3">{fileName ? "📄" : "📂"}</div>
-            <div className="text-sm font-semibold text-white mb-1">{fileName || "Click or drag file here"}</div>
-            <div className="text-[11px] text-slate-500">Supports .csv and .xlsx (Excel) — exported from Google Sheets</div>
-          </div>
-
-          {error && (
-            <div className="text-[11px] text-red-400 px-4 py-3 rounded-xl"
-                 style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>{error}</div>
-          )}
-
-          {/* Preview table */}
-          {rows && rows.length === 0 && (
-            <div className="text-center py-6 text-slate-500 text-sm">No valid item rows found (every row had a blank Name).</div>
-          )}
-          {rows && rows.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-[11px] font-semibold text-slate-300">{rows.length} row{rows.length !== 1 ? "s" : ""} detected</div>
-                <div className="flex items-center gap-3 text-[10px]">
-                  {readyCount  > 0 && <span className="font-bold text-green-400">{readyCount} new</span>}
-                  {updateCount > 0 && <span className="font-bold text-yellow-300">{updateCount} existing — missing fields will be filled in</span>}
-                </div>
-              </div>
-              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
-                <div className="overflow-x-auto max-h-[40vh]">
-                  <table className="w-full">
-                    <thead>
-                      <tr style={{ background: "rgba(255,255,255,0.03)" }}>
-                        {["Status","Item Name","HSN Code"].map((h) => (
-                          <th key={h} className="text-left text-[10px] font-semibold text-slate-500 px-3 py-2 whitespace-nowrap">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((r, i) => (
-                        <tr key={i} style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-                          <td className="px-3 py-2.5 whitespace-nowrap">
-                            {r._status === "ready"
-                              ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-green-400" style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.25)" }}>✓ New</span>
-                              : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-yellow-300" style={{ background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.25)" }}>↻ Update Existing</span>}
-                          </td>
-                          <td className="px-3 py-2.5 text-[11px] font-semibold text-white whitespace-nowrap max-w-[280px] truncate">{r.name}</td>
-                          <td className="px-3 py-2.5 text-[11px] font-mono text-blue-400 whitespace-nowrap">{r.code || <span className="text-slate-700">— auto —</span>}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/[0.07] flex items-center justify-between gap-3 flex-shrink-0">
-          <div className="text-[10px] text-slate-600">
-            {rows
-              ? (readyCount + updateCount > 0
-                  ? `${readyCount} new · ${updateCount} update${updateCount !== 1 ? "s" : ""}`
-                  : "Nothing to import — every row had a blank Name.")
-              : "Upload a file to preview and import"}
-          </div>
-          <div className="flex items-center gap-3">
-            <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
-            <button onClick={handleImport} disabled={!rows || (readyCount + updateCount) === 0}
-                    className="text-xs font-black px-5 py-2 rounded-xl text-white transition-opacity"
-                    style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 20px rgba(37,99,235,0.4)",
-                             opacity: (!rows || (readyCount + updateCount) === 0) ? 0.4 : 1,
-                             cursor: (!rows || (readyCount + updateCount) === 0) ? "not-allowed" : "pointer" }}>
-              {(() => { const total = readyCount + updateCount; return `Import${total > 0 ? ` ${total} Item${total !== 1 ? "s" : ""}` : ""}`; })()}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── INVENTORY PAGE ───────────────────────────────────────────────────────────
 
-function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog = [], outwardLog = [], pendingLog = [], bomDefs = {}, machineLog = [], onLogAudit = () => {}, canDo = () => true, vendorList = [], onCreateItem, onUpdateItem, onDeleteItem, onBulkAddItems }) {
+function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog = [], outwardLog = [], pendingLog = [], bomDefs = {}, machineLog = [], onLogAudit = () => {}, canDo = () => true, vendorList = [] }) {
   const [search,        setSearch]        = useState("");
-  // Search input ref so we can auto-focus on page mount (Tally-style: land
-  // the cursor in search so the operator types straight away). Same pattern
-  // on VendorsPage and InwardPage where applicable.
-  const searchRef = useRef(null);
   const [statusFilter,  setStatusFilter]  = useState("all");
   const [catFilter,     setCatFilter]     = useState("all");
   const [sortCol,       setSortCol]       = useState("name");
   const [sortDir,       setSortDir]       = useState("asc");
   const [showModal,     setShowModal]     = useState(false);
-  const [showImport,    setShowImport]    = useState(false);
   const [toast,         setToast]         = useState(null);
   const [lastAddedCode, setLastAddedCode] = useState(null);
   const [selectedItem,  setSelectedItem]  = useState(null);
@@ -2632,63 +2150,14 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
   const [quickAdjust,   setQuickAdjust]   = useState(null);
   const [deleteModal,   setDeleteModal]   = useState(null); // { item, category, blocks }
 
-  // Auto-focus the search input on mount. Skips if any modal is open or if
-  // focus already landed somewhere meaningful (e.g. operator tabbed away).
-  useEffect(() => {
-    if (showModal || showImport || selectedItem || editingItem || quickAdjust || deleteModal) return;
-    const t = setTimeout(() => {
-      if (searchRef.current && document.activeElement === document.body) {
-        searchRef.current.focus();
-      }
-    }, 50);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const machines = Object.keys(items);
+  const allItemsRaw = Object.entries(items).flatMap(([cat, arr]) => arr.map((item) => ({ ...item, category: cat })));
+  const allItems    = allItemsRaw.filter(i => !i.archived);
 
-  // Esc on the inline delete-confirm modal — without this, the operator has to
-  // reach for the mouse or click the backdrop to dismiss a destructive prompt.
-  useEffect(() => {
-    if (!deleteModal) return;
-    const h = (e) => { if (e.key === "Escape") setDeleteModal(null); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [deleteModal]);
-
-  // ATTENTION panel — collapsed by default so the main table stays above the
-  // fold. On desktop we honour the user's persisted preference; on mobile we
-  // ALWAYS start collapsed (narrow viewports can't afford the chip strip).
-  const ATTENTION_KEY = "erp_inventory_attention_open";
-  const [attentionOpen, setAttentionOpen] = useState(() => {
-    if (typeof window === "undefined") return false;
-    if (window.matchMedia && window.matchMedia("(max-width: 768px)").matches) return false;
-    try {
-      const v = localStorage.getItem(ATTENTION_KEY);
-      return v === "1";
-    } catch { return false; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem(ATTENTION_KEY, attentionOpen ? "1" : "0"); } catch {}
-  }, [attentionOpen]);
-
-  const machines = useMemo(() => Object.keys(items), [items]);
-  // Flatten + filter archived in a single useMemo so we don't reallocate the
-  // array on every keystroke in the search box. With 1000+ items the unmemoised
-  // version reflowed all four downstream metric calcs and the sort/filter on
-  // every render.
-  const allItems = useMemo(
-    () => Object.entries(items).flatMap(([cat, arr]) => arr.map((item) => ({ ...item, category: cat }))).filter((i) => !i.archived),
-    [items]
-  );
-
-  const { criticalCount, warningCount, safeCount, totalSKUs } = useMemo(() => {
-    let critical = 0, warning = 0, safe = 0;
-    for (const i of allItems) {
-      if (i.status === "critical") critical++;
-      else if (i.status === "warning") warning++;
-      else if (i.status === "safe") safe++;
-    }
-    return { criticalCount: critical, warningCount: warning, safeCount: safe, totalSKUs: allItems.length };
-  }, [allItems]);
+  const criticalCount = allItems.filter((i) => i.status === "critical").length;
+  const warningCount  = allItems.filter((i) => i.status === "warning").length;
+  const safeCount     = allItems.filter((i) => i.status === "safe").length;
+  const totalSKUs     = allItems.length;
 
   // Compute all blocking reasons that prevent permanent deletion
   const computeBlocks = (item) => {
@@ -2715,48 +2184,40 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
     return blocks;
   };
 
-  // Memoize the filter + sort pipeline. 1000+ items × N keystrokes per second
-  // was the bottleneck the audit flagged: every render walked the full list
-  // four times (filter, sort, alerts, filteredVal). Now each only re-runs when
-  // its real dependencies change.
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return allItems.filter((i) => {
-      if (statusFilter !== "all" && i.status !== statusFilter) return false;
-      if (catFilter !== "all" && i.category !== catFilter)    return false;
-      if (q && !i.name.toLowerCase().includes(q) && !i.code.toLowerCase().includes(q) &&
-               !(i.vendor   || "").toLowerCase().includes(q) &&
-               !(i.location || "").toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [allItems, search, statusFilter, catFilter]);
+  const q = search.trim().toLowerCase();
+  const filtered = allItems.filter((i) => {
+    if (statusFilter !== "all" && i.status !== statusFilter) return false;
+    if (catFilter !== "all" && i.category !== catFilter)    return false;
+    if (q && !i.name.toLowerCase().includes(q) && !i.code.toLowerCase().includes(q) &&
+             !(i.vendor   || "").toLowerCase().includes(q) &&
+             !(i.location || "").toLowerCase().includes(q)) return false;
+    return true;
+  });
 
-  const sorted = useMemo(() => {
-    return [...filtered].sort((a, b) => {
-      let av, bv;
-      switch (sortCol) {
-        case "code":     av = a.code;     bv = b.code;     break;
-        case "category": av = a.category; bv = b.category; break;
-        case "unit":     av = a.unit;     bv = b.unit;     break;
-        case "stock":    av = a.stock;    bv = b.stock;    break;
-        case "min":      av = a.min;      bv = b.min;      break;
-        case "rate":     av = a.lastPurchaseRate || 0; bv = b.lastPurchaseRate || 0; break;
-        case "status":   av = ["critical","warning","safe"].indexOf(a.status); bv = ["critical","warning","safe"].indexOf(b.status); break;
-        case "vendor":   av = a.vendor || ""; bv = b.vendor || ""; break;
-        default:         av = a.name;    bv = b.name;
-      }
-      if (typeof av === "number") return sortDir === "asc" ? av - bv : bv - av;
-      return sortDir === "asc" ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
-    });
-  }, [filtered, sortCol, sortDir]);
+  const sorted = [...filtered].sort((a, b) => {
+    let av, bv;
+    switch (sortCol) {
+      case "code":     av = a.code;     bv = b.code;     break;
+      case "category": av = a.category; bv = b.category; break;
+      case "unit":     av = a.unit;     bv = b.unit;     break;
+      case "stock":    av = a.stock;    bv = b.stock;    break;
+      case "min":      av = a.min;      bv = b.min;      break;
+      case "rate":     av = a.lastPurchaseRate || 0; bv = b.lastPurchaseRate || 0; break;
+      case "status":   av = ["critical","warning","safe"].indexOf(a.status); bv = ["critical","warning","safe"].indexOf(b.status); break;
+      case "vendor":   av = a.vendor || ""; bv = b.vendor || ""; break;
+      default:         av = a.name;    bv = b.name;
+    }
+    if (typeof av === "number") return sortDir === "asc" ? av - bv : bv - av;
+    return sortDir === "asc" ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
+  });
 
   const toggleSort = (col) => {
     if (sortCol === col) setSortDir((d) => d === "asc" ? "desc" : "asc");
     else { setSortCol(col); setSortDir("asc"); }
   };
 
-  const alerts      = useMemo(() => allItems.filter((i) => i.status !== "safe"), [allItems]);
-  const filteredVal = useMemo(() => sorted.reduce((s, i) => s + (i.stock * (i.lastPurchaseRate || 0)), 0), [sorted]);
+  const alerts       = allItems.filter((i) => i.status !== "safe");
+  const filteredVal  = sorted.reduce((s, i) => s + (i.stock * (i.lastPurchaseRate || 0)), 0);
   const filtersActive = search || statusFilter !== "all" || catFilter !== "all";
   const clearFilters  = () => { setSearch(""); setStatusFilter("all"); setCatFilter("all"); };
 
@@ -2767,15 +2228,9 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
       ? <span className="ml-0.5 text-slate-700 text-[9px]">⇅</span>
       : <span className="ml-0.5 text-blue-400 text-[9px]">{sortDir === "asc" ? "↑" : "↓"}</span>;
 
-  const handleAddItem = async (machine, newItem) => {
-    if (onCreateItem) {
-      const res = await onCreateItem(machine, newItem);
-      if (!res?.success) { alert("Failed to create item: " + (res?.error || "unknown error")); return; }
-    } else {
-      // Legacy in-place fallback (only hit if InventoryPage rendered without onCreateItem)
-      const itemWithHistory = { ...newItem, history: [{ date: fmtDate(new Date()), event: "Opening", change: 0, qty: newItem.stock }] };
-      setItems((prev) => ({ ...prev, [machine]: [...(prev[machine] || []), itemWithHistory] }));
-    }
+  const handleAddItem = (machine, newItem) => {
+    const itemWithHistory = { ...newItem, history: [{ date: fmtDate(new Date()), event: "Opening", change: 0, qty: newItem.stock }] };
+    setItems((prev) => ({ ...prev, [machine]: [...(prev[machine] || []), itemWithHistory] }));
     onLogAudit({
       type: "inventory_add", module: "Inventory",
       action: `Item Added: ${newItem.name} (${newItem.code})`,
@@ -2797,15 +2252,10 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
     setSelectedItem(null);
   };
 
-  const handleConfirmDelete = async (category, code) => {
+  const handleConfirmDelete = (category, code) => {
     const item = items[category]?.find(i => i.code === code);
     if (!item) return;
-    if (onDeleteItem) {
-      const res = await onDeleteItem(category, code);
-      if (!res?.success) { alert("Failed to delete: " + (res?.error || "unknown error")); return; }
-    } else {
-      setItems(prev => ({ ...prev, [category]: prev[category].filter(i => i.code !== code) }));
-    }
+    setItems(prev => ({ ...prev, [category]: prev[category].filter(i => i.code !== code) }));
     onLogAudit({ type: "inventory_delete", module: "Inventory", action: `Item Deleted: ${item.name}`, ref: code, itemCode: code, details: { name: item.name, category } });
     setDeleteModal(null);
   };
@@ -2816,22 +2266,16 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
     if (fresh && fresh !== selectedItem.item) setSelectedItem({ item: fresh, category: selectedItem.category });
   }, [items]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSaveEdit = async (category, updatedItem) => {
+  const handleSaveEdit = (category, updatedItem) => {
     const origCode     = editingItem.item.code;
     const origCategory = editingItem.category;
     const existing     = items[origCategory]?.find((i) => i.code === origCode) || {};
-    const merged       = { history: existing.history || [], trend: existing.trend || [], ...updatedItem };
-    if (onUpdateItem) {
-      const res = await onUpdateItem(origCode, origCategory, merged, category);
-      if (!res?.success) { alert("Failed to update item: " + (res?.error || "unknown error")); return; }
-    } else {
-      setItems((prev) => {
-        const next = { ...prev };
-        next[origCategory] = prev[origCategory].filter((i) => i.code !== origCode);
-        next[category]     = [...(next[category] || []), merged];
-        return next;
-      });
-    }
+    setItems((prev) => {
+      const next = { ...prev };
+      next[origCategory] = prev[origCategory].filter((i) => i.code !== origCode);
+      next[category]     = [...(next[category] || []), { history: existing.history || [], trend: existing.trend || [], ...updatedItem }];
+      return next;
+    });
     onLogAudit({
       type: "inventory_edit", module: "Inventory",
       action: `Item Updated: ${updatedItem.name} (${updatedItem.code})`,
@@ -2859,27 +2303,6 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
   return (
     <div className="flex-1 overflow-y-auto">
       {showModal && <AddItemModal machines={machines} onSave={handleAddItem} onClose={() => setShowModal(false)} vendorList={vendorList} />}
-      {showImport && (
-        <ItemImportModal
-          items={items}
-          onImport={async (importRows /* , readyCount, updateCount */) => {
-            setShowImport(false);
-            // Delegate to App-side handler (per-row, mirrors handleBulkAddVendors so a
-            // single bad row never kills the batch). Falls back to a no-op summary if
-            // the parent didn't pass onBulkAddItems (e.g. legacy render).
-            const res = onBulkAddItems
-              ? await onBulkAddItems(importRows)
-              : { imported: 0, updated: 0, failed: 0 };
-            const r = res || { imported: 0, updated: 0, failed: 0 };
-            // Spec format: "Imported X · Updated Y · Failed Z" — always show all
-            // three counters so the operator can see at a glance what happened.
-            const summary = `Imported ${r.imported} · Updated ${r.updated} · Failed ${r.failed}`;
-            setToast({ status: r.failed > 0 ? "warning" : "safe", name: summary, machine: "Import" });
-            setTimeout(() => setToast(null), 4500);
-          }}
-          onClose={() => setShowImport(false)}
-        />
-      )}
       {selectedItem && (
         <ItemDetailModal
           item={selectedItem.item} category={selectedItem.category}
@@ -2941,10 +2364,9 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
               </div>
             </div>
 
-            {/* Footer — Cancel autofocuses so Enter on an accidental open
-                dismisses the destructive action by default. */}
+            {/* Footer */}
             <div className="px-5 py-4 border-t border-white/[0.08] flex gap-2" style={{ background: "rgba(0,0,0,0.35)" }}>
-              <Btn variant="ghost" size="sm" autoFocus onClick={() => setDeleteModal(null)}>Cancel</Btn>
+              <Btn variant="ghost" size="sm" onClick={() => setDeleteModal(null)}>Cancel</Btn>
               <div className="flex-1" />
               <button onClick={() => handleConfirmDelete(deleteModal.category, deleteModal.item.code)}
                       className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-4 py-1.5 text-white border transition-all"
@@ -2971,12 +2393,6 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
 
       <Topbar title="Item Master" subtitle="Unified inventory across all categories">
         <Btn variant="ghost" size="sm">⬇️ Export</Btn>
-        {canDo("inventory","add") && (
-          <button onClick={() => setShowImport(true)}
-                  className="text-xs font-bold px-3 py-1.5 rounded-lg border border-white/[0.1] text-slate-300 hover:text-white hover:border-white/[0.25] transition-all flex items-center gap-1.5">
-            ⬆ Import Items
-          </button>
-        )}
         {canDo("inventory","add") && <Btn variant="primary" size="sm" onClick={() => setShowModal(true)}>+ Add Item</Btn>}
       </Topbar>
 
@@ -2992,70 +2408,23 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                       barPct={totalSKUs ? Math.round((safeCount / totalSKUs) * 100) : 0} barColor="#22c55e" />
         </div>
 
-        {/* ATTENTION panel — collapsible. Default collapsed so the inventory
-            table stays visible above the fold. Summary always shows the
-            critical/warning counts; the chip list is only revealed when the
-            operator chooses to expand. State persists in localStorage. */}
-        {alerts.length > 0 && (() => {
-          const critCount = alerts.filter((i) => i.status === "critical").length;
-          const warnCount = alerts.filter((i) => i.status === "warning").length;
-          const summary   = critCount > 0 && warnCount > 0
-            ? `${critCount} Critical · ${warnCount} Low Stock`
-            : critCount > 0
-              ? `${critCount} Critical Item${critCount !== 1 ? "s" : ""}`
-              : `${warnCount} Low Stock Item${warnCount !== 1 ? "s" : ""}`;
-          const chipFor = (i) => (
-            <button key={i.code}
-                    onClick={() => setSelectedItem({ item: { ...i }, category: i.category })}
-                    className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-lg transition-all hover:opacity-80 flex-shrink-0"
-                    style={{
-                      background: i.status === "critical" ? "rgba(239,68,68,0.12)" : "rgba(249,115,22,0.1)",
-                      border: i.status === "critical" ? "1px solid rgba(239,68,68,0.28)" : "1px solid rgba(249,115,22,0.22)",
-                      color: i.status === "critical" ? "#f87171" : "#fb923c",
-                    }}>
-              {i.code} · {i.stock} {i.unit}
-            </button>
-          );
-          return (
-            <div className="rounded-xl"
-                 style={{ background: "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.18)" }}>
-              {/* Header row — clickable, ~60px tall. Always visible. */}
-              <button
-                onClick={() => setAttentionOpen((v) => !v)}
-                aria-expanded={attentionOpen}
-                aria-controls="erp-attention-body"
-                className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.02] rounded-xl"
-                style={{ minHeight: 48 }}>
-                <span className="text-[10px] font-black text-red-400 uppercase tracking-[0.08em] flex-shrink-0">⚠ Attention</span>
-                <span className="text-[11px] font-bold text-white">({summary})</span>
-                {/* Preview: first 10 chips inline when collapsed, +N more badge */}
-                {!attentionOpen && (
-                  <div className="hidden md:flex items-center gap-1.5 overflow-hidden flex-1 min-w-0">
-                    {alerts.slice(0, 10).map(chipFor)}
-                    {alerts.length > 10 && (
-                      <span className="text-[10px] font-bold text-slate-400 px-2 py-0.5 rounded-lg flex-shrink-0"
-                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                        +{alerts.length - 10} more
-                      </span>
-                    )}
-                  </div>
-                )}
-                <span className="ml-auto text-[10px] font-bold text-slate-400 flex items-center gap-1 flex-shrink-0">
-                  {attentionOpen ? "▲ Hide Items" : "▼ Show Items"}
-                </span>
-              </button>
-              {/* Body — only mounted when expanded. Internal scroll caps the
-                  height so 83 chips can't push the table off the page. */}
-              {attentionOpen && (
-                <div id="erp-attention-body"
-                     className="px-4 pb-3 pt-1 flex flex-wrap gap-1.5 overflow-y-auto"
-                     style={{ maxHeight: 180, borderTop: "1px solid rgba(239,68,68,0.12)" }}>
-                  {alerts.map(chipFor)}
-                </div>
-              )}
+        {/* Alert strip */}
+        {alerts.length > 0 && (
+          <div className="px-4 py-3 rounded-xl flex items-center gap-3 flex-wrap"
+               style={{ background: "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.18)" }}>
+            <span className="text-[9px] font-black text-red-400 uppercase tracking-[0.08em] flex-shrink-0">⚠ Attention:</span>
+            <div className="flex flex-wrap gap-1.5">
+              {alerts.map((i) => (
+                <button key={i.code}
+                        onClick={() => setSelectedItem({ item: { ...i }, category: i.category })}
+                        className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-lg transition-all hover:opacity-80"
+                        style={{ background: i.status === "critical" ? "rgba(239,68,68,0.12)" : "rgba(249,115,22,0.1)", border: i.status === "critical" ? "1px solid rgba(239,68,68,0.28)" : "1px solid rgba(249,115,22,0.22)", color: i.status === "critical" ? "#f87171" : "#fb923c" }}>
+                  {i.code} · {i.stock} {i.unit}
+                </button>
+              ))}
             </div>
-          );
-        })()}
+          </div>
+        )}
 
         {/* Filter bar */}
         <div className="flex flex-wrap items-center gap-2">
@@ -3082,7 +2451,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
 
           <div className="relative ml-auto">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 text-[11px] pointer-events-none">🔍</span>
-            <input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)}
+            <input value={search} onChange={(e) => setSearch(e.target.value)}
                    placeholder="Search code, name, vendor, location..."
                    className="bg-white/[0.04] border border-white/[0.09] rounded-lg pl-7 pr-3 py-1.5 text-xs text-white placeholder-slate-600 outline-none focus:border-blue-500/40 w-72 transition-all" />
           </div>
@@ -3213,26 +2582,13 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
 
 // ─── PO MODAL ─────────────────────────────────────────────────────────────────
 
-function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null, pos = [], settings = {}, onSetItemDefaultRate }) {
+function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null, pos = [] }) {
   const isEdit = Boolean(initialPO);
-  const poCfg  = normalizePOSettings(settings);
-  // ERP keyboard workflow — Esc closes the modal. Backdrop click + X button
-  // already worked; this lets the operator dismiss with one hand on the keyboard.
-  useEffect(() => {
-    const h = (e) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
   const [form, setForm] = useState(() => {
     if (isEdit) return {
       vendor: initialPO.vendor, priority: initialPO.priority,
       delivery: initialPO.delivery || "", notes: initialPO.notes || "",
       lineItems: initialPO.lineItems ? [...initialPO.lineItems] : [],
-      companyId: initialPO.companyId || poCfg.activeCompanyId,
-      template:  initialPO.template  || poCfg.template,
-      // ERP upgrade (migration 018) — fall back to today / 18% local for legacy POs.
-      purchaseType: initialPO.purchaseType || DEFAULT_PURCHASE_TYPE_KEY,
-      poDate:       initialPO.poDate || initialPO.date || todayIso(),
     };
     return {
       vendor:    prefill?.vendor || vendorList[0]?.name || "",
@@ -3240,10 +2596,6 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
       delivery:  prefill?.delivery || "",
       notes:     prefill?.notes    || "",
       lineItems: prefill?.lineItems ? [...prefill.lineItems] : [],
-      companyId: prefill?.companyId || poCfg.activeCompanyId,
-      template:  prefill?.template  || poCfg.template,
-      purchaseType: prefill?.purchaseType || DEFAULT_PURCHASE_TYPE_KEY,
-      poDate:       prefill?.poDate || todayIso(),
     };
   });
 
@@ -3253,10 +2605,6 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
   const [addErr,       setAddErr]       = useState("");
   const [vendorErr,    setVendorErr]    = useState(false);
   const [vendorSearch, setVendorSearch] = useState("");
-  // 2026-06-02 — Save the operator-typed rate back to the item master so the
-  // next PO line for the same item auto-fills from it. Only meaningful when
-  // the item currently has no historical rate (last & default both 0).
-  const [saveAsDefault, setSaveAsDefault] = useState(false);
 
   const allFlatItems = Object.entries(items).flatMap(([cat, list]) =>
     list.map((it) => ({ ...it, category: cat }))
@@ -3279,27 +2627,6 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
       setAddErr("");
     }
   }, [form.vendor]);
-
-  // Feature 5: when the operator picks an item, auto-fill the Rate field
-  // using the fallback chain (last → default → 0). Operator can still override.
-  // Only fires when the rate field is empty so we don't clobber the operator's
-  // in-progress typing.
-  //
-  // 2026-06-02: also reset saveAsDefault when the item changes — the operator's
-  // intent to save-as-default belongs to the item they were typing for, not the
-  // next one they pick.
-  useEffect(() => {
-    setSaveAsDefault(false);
-    if (!addCode) return;
-    const inv = allFlatItems.find((i) => i.code === addCode);
-    if (!inv) return;
-    if (addRate !== "") return;
-    const last    = Number(inv.lastPurchaseRate)    || 0;
-    const defRate = Number(inv.defaultPurchaseRate) || 0;
-    const suggest = last > 0 ? last : (defRate > 0 ? defRate : 0);
-    if (suggest > 0) setAddRate(String(suggest));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addCode]);
 
   // Vendors linked to the item currently selected in the add-line row — Preferred → Approved → Backup.
   // Supports both vendorLinks (new) and legacy item.vendor field.
@@ -3380,46 +2707,20 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
     setAddErr("");
     setForm((f) => ({
       ...f,
-      // Phase 3 — snapshot the design at add-time so the PO retains what was attached
-      // even if the item's design is replaced later. attachDesign defaults to false.
-      // ERP 018 — also snapshot the item's gstRate so the multi-rate / itemwise
-      // purchase types calculate tax against the rate that was current when the
-      // line was added.
-      lineItems: [...f.lineItems, { code: inv.code, name: inv.name, category: inv.category, unit: inv.unit, qty, rate, amount: qty * rate,
-                                    designFile: inv.designFile || "", designName: inv.designName || "", attachDesign: false,
-                                    gstRate: inv.gstRate != null ? Number(inv.gstRate) : 0 }],
+      lineItems: [...f.lineItems, { code: inv.code, name: inv.name, category: inv.category, unit: inv.unit, qty, rate, amount: qty * rate }],
     }));
-    // 2026-06-02 — persist rate to item.defaultPurchaseRate when the operator
-    // ticked "Save as Default Rate". Fire-and-forget so the line save isn't
-    // blocked on a slow network. The handler is a no-op if the value didn't
-    // actually change, so re-ticking on a known-rate item is harmless.
-    if (saveAsDefault && onSetItemDefaultRate && rate > 0) {
-      onSetItemDefaultRate(inv.code, rate);
-    }
-    setAddCode(""); setAddQty(""); setAddRate(""); setSaveAsDefault(false);
+    setAddCode(""); setAddQty(""); setAddRate("");
   };
 
-  // Auto GST — driven by the chosen Purchase Type (single-rate / multi-rate /
-  // exempt) and per-line gstRate copied from the item master at add-time. Local
-  // POs split into CGST + SGST; interstate / import produce a single IGST line.
   const subtotal = form.lineItems.reduce((s, l) => s + l.amount, 0);
-  const taxBreakdown = calculateGSTBreakdown(subtotal, form.purchaseType, form.lineItems);
-  const { cgst, sgst, igst, gst, total } = taxBreakdown;
-  const purchaseTypeMeta = getPurchaseType(form.purchaseType);
+  const gst      = Math.round(subtotal * 0.18);
+  const total    = subtotal + gst;
 
   const handleSave = (status) => {
     if (!form.vendor) { setVendorErr(true); return; }
     if (form.lineItems.length === 0) return;
     setVendorErr(false);
-    onSave({
-      ...form,
-      subtotal,
-      gst, cgst, sgst, igst,
-      amount: total,
-      status,
-      gstType: purchaseTypeMeta?.gstType || null,
-      date:    form.poDate || todayIso(),
-    });
+    onSave({ ...form, subtotal, gst, amount: total, status });
   };
 
   const inpCls = `bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
@@ -3447,38 +2748,6 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
 
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
           <div className="grid grid-cols-2 gap-4">
-
-            {/* ── ERP step 1 — PO Date & Purchase Type (Busy-style keyboard nav) ── */}
-            <div>
-              <PLabel text="PO Date" req />
-              <input type="date" value={form.poDate} onChange={(e) => setF("poDate", e.target.value)}
-                     className={`w-full ${inpCls}`} style={{ colorScheme: "dark", fontFamily: "'Inter',system-ui,sans-serif" }} />
-            </div>
-            <div>
-              <PLabel text="Purchase Type" req />
-              <SearchableSelect
-                options={PURCHASE_TYPES.map((t) => ({ value: t.key, label: t.label, group: t.group }))}
-                value={form.purchaseType}
-                onChange={(v) => setF("purchaseType", v)}
-                filter={(q, opts) => {
-                  // Custom filter uses utils/gst.filterPurchaseTypes so the
-                  // group metadata stays attached to the option objects.
-                  const matches = filterPurchaseTypes(q, PURCHASE_TYPES);
-                  const map = new Map(opts.map((o) => [o.value, o]));
-                  return matches.map((t) => map.get(t.key)).filter(Boolean);
-                }}
-                placeholder="Type 'L' for Local, 'I' for Interstate, 'IMP' for Import…"
-              />
-              {purchaseTypeMeta && (
-                <div className="mt-1 text-[10px] text-slate-500">
-                  {purchaseTypeMeta.exempt
-                    ? "No GST charged on this PO."
-                    : purchaseTypeMeta.multi
-                      ? `Per-item GST — uses each line's gst_rate (${purchaseTypeMeta.gstType === "local" ? "CGST + SGST" : "IGST"}).`
-                      : `${purchaseTypeMeta.rate}% ${purchaseTypeMeta.gstType === "local" ? "split CGST + SGST" : "IGST single line"}.`}
-                </div>
-              )}
-            </div>
 
             {/* Vendor Picker Cards — shown only when creating from Low Stock flow */}
             {linkedVendors.length > 0 && (
@@ -3597,18 +2866,6 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
             )}
 
             <div>
-              <PLabel text="Issued By (Company)" />
-              <select value={form.companyId} onChange={(e) => setF("companyId", e.target.value)} className={`w-full ${inpCls}`} style={selStyle}>
-                {poCfg.companies.map((c) => <option key={c.id} value={c.id}>{c.name || "(unnamed)"}</option>)}
-              </select>
-            </div>
-            <div>
-              <PLabel text="PO Template" />
-              <select value={form.template} onChange={(e) => setF("template", e.target.value)} className={`w-full ${inpCls}`} style={selStyle}>
-                {PO_TEMPLATE_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-              </select>
-            </div>
-            <div>
               <PLabel text="Priority" />
               <select value={form.priority} onChange={(e) => setF("priority", e.target.value)} className={`w-full ${inpCls}`} style={selStyle}>
                 {["urgent","high","normal","low"].map((p) => <option key={p}>{p}</option>)}
@@ -3626,89 +2883,22 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
             </div>
           </div>
 
-          {/* ── Phase 2 — Vendor low-stock picker (additive, strict Preferred-only) ──
-              Visible whenever the selected vendor has ≥1 preferred low-stock item that
-              isn't already on the PO. Re-filters live as the vendor dropdown changes.
-              "Order Now" / "+ New PO" flows that don't match still see nothing here. */}
-          {(() => {
-            if (!selectedVendorObj) return null;
-            const inLine = new Set((form.lineItems || []).map((li) => li.code));
-            const lowItems = allFlatItems.filter((i) =>
-              (i.status === "critical" || i.status === "warning") &&
-              ((i.vendorLinks || []).find((l) => l.role === "Preferred")?.vendorId === selectedVendorObj.id) &&
-              !inLine.has(i.code)
-            );
-            if (lowItems.length === 0) return null;
-            const addLowStockItem = (it) => {
-              const shortage = Math.max(0, (it.min || 0) - (it.stock || 0));
-              const qty  = Math.max(shortage, Math.max(1, it.min || 1));
-              const rate = it.lastPurchaseRate || 0;
-              setForm((f) => ({
-                ...f,
-                lineItems: [...(f.lineItems || []), { code: it.code, name: it.name, category: it.category, unit: it.unit, qty, rate, amount: qty * rate,
-                                                      designFile: it.designFile || "", designName: it.designName || "", attachDesign: false,
-                                                      gstRate: it.gstRate != null ? Number(it.gstRate) : 0 }],
-              }));
-            };
-            const addAllLowStockItems = () => {
-              const lines = lowItems.map((it) => {
-                const shortage = Math.max(0, (it.min || 0) - (it.stock || 0));
-                const qty  = Math.max(shortage, Math.max(1, it.min || 1));
-                const rate = it.lastPurchaseRate || 0;
-                return { code: it.code, name: it.name, category: it.category, unit: it.unit, qty, rate, amount: qty * rate,
-                         designFile: it.designFile || "", designName: it.designName || "", attachDesign: false,
-                         gstRate: it.gstRate != null ? Number(it.gstRate) : 0 };
-              });
-              setForm((f) => ({ ...f, lineItems: [...(f.lineItems || []), ...lines] }));
-            };
-            return (
-              <div className="mb-3 p-3 rounded-xl"
-                   style={{ background: "rgba(34,197,94,0.05)", border: "1px solid rgba(34,197,94,0.25)" }}>
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <div className="text-[11px] font-bold text-emerald-300">📦 Low Stock for {form.vendor}</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">{lowItems.length} preferred low-stock item{lowItems.length !== 1 ? "s" : ""} · tap to add to PO</div>
-                  </div>
-                  <button onClick={addAllLowStockItems}
-                          className="text-[10px] font-bold px-2.5 py-1 rounded-lg text-emerald-300 border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 transition-all">
-                    + Add All ({lowItems.length})
-                  </button>
-                </div>
-                <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
-                  {lowItems.map((it) => {
-                    const shortage = Math.max(0, (it.min || 0) - (it.stock || 0));
-                    return (
-                      <button key={it.code} onClick={() => addLowStockItem(it)}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-all"
-                              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                        <span className="text-[10px]" style={{ color: it.status === "critical" ? "#f87171" : "#fbbf24" }}>{it.status === "critical" ? "🔴" : "🟠"}</span>
-                        <span className="text-[11px] font-bold text-white truncate flex-1">{it.name}</span>
-                        <span className="text-[9px] font-mono text-slate-600 flex-shrink-0">{it.code}</span>
-                        <span className="text-[9px] text-slate-500 flex-shrink-0">stock {it.stock}/{it.min} {it.unit}</span>
-                        {shortage > 0 && <span className="text-[9px] font-bold text-orange-300 flex-shrink-0">need {shortage}+</span>}
-                        <span className="text-[10px] font-bold text-emerald-300 flex-shrink-0">+ Add</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })()}
-
           <div>
             <PLabel text="Line Items" req />
             <div className="flex gap-2 mb-2">
-              <div className="flex-1">
-                <ItemSearchSelect
-                  items={vendorFilteredItems}
-                  value={addCode}
-                  onChange={setAddCode}
-                  disabled={!form.vendor}
-                  disabledMsg={!form.vendor ? "Select vendor first" : ""}
-                  placeholder={vendorFilteredItems.length === 0 ? "No items linked to this vendor" : "Search items by name or code…"}
-                  showStock={true}
-                />
-              </div>
+              <select value={addCode} onChange={(e) => setAddCode(e.target.value)} className={`flex-1 ${inpCls}`} style={selStyle}
+                      disabled={!form.vendor}>
+                <option value="">
+                  {!form.vendor
+                    ? "— Select vendor first —"
+                    : vendorFilteredItems.length === 0
+                      ? "— No items linked to this vendor —"
+                      : "— Select Item —"}
+                </option>
+                {vendorFilteredItems.map((it) => (
+                  <option key={it.code} value={it.code}>{it.code} — {it.name}</option>
+                ))}
+              </select>
               <input type="number" min="1" value={addQty} onChange={(e) => setAddQty(e.target.value)}
                      placeholder="Qty" className={`w-20 text-right ${inpCls}`}
                      style={{ fontVariantNumeric: "tabular-nums", fontFamily: "'Inter',system-ui,sans-serif" }} />
@@ -3722,35 +2912,6 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                 + Add
               </button>
             </div>
-
-            {/* Save-as-Default-Rate (2026-06-02). Shown only when the picked
-                item has no historical rate (last & default both 0) AND the
-                operator has typed a non-zero rate. Ticking it makes the new
-                rate the item's default so the next PO line auto-fills from
-                it via the existing fallback chain (last → default → 0). */}
-            {(() => {
-              if (!onSetItemDefaultRate) return null;
-              if (!addCode) return null;
-              const inv = allFlatItems.find((i) => i.code === addCode);
-              if (!inv) return null;
-              const last = Number(inv.lastPurchaseRate) || 0;
-              const def  = Number(inv.defaultPurchaseRate) || 0;
-              const rate = parseFloat(addRate) || 0;
-              if (last > 0 || def > 0)  return null;   // already has a baseline rate
-              if (rate <= 0)            return null;   // nothing to save yet
-              return (
-                <label className="flex items-center gap-2 mb-2 cursor-pointer select-none">
-                  <input type="checkbox" checked={saveAsDefault}
-                         onChange={(e) => setSaveAsDefault(e.target.checked)}
-                         className="accent-blue-500" />
-                  <span className={`text-[11px] ${saveAsDefault ? "text-blue-300 font-bold" : "text-slate-400"}`}>
-                    Save ₹{rate.toLocaleString("en-IN")} as Default Rate for <span className="font-mono">{inv.code}</span>
-                  </span>
-                  <span className="text-[9px] text-slate-600 ml-auto">Future POs auto-fill</span>
-                </label>
-              );
-            })()}
-
             {addErr && <div className="text-[10px] text-red-400 mb-2">⚠ {addErr}</div>}
 
             {form.lineItems.length > 0 ? (
@@ -3758,7 +2919,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-white/[0.06]" style={{ background: "rgba(255,255,255,0.02)" }}>
-                      {["Item","Qty","Rate ₹","Amount ₹","📎 Design",""].map((h) => (
+                      {["Item","Qty","Rate ₹","Amount ₹",""].map((h) => (
                         <th key={h} className="text-left text-[10px] font-medium text-slate-500 uppercase tracking-wider px-3 py-2">{h}</th>
                       ))}
                     </tr>
@@ -3773,34 +2934,6 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                         <td className="px-3 py-2 text-xs font-mono text-slate-300 text-right">{li.qty}</td>
                         <td className="px-3 py-2 text-xs font-mono text-slate-300 text-right">{li.rate.toLocaleString("en-IN")}</td>
                         <td className="px-3 py-2 text-xs font-bold font-mono text-green-400 text-right">₹{li.amount.toLocaleString("en-IN")}</td>
-                        {/* Phase 3 — per-line "Attach Design" checkbox. Enabled only when the
-                            item has a design file; disabled+tooltip otherwise. Unchecked = no
-                            extra PDF page produced for this line, preserving today's PDF. */}
-                        <td className="px-3 py-2">
-                          {li.designFile ? (
-                            <button
-                              onClick={() => setForm((f) => ({ ...f, lineItems: f.lineItems.map((x, i) => i === idx ? { ...x, attachDesign: !x.attachDesign } : x) }))}
-                              title={li.attachDesign ? `Will attach: ${li.designName || "design"}` : `Click to attach ${li.designName || "design"} as an extra PDF page`}
-                              className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-md transition-all"
-                              style={{
-                                background:  li.attachDesign ? "rgba(139,92,246,0.18)" : "rgba(255,255,255,0.04)",
-                                color:       li.attachDesign ? "#c4b5fd" : "#94a3b8",
-                                border:      `1px solid ${li.attachDesign ? "rgba(139,92,246,0.45)" : "rgba(255,255,255,0.08)"}`,
-                              }}>
-                              <span className="w-3 h-3 rounded-sm flex items-center justify-center"
-                                    style={{ background: li.attachDesign ? "#8b5cf6" : "transparent", border: `1.5px solid ${li.attachDesign ? "#8b5cf6" : "rgba(255,255,255,0.25)"}` }}>
-                                {li.attachDesign && <span className="text-white text-[8px] font-black">✓</span>}
-                              </span>
-                              {li.attachDesign ? "Attach" : "Attach"}
-                            </button>
-                          ) : (
-                            <span title="No design uploaded for this item — add one in Inventory → Edit Item → Item Media"
-                                  className="inline-flex items-center gap-1.5 text-[10px] text-slate-700 cursor-not-allowed">
-                              <span className="w-3 h-3 rounded-sm" style={{ border: "1.5px solid rgba(255,255,255,0.10)" }} />
-                              —
-                            </span>
-                          )}
-                        </td>
                         <td className="px-3 py-2">
                           <button onClick={() => setForm((f) => ({ ...f, lineItems: f.lineItems.filter((_, i) => i !== idx) }))}
                                   className="w-5 h-5 rounded text-xs text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all flex items-center justify-center">✕</button>
@@ -3823,31 +2956,10 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                 <span className="text-slate-400">Subtotal</span>
                 <span className="font-mono font-bold text-white">₹{subtotal.toLocaleString("en-IN")}</span>
               </div>
-              {/* GST breakdown — driven by the chosen Purchase Type. Local POs
-                  show CGST + SGST; interstate / import show a single IGST line;
-                  exempt / nil / zero show "GST exempt — ₹0". */}
-              {purchaseTypeMeta?.exempt ? (
-                <div className="flex justify-between text-[11px]">
-                  <span className="text-slate-400">GST ({purchaseTypeMeta.label})</span>
-                  <span className="font-mono font-bold text-slate-500">Exempt</span>
-                </div>
-              ) : purchaseTypeMeta?.gstType === "local" ? (
-                <>
-                  <div className="flex justify-between text-[11px]">
-                    <span className="text-slate-400">CGST{purchaseTypeMeta.rate ? ` (${purchaseTypeMeta.rate / 2}%)` : ""}</span>
-                    <span className="font-mono font-bold text-orange-300">₹{cgst.toLocaleString("en-IN")}</span>
-                  </div>
-                  <div className="flex justify-between text-[11px]">
-                    <span className="text-slate-400">SGST{purchaseTypeMeta.rate ? ` (${purchaseTypeMeta.rate / 2}%)` : ""}</span>
-                    <span className="font-mono font-bold text-orange-300">₹{sgst.toLocaleString("en-IN")}</span>
-                  </div>
-                </>
-              ) : (
-                <div className="flex justify-between text-[11px]">
-                  <span className="text-slate-400">IGST{purchaseTypeMeta?.rate ? ` (${purchaseTypeMeta.rate}%)` : ""}</span>
-                  <span className="font-mono font-bold text-orange-300">₹{igst.toLocaleString("en-IN")}</span>
-                </div>
-              )}
+              <div className="flex justify-between text-[11px]">
+                <span className="text-slate-400">GST (18%)</span>
+                <span className="font-mono font-bold text-orange-400">₹{gst.toLocaleString("en-IN")}</span>
+              </div>
               <div className="flex justify-between text-sm border-t border-white/[0.06] pt-2">
                 <span className="font-bold text-white">Total</span>
                 <span className="font-mono font-black text-green-400">₹{total.toLocaleString("en-IN")}</span>
@@ -3883,11 +2995,6 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
 function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, onEdit, onDelete }) {
   const [confirmReceive, setConfirmReceive] = useState(false);
   const [confirmDelete,  setConfirmDelete]  = useState(false);
-  useEffect(() => {
-    const h = (e) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
 
   const steps = ["Draft","Pending","Approved","Ordered","Received"];
   const stepMap = { draft: 0, pending: 1, approved: 2, ordered: 3, received: 4, overdue: 2, review: 1 };
@@ -4050,7 +3157,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
 
 // ─── PURCHASE ORDERS PAGE (legacy — kept for reference, not mounted) ──────────
 
-function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceivePO, onDeletePO, onSetItemDefaultRate }) {
+function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceivePO, onDeletePO }) {
   const [search,    setSearch]    = useState("");
   const [filter,    setFilter]    = useState("all");
   const [showModal, setShowModal] = useState(false);
@@ -4100,7 +3207,6 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
           vendorList={vendorList}
           items={items}
           pos={pos}
-          onSetItemDefaultRate={onSetItemDefaultRate}
           onSave={(data) => {
             if (editingPO) {
               onUpdatePO(editingPO.id, data);
@@ -4221,18 +3327,29 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
 
 function VendorImportModal({ vendorList, onImport, onClose }) {
   const fileRef = useRef(null);
-  useEffect(() => {
-    const h = (e) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
   const [rows,      setRows]      = useState(null);
   const [fileName,  setFileName]  = useState("");
   const [error,     setError]     = useState("");
 
-  // Header → field mapping, address merging and Credit Days normalisation all live
-  // in src/utils/vendorImport.js so they are unit-testable from Node against the
-  // operator's real accounting-sheet column headers. See FIELD_MAP in that file.
+  const FIELD_MAP = [
+    { key: "name",          aliases: ["vendor name","company name","name","vendor","supplier name","supplier"] },
+    { key: "contactPerson", aliases: ["contact person","contact","person","contact name","representative"] },
+    { key: "phone",         aliases: ["mobile","phone","mobile number","phone number","contact number","whatsapp","mobile no","phone no"] },
+    { key: "email",         aliases: ["email","email address","mail","e-mail","email id"] },
+    { key: "gst",           aliases: ["gst","gst number","gstin","gst no","gst#","gst id"] },
+    { key: "address",       aliases: ["address","full address","billing address","street address","full_address"] },
+    { key: "location",      aliases: ["location","city","state","city/state","city, state","place"] },
+    { key: "category",      aliases: ["category","category / specialty","specialty","type","vendor type","supplier type","item type"] },
+  ];
+
+  const mapRow = (raw) => {
+    const out = {};
+    for (const { key, aliases } of FIELD_MAP) {
+      const found = Object.keys(raw).find((k) => aliases.includes(k.trim().toLowerCase()));
+      out[key] = found !== undefined ? String(raw[found] || "").trim() : "";
+    }
+    return out;
+  };
 
   const parseFile = async (file) => {
     setError(""); setRows(null); setFileName(file.name);
@@ -4243,28 +3360,33 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
       const raw   = XLSX.utils.sheet_to_json(ws, { defval: "" });
       if (!raw.length) { setError("The file appears to be empty."); return; }
 
-      // Classify rows using the shared util (pure, Node-testable). Result entries
-      // carry _status="ready" (new vendor) or _status="update" (existing — only
-      // blank fields will be filled in by handleBulkAddVendors).
-      const parsed = vendorParseRows(raw, vendorList);
+      const existingNames = new Set(vendorList.map((v) => v.name.trim().toLowerCase()));
+
+      const parsed = raw
+        .map((r) => {
+          const mapped = mapRow(r);
+          const allBlank = Object.values(mapped).every((v) => !v);
+          if (allBlank) return null;
+          if (!mapped.name) return { ...mapped, _status: "skip" };
+          if (existingNames.has(mapped.name.toLowerCase())) return { ...mapped, _status: "dup" };
+          return { ...mapped, _status: "ready" };
+        })
+        .filter(Boolean)
+        .filter((r) => r._status !== "skip");
+
       setRows(parsed);
     } catch {
       setError("Could not read the file. Make sure it is a valid CSV or Excel (.xlsx) file.");
     }
   };
 
-  const readyCount  = (rows || []).filter((r) => r._status === "ready").length;
-  const updateCount = (rows || []).filter((r) => r._status === "update").length;
+  const readyCount = (rows || []).filter((r) => r._status === "ready").length;
+  const dupCount   = (rows || []).filter((r) => r._status === "dup").length;
 
   const handleImport = () => {
-    const toImport = (rows || []).filter((r) => r._status === "ready" || r._status === "update");
-    // Pass rows-with-status to the App-side processor so each row is created OR
-    // merged into the existing vendor independently. One bad row can no longer kill
-    // the whole batch (operator requirement #4).
-    const importRows = toImport.map((r, i) => ({
-      _status:     r._status,
-      _existingId: r._existingId || null,
-      _localId:    `V${Date.now().toString(36)}${i.toString(36)}`,
+    const toImport = (rows || []).filter((r) => r._status === "ready");
+    const newVendors = toImport.map((r, i) => ({
+      id:            `V${Date.now().toString(36)}${i.toString(36)}`,
       name:          r.name,
       contactPerson: r.contactPerson,
       phone:         r.phone,
@@ -4273,9 +3395,18 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
       address:       r.address,
       location:      r.location,
       category:      r.category,
-      paymentTerms:  r.paymentTerms || "30 days",
+      paymentTerms:  "30 days",
+      status:        "active",
+      priority:      "Approved",
+      leadDays:      0,
+      performance:   0,
+      notes:         "",
+      rating:        4.0,
+      years:         1,
+      annualValue:   "₹0",
+      poCount:       0,
     }));
-    onImport(importRows, readyCount, updateCount);
+    onImport(newVendors, readyCount, dupCount);
   };
 
   return (
@@ -4358,8 +3489,8 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
               <div className="flex items-center justify-between mb-3">
                 <div className="text-[11px] font-semibold text-slate-300">{rows.length} row{rows.length !== 1 ? "s" : ""} detected</div>
                 <div className="flex items-center gap-3 text-[10px]">
-                  {readyCount  > 0 && <span className="font-bold text-green-400">{readyCount} new</span>}
-                  {updateCount > 0 && <span className="font-bold text-yellow-300">{updateCount} existing — missing fields will be filled in</span>}
+                  <span className="font-bold text-green-400">{readyCount} ready to import</span>
+                  {dupCount > 0 && <span className="text-yellow-400">{dupCount} duplicate{dupCount !== 1 ? "s" : ""} — will be skipped</span>}
                 </div>
               </div>
               <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
@@ -4374,11 +3505,11 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
                     </thead>
                     <tbody>
                       {rows.map((r, i) => (
-                        <tr key={i} style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+                        <tr key={i} style={{ borderTop: "1px solid rgba(255,255,255,0.04)", opacity: r._status === "dup" ? 0.45 : 1 }}>
                           <td className="px-3 py-2.5 whitespace-nowrap">
                             {r._status === "ready"
-                              ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-green-400" style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.25)" }}>✓ New</span>
-                              : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-yellow-300" style={{ background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.25)" }}>↻ Update existing</span>}
+                              ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-green-400" style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.25)" }}>✓ Ready</span>
+                              : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-yellow-400" style={{ background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.25)" }}>↩ Duplicate</span>}
                           </td>
                           <td className="px-3 py-2.5 text-[11px] font-semibold text-white whitespace-nowrap">{r.name}</td>
                           <td className="px-3 py-2.5 text-[11px] text-slate-400 whitespace-nowrap">{r.contactPerson || <span className="text-slate-700">—</span>}</td>
@@ -4398,23 +3529,16 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
         {/* Footer */}
         <div className="px-6 py-4 border-t border-white/[0.07] flex items-center justify-between gap-3 flex-shrink-0">
           <div className="text-[10px] text-slate-600">
-            {rows
-              ? (readyCount + updateCount > 0
-                  ? `${readyCount} new · ${updateCount} update${updateCount !== 1 ? "s" : ""}`
-                  : "Nothing to import — every row had no Vendor Name.")
-              : "Upload a file to preview and import"}
+            {rows ? `${readyCount} vendor${readyCount !== 1 ? "s" : ""} will be added to Vendor Master` : "Upload a file to preview and import"}
           </div>
           <div className="flex items-center gap-3">
             <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
-            <button onClick={handleImport} disabled={!rows || (readyCount + updateCount) === 0}
+            <button onClick={handleImport} disabled={!rows || readyCount === 0}
                     className="text-xs font-black px-5 py-2 rounded-xl text-white transition-opacity"
                     style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 20px rgba(37,99,235,0.4)",
-                             opacity: (!rows || (readyCount + updateCount) === 0) ? 0.4 : 1,
-                             cursor: (!rows || (readyCount + updateCount) === 0) ? "not-allowed" : "pointer" }}>
-              {(() => {
-                const total = readyCount + updateCount;
-                return `Import${total > 0 ? ` ${total} Vendor${total !== 1 ? "s" : ""}` : ""}`;
-              })()}
+                             opacity: (!rows || readyCount === 0) ? 0.4 : 1,
+                             cursor: (!rows || readyCount === 0) ? "not-allowed" : "pointer" }}>
+              Import {readyCount > 0 ? `${readyCount} Vendor${readyCount !== 1 ? "s" : ""}` : ""}
             </button>
           </div>
         </div>
@@ -4427,11 +3551,6 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
 
 function VendorModal({ initialVendor, onSave, onClose }) {
   const isEdit = Boolean(initialVendor);
-  useEffect(() => {
-    const h = (e) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
   const [form, setForm] = useState(isEdit ? { ...initialVendor } : {
     name: "", contactPerson: "", phone: "", email: "", gst: "", location: "", category: "",
     paymentTerms: "30 days", status: "active", priority: "Approved", leadDays: "", performance: "",
@@ -4568,39 +3687,14 @@ function VendorModal({ initialVendor, onSave, onClose }) {
 
 function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDeleteVendor, onBulkAddVendors, canDo = () => true }) {
   const [search,        setSearch]        = useState("");
-  // Auto-focus on mount — same Tally-style pattern as InventoryPage.
-  const searchRef = useRef(null);
   const [showModal,     setShowModal]     = useState(false);
   const [showImport,    setShowImport]    = useState(false);
   const [editingVendor, setEditingVendor] = useState(null);
   const [profileVendor, setProfileVendor] = useState(null);
   const [toast,         setToast]         = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
-  useEffect(() => {
-    if (showModal || showImport || editingVendor || profileVendor || confirmDelete) return;
-    const t = setTimeout(() => {
-      if (searchRef.current && document.activeElement === document.body) {
-        searchRef.current.focus();
-      }
-    }, 50);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  // Feature 7 (2026-06-01h): Vendor ledger search + filter + show-all so the
-  // profile panel scales as a vendor accumulates thousands of POs over years.
-  const [vendorPOSearch,   setVendorPOSearch]   = useState("");
-  const [vendorPOStatus,   setVendorPOStatus]   = useState("all");
-  const [vendorPOExpanded, setVendorPOExpanded] = useState(false);
-  // Reset the ledger search when the operator switches vendors.
-  useEffect(() => {
-    setVendorPOSearch(""); setVendorPOStatus("all"); setVendorPOExpanded(false);
-  }, [profileVendor?.id]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3500); };
-
-  // Hide archived vendors from the active list — they live on so PO/item references
-  // still resolve, but they shouldn't show up in cards or selectors.
-  const activeVendors = vendorList.filter((v) => !v.archived);
 
   const allFlatItems = Object.entries(items).flatMap(([cat, list]) =>
     list.map((item) => ({ ...item, category: cat }))
@@ -4611,16 +3705,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
     return acc;
   }, {});
 
-  // Pre-compute usage so the delete-confirm modal can choose archive vs hard delete.
-  const usageFor = (v) => {
-    const hasPOs = pos.some((p) => p.vendor === v.name);
-    const hasLinkedItems = allFlatItems.some((it) =>
-      (it.vendorLinks || []).some((l) => l.vendorId === v.id) || it.vendor === v.name
-    );
-    return { hasPOs, hasLinkedItems, anyRefs: hasPOs || hasLinkedItems };
-  };
-
-  const filtered = activeVendors.filter((v) => {
+  const filtered = vendorList.filter((v) => {
     const q = search.toLowerCase();
     return (v.name     || "").toLowerCase().includes(q)
         || (v.category || "").toLowerCase().includes(q)
@@ -4655,88 +3740,41 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
       {showImport && (
         <VendorImportModal
           vendorList={vendorList}
-          onImport={async (importRows /* , readyCount, updateCount */) => {
+          onImport={(newVendors, readyCount, dupCount) => {
+            onBulkAddVendors(newVendors);
             setShowImport(false);
-            const res = await onBulkAddVendors(importRows);
-            const r = res || { imported: 0, updated: 0, failed: 0 };
-            const parts = [];
-            if (r.imported > 0) parts.push(`${r.imported} imported`);
-            if (r.updated  > 0) parts.push(`${r.updated} updated`);
-            if (r.failed   > 0) parts.push(`${r.failed} failed`);
-            showToast(parts.length ? parts.join(" · ") : "No rows imported");
+            const msg = dupCount > 0
+              ? `${readyCount} vendor${readyCount !== 1 ? "s" : ""} imported · ${dupCount} duplicate${dupCount !== 1 ? "s" : ""} skipped`
+              : `${readyCount} vendor${readyCount !== 1 ? "s" : ""} imported successfully`;
+            showToast(msg);
           }}
           onClose={() => setShowImport(false)}
         />
       )}
 
-      {confirmDelete && (() => {
-        const use = usageFor(confirmDelete);
-        const poCount  = pos.filter((p) => p.vendor === confirmDelete.name).length;
-        const itmCount = allFlatItems.filter((it) =>
-          (it.vendorLinks || []).some((l) => l.vendorId === confirmDelete.id) || it.vendor === confirmDelete.name
-        ).length;
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-               style={{ background: "rgba(4,6,12,0.88)", backdropFilter: "blur(14px)" }}
-               onClick={(e) => e.target === e.currentTarget && setConfirmDelete(null)}>
-            <div className="w-96 rounded-2xl p-6" style={{ background: "#0d1018", border: `1px solid ${use.anyRefs ? "rgba(234,179,8,0.4)" : "rgba(239,68,68,0.35)"}` }}>
-              <div className="text-sm font-black text-white mb-2">
-                {use.anyRefs ? "Archive Vendor?" : "Delete Vendor?"}
-              </div>
-              {use.anyRefs ? (
-                <div className="space-y-2.5 mb-5">
-                  <div className="text-[11px] text-slate-400">
-                    <span className="text-white font-bold">{confirmDelete.name}</span> has live references — archiving keeps the name visible on existing records.
-                  </div>
-                  <div className="space-y-1.5">
-                    {use.hasPOs && (
-                      <div className="flex items-start gap-2 px-3 py-2 rounded-xl"
-                           style={{ background: "rgba(234,179,8,0.05)", border: "1px solid rgba(234,179,8,0.15)" }}>
-                        <span className="text-yellow-500 flex-shrink-0 text-xs mt-0.5">⚠</span>
-                        <div>
-                          <div className="text-[10px] font-bold text-yellow-300">Purchase Orders</div>
-                          <div className="text-[10px] text-slate-500 mt-0.5">{poCount} PO{poCount !== 1 ? "s" : ""} reference this vendor</div>
-                        </div>
-                      </div>
-                    )}
-                    {use.hasLinkedItems && (
-                      <div className="flex items-start gap-2 px-3 py-2 rounded-xl"
-                           style={{ background: "rgba(234,179,8,0.05)", border: "1px solid rgba(234,179,8,0.15)" }}>
-                        <span className="text-yellow-500 flex-shrink-0 text-xs mt-0.5">⚠</span>
-                        <div>
-                          <div className="text-[10px] font-bold text-yellow-300">Linked Items</div>
-                          <div className="text-[10px] text-slate-500 mt-0.5">{itmCount} item{itmCount !== 1 ? "s" : ""} link to this vendor</div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-[10px] text-slate-500">Archived vendors disappear from selectors but stay attached to historical records.</div>
-                </div>
-              ) : (
-                <div className="text-[11px] text-slate-400 mb-5">
-                  Remove <span className="text-white font-bold">{confirmDelete.name}</span> from the vendor list? No purchase history will be lost — this vendor has no live references.
-                </div>
-              )}
-              <div className="flex gap-3 justify-end">
-                <Btn variant="ghost" size="sm" onClick={() => setConfirmDelete(null)}>Cancel</Btn>
-                <Btn variant={use.anyRefs ? "orange" : "red"} size="sm" onClick={async () => {
-                  const res = await onDeleteVendor(confirmDelete.id);
-                  if (res?.success) {
-                    showToast(res.mode === "archived" ? `${confirmDelete.name} archived` : `${confirmDelete.name} removed`);
-                  } else {
-                    showToast(`Failed: ${res?.error || "unknown error"}`);
-                  }
-                  setConfirmDelete(null);
-                  if (profileVendor?.id === confirmDelete.id) setProfileVendor(null);
-                }}>{use.anyRefs ? "Archive" : "Delete"}</Btn>
-              </div>
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+             style={{ background: "rgba(4,6,12,0.88)", backdropFilter: "blur(14px)" }}>
+          <div className="w-80 rounded-2xl p-6" style={{ background: "#0d1018", border: "1px solid rgba(239,68,68,0.35)" }}>
+            <div className="text-sm font-black text-white mb-2">Delete Vendor?</div>
+            <div className="text-[11px] text-slate-400 mb-5">
+              Remove <span className="text-white font-bold">{confirmDelete.name}</span> from the vendor list? This cannot be undone.
+            </div>
+            <div className="flex gap-3 justify-end">
+              <Btn variant="ghost" size="sm" onClick={() => setConfirmDelete(null)}>Cancel</Btn>
+              <Btn variant="red" size="sm" onClick={() => {
+                onDeleteVendor(confirmDelete.id);
+                showToast(`${confirmDelete.name} removed`);
+                setConfirmDelete(null);
+                if (profileVendor?.id === confirmDelete.id) setProfileVendor(null);
+              }}>Delete</Btn>
             </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
 
-      <Topbar title="Vendor Management" subtitle={`${activeVendors.length} suppliers · ${activeVendors.filter((v) => v.status === "preferred").length} preferred`}>
-        <input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)}
+      <Topbar title="Vendor Management" subtitle={`${vendorList.length} suppliers · ${vendorList.filter((v) => v.status === "preferred").length} preferred`}>
+        <input value={search} onChange={(e) => setSearch(e.target.value)}
                placeholder="Search vendors..." className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-slate-300 placeholder-slate-600 outline-none w-44" />
         {canDo("vendors","add") && (
           <button onClick={() => setShowImport(true)}
@@ -4748,12 +3786,12 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
       </Topbar>
 
       <div className="p-6 space-y-6">
-        {/* Stats — driven by active (non-archived) vendors */}
+        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <MetricCard label="Total Vendors"  value={activeVendors.length.toString()} icon="🏭" barPct={100} barColor="#3b82f6" />
-          <MetricCard label="Preferred"      value={activeVendors.filter((v) => v.status === "preferred").length.toString()} icon="⭐" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "preferred").length / activeVendors.length) * 100) : 0} barColor="#22c55e" valueColor="text-green-400" />
-          <MetricCard label="Under Review"   value={activeVendors.filter((v) => v.status === "review").length.toString()} icon="🔍" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "review").length / activeVendors.length) * 100) : 0} barColor="#f97316" valueColor="text-orange-400" />
-          <MetricCard label="Poor"           value={activeVendors.filter((v) => v.status === "poor").length.toString()} icon="⚠️" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "poor").length / activeVendors.length) * 100) : 0} barColor="#ef4444" valueColor="text-red-400" />
+          <MetricCard label="Total Vendors"  value={vendorList.length.toString()} icon="🏭" barPct={100} barColor="#3b82f6" />
+          <MetricCard label="Preferred"      value={vendorList.filter((v) => v.status === "preferred").length.toString()} icon="⭐" barPct={vendorList.length ? Math.round((vendorList.filter((v) => v.status === "preferred").length / vendorList.length) * 100) : 0} barColor="#22c55e" valueColor="text-green-400" />
+          <MetricCard label="Under Review"   value={vendorList.filter((v) => v.status === "review").length.toString()} icon="🔍" barPct={vendorList.length ? Math.round((vendorList.filter((v) => v.status === "review").length / vendorList.length) * 100) : 0} barColor="#f97316" valueColor="text-orange-400" />
+          <MetricCard label="Poor"           value={vendorList.filter((v) => v.status === "poor").length.toString()} icon="⚠️" barPct={vendorList.length ? Math.round((vendorList.filter((v) => v.status === "poor").length / vendorList.length) * 100) : 0} barColor="#ef4444" valueColor="text-red-400" />
         </div>
 
         <div className={`grid gap-4 ${profileVendor ? "grid-cols-1 xl:grid-cols-3" : "grid-cols-1"}`}>
@@ -4808,7 +3846,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                 </div>
 
                 <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
-                  <Btn variant="wa"    size="xs" onClick={() => { const r = openVendorWhatsApp(v); if (!r.ok) showToast(waErrorToast(r.error)); }}>📱 WA</Btn>
+                  <Btn variant="wa"    size="xs">📱 WA</Btn>
                   <Btn variant="mail"  size="xs">✉️</Btn>
                   {canDo("vendors","edit")   && <Btn variant="ghost" size="xs" onClick={() => { setEditingVendor(v); setShowModal(true); }}>✏️</Btn>}
                   {canDo("vendors","delete") && <Btn variant="red"   size="xs" onClick={() => setConfirmDelete(v)}>🗑</Btn>}
@@ -4973,75 +4011,33 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                   </div>
                 )}
 
-                {/* Full PO history — with search + status filter so the panel
-                    scales to thousands of POs per vendor (Feature 7). */}
+                {/* Full PO history */}
                 <div>
-                  <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-2 flex items-center justify-between">
-                    <span>PO History ({vendorPOs.length} total)</span>
+                  <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-2">
+                    PO History ({vendorPOs.length} total)
                   </div>
-                  {/* Search + filter bar */}
-                  {vendorPOs.length > 0 && (
-                    <div className="space-y-1.5 mb-2">
-                      <input value={vendorPOSearch} onChange={(e) => setVendorPOSearch(e.target.value)}
-                             placeholder="Search PO id, item…"
-                             className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-slate-600 outline-none focus:border-blue-500/40" />
-                      <select value={vendorPOStatus} onChange={(e) => setVendorPOStatus(e.target.value)}
-                              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-[11px] text-white outline-none"
-                              style={{ background: "#0b0e17" }}>
-                        <option value="all">All statuses</option>
-                        {["draft","pending","approved","ordered","received","overdue","rejected","review"].map((s) => <option key={s} value={s}>{s}</option>)}
-                      </select>
+                  {recentPOs.length === 0 ? (
+                    <div className="text-[11px] text-slate-600">No purchase orders yet.</div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {recentPOs.map((po) => (
+                        <div key={po.id} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                          <div>
+                            <div className="text-[11px] font-mono font-bold text-blue-400">{po.id}</div>
+                            <div className="text-[10px] text-slate-500">
+                              {po.date} · ₹{(po.amount || 0).toLocaleString("en-IN")}
+                            </div>
+                            {(po.lineItems || []).length > 0 && (
+                              <div className="text-[9px] text-slate-600 mt-0.5 truncate max-w-[160px]">
+                                {(po.lineItems || []).map((li) => li.name || li.code).join(", ")}
+                              </div>
+                            )}
+                          </div>
+                          <StatusBadge status={po.status} />
+                        </div>
+                      ))}
                     </div>
                   )}
-                  {(() => {
-                    const q = vendorPOSearch.trim().toLowerCase();
-                    const filteredVendorPOs = sortedByDate.filter((po) => {
-                      if (vendorPOStatus !== "all" && po.status !== vendorPOStatus) return false;
-                      if (!q) return true;
-                      if ((po.id || "").toLowerCase().includes(q)) return true;
-                      return (po.lineItems || []).some((li) =>
-                        (li.code || "").toLowerCase().includes(q) ||
-                        (li.name || "").toLowerCase().includes(q)
-                      );
-                    });
-                    const filterActive = vendorPOSearch || vendorPOStatus !== "all";
-                    const visible = vendorPOExpanded || filterActive
-                      ? filteredVendorPOs
-                      : filteredVendorPOs.slice(0, 8);
-                    if (filteredVendorPOs.length === 0) {
-                      return <div className="text-[11px] text-slate-600">
-                        {vendorPOs.length === 0 ? "No purchase orders yet." : "No POs match your filters."}
-                      </div>;
-                    }
-                    return (
-                      <>
-                        <div className="space-y-1.5 max-h-[420px] overflow-y-auto pr-1">
-                          {visible.map((po) => (
-                            <div key={po.id} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
-                              <div className="min-w-0 flex-1">
-                                <div className="text-[11px] font-mono font-bold text-blue-400">{po.id}</div>
-                                <div className="text-[10px] text-slate-500">
-                                  {po.poDate || po.date} · ₹{(po.amount || 0).toLocaleString("en-IN")}
-                                </div>
-                                {(po.lineItems || []).length > 0 && (
-                                  <div className="text-[9px] text-slate-600 mt-0.5 truncate max-w-[180px]">
-                                    {(po.lineItems || []).map((li) => li.name || li.code).join(", ")}
-                                  </div>
-                                )}
-                              </div>
-                              <StatusBadge status={po.status} />
-                            </div>
-                          ))}
-                        </div>
-                        {!filterActive && filteredVendorPOs.length > 8 && (
-                          <button onClick={() => setVendorPOExpanded((x) => !x)}
-                                  className="w-full mt-2 text-[10px] font-bold py-1.5 rounded-lg text-blue-300 border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-all">
-                            {vendorPOExpanded ? `▲ Show fewer (hide ${filteredVendorPOs.length - 8})` : `▼ Show all ${filteredVendorPOs.length}`}
-                          </button>
-                        )}
-                      </>
-                    );
-                  })()}
                 </div>
 
                 {/* Notes */}
@@ -5355,7 +4351,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
 
 // ─── AI ASSISTANT PAGE ────────────────────────────────────────────────────────
 
-function AIPage({ items, pos }) {
+function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pendingLog = [], settings = {} }) {
   const allItems   = Object.values(items).flat();
   const critItems  = allItems.filter((i) => i.status === "critical");
   const warnItems  = allItems.filter((i) => i.status === "warning");
@@ -5372,61 +4368,48 @@ function AIPage({ items, pos }) {
 
   const [messages, setMessages] = useState([{ role: "ai", text: initialGreeting }]);
   const [input,    setInput]    = useState("");
+  const [sending,  setSending]  = useState(false);
   const chatRef = useRef(null);
+  const busyRef = useRef(false);
 
-  const buildResponse = (query) => {
-    const lower = query.toLowerCase();
-    if (lower.includes("critical")) {
-      if (critItems.length === 0) return "✅ No critical items! All stock levels are within safe range.";
-      return `🔴 **${critItems.length} Critical Item${critItems.length !== 1 ? "s" : ""} Found:**\n\n${
-        critItems.slice(0, 6).map((i) => `• **${i.name}** (${i.code}): ${i.stock} ${i.unit} vs ${i.min} ${i.unit} minimum`).join("\n")
-      }\n\n💡 Create POs immediately from the Purchase Orders page.`;
-    }
-    if (lower.includes("generate") || lower.includes("create po")) {
-      if (pendingPOs.length > 0) return `📦 **${pendingPOs.length} PO${pendingPOs.length !== 1 ? "s" : ""} Already Pending:**\n\n${
-        pendingPOs.map((p) => `• **${p.id}** — ${p.vendor} (₹${(p.amount || 0).toLocaleString("en-IN")})`).join("\n")
-      }\n\n⏳ Go to Approvals page to process these.`;
-      if (critItems.length > 0) return `📦 **Suggested POs for ${critItems.length} Critical Item${critItems.length !== 1 ? "s" : ""}:**\n\n${
-        critItems.slice(0, 5).map((i) => `• ${i.name} (${i.code}) — reorder ${i.min * 2} ${i.unit} from ${i.vendor || "preferred vendor"}`).join("\n")
-      }\n\n➡️ Go to Purchase Orders page to create these.`;
-      return "✅ No POs needed right now. All stock levels are healthy!";
-    }
-    if (lower.includes("predict") || lower.includes("consumption") || lower.includes("forecast")) {
-      const forecastItems = allItems.filter((i) => Array.isArray(i.trend) && i.trend.length >= 3).slice(0, 5);
-      if (forecastItems.length === 0) return "📈 Not enough trend data yet. Add stock movements to build forecasts.";
-      return `📈 **30-Day Consumption Forecast:**\n\n${
-        forecastItems.map((i) => {
-          const avg = Math.max(0, Math.round((i.trend[0] - i.trend[i.trend.length - 1]) / i.trend.length));
-          return `• **${i.name}** — ~${avg} ${i.unit}/month`;
-        }).join("\n")
-      }\n\nBased on recent stock movement trends.`;
-    }
-    if (lower.includes("vendor") || lower.includes("performance") || lower.includes("supplier")) {
-      const stats = {};
-      pos.forEach((p) => {
-        if (!stats[p.vendor]) stats[p.vendor] = { total: 0, received: 0 };
-        stats[p.vendor].total++;
-        if (p.status === "received") stats[p.vendor].received++;
-      });
-      const entries = Object.entries(stats).slice(0, 5);
-      if (entries.length === 0) return "🏭 No PO data yet to compute vendor performance.";
-      return `🏭 **Vendor Performance Summary:**\n\n${
-        entries.map(([name, d]) => {
-          const pct  = Math.round((d.received / d.total) * 100);
-          const icon = pct >= 80 ? "⭐" : pct >= 50 ? "🔵" : "🔴";
-          return `${icon} **${name.split(" ")[0]}** — ${d.received}/${d.total} POs received`;
-        }).join("\n")
-      }`;
-    }
-    return `Analyzing: "${query}"...\n\nBased on current data (${allItems.length} SKUs, ${pos.length} POs${critItems.length > 0 ? `, ${critItems.length} critical` : ""}), I recommend reviewing affected items. Would you like me to generate a specific report?`;
-  };
+  // Sends the question to the ai-assistant Edge Function (Gemini reasons only over what
+  // that function hands it — this page never talks to Gemini directly and never sees any
+  // API key). Falls back to a clear inline notice if Supabase isn't configured, since the
+  // AI Brain authenticates and audits every query through it.
+  const send = async (text) => {
+    if (!text.trim() || busyRef.current) return;
 
-  const send = (text) => {
-    if (!text.trim()) return;
-    const aiText = buildResponse(text);
-    setMessages((prev) => [...prev, { role: "user", text }, { role: "ai", text: aiText }]);
+    if (!isSupabaseEnabled()) {
+      setMessages((prev) => [...prev, { role: "user", text }, {
+        role: "ai",
+        text: "⚠️ The AI Assistant requires Supabase to be connected (it authenticates and audits every query through it). This session is running in local/offline mode, so I can't answer right now.",
+      }]);
+      setInput("");
+      return;
+    }
+    const client = getSupabase();
+    if (!client) return;
+
+    const history = messages.slice(-10).map((m) => ({ role: m.role, text: m.text }));
+    busyRef.current = true;
+    setSending(true);
+    setMessages((prev) => [...prev, { role: "user", text }]);
     setInput("");
-    setTimeout(() => chatRef.current?.scrollTo({ top: 9999, behavior: "smooth" }), 100);
+    setTimeout(() => chatRef.current?.scrollTo({ top: 9999, behavior: "smooth" }), 50);
+
+    try {
+      const { data, error } = await client.functions.invoke("ai-assistant", {
+        body: { question: text, history, snapshot: { items, pos, vendorList, bomDefs, machineLog, pendingLog, settings } },
+      });
+      if (error) throw error;
+      setMessages((prev) => [...prev, { role: "ai", text: data?.answer || "No data found in ERP." }]);
+    } catch (err) {
+      setMessages((prev) => [...prev, { role: "ai", text: `⚠️ AI Assistant error: ${err?.message || "request failed"}` }]);
+    } finally {
+      busyRef.current = false;
+      setSending(false);
+      setTimeout(() => chatRef.current?.scrollTo({ top: 9999, behavior: "smooth" }), 100);
+    }
   };
 
   const quickActions = [
@@ -5476,6 +4459,13 @@ function AIPage({ items, pos }) {
                 </div>
               </div>
             ))}
+            {sending && (
+              <div className="flex justify-start">
+                <div className="max-w-[85%] text-xs leading-relaxed rounded-xl px-4 py-3 whitespace-pre-wrap bg-white/[0.04] text-slate-300 border border-white/[0.06]">
+                  🤖 Thinking…
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="p-3 border-t border-white/[0.06]">
@@ -5549,41 +4539,6 @@ function AIPage({ items, pos }) {
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
 
-// Settings UI primitives — MODULE SCOPE (stable identity). Defining these inside
-// SettingsPage caused inputs to lose focus on every keystroke (remount on re-render).
-const SLabel = ({ text, hint }) => (
-  <div className="mb-1.5">
-    <div className="text-[12px] font-semibold text-slate-300">{text}</div>
-    {hint && <div className="text-[10px] text-slate-600 mt-0.5">{hint}</div>}
-  </div>
-);
-
-const Toggle = ({ checked, onChange, label, desc }) => (
-  <div className="flex items-center justify-between py-3.5 border-b border-white/[0.05] last:border-0">
-    <div>
-      <div className="text-[13px] font-semibold text-white">{label}</div>
-      {desc && <div className="text-[11px] text-slate-500 mt-0.5">{desc}</div>}
-    </div>
-    <button onClick={() => onChange(!checked)}
-            className="relative flex-shrink-0 w-11 h-6 rounded-full transition-all duration-200"
-            style={{ background: checked ? "#2563eb" : "rgba(255,255,255,0.08)", border: `1px solid ${checked ? "rgba(59,130,246,0.6)" : "rgba(255,255,255,0.1)"}` }}>
-      <div className="absolute top-0.5 h-5 w-5 rounded-full transition-all duration-200 shadow"
-           style={{ background: "#fff", left: checked ? "calc(100% - 22px)" : "2px" }} />
-    </button>
-  </div>
-);
-
-const Section = ({ icon, title, children }) => (
-  <div className="bg-[#0e1117] border border-white/[0.07] rounded-2xl overflow-hidden">
-    <div className="flex items-center gap-3 px-6 py-4 border-b border-white/[0.06]"
-         style={{ background: "rgba(255,255,255,0.015)" }}>
-      <span className="text-base">{icon}</span>
-      <span className="text-[14px] font-bold text-white">{title}</span>
-    </div>
-    <div className="px-6 py-5">{children}</div>
-  </div>
-);
-
 const SETTINGS_DEFAULTS = {
   companyName:     "Shantaz Technofoods",
   gst:             "",
@@ -5594,17 +4549,10 @@ const SETTINGS_DEFAULTS = {
   currency:        "INR (₹)",
   whatsappAlerts:  false,
   emailAlerts:     false,
-  po:              null,   // Purchase Order settings (company profiles, templates) — see utils/poTemplate
 };
 
-function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, isSuperAdmin = false }) {
-  // Snapshot of the last KNOWN-PERSISTED settings — used for the dirty-state pill
-  // ("Unsaved changes") so operators see they need to click Save. Updated only after
-  // a save round-trips successfully.
-  const lastSavedSnapshotRef = useRef(JSON.stringify(initialSettings));
-  const [saveError, setSaveError] = useState("");   // surfaces Supabase upsert failures
+function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave }) {
   const [settings, setSettings] = useState(() => ({ ...SETTINGS_DEFAULTS, ...initialSettings }));
-  const [tab,      setTab]      = useState("company");   // Settings tab: company | po | inventory | notifications | data
   const [saved,    setSaved]    = useState(false);
   const [backupOk, setBackupOk] = useState(false);
   const logoRef = useRef(null);
@@ -5619,20 +4567,8 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
     reader.readAsDataURL(file);
   };
 
-  // Save now AWAITS the result. Success → green "✅ Saved!" + snapshot updates.
-  // Failure → red banner with the error so operators know the company didn't persist.
-  // Optional latest-po payload lets the explicit "Save Company" button persist with the
-  // current edits even before React has flushed the local state update.
-  const handleSave = async (latestPo) => {
-    setSaveError("");
-    const next = latestPo ? { ...settings, po: latestPo } : settings;
-    if (latestPo) setSettings(next);  // commit any pending po edits before persistence
-    const res = await onSave?.(next);
-    if (res && res.success === false) {
-      setSaveError(res.error || "Save failed. Please retry.");
-      return;
-    }
-    lastSavedSnapshotRef.current = JSON.stringify(next);
+  const handleSave = () => {
+    onSave?.(settings);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
@@ -5673,172 +4609,183 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
 
   const inpCls = "w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-[13px] text-[#f0f6ff] placeholder-slate-600 outline-none focus:border-blue-500/40 transition-colors";
 
-  // SLabel / Toggle / Section are hoisted to module scope (above SETTINGS_DEFAULTS).
-  // Defining them inside this component remounted every <Section> subtree on each
-  // keystroke (new function identity per render), which stole focus from inputs.
+  const SLabel = ({ text, hint }) => (
+    <div className="mb-1.5">
+      <div className="text-[12px] font-semibold text-slate-300">{text}</div>
+      {hint && <div className="text-[10px] text-slate-600 mt-0.5">{hint}</div>}
+    </div>
+  );
 
-  // Settings tabs — compact, professional, no long scroll.
-  // The legacy single-company section (companyName/gst/phone/email/address/logo on the
-  // top-level settings object) was superseded by the multi-company PO Settings; the PDF
-  // and WhatsApp flows read from settings.po.companies, not the legacy fields. Hidden
-  // from UI; the legacy fields stay on the settings object for backward compat.
-  // Dirty = working-copy diverges from the last-saved snapshot. Drives the orange pill
-  // on the Save button so operators see they need to click Save before navigating away.
-  // Inline compute (cheap; the settings object is small).
-  const isDirty = JSON.stringify(settings) !== lastSavedSnapshotRef.current;
+  const Toggle = ({ checked, onChange, label, desc }) => (
+    <div className="flex items-center justify-between py-3.5 border-b border-white/[0.05] last:border-0">
+      <div>
+        <div className="text-[13px] font-semibold text-white">{label}</div>
+        {desc && <div className="text-[11px] text-slate-500 mt-0.5">{desc}</div>}
+      </div>
+      <button onClick={() => onChange(!checked)}
+              className="relative flex-shrink-0 w-11 h-6 rounded-full transition-all duration-200"
+              style={{ background: checked ? "#2563eb" : "rgba(255,255,255,0.08)", border: `1px solid ${checked ? "rgba(59,130,246,0.6)" : "rgba(255,255,255,0.1)"}` }}>
+        <div className="absolute top-0.5 h-5 w-5 rounded-full transition-all duration-200 shadow"
+             style={{ background: "#fff", left: checked ? "calc(100% - 22px)" : "2px" }} />
+      </button>
+    </div>
+  );
 
-  const SETTINGS_TABS = [
-    { id: "company",       label: "🏭 Company",        desc: "Multiple companies + active selection" },
-    { id: "po",            label: "🧾 Purchase Order", desc: "Template, T&C, declaration" },
-    { id: "inventory",     label: "📦 Inventory",      desc: "Currency + low-stock rules" },
-    { id: "notifications", label: "🔔 Notifications",  desc: "WhatsApp / email alerts" },
-    { id: "data",          label: "💾 Data & Backup",  desc: "Export + backup" },
-  ];
-  const activeTab = SETTINGS_TABS.find((t) => t.id === tab) || SETTINGS_TABS[0];
+  const Section = ({ icon, title, children }) => (
+    <div className="bg-[#0e1117] border border-white/[0.07] rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-white/[0.06]"
+           style={{ background: "rgba(255,255,255,0.015)" }}>
+        <span className="text-base">{icon}</span>
+        <span className="text-[14px] font-bold text-white">{title}</span>
+      </div>
+      <div className="px-6 py-5">{children}</div>
+    </div>
+  );
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <Topbar title="Settings" subtitle={`${activeTab.desc} · Build ${APP_BUILD}`}>
-        {isDirty && !saved && (
-          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full"
-                style={{ background: "rgba(249,115,22,0.15)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.35)" }}>
-            ● Unsaved changes
-          </span>
-        )}
-        <button onClick={() => handleSave()}
+      <Topbar title="Settings" subtitle="Manage company details, alerts and data">
+        <button onClick={handleSave}
                 className="inline-flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl transition-all duration-200"
                 style={{ background: saved ? "rgba(34,197,94,0.18)" : "linear-gradient(135deg,#2563eb,#4f46e5)", color: saved ? "#4ade80" : "#fff", border: saved ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(99,130,255,0.5)", boxShadow: saved ? "none" : "0 0 12px rgba(59,130,246,0.3)" }}>
           {saved ? "✅ Saved!" : "💾 Save Changes"}
         </button>
       </Topbar>
 
-      {saveError && (
-        <div className="mx-6 mt-4 max-w-5xl px-4 py-3 rounded-xl flex items-start gap-3"
-             style={{ background: "rgba(239,68,68,0.10)", border: "1px solid rgba(239,68,68,0.40)" }}>
-          <span className="text-base flex-shrink-0">⚠️</span>
-          <div className="min-w-0 flex-1">
-            <div className="text-[12px] font-bold text-red-200">Save failed — settings did NOT persist to Supabase</div>
-            <div className="text-[11px] text-slate-400 mt-0.5 break-words">{saveError}</div>
-            <div className="text-[11px] text-slate-500 mt-1">Your local edits are still here. Fix the issue (check console for details) and click Save again.</div>
+      <div className="p-6 max-w-2xl space-y-5">
+
+        {/* ── 1. Company ── */}
+        <Section icon="🏭" title="Company">
+          <div className="space-y-4">
+
+            {/* Logo upload */}
+            <div className="flex items-center gap-4 pb-4 border-b border-white/[0.06]">
+              <div className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"
+                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                {settings.logo
+                  ? <img src={settings.logo} alt="logo" className="w-full h-full object-contain" />
+                  : <span className="text-2xl">🏭</span>}
+              </div>
+              <div>
+                <div className="text-[12px] font-semibold text-slate-300 mb-1">Company Logo</div>
+                <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                <div className="flex gap-2">
+                  <button onClick={() => logoRef.current?.click()}
+                          className="text-[11px] font-bold px-3 py-1.5 rounded-lg border border-white/[0.1] text-slate-300 hover:text-white hover:border-white/20 transition-all">
+                    Upload Logo
+                  </button>
+                  {settings.logo && (
+                    <button onClick={() => upd("logo", "")}
+                            className="text-[11px] font-bold px-3 py-1.5 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-all">
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <div className="text-[10px] text-slate-600 mt-1">PNG, JPG — shown on printed POs</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <SLabel text="Company Name" />
+                <input value={settings.companyName} onChange={(e) => upd("companyName", e.target.value)}
+                       placeholder="e.g. Shantaz Technofoods Pvt Ltd" className={inpCls} />
+              </div>
+              <div>
+                <SLabel text="GST Number" />
+                <input value={settings.gst} onChange={(e) => upd("gst", e.target.value)}
+                       placeholder="e.g. 24AABCS1234L1ZN" className={inpCls} />
+              </div>
+              <div>
+                <SLabel text="Phone" />
+                <input value={settings.phone} onChange={(e) => upd("phone", e.target.value)}
+                       placeholder="+91 98765 43210" className={inpCls} />
+              </div>
+              <div className="col-span-2">
+                <SLabel text="Email" />
+                <input type="email" value={settings.email} onChange={(e) => upd("email", e.target.value)}
+                       placeholder="purchase@yourcompany.com" className={inpCls} />
+              </div>
+              <div className="col-span-2">
+                <SLabel text="Address" />
+                <textarea value={settings.address} onChange={(e) => upd("address", e.target.value)}
+                          placeholder="Factory / office address" rows={2}
+                          className={inpCls + " resize-none"} />
+              </div>
+            </div>
           </div>
-          <button onClick={() => setSaveError("")} className="flex-shrink-0 text-slate-500 hover:text-white text-sm">✕</button>
-        </div>
-      )}
+        </Section>
 
-      {/* Tab bar */}
-      <div className="px-6 pt-4 max-w-5xl">
-        <div className="flex gap-1 border-b border-white/[0.07] overflow-x-auto">
-          {SETTINGS_TABS.map((t) => {
-            const sel = t.id === tab;
-            return (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                      className="text-[12px] font-bold px-3.5 py-2.5 -mb-px transition-all whitespace-nowrap"
-                      style={{
-                        color:       sel ? "#fff" : "#94a3b8",
-                        background:  sel ? "rgba(59,130,246,0.10)" : "transparent",
-                        borderBottom: `2px solid ${sel ? "#3b82f6" : "transparent"}`,
-                      }}>
-                {t.label}
+        {/* ── 2. Inventory ── */}
+        <Section icon="📦" title="Inventory">
+          <SLabel text="Currency" hint="Shown throughout the ERP" />
+          <select value={settings.currency} onChange={(e) => upd("currency", e.target.value)}
+                  className={inpCls} style={{ background: "#0b0e17", color: "#f0f6ff" }}>
+            {["INR (₹)", "USD ($)", "EUR (€)", "GBP (£)", "AED (د.إ)"].map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <div className="mt-3 px-3.5 py-3 rounded-xl" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.18)" }}>
+            <div className="text-[11px] text-blue-300 font-semibold">ℹ️ Low Stock Alerts</div>
+            <div className="text-[11px] text-slate-400 mt-1">
+              Low stock thresholds are set per item in <span className="text-white font-semibold">Item Master → Minimum Stock</span>.
+              Items below their individual minimum are shown in Inventory and Order Pipeline automatically.
+            </div>
+          </div>
+        </Section>
+
+        {/* ── 3. Notifications ── */}
+        <Section icon="🔔" title="Notifications">
+          <Toggle
+            checked={settings.whatsappAlerts}
+            onChange={(v) => upd("whatsappAlerts", v)}
+            label="WhatsApp Alerts"
+            desc="Send low stock and PO status updates via WhatsApp" />
+          <Toggle
+            checked={settings.emailAlerts}
+            onChange={(v) => upd("emailAlerts", v)}
+            label="Email Alerts"
+            desc="Send order confirmations and approval reminders via Email" />
+        </Section>
+
+        {/* ── 4. Data ── */}
+        <Section icon="💾" title="Data">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-4 rounded-xl border border-white/[0.07]"
+                 style={{ background: "rgba(255,255,255,0.02)" }}>
+              <div>
+                <div className="text-[13px] font-semibold text-white">Backup Data</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">Download a full JSON backup of all ERP data</div>
+              </div>
+              <button onClick={handleBackup}
+                      className="flex-shrink-0 text-[12px] font-bold px-4 py-2 rounded-xl border transition-all"
+                      style={{ color: backupOk ? "#4ade80" : "#93c5fd", background: backupOk ? "rgba(34,197,94,0.1)" : "rgba(59,130,246,0.08)", borderColor: backupOk ? "rgba(34,197,94,0.3)" : "rgba(59,130,246,0.25)" }}>
+                {backupOk ? "✅ Downloaded" : "⬇ Backup Now"}
               </button>
-            );
-          })}
+            </div>
+
+            <div className="flex items-center justify-between p-4 rounded-xl border border-white/[0.07]"
+                 style={{ background: "rgba(255,255,255,0.02)" }}>
+              <div>
+                <div className="text-[13px] font-semibold text-white">Export Inventory to Excel</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">Download all inventory items as a CSV file (opens in Excel)</div>
+              </div>
+              <button onClick={handleExportExcel}
+                      className="flex-shrink-0 text-[12px] font-bold px-4 py-2 rounded-xl border transition-all text-green-400 hover:bg-green-500/10 border-green-500/20 hover:border-green-500/40">
+                ⬇ Export Excel
+              </button>
+            </div>
+          </div>
+        </Section>
+
+        {/* Bottom save shortcut */}
+        <div className="pt-1 pb-4">
+          <button onClick={handleSave}
+                  className="w-full py-3 rounded-xl text-[13px] font-bold transition-all duration-200"
+                  style={{ background: saved ? "rgba(34,197,94,0.12)" : "linear-gradient(135deg,#1d4ed8,#4338ca)", color: saved ? "#4ade80" : "#fff", border: saved ? "1px solid rgba(34,197,94,0.35)" : "1px solid rgba(99,130,255,0.4)", boxShadow: saved ? "none" : "0 4px 20px rgba(59,130,246,0.2)" }}>
+            {saved ? "✅ Changes Saved Successfully" : "💾 Save Changes"}
+          </button>
         </div>
-      </div>
-
-      <div className="px-6 pb-8 pt-5 max-w-5xl">
-
-        {/* ── Company tab ───────────────────────────────────────────────────── */}
-        {tab === "company" && (
-          <POSettings
-            mode="company"
-            value={settings.po}
-            settings={settings}
-            isSuperAdmin={isSuperAdmin}
-            onChange={(po) => upd("po", po)}
-            onPersist={(latestPo) => handleSave(latestPo)}
-          />
-        )}
-
-        {/* ── Purchase Order tab ────────────────────────────────────────────── */}
-        {tab === "po" && (
-          <POSettings
-            mode="template"
-            value={settings.po}
-            settings={settings}
-            isSuperAdmin={isSuperAdmin}
-            onChange={(po) => upd("po", po)}
-            onPersist={(latestPo) => handleSave(latestPo)}
-          />
-        )}
-
-        {/* ── Inventory tab ─────────────────────────────────────────────────── */}
-        {tab === "inventory" && (
-          <Section icon="📦" title="Inventory">
-            <SLabel text="Currency" hint="Shown throughout the ERP" />
-            <select value={settings.currency} onChange={(e) => upd("currency", e.target.value)}
-                    className={inpCls} style={{ background: "#0b0e17", color: "#f0f6ff" }}>
-              {["INR (₹)", "USD ($)", "EUR (€)", "GBP (£)", "AED (د.إ)"].map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-            <div className="mt-3 px-3.5 py-3 rounded-xl" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.18)" }}>
-              <div className="text-[11px] text-blue-300 font-semibold">ℹ️ Low Stock Alerts</div>
-              <div className="text-[11px] text-slate-400 mt-1">
-                Low stock thresholds are set per item in <span className="text-white font-semibold">Item Master → Minimum Stock</span>.
-                Items below their individual minimum are shown in Inventory and Order Pipeline automatically.
-              </div>
-            </div>
-          </Section>
-        )}
-
-        {/* ── Notifications tab ─────────────────────────────────────────────── */}
-        {tab === "notifications" && (
-          <Section icon="🔔" title="Notifications">
-            <Toggle
-              checked={settings.whatsappAlerts}
-              onChange={(v) => upd("whatsappAlerts", v)}
-              label="WhatsApp Alerts"
-              desc="Send low stock and PO status updates via WhatsApp" />
-            <Toggle
-              checked={settings.emailAlerts}
-              onChange={(v) => upd("emailAlerts", v)}
-              label="Email Alerts"
-              desc="Send order confirmations and approval reminders via Email" />
-          </Section>
-        )}
-
-        {/* ── Data & Backup tab ─────────────────────────────────────────────── */}
-        {tab === "data" && (
-          <Section icon="💾" title="Data & Backup">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-4 rounded-xl border border-white/[0.07]"
-                   style={{ background: "rgba(255,255,255,0.02)" }}>
-                <div>
-                  <div className="text-[13px] font-semibold text-white">Backup Data</div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">Download a full JSON backup of all ERP data</div>
-                </div>
-                <button onClick={handleBackup}
-                        className="flex-shrink-0 text-[12px] font-bold px-4 py-2 rounded-xl border transition-all"
-                        style={{ color: backupOk ? "#4ade80" : "#93c5fd", background: backupOk ? "rgba(34,197,94,0.1)" : "rgba(59,130,246,0.08)", borderColor: backupOk ? "rgba(34,197,94,0.3)" : "rgba(59,130,246,0.25)" }}>
-                  {backupOk ? "✅ Downloaded" : "⬇ Backup Now"}
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between p-4 rounded-xl border border-white/[0.07]"
-                   style={{ background: "rgba(255,255,255,0.02)" }}>
-                <div>
-                  <div className="text-[13px] font-semibold text-white">Export Inventory to Excel</div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">Download all inventory items as a CSV file (opens in Excel)</div>
-                </div>
-                <button onClick={handleExportExcel}
-                        className="flex-shrink-0 text-[12px] font-bold px-4 py-2 rounded-xl border transition-all text-green-400 hover:bg-green-500/10 border-green-500/20 hover:border-green-500/40">
-                  ⬇ Export Excel
-                </button>
-              </div>
-            </div>
-          </Section>
-        )}
-
       </div>
     </div>
   );
@@ -5847,201 +4794,138 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
 // ─── PDF GENERATOR ────────────────────────────────────────────────────────────
 
 function generatePOPdf(po, vendor, settings = {}) {
-  // Resolve the company profile + template from PO Settings (per-PO override → active default).
-  const poCfg   = normalizePOSettings(settings);
-  const company = getActiveCompany(settings, po?.companyId);
-  openPOPdf(po, vendor, company, {
-    template:    po?.template || poCfg.template,
-    show:        poCfg.show,
-    terms:       poCfg.terms,
-    declaration: poCfg.declaration,
-  });
-}
+  const company  = settings.companyName || "Shantaz Technofoods";
+  const subtotal = (po.lineItems || []).reduce((s, li) => s + (li.amount || 0), 0);
+  const gst      = po.gst != null ? po.gst : Math.round(subtotal * 0.18);
+  const total    = po.amount || (subtotal + gst);
 
-// ─── PO SEARCH CENTER ────────────────────────────────────────────────────────
-// Feature 6 (2026-06-01h): ERP-style table view of POs designed to scale to
-// 100,000+ records. Free-text search across PO id / vendor / item code+name
-// + status / purchase-type filters + date range + pagination. Click a row to
-// open the existing detail modal (the card view's ViewBtn flow). Sorting is
-// newest-first by PO date.
-function POSearchCenter({
-  pos, searchQ, setSearchQ, searchStatus, setSearchStatus,
-  searchPurchaseType, setSearchPurchaseType,
-  searchDateFrom, setSearchDateFrom, searchDateTo, setSearchDateTo,
-  page, setPage, pageSize, onOpenPO,
-}) {
-  // Memoize the filter pipeline so 100k rows × every keystroke doesn't melt.
-  const filtered = useMemo(() => {
-    const q = String(searchQ || "").trim().toLowerCase();
-    return pos.filter((p) => {
-      if (searchStatus !== "all" && p.status !== searchStatus) return false;
-      if (searchPurchaseType !== "all" && p.purchaseType !== searchPurchaseType) return false;
-      // ISO date comparison works as string compare for yyyy-mm-dd.
-      const pd = p.poDate || p.date || "";
-      if (searchDateFrom && pd && pd < searchDateFrom) return false;
-      if (searchDateTo   && pd && pd > searchDateTo)   return false;
-      if (!q) return true;
-      if ((p.id     || "").toLowerCase().includes(q)) return true;
-      if ((p.vendor || "").toLowerCase().includes(q)) return true;
-      // Line item names / codes
-      const lis = p.lineItems || [];
-      for (const li of lis) {
-        if ((li.code || "").toLowerCase().includes(q)) return true;
-        if ((li.name || "").toLowerCase().includes(q)) return true;
-      }
-      return false;
-    });
-  }, [pos, searchQ, searchStatus, searchPurchaseType, searchDateFrom, searchDateTo]);
+  const rows = (po.lineItems || []).map((li, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td><strong>${li.name}</strong><br><span style="font-family:monospace;font-size:9px;color:#888">${li.code}</span></td>
+      <td style="text-align:center">${li.unit || "—"}</td>
+      <td style="text-align:right">${li.qty}</td>
+      <td style="text-align:right">₹${(li.rate || 0).toLocaleString("en-IN")}</td>
+      <td style="text-align:right"><strong>₹${(li.amount || 0).toLocaleString("en-IN")}</strong></td>
+    </tr>`).join("");
 
-  const sorted = useMemo(() => {
-    return [...filtered].sort((a, b) => {
-      const ad = a.poDate || a.date || "";
-      const bd = b.poDate || b.date || "";
-      if (ad !== bd) return ad < bd ? 1 : -1;       // newest first
-      return String(b.id || "").localeCompare(String(a.id || ""));
-    });
-  }, [filtered]);
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>PO-${po.id}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#1a1a1a;background:#fff;padding:28px 32px}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #1e3a5f;padding-bottom:14px;margin-bottom:20px}
+  .co-name{font-size:19px;font-weight:700;color:#1e3a5f;margin-bottom:3px}
+  .co-info{font-size:10px;color:#555;line-height:1.65}
+  .po-right{text-align:right}
+  .po-label{font-size:22px;font-weight:800;color:#1e3a5f;letter-spacing:1px}
+  .po-num{font-size:13px;font-weight:600;color:#333;margin-top:2px;font-family:monospace}
+  .po-badge{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;padding:2px 8px;border-radius:4px;background:#e8f0fb;color:#1e3a5f;margin-top:5px;letter-spacing:.05em}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
+  .box{border:1px solid #d8e0ec;border-radius:6px;padding:12px}
+  .box-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#888;margin-bottom:8px}
+  .box-name{font-size:13px;font-weight:700;color:#1a1a1a;margin-bottom:6px}
+  .info-row{display:flex;gap:6px;margin-bottom:3px;font-size:10.5px}
+  .ik{color:#777;min-width:85px;flex-shrink:0}
+  .iv{font-weight:600;color:#1a1a1a}
+  .sec-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#888;margin-bottom:6px}
+  .table-wrap{border:1px solid #d8e0ec;border-radius:6px;overflow:hidden;margin-bottom:14px}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  thead tr{background:#1e3a5f;color:#fff}
+  thead th{padding:7px 10px;text-align:left;font-size:9.5px;font-weight:600;letter-spacing:.04em}
+  thead th.r{text-align:right}
+  thead th.c{text-align:center}
+  tbody tr:nth-child(even){background:#f6f8fc}
+  tbody td{padding:7px 10px;border-bottom:1px solid #eef0f5;vertical-align:middle}
+  .totals{width:44%;margin-left:auto;border-collapse:collapse;font-size:11px}
+  .totals td{padding:4px 10px}
+  .grand td{background:#1e3a5f;color:#fff;font-weight:700;font-size:12.5px}
+  .notes{margin:14px 0;padding:10px 14px;border-left:3px solid #1e3a5f;background:#f6f8fc;font-size:10.5px;color:#444;border-radius:0 4px 4px 0}
+  .footer{margin-top:20px;border-top:1px solid #d8e0ec;padding-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:50px;font-size:11px}
+  .sig-lbl{font-size:9px;color:#888;margin-bottom:22px}
+  .sig-line{border-top:1px solid #aaa;padding-top:5px;font-size:10px;color:#555}
+  @media print{body{padding:0}@page{margin:12mm;size:A4}}
+</style></head>
+<body>
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
-  const pageSafe   = Math.min(page, totalPages - 1);
-  const pageRows   = sorted.slice(pageSafe * pageSize, (pageSafe + 1) * pageSize);
-
-  // Reset to first page when the result set shrinks below the current page.
-  useEffect(() => {
-    if (page > 0 && pageSafe !== page) setPage(pageSafe);
-  }, [pageSafe, page, setPage]);
-
-  const clearAll = () => {
-    setSearchQ(""); setSearchStatus("all"); setSearchPurchaseType("all");
-    setSearchDateFrom(""); setSearchDateTo(""); setPage(0);
-  };
-
-  const statusColor = (s) => ({
-    draft:    "#94a3b8", pending:  "#f59e0b", approved: "#3b82f6",
-    ordered:  "#8b5cf6", received: "#22c55e", overdue:  "#ef4444",
-    rejected: "#ef4444", review:   "#f97316",
-  }[s] || "#94a3b8");
-
-  return (
-    <div className="flex-1 overflow-y-auto p-5 space-y-4">
-      {/* Search + filter bar */}
-      <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-2.5">
-          <div className="md:col-span-2">
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Search</div>
-            <input value={searchQ} onChange={(e) => { setSearchQ(e.target.value); setPage(0); }}
-                   placeholder="PO number, vendor, item code, item name…"
-                   className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-blue-500/40" />
-          </div>
-          <div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Status</div>
-            <select value={searchStatus} onChange={(e) => { setSearchStatus(e.target.value); setPage(0); }}
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none"
-                    style={{ background: "#0b0e17" }}>
-              <option value="all">All</option>
-              {["draft","pending","approved","ordered","received","overdue","rejected","review"].map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Purchase Type</div>
-            <select value={searchPurchaseType} onChange={(e) => { setSearchPurchaseType(e.target.value); setPage(0); }}
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none"
-                    style={{ background: "#0b0e17" }}>
-              <option value="all">All</option>
-              {PURCHASE_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">From</div>
-            <input type="date" value={searchDateFrom} onChange={(e) => { setSearchDateFrom(e.target.value); setPage(0); }}
-                   className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none"
-                   style={{ colorScheme: "dark" }} />
-          </div>
-          <div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">To</div>
-            <input type="date" value={searchDateTo} onChange={(e) => { setSearchDateTo(e.target.value); setPage(0); }}
-                   className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none"
-                   style={{ colorScheme: "dark" }} />
-          </div>
-        </div>
-        <div className="flex items-center justify-between mt-3 text-[10px]">
-          <div className="text-slate-500">
-            <span className="text-white font-bold">{sorted.length.toLocaleString("en-IN")}</span> result{sorted.length !== 1 ? "s" : ""}
-            {sorted.length !== pos.length && <span className="text-slate-600"> · of {pos.length.toLocaleString("en-IN")} total</span>}
-          </div>
-          <button onClick={clearAll}
-                  className="text-[10px] font-bold text-slate-500 hover:text-red-400 px-2.5 py-1 rounded-lg border border-white/[0.08] hover:border-red-500/30 transition-all">
-            ✕ Clear
-          </button>
-        </div>
-      </div>
-
-      {/* Results table */}
-      <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-white/[0.07]" style={{ background: "rgba(255,255,255,0.025)" }}>
-                {["PO Number","Vendor","Date","Purchase Type","Status","Amount","Items"].map((h) => (
-                  <th key={h} className="text-left text-[10px] font-semibold text-slate-500 uppercase tracking-[0.06em] px-4 py-3">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {pageRows.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-12 text-center text-xs text-slate-600">
-                  {pos.length === 0 ? "No POs yet." : "No POs match your filters."}
-                </td></tr>
-              ) : pageRows.map((po) => {
-                const pt = PURCHASE_TYPE_BY_KEY[po.purchaseType];
-                const sc = statusColor(po.status);
-                return (
-                  <tr key={po.id} onClick={() => onOpenPO?.(po)}
-                      className="border-b border-white/[0.05] cursor-pointer hover:bg-white/[0.04] transition-colors">
-                    <td className="px-4 py-3 text-xs font-mono font-bold text-blue-400 whitespace-nowrap">{po.id}</td>
-                    <td className="px-4 py-3 text-xs font-semibold text-white max-w-[200px]"><div className="truncate">{po.vendor}</div></td>
-                    <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap font-mono">{po.poDate || po.date || "—"}</td>
-                    <td className="px-4 py-3 text-[11px] text-slate-400 max-w-[180px]"><div className="truncate">{pt?.label || <span className="text-slate-700">—</span>}</div></td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
-                            style={{ color: sc, background: `${sc}18`, border: `1px solid ${sc}38` }}>
-                        {po.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs font-mono font-bold text-green-400 whitespace-nowrap text-right">
-                      ₹{Number(po.amount || 0).toLocaleString("en-IN")}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-slate-400 text-center">{(po.lineItems || []).length}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="px-4 py-3 border-t border-white/[0.06] flex items-center justify-between text-[10px]"
-               style={{ background: "rgba(255,255,255,0.015)" }}>
-            <div className="text-slate-500">
-              Page <span className="text-white font-bold">{pageSafe + 1}</span> of <span className="text-white font-bold">{totalPages}</span>
-              <span className="text-slate-600"> · showing {(pageSafe * pageSize) + 1}–{Math.min((pageSafe + 1) * pageSize, sorted.length)}</span>
-            </div>
-            <div className="flex gap-1">
-              <button onClick={() => setPage(0)}            disabled={pageSafe === 0}              className="px-2 py-1 rounded-md border border-white/[0.08] text-slate-300 hover:bg-white/[0.06] transition-all disabled:opacity-30 disabled:cursor-not-allowed">⏮ First</button>
-              <button onClick={() => setPage(pageSafe - 1)} disabled={pageSafe === 0}              className="px-2 py-1 rounded-md border border-white/[0.08] text-slate-300 hover:bg-white/[0.06] transition-all disabled:opacity-30 disabled:cursor-not-allowed">◀ Prev</button>
-              <button onClick={() => setPage(pageSafe + 1)} disabled={pageSafe >= totalPages - 1}  className="px-2 py-1 rounded-md border border-white/[0.08] text-slate-300 hover:bg-white/[0.06] transition-all disabled:opacity-30 disabled:cursor-not-allowed">Next ▶</button>
-              <button onClick={() => setPage(totalPages - 1)} disabled={pageSafe >= totalPages - 1} className="px-2 py-1 rounded-md border border-white/[0.08] text-slate-300 hover:bg-white/[0.06] transition-all disabled:opacity-30 disabled:cursor-not-allowed">Last ⏭</button>
-            </div>
-          </div>
-        )}
-      </div>
+<div class="header">
+  <div>
+    <div class="co-name">${company}</div>
+    <div class="co-info">
+      ${settings.address ? settings.address + "<br>" : ""}
+      ${settings.gst ? "GSTIN: <strong>" + settings.gst + "</strong><br>" : ""}
+      ${settings.phone ? "Phone: " + settings.phone : ""}
     </div>
-  );
+  </div>
+  <div class="po-right">
+    <div class="po-label">PURCHASE ORDER</div>
+    <div class="po-num">${po.id}</div>
+    <div class="po-badge">${(po.status || "").toUpperCase()}</div>
+  </div>
+</div>
+
+<div class="two-col">
+  <div class="box">
+    <div class="box-title">Bill To / Vendor</div>
+    <div class="box-name">${po.vendor}</div>
+    ${vendor?.contactPerson ? `<div class="info-row"><span class="ik">Contact</span><span class="iv">${vendor.contactPerson}</span></div>` : ""}
+    ${vendor?.phone ? `<div class="info-row"><span class="ik">Phone</span><span class="iv">${vendor.phone}</span></div>` : ""}
+    ${vendor?.gst ? `<div class="info-row"><span class="ik">GSTIN</span><span class="iv" style="font-family:monospace">${vendor.gst}</span></div>` : ""}
+    ${vendor?.address ? `<div class="info-row"><span class="ik">Address</span><span class="iv">${vendor.address}</span></div>` : ""}
+    ${vendor?.paymentTerms ? `<div class="info-row"><span class="ik">Payment</span><span class="iv">${vendor.paymentTerms}</span></div>` : ""}
+  </div>
+  <div class="box">
+    <div class="box-title">PO Details</div>
+    <div class="info-row"><span class="ik">PO Number</span><span class="iv" style="font-family:monospace">${po.id}</span></div>
+    <div class="info-row"><span class="ik">PO Date</span><span class="iv">${po.date || "—"}</span></div>
+    <div class="info-row"><span class="ik">Expected By</span><span class="iv">${po.eta || po.delivery || "—"}</span></div>
+    <div class="info-row"><span class="ik">Priority</span><span class="iv" style="text-transform:capitalize">${po.priority || "normal"}</span></div>
+    <div class="info-row"><span class="ik">Status</span><span class="iv" style="text-transform:capitalize">${po.status || "—"}</span></div>
+  </div>
+</div>
+
+<div class="sec-lbl">Items Ordered</div>
+<div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th style="width:28px">#</th>
+      <th>Item Name / Code</th>
+      <th class="c" style="width:55px">Unit</th>
+      <th class="r" style="width:50px">Qty</th>
+      <th class="r" style="width:85px">Rate (₹)</th>
+      <th class="r" style="width:90px">Amount (₹)</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <table class="totals">
+    <tbody>
+      <tr><td style="color:#666">Subtotal</td><td style="text-align:right;font-weight:600">₹${subtotal.toLocaleString("en-IN")}</td></tr>
+      <tr><td style="color:#666">GST (18%)</td><td style="text-align:right;font-weight:600">₹${gst.toLocaleString("en-IN")}</td></tr>
+      <tr class="grand"><td>Grand Total</td><td style="text-align:right">₹${total.toLocaleString("en-IN")}</td></tr>
+    </tbody>
+  </table>
+</div>
+
+${po.notes ? `<div class="notes"><strong>Notes / Terms &amp; Conditions:</strong><br>${po.notes}</div>` : ""}
+
+<div class="footer">
+  <div><div class="sig-lbl">Prepared By</div><div class="sig-line">Name &amp; Signature</div></div>
+  <div><div class="sig-lbl">Approved By</div><div class="sig-line">Manager / Director</div></div>
+</div>
+
+<script>window.onload=function(){window.print()};<\/script>
+</body></html>`;
+
+  const w = window.open("", `PO-${po.id}`, "width=960,height=720");
+  if (!w) { alert("Pop-up blocked. Please allow pop-ups to download the PDF."); return; }
+  w.document.write(html);
+  w.document.close();
 }
 
 // ─── ORDER PIPELINE PAGE ─────────────────────────────────────────────────────
 
-function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCreatePO, onReceivePO, onConfirmOrder, onFollowUpDone, onDeletePO, pendingLog = [], onFulfillPending, handleUpdateStock, inwardLog = [], canDo = () => true, settings = {}, isSuperAdmin = false, onReverseReceive, onSetItemDefaultRate }) {
+function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCreatePO, onReceivePO, onConfirmOrder, onFollowUpDone, onDeletePO, pendingLog = [], onFulfillPending, handleUpdateStock, inwardLog = [], canDo = () => true, settings = {}, isSuperAdmin = false, onReverseReceive }) {
   // modal states
   const [rejectModal,  setRejectModal]  = useState(null); // poId
   const [rejectReason, setRejectReason] = useState("");
@@ -6061,56 +4945,6 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
   const [reverseReason,setReverseReason]= useState("");
   const [reverseErr,   setReverseErr]   = useState("");
   const [qtyInput,     setQtyInput]     = useState("");
-  const [waToast,      setWaToast]      = useState(null);
-
-  // Low Stock collapse — default to the collapsed view so a 400-item list
-  // doesn't push the rest of the pipeline columns off the screen. Persists in
-  // localStorage so the operator's preference survives reloads.
-  const LOW_STOCK_COLLAPSED_LIMIT = 10;
-  const LOW_STOCK_KEY = "erp_pipeline_lowstock_expanded";
-  const [lowStockExpanded, setLowStockExpanded] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try { return localStorage.getItem(LOW_STOCK_KEY) === "1"; } catch { return false; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem(LOW_STOCK_KEY, lowStockExpanded ? "1" : "0"); } catch {}
-  }, [lowStockExpanded]);
-
-  // Feature 6 (2026-06-01h): PO Search Center. Additive view-mode toggle —
-  // "pipeline" is the existing card flow, "search" is the new ERP table that
-  // scales to 100,000+ POs. Persists across reloads.
-  const VIEW_MODE_KEY = "erp_pipeline_view_mode";
-  const [viewMode, setViewMode] = useState(() => {
-    if (typeof window === "undefined") return "pipeline";
-    try { return localStorage.getItem(VIEW_MODE_KEY) === "search" ? "search" : "pipeline"; } catch { return "pipeline"; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem(VIEW_MODE_KEY, viewMode); } catch {}
-  }, [viewMode]);
-  // Search state — kept here so switching view modes doesn't lose filters.
-  const [searchQ,            setSearchQ]            = useState("");
-  const [searchStatus,       setSearchStatus]       = useState("all");
-  const [searchPurchaseType, setSearchPurchaseType] = useState("all");
-  const [searchDateFrom,     setSearchDateFrom]     = useState("");
-  const [searchDateTo,       setSearchDateTo]       = useState("");
-  const [searchPage,         setSearchPage]         = useState(0);
-  const SEARCH_PAGE_SIZE = 25;
-
-  // Phase 2 — Vendor-first PO wizard. Additive entry point ("📦 Create Vendor PO"
-  // button) that opens Step 1 (Company) → Step 2 (Vendor) → POModal pre-filled.
-  // The existing "+ New PO" and per-item "Order Now" buttons are unchanged.
-  const [vendorWizStep,      setVendorWizStep]      = useState(null);  // null | "company" | "vendor"
-  const [vendorWizCompanyId, setVendorWizCompanyId] = useState(null);
-  const [vendorWizVendor,    setVendorWizVendor]    = useState(null);  // vendor NAME
-
-  // WhatsApp PO confirmation — opens the exact vendor chat with a prefilled message,
-  // or toasts when the vendor's mobile number is missing/invalid.
-  const sendWA = (po) => {
-    const vendor  = vendorList.find((x) => x.name === po.vendor);
-    const company = getActiveCompany(settings, po?.companyId);
-    const res = sendPOWhatsApp(po, vendor, company?.name);
-    if (!res.ok) { setWaToast(waErrorToast(res.error)); setTimeout(() => setWaToast(null), 3500); }
-  };
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
 
@@ -6185,51 +5019,9 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         code: item.code, name: item.name, category: item.category || Object.keys(items).find(cat => items[cat]?.some(i=>i.code===item.code)) || "Other",
         unit: item.unit, qty: suggestedQty, rate: item.lastPurchaseRate || 0,
         amount: suggestedQty * (item.lastPurchaseRate || 0),
-        // Phase 3 — snapshot design (unchecked by default; user opts in via checkbox)
-        designFile: item.designFile || "", designName: item.designName || "", attachDesign: false,
       }],
     });
     setShowCreatePO(true);
-  };
-
-  // ── Phase 2 — Vendor-first PO wizard helpers ──────────────────────────────
-  // Vendors that have ≥1 PREFERRED low-stock item, sorted by item count desc.
-  // Approved/Backup links do NOT count (Rule 1). The result drives Step 2.
-  const vendorsWithPreferredLowStock = (() => {
-    const counts = new Map();
-    for (const it of allItems) {
-      if (it.status !== "critical" && it.status !== "warning") continue;
-      const pref = (it.vendorLinks || []).find((l) => l.role === "Preferred");
-      if (!pref) continue;
-      const v = vendorList.find((x) => x.id === pref.vendorId);
-      if (!v) continue;
-      counts.set(v.name, (counts.get(v.name) || 0) + 1);
-    }
-    return [...counts.entries()]
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  })();
-  // Simplified per operator request: the wizard no longer asks for a company up-front.
-  // The Active Company is used by default; the user can still change it from POModal's
-  // "Issued By (Company)" selector if a one-off override is needed.
-  const openVendorWizard = () => {
-    const cfg = normalizePOSettings(settings);
-    setVendorWizCompanyId(cfg.activeCompanyId);
-    setVendorWizVendor(null);
-    setVendorWizStep("vendor");
-  };
-  const cancelVendorWizard = () => { setVendorWizStep(null); setVendorWizVendor(null); };
-  const confirmWizVendor   = () => {
-    if (!vendorWizVendor) return;
-    // Hand off to POModal. Vendor stays editable; companyId is honored by POModal init.
-    setCreatePrefill({
-      vendor:        vendorWizVendor,
-      companyId:     vendorWizCompanyId,
-      vendorWizard:  true,
-      lineItems:     [],
-    });
-    setShowCreatePO(true);
-    setVendorWizStep(null);
   };
 
   // ── sub-components ──────────────────────────────────────────────────────────
@@ -6267,39 +5059,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         </div>
       )}
 
-      {waToast && (
-        <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#2a1216,#1a0c0e)", border: "1px solid rgba(239,68,68,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
-          <span className="text-lg">⚠️</span>
-          <div>
-            <div className="text-xs font-black text-white">{waToast}</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Add a valid mobile number in Vendor Master.</div>
-          </div>
-          <button onClick={() => setWaToast(null)} className="ml-2 text-slate-600 hover:text-slate-300 text-xs">✕</button>
-        </div>
-      )}
-
       <Topbar title="Order Pipeline" subtitle={`${lowStock.length} low stock · ${approvalPOs.length} pending approval · ${makeOrderPOs.length} ready to order · ${enrichedFU.length} follow-ups · ${receivedPOs.length} received`}>
-        {/* View-mode toggle — Pipeline (cards) vs Search (table). Card view stays
-            the default; Search is the new ERP table that scales to 100k+ POs. */}
-        <div className="flex gap-0.5 bg-white/[0.03] rounded-lg p-0.5 border border-white/[0.06]">
-          {[
-            { k: "pipeline", label: "📋 Pipeline" },
-            { k: "search",   label: "🔍 Search" },
-          ].map(({ k, label }) => (
-            <button key={k} onClick={() => setViewMode(k)}
-                    className={`px-2.5 py-1 rounded-md text-[10.5px] font-bold transition-all ${viewMode === k ? "bg-blue-500/20 text-blue-300 border border-blue-500/40" : "text-slate-500 hover:text-slate-300"}`}>
-              {label}
-            </button>
-          ))}
-        </div>
-        {canDo("pipeline","create") && (
-          <button onClick={openVendorWizard}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
-                  style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", borderColor: "rgba(34,197,94,0.5)" }}>
-            📦 Create Vendor PO
-          </button>
-        )}
         {canDo("pipeline","create") && (
           <button onClick={() => { setCreatePrefill(null); setShowCreatePO(true); }}
                   className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
@@ -6309,19 +5069,6 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         )}
       </Topbar>
 
-      {viewMode === "search" ? (
-        <POSearchCenter
-          pos={pos}
-          searchQ={searchQ} setSearchQ={setSearchQ}
-          searchStatus={searchStatus} setSearchStatus={setSearchStatus}
-          searchPurchaseType={searchPurchaseType} setSearchPurchaseType={setSearchPurchaseType}
-          searchDateFrom={searchDateFrom} setSearchDateFrom={setSearchDateFrom}
-          searchDateTo={searchDateTo} setSearchDateTo={setSearchDateTo}
-          page={searchPage} setPage={setSearchPage}
-          pageSize={SEARCH_PAGE_SIZE}
-          onOpenPO={(po) => setViewPO(po)}
-        />
-      ) : (
       <div className="flex-1 overflow-x-auto overflow-y-hidden p-5">
         <div className="flex gap-4 h-full" style={{ minWidth: "1160px" }}>
 
@@ -6334,10 +5081,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                   <div className="text-3xl mb-2">✅</div>All stock levels healthy
                 </div>
               )}
-              {/* Collapse to first 10 items by default — a 400-item low-stock
-                  list would otherwise dominate the viewport. State persists in
-                  localStorage so the operator's preference survives reloads. */}
-              {(lowStockExpanded ? lowStock : lowStock.slice(0, LOW_STOCK_COLLAPSED_LIMIT)).map(item => {
+              {lowStock.map(item => {
                 const poPct          = item.min > 0 ? Math.min(100, Math.round((item.stock / item.min) * 100)) : 0;
                 const shortage       = Math.max(0, item.min - item.stock);
                 const recommendedQty = Math.max(item.min * 2 - item.stock, item.min);
@@ -6412,16 +5156,6 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                   </div>
                 );
               })}
-              {/* "+N more items" toggle — only shown when there's more to reveal.
-                  Default state is collapsed so the table stays above the fold. */}
-              {lowStock.length > LOW_STOCK_COLLAPSED_LIMIT && (
-                <button onClick={() => setLowStockExpanded((v) => !v)}
-                        className="w-full text-[10px] font-bold py-2 rounded-lg text-red-300 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-all">
-                  {lowStockExpanded
-                    ? `▲ Show fewer (hide ${lowStock.length - LOW_STOCK_COLLAPSED_LIMIT})`
-                    : `▼ +${lowStock.length - LOW_STOCK_COLLAPSED_LIMIT} more items`}
-                </button>
-              )}
             </div>
           </div>
 
@@ -6464,6 +5198,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               {makeOrderPOs.length === 0 && <div className="text-center py-10 text-[11px] text-slate-600"><div className="text-3xl mb-2">📋</div>No approved POs to order</div>}
               {makeOrderPOs.map(po => {
                 const v = vendorList.find(x => x.name === po.vendor);
+                const wa = v?.phone?.replace(/\D/g,"");
                 return (
                   <div key={po.id} className={`${card} border-blue-500/20`} style={{ background: "#0e1117" }}>
                     <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -6475,7 +5210,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                     <div className="text-[9px] text-slate-500 mb-2">ETA: {po.delivery||"—"}</div>
                     <div className="flex gap-1 mb-1.5">
                       {v?.phone && <a href={`tel:${v.phone}`} className="flex-1 text-center text-[9px] font-bold py-1.5 rounded-lg text-blue-400 border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-all">📞 Call</a>}
-                      <button onClick={() => sendWA(po)} className="flex-1 text-center text-[9px] font-bold py-1.5 rounded-lg text-green-400 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-all">💬 WA</button>
+                      {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="flex-1 text-center text-[9px] font-bold py-1.5 rounded-lg text-green-400 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-all">💬 WA</a>}
                     </div>
                     {canDo("pipeline","ordered") && (
                       <button onClick={() => { setMoModal(po); setEta(""); setEtaCustom(""); }}
@@ -6498,6 +5233,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               {enrichedFU.map(f => {
                 const po = pos.find(p => p.id === f.poId);
                 const v  = vendorList.find(x => x.name === f.vendor);
+                const wa = v?.phone?.replace(/\D/g,"");
                 return (
                   <div key={f.id} className={`${card} ${f.fstat==="fu-overdue"?"border-red-500/30":f.fstat==="fu-due"?"border-yellow-500/30":"border-purple-500/20"}`}
                        style={{ background: "#0e1117" }}>
@@ -6533,7 +5269,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                     </div>
                     <div className="flex gap-1 mb-1.5">
                       {v?.phone && <a href={`tel:${v.phone}`} className="flex-1 text-center text-[9px] font-bold py-1.5 rounded-lg text-blue-400 border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-all">📞 Call</a>}
-                      <button onClick={() => sendWA(po || { id: f.poId, vendor: f.vendor })} className="flex-1 text-center text-[9px] font-bold py-1.5 rounded-lg text-green-400 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-all">💬 WA</button>
+                      {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="flex-1 text-center text-[9px] font-bold py-1.5 rounded-lg text-green-400 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-all">💬 WA</a>}
                     </div>
                     <button onClick={() => { setFuModal(f); setFuFreq(1); setFuCustom(""); }}
                             className="w-full text-[9px] font-bold py-1.5 rounded-lg text-purple-400 border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 transition-all mb-1.5">
@@ -6594,7 +5330,6 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
 
         </div>
       </div>
-      )}
 
       {/* ── Create PO Modal ── */}
       {showCreatePO && (
@@ -6604,8 +5339,6 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
           items={items}
           prefill={createPrefill}
           pos={pos}
-          settings={settings}
-          onSetItemDefaultRate={onSetItemDefaultRate}
           onSave={(data) => {
             onCreatePO(data);
             setShowCreatePO(false); setCreatePrefill(null);
@@ -6614,70 +5347,10 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         />
       )}
 
-      {/* Wizard Step 1 (Select Company) was removed — the Active Company from Settings is
-          used automatically. POModal still lets the user override via its "Issued By
-          (Company)" selector if they need a one-off change. */}
-
-      {/* ── Vendor PO Wizard — Select Vendor (preferred low-stock only) ── */}
-      {vendorWizStep === "vendor" && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4"
-             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
-             onClick={(e) => e.target === e.currentTarget && cancelVendorWizard()}>
-          <div className="w-full max-w-md rounded-2xl p-6 space-y-4"
-               style={{ background: "#0d1018", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base"
-                   style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.35)" }}>📦</div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-black text-white">Select Vendor</div>
-                <div className="text-[10px] text-slate-500 mt-0.5">Vendors with preferred low-stock items, sorted by item count.</div>
-              </div>
-              <button onClick={cancelVendorWizard} className="text-slate-500 hover:text-white text-lg leading-none">✕</button>
-            </div>
-            {vendorsWithPreferredLowStock.length === 0 ? (
-              <div className="py-6 text-center">
-                <div className="text-3xl mb-2">✅</div>
-                <div className="text-sm font-bold text-white mb-1">No low-stock items with a preferred vendor</div>
-                <div className="text-[11px] text-slate-500">Either everything is in safe stock, or low-stock items don't have a Preferred vendor link yet.</div>
-              </div>
-            ) : (
-              <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
-                {vendorsWithPreferredLowStock.map((v) => {
-                  const sel = vendorWizVendor === v.name;
-                  return (
-                    <button key={v.name} onClick={() => setVendorWizVendor(v.name)}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all"
-                            style={{ background: sel ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.03)", border: `1px solid ${sel ? "rgba(34,197,94,0.45)" : "rgba(255,255,255,0.08)"}` }}>
-                      <span className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ background: sel ? "#16a34a" : "transparent", border: `1.5px solid ${sel ? "#16a34a" : "rgba(255,255,255,0.25)"}` }}>
-                        {sel && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                      </span>
-                      <span className="text-[12px] font-bold text-white flex-1 truncate">{v.name}</span>
-                      <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full flex-shrink-0">
-                        {v.count} low-stock item{v.count !== 1 ? "s" : ""}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            <div className="flex gap-2 pt-1">
-              <button onClick={cancelVendorWizard}
-                      className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-all"
-                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>Cancel</button>
-              <button onClick={confirmWizVendor} disabled={!vendorWizVendor}
-                      className="flex-1 py-2.5 rounded-xl text-xs font-black text-white transition-all disabled:opacity-50"
-                      style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.35)" }}>
-                Open PO →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── View PO Modal ── */}
       {viewPO && (() => {
         const vnd      = vendorList.find(x => x.name === viewPO.vendor);
+        const wa       = vnd?.phone?.replace(/\D/g, "");
         const subtotal = (viewPO.lineItems || []).reduce((s, li) => s + (li.amount || 0), 0);
         const poGst    = viewPO.gst != null ? viewPO.gst : Math.round(subtotal * 0.18);
         const poTotal  = viewPO.amount || (subtotal + poGst);
@@ -6708,7 +5381,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {vnd?.phone && <a href={`tel:${vnd.phone}`} className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg text-blue-400 border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-all">📞 Call</a>}
-                  <button onClick={() => sendWA(viewPO)} className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg text-green-400 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-all">💬 WhatsApp</button>
+                  {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg text-green-400 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-all">💬 WhatsApp</a>}
                   <button onClick={() => generatePOPdf(viewPO, vnd, settings)}
                           className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg text-orange-400 border border-orange-500/30 bg-orange-500/10 hover:bg-orange-500/20 transition-all">
                     📄 PDF
@@ -7134,7 +5807,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
   const [notes,        setNotes]        = useState("");
   const [toast,        setToast]        = useState(null);
   const [errors,       setErrors]       = useState({});
-  const [submitting,   setSubmitting]   = useState(false);
+  const busyRef = useRef(false); // guards against duplicate-submit on rapid double-click
 
   const allFlatItems = Object.entries(items).flatMap(([cat, list]) =>
     list.map((item) => ({ ...item, category: cat }))
@@ -7154,8 +5827,8 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
     </div>
   );
 
-  const handleSubmit = async () => {
-    if (submitting) return;                 // duplicate-inward guard
+  const handleSubmit = () => {
+    if (busyRef.current) return;
     const n = parseInt(qty, 10);
     const e = {};
     if (!selectedCode)             e.item = "Select an item";
@@ -7163,23 +5836,19 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
     setErrors(e);
     if (Object.keys(e).length > 0) return;
 
-    setSubmitting(true);
-    try {
-      const res = await handleUpdateStock(selectedItem.category, selectedItem.code, n, "Inward");
-      if (res && res.success === false) return;   // movement rejected — error toast already shown, don't log a phantom inward
-      if (onInwardComplete) onInwardComplete(selectedItem.code, selectedItem.category, n);
-      const entry = {
-        id: Date.now(), date: fmtDate(new Date()),
-        vendor: vendor || "—", item: selectedItem.name,
-        code: selectedItem.code, unit: selectedItem.unit, qty: n, notes: notes || "—",
-      };
-      if (onAddInward) onAddInward(entry);
-      setToast(entry);
-      setTimeout(() => setToast(null), 3500);
-      setSelectedCode(""); setQty(""); setNotes(""); setVendor(""); setErrors({});
-    } finally {
-      setSubmitting(false);
-    }
+    busyRef.current = true;
+    handleUpdateStock(selectedItem.category, selectedItem.code, n, "Inward");
+    if (onInwardComplete) onInwardComplete(selectedItem.code, selectedItem.category, n);
+    const entry = {
+      id: Date.now(), date: fmtDate(new Date()),
+      vendor: vendor || "—", item: selectedItem.name,
+      code: selectedItem.code, unit: selectedItem.unit, qty: n, notes: notes || "—",
+    };
+    if (onAddInward) onAddInward(entry);
+    setToast(entry);
+    setTimeout(() => setToast(null), 3500);
+    setSelectedCode(""); setQty(""); setNotes(""); setVendor(""); setErrors({});
+    setTimeout(() => { busyRef.current = false; }, 400);
   };
 
   return (
@@ -7212,23 +5881,23 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
             {/* Vendor */}
             <div>
               <ILabel text="Vendor" />
-              <VendorSearchSelect
-                vendors={vendorList}
-                value={vendor}
-                onChange={(name) => setVendor(name)}
-                placeholder="Search vendor by name, phone or city…"
-              />
+              <select value={vendor} onChange={(e) => setVendor(e.target.value)} className={inpCls(false)} style={selStyle}>
+                <option value="">— Select Vendor —</option>
+                {vendorList.map((v) => <option key={v.id} value={v.name}>{v.name}</option>)}
+              </select>
             </div>
 
             {/* Item */}
             <div>
               <ILabel text="Select Item" req />
-              <ItemSearchSelect
-                items={Object.entries(items).flatMap(([cat, list]) => list.map((it) => ({ ...it, category: cat })))}
-                value={selectedCode}
-                onChange={setSelectedCode}
-                showStock={true}
-              />
+              <select value={selectedCode} onChange={(e) => setSelectedCode(e.target.value)} className={inpCls(errors.item)} style={selStyle}>
+                <option value="">— Select Item —</option>
+                {Object.entries(items).flatMap(([cat, list]) =>
+                  list.map((item) => (
+                    <option key={item.code} value={item.code}>[{cat}] {item.code} — {item.name}</option>
+                  ))
+                )}
+              </select>
               {errors.item && <div className="text-[10px] text-red-400 mt-1">{errors.item}</div>}
             </div>
 
@@ -7318,10 +5987,10 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
           <div className="mt-5 flex justify-end gap-2">
             <Btn variant="ghost" size="sm" onClick={() => { setSelectedCode(""); setQty(""); setNotes(""); setVendor(""); setErrors({}); }}>Clear</Btn>
             {canDo("inward","submit") && (
-              <button onClick={handleSubmit} disabled={submitting}
-                      className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white border transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              <button onClick={handleSubmit}
+                      className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white border transition-all duration-200"
                       style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", borderColor: "rgba(34,197,94,0.5)", boxShadow: "0 0 16px rgba(34,197,94,0.3)" }}>
-                {submitting ? "⏳ Submitting…" : "📥 Submit Inward"}
+                📥 Submit Inward
               </button>
             )}
           </div>
@@ -7376,7 +6045,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
 
 // ─── BOM DRAWER ───────────────────────────────────────────────────────────────
 
-function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock, onClose, onIssue, onUpdateBOM, onRenameBOM, allBomKeys = [], onAfterRename, serialNo = "", rackReady = 0 }) {
+function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock, onClose, onIssue, onUpdateBOM, serialNo = "" }) {
   const [search,       setSearch]       = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [catCollapsed, setCatCollapsed] = useState({});
@@ -7384,25 +6053,11 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   const [checked,      setChecked]      = useState({});
   const [editMode,     setEditMode]     = useState(false);
   const [editItems,    setEditItems]    = useState(() => bom.items.map((i) => ({ ...i })));
-  const [editRackCap,  setEditRackCap]  = useState(() => bom.rackCapacity ?? 0);
-  const [editKey,      setEditKey]      = useState(bomKey);
-  const [editLabel,    setEditLabel]    = useState(bom.label || "");
-  const [renameErr,    setRenameErr]    = useState("");
-  const [issuing,      setIssuing]      = useState(false);
   const [addCode,      setAddCode]      = useState("");
   const [addBaseQty,   setAddBaseQty]   = useState("1");
   const [addErr,       setAddErr]       = useState("");
   const [issueNote,    setIssueNote]    = useState("");
   const [confirmIssue, setConfirmIssue] = useState(false);
-  // Feature 1 (2026-06-01h, refined 2026-06-02c): destination for the issued
-  // build. Default "rack" preserves the existing workflow. "direct" skips the
-  // rack stage and lands the machine in Assembly so R&D / prototype / custom
-  // one-off jobs don't detour through rack-replenishment. The choice is now
-  // surfaced as a dedicated popup at commit time (showDestChoice) because the
-  // earlier inline radio in the summary bar was missed by operators.
-  const [destination,    setDestination]    = useState("rack");
-  const [showDestChoice, setShowDestChoice] = useState(false);
-  const [destError,      setDestError]      = useState("");      // surfaced inside the dest-choice popup when rack is full
 
   const allFlat  = Object.entries(items).flatMap(([cat, list]) => list.map((i) => ({ ...i, category: cat })));
   const findInv  = (code) => allFlat.find((i) => i.code === code);
@@ -7536,46 +6191,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     );
   };
 
-  // Rack tracking gate. The BOM definition's rackCapacity decides whether the
-  // operator is offered a choice at all:
-  //   capacity > 0 (rack-tracked BOM)  → show Save To Rack / Direct Production
-  //                                       popup, let the operator pick.
-  //   capacity = 0 or blank (no rack) → no rack card exists for this BOM, so
-  //                                       skip the popup and route straight to
-  //                                       Direct Production. Capacity is the
-  //                                       *configuration* signal, not a runtime
-  //                                       fallback.
-  // Single additional bypass: no serial (manual outward path) — there is no
-  // machine to route.
-  const rackTracked = Number(bom?.rackCapacity) > 0;
-  const doIssue = (chosenDest) => {
-    if (issuing) return;                    // duplicate production-issue guard
-    if (serialNo && !chosenDest) {
-      if (!rackTracked) {
-        // Capacity blank → auto-route. Skip the popup entirely and commit
-        // straight to direct production so capacity-blank BOMs flow directly
-        // into Active Builds without any rack detour.
-        return doIssue("direct");
-      }
-      setDestError("");
-      setShowDestChoice(true);
-      return;
-    }
-    const finalDest = chosenDest || destination || (rackTracked ? "rack" : "direct");
-    // Rack-capacity gate, scoped to the rack branch. Direct Production is
-    // intentionally NOT subject to this check — the rack being full is the
-    // exact case where operators need Direct Production as the escape hatch.
-    if (finalDest === "rack") {
-      const cap = Number(bom?.rackCapacity) || 0;
-      if (cap > 0 && rackReady >= cap) {
-        setDestError(`Rack is full (${rackReady} / ${cap}). Pick Direct Production, or start production / increase capacity to free a slot.`);
-        setShowDestChoice(true);
-        return;
-      }
-    }
-    setShowDestChoice(false);
-    setDestError("");
-    setIssuing(true);
+  const doIssue = () => {
     const issued = []; const pending = [];
     checkedE.forEach((item) => {
       if (item.issueQty > 0 && item.inv)
@@ -7583,7 +6199,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
       if (item.issueQty > 0) issued.push({ ...item });
       if (item.pendingQty > 0) pending.push({ ...item });
     });
-    onIssue({ bomKey, label: bom.label, units, issued, pending, note: issueNote, date: fmtDate(new Date()), serialNo, destination: finalDest });
+    onIssue({ bomKey, label: bom.label, units, issued, pending, note: issueNote, date: fmtDate(new Date()), serialNo });
     onClose();
   };
 
@@ -7597,35 +6213,8 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   };
 
   const saveBOMEdit = () => {
-    setRenameErr("");
-    const newKey   = (editKey || "").trim().toUpperCase().replace(/\s+/g, "-");
-    const newLabel = (editLabel || "").trim();
-    if (!newKey)   { setRenameErr("BOM Key is required"); return; }
-    if (!newLabel) { setRenameErr("Machine Model Name is required"); return; }
-    if (newKey !== bomKey && allBomKeys.some((k) => k === newKey)) {
-      setRenameErr("A BOM with this key already exists"); return;
-    }
-    // First save items + rack capacity under the existing key
-    onUpdateBOM(bomKey, {
-      ...bom,
-      items: editItems.filter((i) => i.qty > 0),
-      rackCapacity: Math.max(0, parseInt(editRackCap, 10) || 0),
-    });
-    // Then rename if key or label changed
-    if ((newKey !== bomKey || newLabel !== bom.label) && onRenameBOM) {
-      const res = onRenameBOM(bomKey, newKey, newLabel);
-      if (res?.success === false) { setRenameErr(res.error || "Rename failed"); return; }
-      if (newKey !== bomKey && onAfterRename) onAfterRename(newKey);
-    }
+    onUpdateBOM(bomKey, { ...bom, items: editItems.filter((i) => i.qty > 0) });
     setEditMode(false);
-  };
-
-  const resetEditState = () => {
-    setEditItems(bom.items.map((i) => ({ ...i })));
-    setEditRackCap(bom.rackCapacity ?? 0);
-    setEditKey(bomKey);
-    setEditLabel(bom.label || "");
-    setRenameErr("");
   };
 
   return (
@@ -7657,7 +6246,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             <button onClick={() => onUnitsChange(units + 1)} className="w-6 h-6 rounded text-sm font-bold text-slate-400 hover:text-white hover:bg-white/10 transition-all">+</button>
           </div>
 
-          <button onClick={() => { if (editMode) { setEditMode(false); resetEditState(); } else { resetEditState(); setEditMode(true); } }}
+          <button onClick={() => { if (editMode) { setEditMode(false); setEditItems(bom.items.map((i) => ({ ...i }))); } else setEditMode(true); }}
                   className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${editMode ? "bg-orange-500/10 text-orange-400 border-orange-500/30" : "bg-white/[0.04] text-slate-400 border-white/[0.1] hover:text-white"}`}>
             {editMode ? "✕ Cancel" : "✏️ Edit BOM"}
           </button>
@@ -7697,56 +6286,6 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               ✏️ Edit Mode — Modify items, quantities, then Save BOM to apply changes permanently.
             </div>
 
-            {/* Rename — BOM Key + Machine Model Name */}
-            <div className="rounded-xl p-4" style={{ background: "rgba(139,92,246,0.05)", border: "1px solid rgba(139,92,246,0.22)" }}>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-base">✏️</span>
-                <div className="text-[11px] font-bold text-white">BOM Identity</div>
-                <span className="text-[9px] text-purple-300 px-1.5 py-0.5 rounded-full" style={{ background: "rgba(139,92,246,0.15)" }}>Rename safe</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <div className="text-[10px] font-medium text-purple-200 mb-1.5">BOM Key</div>
-                  <input value={editKey} onChange={(e) => { setEditKey(e.target.value.toUpperCase()); setRenameErr(""); }}
-                    placeholder="e.g. KM-10"
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white font-mono outline-none modal-input" />
-                </div>
-                <div>
-                  <div className="text-[10px] font-medium text-purple-200 mb-1.5">Machine Model Name</div>
-                  <input value={editLabel} onChange={(e) => { setEditLabel(e.target.value); setRenameErr(""); }}
-                    placeholder="e.g. Kneading Machine 10L"
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white outline-none modal-input" />
-                </div>
-              </div>
-              <div className="text-[10px] text-slate-500 mt-2">
-                Renaming updates Machine Tracker, Outward log and Pending entries to match. Existing audit history is preserved.
-              </div>
-              {renameErr && <div className="text-[10px] text-red-400 mt-2">⚠ {renameErr}</div>}
-            </div>
-
-            {/* Rack Assignment + Capacity */}
-            <div className="rounded-xl p-4" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.2)" }}>
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-lg">📦</span>
-                <div className="flex-1 min-w-[160px]">
-                  <div className="text-[11px] font-bold text-white">Production Rack</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">Rack ID: <span className="font-mono text-slate-300">{bomKey}</span> · Used by Machine Tracker → Rack View</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Rack Capacity</label>
-                  <input type="number" min="0" step="1" value={editRackCap}
-                         onChange={(e) => setEditRackCap(e.target.value)}
-                         placeholder="0"
-                         className="w-24 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-sm font-bold text-white outline-none text-right modal-input"
-                         style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
-                  <span className="text-[10px] text-slate-500">slots</span>
-                </div>
-              </div>
-              <div className="text-[10px] text-slate-500 mt-2">
-                Set to <span className="text-slate-300 font-bold">0</span> if this model doesn't use a rack. Replenishment alerts fire when Ready &lt; Capacity.
-              </div>
-            </div>
-
             <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
               <div className="grid gap-0 px-4 py-2 text-[10px] font-medium text-slate-500 uppercase tracking-wide"
                    style={{ gridTemplateColumns: "1fr 100px 120px 60px", background: "rgba(255,255,255,0.02)" }}>
@@ -7782,15 +6321,13 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)" }}>
               <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wide mb-3">+ Add Component</div>
               <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex-1 min-w-[200px]">
-                  <ItemSearchSelect
-                    items={allFlat}
-                    value={addCode}
-                    onChange={setAddCode}
-                    excludeCodes={editItems.map((e) => e.code)}
-                    placeholder="Search inventory item by name or code…"
-                  />
-                </div>
+                <select value={addCode} onChange={(e) => setAddCode(e.target.value)}
+                        className="flex-1 min-w-[200px] bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none" style={selStyle}>
+                  <option value="">— Select inventory item —</option>
+                  {allFlat.filter((i) => !editItems.some((e) => e.code === i.code)).map((i) => (
+                    <option key={i.code} value={i.code}>[{i.category}] {i.code} — {i.name}</option>
+                  ))}
+                </select>
                 <div className="flex items-center gap-2">
                   <input type="number" min="0.1" step="0.1" value={addBaseQty} onChange={(e) => setAddBaseQty(e.target.value)}
                          placeholder="Qty" className="w-20 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none modal-input"
@@ -7803,7 +6340,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             </div>
 
             <div className="flex gap-3 pt-2">
-              <button onClick={() => { setEditMode(false); resetEditState(); }}
+              <button onClick={() => { setEditMode(false); setEditItems(bom.items.map((i) => ({ ...i }))); }}
                       className="text-xs font-bold text-slate-400 px-5 py-2.5 rounded-xl border border-white/[0.08] hover:text-white hover:border-white/20 transition-all">Discard Changes</button>
               <button onClick={saveBOMEdit}
                       className="text-xs font-black text-white px-8 py-2.5 rounded-xl transition-all"
@@ -7841,10 +6378,6 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             <input value={issueNote} onChange={(e) => setIssueNote(e.target.value)}
                    placeholder="Issue reference / note (optional)..."
                    className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-4 py-2 text-xs text-slate-300 placeholder-slate-600 outline-none focus:border-blue-500/30" />
-            {/* The inline destination radio was removed (2026-06-02c) because
-                operators couldn't see it. The destination choice now appears as
-                a dedicated popup at commit time — see "Destination popup" below
-                near doIssue. */}
           </div>
           {confirmIssue && hasOverIssue && (
             <div className="mx-6 mt-2 px-4 py-2.5 rounded-xl" style={{ background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.28)" }}>
@@ -7891,68 +6424,12 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                   : <span className="text-[10px] font-bold text-orange-400">Confirm issue?</span>
                 }
                 <button onClick={() => setConfirmIssue(false)} className="text-xs font-bold text-slate-500 px-3 py-2 rounded-lg border border-white/[0.08] hover:text-white transition-all">No</button>
-                <button onClick={() => doIssue()} disabled={issuing} className="text-xs font-black text-white px-5 py-2 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                <button onClick={doIssue} className="text-xs font-black text-white px-5 py-2 rounded-xl transition-all"
                         style={{ background: hasOverIssue ? "linear-gradient(135deg,#d97706,#b45309)" : "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: hasOverIssue ? "0 0 14px rgba(217,119,6,0.4)" : "0 0 14px rgba(34,197,94,0.3)" }}>
-                  {issuing ? "⏳ Issuing…" : hasOverIssue ? "⚠ Confirm Over-Issue" : "✓ Confirm Issue"}
+                  {hasOverIssue ? "⚠ Confirm Over-Issue" : "✓ Confirm Issue"}
                 </button>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Destination popup (2026-06-02c) ─────────────────────────────────
-          Surfaces the rack-vs-direct choice as an unmistakable two-button
-          modal. Triggered by doIssue() when there's a serial number and no
-          destination has been chosen yet. Either button commits the issue
-          with the chosen destination. */}
-      {showDestChoice && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4"
-             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
-             onClick={(e) => e.target === e.currentTarget && !issuing && setShowDestChoice(false)}>
-          <div className="w-full max-w-md rounded-2xl overflow-hidden"
-               style={{ background: "#0d1018", border: "1px solid rgba(59,130,246,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
-            <div className="px-6 py-5 border-b border-white/[0.08]"
-                 style={{ background: "linear-gradient(90deg,rgba(59,130,246,0.10),rgba(99,102,241,0.05))" }}>
-              <div className="text-sm font-black text-white">Where should this build go?</div>
-              <div className="text-[11px] text-slate-500 mt-0.5">
-                {bomKey}{serialNo ? ` · S/N ${serialNo}` : ""}
-              </div>
-            </div>
-            {destError && (
-              <div className="mx-5 mt-4 px-3 py-2 rounded-lg text-[11px] font-semibold"
-                   style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
-                ⚠ {destError}
-              </div>
-            )}
-            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button onClick={() => doIssue("rack")} disabled={issuing} autoFocus
-                      className="text-left rounded-xl p-4 transition-all border disabled:opacity-50"
-                      style={{ background: "rgba(34,197,94,0.08)", borderColor: "rgba(34,197,94,0.4)" }}>
-                <div className="text-2xl mb-1.5">📦</div>
-                <div className="text-sm font-black text-emerald-300 mb-1">Save To Rack</div>
-                <div className="text-[10px] text-slate-400 leading-relaxed">
-                  Default flow. Sits on the rack until an operator starts production from the rack view.
-                </div>
-              </button>
-              <button onClick={() => doIssue("direct")} disabled={issuing}
-                      className="text-left rounded-xl p-4 transition-all border disabled:opacity-50"
-                      style={{ background: "rgba(139,92,246,0.08)", borderColor: "rgba(139,92,246,0.4)" }}>
-                <div className="text-2xl mb-1.5">▶</div>
-                <div className="text-sm font-black text-purple-300 mb-1">Direct Production</div>
-                <div className="text-[10px] text-slate-400 leading-relaxed">
-                  Skips rack — machine appears in Active Builds at the Assembly stage immediately. For R&D, prototype, custom builds.
-                </div>
-              </button>
-            </div>
-            <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between"
-                 style={{ background: "rgba(0,0,0,0.35)" }}>
-              <div className="text-[10px] text-slate-500">Choose a destination to commit the issue.</div>
-              <button onClick={() => !issuing && setShowDestChoice(false)} disabled={issuing}
-                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
-                Cancel
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -7962,23 +6439,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
 // ─── OUTWARD PAGE ─────────────────────────────────────────────────────────────
 
-function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateBOM, onRenameBOM, outwardLog, onAddOutward, pendingLog, onClearPending, onCreateMachine, machineLog = [], canDo = () => true, onRemoveRackMachine, onDuplicateBOM, onDeleteBOM, computeBOMDeletionInfo }) {
-  // Feature 3: confirm + remove rack machine. The button only appears when a
-  // remover prop is provided AND the operator has the permission. Stays in
-  // local state so the confirmation persists across re-renders of the modal.
-  const [removeRackConfirm, setRemoveRackConfirm] = useState(null); // { machineId, serialNo, bomKey }
-  // 2026-06-02d — BOM card actions menu (⋮) state. `actionsKey` is the open
-  // card; `confirmDeleteBOM` is the safe-delete confirmation modal.
-  const [actionsKey,       setActionsKey]       = useState(null);
-  const [confirmDeleteBOM, setConfirmDeleteBOM] = useState(null); // { key, info }
-  const [bomActionToast,   setBomActionToast]   = useState(null);
-  // Close the actions menu on any outside click.
-  useEffect(() => {
-    if (!actionsKey) return;
-    const close = () => setActionsKey(null);
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [actionsKey]);
+function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, outwardLog, onAddOutward, pendingLog, onClearPending, onCreateMachine, canDo = () => true }) {
   const [openBOM,       setOpenBOM]       = useState(null);
   const [activeSerial,  setActiveSerial]  = useState("");
   const [serialModal,   setSerialModal]   = useState(null); // bomKey waiting for S/N
@@ -7990,15 +6451,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
   const [manualDept,    setManualDept]    = useState("");
   const [manualNotes,   setManualNotes]   = useState("");
   const [manualError,   setManualError]   = useState("");
-  const [manualBusy,    setManualBusy]    = useState(false);
   const [toast,         setToast]         = useState(null);
-  // Create BOM modal state
-  const [showCreate,    setShowCreate]    = useState(false);
-  const [createForm,    setCreateForm]    = useState({ key: "", label: "", rackCapacity: "0" });
-  const [createItems,   setCreateItems]   = useState([]); // [{ code, qty }]
-  const [createAddCode, setCreateAddCode] = useState("");
-  const [createAddQty,  setCreateAddQty]  = useState("1");
-  const [createErr,     setCreateErr]     = useState("");
 
   const allFlat  = Object.entries(items).flatMap(([cat, list]) => list.map((i) => ({ ...i, category: cat })));
   const findItem = (code) => allFlat.find((i) => i.code === code);
@@ -8016,25 +6469,9 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
     </div>
   );
 
-  // Current rack occupancy for a model = machines still waiting at the "BOM Issued" stage.
-  const rackReadyCount = (key) => machineLog.filter((m) => m.bomKey === key && m.stage === "BOM Issued").length;
-
   const confirmSerial = () => {
-    const sn = pendingSerial.trim();
-    if (!sn) { setSerialErr("Serial number is required to proceed."); return; }
-    const key = serialModal;
-    // Rack-capacity gate moved into handleBOMIssue's rack branch — at this
-    // step the operator hasn't yet picked rack vs direct production, so we
-    // can no longer block here. A full rack still refuses a Save-To-Rack
-    // commit; Direct Production remains available.
-    // Block duplicate serials on ANY active machine for this model (rack OR
-    // in-production). Active = status !== "completed"; completed builds with
-    // the same serial are fine because they're history.
-    if (machineLog.some((m) => m.bomKey === key && m.status !== "completed" && (m.serialNo || "").toLowerCase() === sn.toLowerCase())) {
-      setSerialErr(`Serial "${sn}" is already active for ${key} (rack or in production).`);
-      return;
-    }
-    setActiveSerial(sn);
+    if (!pendingSerial.trim()) { setSerialErr("Serial number is required to proceed."); return; }
+    setActiveSerial(pendingSerial.trim());
     setOpenBOM(serialModal);
     setSerialModal(null);
     setSerialErr("");
@@ -8050,73 +6487,31 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
     };
     onAddOutward(entry, data.pending);
     if (data.serialNo && onCreateMachine) {
-      // Feature 1: forward the destination so the machine can skip the rack
-      // stage when the operator picked Direct Production (R&D / one-off builds).
-      onCreateMachine(data.bomKey, data.label, data.serialNo, data.date, id, data.destination || "rack");
+      onCreateMachine(data.bomKey, data.label, data.serialNo, data.date, id);
     }
-    const destSuffix = data.destination === "direct" ? " · direct production" : "";
-    showToast(`${data.bomKey} × ${data.units} issued${destSuffix}`, data.serialNo ? `S/N: ${data.serialNo}` : data.label);
+    showToast(`${data.bomKey} × ${data.units} issued`, data.serialNo ? `S/N: ${data.serialNo}` : data.label);
     setActiveSerial("");
   };
 
-  const handleManualSubmit = async () => {
-    if (manualBusy) return;                 // duplicate production-issue guard
+  const handleManualSubmit = () => {
     const n   = parseInt(manualQty, 10);
     const inv = findItem(manualCode);
     if (!inv || !n || n <= 0) { setManualError("Select an item and enter a valid quantity."); return; }
     if (inv.stock < n)        { setManualError(`Insufficient stock. Available: ${inv.stock} ${inv.unit}.`); return; }
     setManualError("");
-    setManualBusy(true);
-    try {
-      const res = await handleUpdateStock(findCat(manualCode), manualCode, -n, "Manual Out");
-      if (res && res.success === false) return;   // movement rejected — don't log a phantom outward
-      const entry = {
-        id: Date.now(), type: "manual", date: fmtDate(new Date()),
-        ref: "MANUAL", label: "Manual Outward",
-        note: manualNotes || "—", dept: manualDept || "—",
-        items: [{ code: manualCode, name: inv.name, unit: inv.unit, issueQty: n, pendingQty: 0 }],
-      };
-      onAddOutward(entry, []);
-      showToast(`Issued: ${n} ${inv.unit} of ${inv.name}`, manualDept || "Manual");
-      setManualCode(""); setManualQty(""); setManualDept(""); setManualNotes("");
-    } finally {
-      setManualBusy(false);
-    }
+    handleUpdateStock(findCat(manualCode), manualCode, -n, "Manual Out");
+    const entry = {
+      id: Date.now(), type: "manual", date: fmtDate(new Date()),
+      ref: "MANUAL", label: "Manual Outward",
+      note: manualNotes || "—", dept: manualDept || "—",
+      items: [{ code: manualCode, name: inv.name, unit: inv.unit, issueQty: n, pendingQty: 0 }],
+    };
+    onAddOutward(entry, []);
+    showToast(`Issued: ${n} ${inv.unit} of ${inv.name}`, manualDept || "Manual");
+    setManualCode(""); setManualQty(""); setManualDept(""); setManualNotes("");
   };
 
   const boms = Object.entries(bomDefs || {});
-
-  // ── Create BOM helpers ──
-  const openCreateBOM = () => {
-    setCreateForm({ key: "", label: "", rackCapacity: "0" });
-    setCreateItems([]);
-    setCreateAddCode("");
-    setCreateAddQty("1");
-    setCreateErr("");
-    setShowCreate(true);
-  };
-  const addCreateItem = () => {
-    const qty = parseFloat(createAddQty);
-    if (!createAddCode) { setCreateErr("Select a component to add"); return; }
-    if (!qty || qty <= 0) { setCreateErr("Enter a valid quantity"); return; }
-    if (createItems.some((i) => i.code === createAddCode)) { setCreateErr("Component already added"); return; }
-    setCreateItems((p) => [...p, { code: createAddCode, qty }]);
-    setCreateAddCode(""); setCreateAddQty("1"); setCreateErr("");
-  };
-  const removeCreateItem = (code) => setCreateItems((p) => p.filter((i) => i.code !== code));
-  const submitCreateBOM = () => {
-    if (!createForm.key.trim()) { setCreateErr("BOM Key is required"); return; }
-    if (!createForm.label.trim()) { setCreateErr("Machine Model Name is required"); return; }
-    if (createItems.length === 0) { setCreateErr("Add at least one component"); return; }
-    const res = onCreateBOM(createForm.key.trim().toUpperCase().replace(/\s+/g, "-"), {
-      label: createForm.label,
-      items: createItems,
-      rackCapacity: createForm.rackCapacity,
-    });
-    if (res?.success === false) { setCreateErr(res.error); return; }
-    showToast(`BOM Created: ${createForm.key.trim().toUpperCase()}`, createForm.label);
-    setShowCreate(false);
-  };
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -8133,21 +6528,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                 </div>
                 <div>
                   <div className="text-sm font-bold text-white">{serialModal} — {bomDefs[serialModal].label}</div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">
-                    {(() => {
-                      const cap = Number(bomDefs[serialModal].rackCapacity) || 0;
-                      const ready = rackReadyCount(serialModal);
-                      // Capacity > 0 → rack-tracked, the destination popup at
-                      //   commit lets the operator pick Save To Rack vs Direct
-                      //   Production.
-                      // Capacity = 0 / blank → no rack tracking for this BOM,
-                      //   the issue routes straight to Active Builds (Direct
-                      //   Production) without prompting.
-                      return cap > 0
-                        ? `Enter serial · Rack ${ready} / ${cap} ready · choose destination on commit`
-                        : "Enter serial · No rack tracking — goes straight to Active Builds (Direct Production)";
-                    })()}
-                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">Enter machine serial number to begin issue</div>
                 </div>
               </div>
             </div>
@@ -8182,169 +6563,6 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
         </div>
       )}
 
-      {/* 2026-06-02d — BOM action toast (Duplicate / Delete result) */}
-      {bomActionToast && (
-        <div className="fixed bottom-6 right-6 z-[65] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#0d1018,#0a0c14)", border: "1px solid rgba(59,130,246,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
-          <span className="text-lg">📋</span>
-          <div>
-            <div className="text-xs font-bold text-white">{bomActionToast.text}</div>
-            {bomActionToast.sub && <div className="text-[10px] text-slate-500 mt-0.5">{bomActionToast.sub}</div>}
-          </div>
-          <button onClick={() => setBomActionToast(null)} className="ml-2 text-slate-600 hover:text-slate-300 text-xs">✕</button>
-        </div>
-      )}
-
-      {/* 2026-06-02d — Safe BOM delete confirmation */}
-      {confirmDeleteBOM && (
-        <div className="fixed inset-0 z-[85] flex items-center justify-center p-4"
-             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
-             onClick={(e) => e.target === e.currentTarget && setConfirmDeleteBOM(null)}>
-          <div className="w-full max-w-md rounded-2xl overflow-hidden"
-               style={{ background: "#0d1018", border: `1px solid ${confirmDeleteBOM.info.canDelete ? "rgba(239,68,68,0.4)" : "rgba(245,158,11,0.4)"}`, boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
-            <div className="px-5 py-4 border-b border-white/[0.08]"
-                 style={{ background: confirmDeleteBOM.info.canDelete ? "rgba(239,68,68,0.06)" : "rgba(245,158,11,0.06)" }}>
-              <div className={`text-sm font-black ${confirmDeleteBOM.info.canDelete ? "text-red-400" : "text-amber-300"}`}>
-                {confirmDeleteBOM.info.canDelete ? "🗑 Delete BOM?" : "⚠ Cannot Delete BOM"}
-              </div>
-              <div className="text-[10px] text-slate-500 mt-0.5">
-                {confirmDeleteBOM.key} · {confirmDeleteBOM.label}
-              </div>
-            </div>
-            <div className="px-5 py-4 space-y-3 text-[11px]">
-              {!confirmDeleteBOM.info.canDelete ? (
-                <>
-                  <div className="text-slate-300">
-                    This BOM has <span className="font-bold text-white">{confirmDeleteBOM.info.active.length}</span> active production build{confirmDeleteBOM.info.active.length !== 1 ? "s" : ""} past the rack stage. Complete or cancel them first, then delete.
-                  </div>
-                  <div className="max-h-32 overflow-y-auto rounded-lg" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                    {confirmDeleteBOM.info.active.slice(0, 10).map((m) => (
-                      <div key={m.id} className="px-3 py-1.5 text-[10px] flex items-center justify-between border-b border-white/[0.04] last:border-0">
-                        <span className="font-mono font-bold text-white">{m.serialNo || "(no serial)"}</span>
-                        <span className="text-slate-500">{m.stage}</span>
-                      </div>
-                    ))}
-                    {confirmDeleteBOM.info.active.length > 10 && (
-                      <div className="px-3 py-1.5 text-[10px] text-slate-600 text-center">… and {confirmDeleteBOM.info.active.length - 10} more</div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  {confirmDeleteBOM.info.rack.length > 0 ? (
-                    <>
-                      <div className="text-slate-300">
-                        <span className="font-bold text-white">{confirmDeleteBOM.info.rack.length}</span> rack machine{confirmDeleteBOM.info.rack.length !== 1 ? "s" : ""} will be removed. Materials will be returned to stock.
-                      </div>
-                      <ul className="space-y-1 ml-1">
-                        <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Reverse stock for {confirmDeleteBOM.info.rack.length} rack build{confirmDeleteBOM.info.rack.length !== 1 ? "s" : ""}</span></li>
-                        <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Clear pending materials for these issues</span></li>
-                        <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Remove outward entries from reports</span></li>
-                        <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Delete the BOM definition</span></li>
-                        {confirmDeleteBOM.info.completed.length > 0 && (
-                          <li className="flex gap-2"><span className="text-blue-400">ℹ</span><span className="text-slate-400">{confirmDeleteBOM.info.completed.length} completed build{confirmDeleteBOM.info.completed.length !== 1 ? "s" : ""} stay in history</span></li>
-                        )}
-                      </ul>
-                    </>
-                  ) : confirmDeleteBOM.info.completed.length > 0 ? (
-                    <div className="text-slate-300">
-                      BOM has <span className="font-bold text-white">{confirmDeleteBOM.info.completed.length}</span> completed build{confirmDeleteBOM.info.completed.length !== 1 ? "s" : ""} in history. They will remain visible in Machine Tracker after deletion (history is denormalised).
-                    </div>
-                  ) : (
-                    <div className="text-slate-300">
-                      This BOM has never been issued. Safe to delete directly.
-                    </div>
-                  )}
-                  <div className="text-[10px] text-slate-500 pt-1">This action cannot be undone.</div>
-                </>
-              )}
-            </div>
-            <div className="px-5 py-4 border-t border-white/[0.08] flex items-center gap-2" style={{ background: "rgba(0,0,0,0.35)" }}>
-              <button autoFocus onClick={() => setConfirmDeleteBOM(null)}
-                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
-                Cancel
-              </button>
-              <div className="flex-1" />
-              {confirmDeleteBOM.info.canDelete && (
-                <button onClick={async () => {
-                            const cfm = confirmDeleteBOM;
-                            setConfirmDeleteBOM(null);
-                            if (!onDeleteBOM) return;
-                            const res = await onDeleteBOM(cfm.key);
-                            if (res?.success) {
-                              const parts = [];
-                              if (res.rackCount > 0)      parts.push(`${res.rackCount} rack build${res.rackCount !== 1 ? "s" : ""} cleared`);
-                              if (res.restored > 0)       parts.push(`${res.restored} component${res.restored !== 1 ? "s" : ""} returned to stock`);
-                              if (res.completedCount > 0) parts.push(`${res.completedCount} completed retained in history`);
-                              setBomActionToast({ text: `BOM Deleted: ${cfm.key}`, sub: parts.join(" · ") || cfm.label });
-                              setTimeout(() => setBomActionToast(null), 4500);
-                            } else {
-                              setBomActionToast({ text: `Failed to delete ${cfm.key}`, sub: res?.error || "unknown error" });
-                              setTimeout(() => setBomActionToast(null), 4500);
-                            }
-                          }}
-                        className="inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-4 py-1.5 text-white border transition-all"
-                        style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", borderColor: "rgba(239,68,68,0.5)" }}>
-                  🗑 Delete BOM
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Feature 3: confirm-then-remove rack build modal */}
-      {removeRackConfirm && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4"
-             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
-             onClick={(e) => e.target === e.currentTarget && setRemoveRackConfirm(null)}>
-          <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-               style={{ background: "#0d1018", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
-            <div className="px-5 py-4 border-b border-white/[0.08]" style={{ background: "rgba(239,68,68,0.06)" }}>
-              <div className="text-sm font-black text-red-400">🗑 Remove Machine From Rack?</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">
-                {removeRackConfirm.bomKey}{removeRackConfirm.serialNo ? ` · S/N ${removeRackConfirm.serialNo}` : ""}
-              </div>
-            </div>
-            <div className="px-5 py-4 space-y-2.5 text-[11px]">
-              <div className="text-slate-300">This will:</div>
-              <ul className="space-y-1 ml-1">
-                <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Restore the issued components to inventory</span></li>
-                <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Cancel any pending material requests for this build</span></li>
-                <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Remove the outward entry from reports</span></li>
-                <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Write an audit log entry</span></li>
-              </ul>
-              <div className="text-[10px] text-slate-500 pt-1">This action cannot be undone.</div>
-            </div>
-            <div className="px-5 py-4 border-t border-white/[0.08] flex gap-2" style={{ background: "rgba(0,0,0,0.35)" }}>
-              <button autoFocus
-                      onClick={() => setRemoveRackConfirm(null)}
-                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
-                Cancel
-              </button>
-              <div className="flex-1" />
-              <button onClick={async () => {
-                          const cfm = removeRackConfirm;
-                          setRemoveRackConfirm(null);
-                          const res = await onRemoveRackMachine(cfm.machineId);
-                          if (res?.success) {
-                            showToast(`Removed ${cfm.bomKey}${cfm.serialNo ? ` · ${cfm.serialNo}` : ""}`, `${res.restored || 0} component(s) returned to stock`);
-                            // Close the start-prod modal too if it was the last machine on rack
-                            const remaining = rackMachinesFor(startProd?.key || "").filter((m) => m.id !== cfm.machineId);
-                            if (startProd && remaining.length === 0) setStartProd(null);
-                          } else {
-                            showToast("Failed to remove", res?.error || "unknown error", "error");
-                          }
-                        }}
-                      className="inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-4 py-1.5 text-white border transition-all"
-                      style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", borderColor: "rgba(239,68,68,0.5)" }}>
-                🗑 Remove
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* BOMDrawer overlay */}
       {openBOM && bomDefs?.[openBOM] && (
         <BOMDrawer
@@ -8357,129 +6575,8 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
           onClose={() => { setOpenBOM(null); setActiveSerial(""); }}
           onIssue={handleBOMIssue}
           onUpdateBOM={onUpdateBOM}
-          onRenameBOM={onRenameBOM}
-          allBomKeys={Object.keys(bomDefs || {})}
-          onAfterRename={(newKey) => setOpenBOM(newKey)}
           serialNo={activeSerial}
-          rackReady={rackReadyCount(openBOM)}
         />
-      )}
-
-      {/* Create BOM Modal */}
-      {showCreate && (
-        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4"
-             style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(10px)" }}
-             onClick={(e) => e.target === e.currentTarget && setShowCreate(false)}>
-          <div className="bg-[#0c1018] rounded-2xl w-full max-w-2xl overflow-hidden flex flex-col"
-               style={{ border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.85)", maxHeight: "90vh", animation: "slideUp 0.25s ease both" }}>
-            <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base" style={{ background: "rgba(59,130,246,0.15)" }}>📋</div>
-                <div>
-                  <div className="text-sm font-black text-white">Create New BOM</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">Define a new machine model with components and rack capacity</div>
-                </div>
-              </div>
-              <button onClick={() => setShowCreate(false)} className="text-slate-500 hover:text-white text-lg leading-none">✕</button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <OLabel text="BOM Key" req />
-                  <input value={createForm.key} onChange={(e) => { setCreateForm((f) => ({ ...f, key: e.target.value.toUpperCase() })); setCreateErr(""); }}
-                    placeholder="e.g. MIX-100" className={inpCls + " font-mono"} />
-                  <div className="text-[10px] text-slate-600 mt-1">Unique short code. Used as Rack ID and machine prefix.</div>
-                </div>
-                <div>
-                  <OLabel text="Machine Model Name" req />
-                  <input value={createForm.label} onChange={(e) => { setCreateForm((f) => ({ ...f, label: e.target.value })); setCreateErr(""); }}
-                    placeholder="e.g. Industrial Mixer 100kg" className={inpCls} />
-                </div>
-                <div>
-                  <OLabel text="Rack Capacity" />
-                  <input type="number" min="0" step="1" value={createForm.rackCapacity}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, rackCapacity: e.target.value }))}
-                    placeholder="0" className={inpCls + " text-right"} />
-                  <div className="text-[10px] text-slate-600 mt-1">Slots on the production rack. 0 = no rack tracking.</div>
-                </div>
-              </div>
-
-              <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wide mb-3">Components ({createItems.length})</div>
-                {createItems.length === 0 ? (
-                  <div className="text-[11px] text-slate-600 italic py-3 text-center">No components added yet. Use the row below to add.</div>
-                ) : (
-                  <div className="space-y-1.5 mb-3">
-                    {createItems.map((ci) => {
-                      const inv = findItem(ci.code);
-                      return (
-                        <div key={ci.code} className="grid items-center gap-2 px-3 py-2 rounded-lg"
-                             style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)", gridTemplateColumns: "1fr 120px 100px 40px" }}>
-                          <div>
-                            <div className="text-[11px] font-semibold text-white">{inv?.name || ci.code}</div>
-                            <div className="text-[9px] font-mono text-slate-600">{ci.code}</div>
-                          </div>
-                          <div className="text-[10px] text-slate-500 text-center">{inv?.category || "—"}</div>
-                          <div className="flex items-center gap-1.5 justify-end">
-                            <input type="number" min="0.1" step="0.1" value={ci.qty}
-                              onChange={(e) => setCreateItems((p) => p.map((i) => i.code === ci.code ? { ...i, qty: parseFloat(e.target.value) || 0 } : i))}
-                              className="w-16 bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-xs text-white text-right outline-none modal-input"
-                              style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
-                            <span className="text-[9px] text-slate-600">{inv?.unit || ""}</span>
-                          </div>
-                          <button onClick={() => removeCreateItem(ci.code)}
-                            className="text-red-400 hover:text-red-300 text-[10px] font-bold px-2 py-1 rounded hover:bg-red-500/10 transition-all">✕</button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2 flex-wrap pt-2" style={{ borderTop: "1px dashed rgba(255,255,255,0.08)" }}>
-                  <div className="flex-1 min-w-[200px] mt-2">
-                    <ItemSearchSelect
-                      items={allFlat}
-                      value={createAddCode}
-                      onChange={setCreateAddCode}
-                      excludeCodes={createItems.map((c) => c.code)}
-                      placeholder="Search component by name or code…"
-                    />
-                  </div>
-                  <input type="number" min="0.1" step="0.1" value={createAddQty}
-                    onChange={(e) => setCreateAddQty(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addCreateItem()}
-                    placeholder="Qty"
-                    className="w-20 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none mt-2 modal-input text-right"
-                    style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
-                  <button onClick={addCreateItem}
-                    className="px-4 py-2 rounded-lg text-xs font-bold text-white mt-2"
-                    style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)" }}>+ Add</button>
-                </div>
-              </div>
-
-              {createErr && (
-                <div className="px-3 py-2 rounded-lg text-[11px] text-red-300"
-                     style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)" }}>
-                  ⚠ {createErr}
-                </div>
-              )}
-            </div>
-
-            <div className="px-6 py-4 flex gap-2 flex-shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.3)" }}>
-              <button onClick={() => setShowCreate(false)}
-                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-all"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                Cancel
-              </button>
-              <button onClick={submitCreateBOM}
-                className="flex-1 py-2.5 rounded-xl text-xs font-black text-white transition-all"
-                style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.35)" }}>
-                ✓ Create BOM
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {toast && (
@@ -8503,37 +6600,15 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
           <div className="flex items-center gap-2 mb-4">
             <h2 className="text-sm font-extrabold text-white">📤 BOM Outward</h2>
             <span className="text-[10px] font-bold text-orange-400 bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 rounded-full">{boms.length} BOMs</span>
-            <div className="flex-1" />
-            {canDo("outward","editBOM") && onCreateBOM && (
-              <button onClick={openCreateBOM}
-                className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-white transition-all"
-                style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 14px rgba(37,99,235,0.3)" }}>
-                + New BOM
-              </button>
-            )}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {boms.map(([bomKey, bom]) => {
               const units     = bomUnits[bomKey] || 1;
               const feasibleN = bom.items.filter(({ code, qty }) => { const inv = findItem(code); return inv && inv.stock >= qty * units; }).length;
               const allFeas   = feasibleN === bom.items.length;
-              const noRackTracking = !(Number(bom.rackCapacity) > 0);
-              const openBomFlow = () => { setSerialModal(bomKey); setPendingSerial(""); setSerialErr(""); };
               return (
-                // 2026-06-05h — overflow-hidden REMOVED. The actions menu
-                // (Open / Edit / Duplicate / Delete BOM) is absolutely positioned
-                // inside the card and is taller than what fits within the card
-                // bounds. With overflow-hidden on, the bottom items — Delete
-                // BOM specifically — were clipped invisibly, which is why
-                // operators reported "Delete BOM is missing from the ⋮ menu"
-                // even though the JSX renders it. The rack-card menu on
-                // Machine Tracker doesn't have overflow-hidden and shows all
-                // items fine; this aligns the BOM card with that pattern.
-                // The card has no descendants that would visually overflow
-                // its rounded corners, so removing overflow-hidden has no
-                // visual side effect.
-                <div key={bomKey} onClick={() => canDo("outward","bom") && openBomFlow()}
-                     className={`bg-[#0e1117] rounded-xl transition-all duration-200 group relative ${canDo("outward","bom") ? "cursor-pointer hover:bg-[#111620]" : "opacity-60 cursor-not-allowed"}`}
+                <div key={bomKey} onClick={() => canDo("outward","bom") && (setSerialModal(bomKey), setPendingSerial(""), setSerialErr(""))}
+                     className={`bg-[#0e1117] rounded-xl overflow-hidden transition-all duration-200 group ${canDo("outward","bom") ? "cursor-pointer hover:bg-[#111620]" : "opacity-60 cursor-not-allowed"}`}
                      style={{ border: "1px solid rgba(255,255,255,0.07)" }}
                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = bom.color + "55"; e.currentTarget.style.boxShadow = `0 0 24px ${bom.color}12`; }}
                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)"; e.currentTarget.style.boxShadow = "none"; }}>
@@ -8549,68 +6624,6 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                             style={{ background: allFeas ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", color: allFeas ? "#4ade80" : "#f87171", border: `1px solid ${allFeas ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}` }}>
                         {feasibleN}/{bom.items.length} ready
                       </span>
-                      {/* 2026-06-02d — ⋮ actions menu */}
-                      <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setActionsKey(actionsKey === bomKey ? null : bomKey); }}
-                          title="BOM actions"
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/[0.06] transition-all"
-                          aria-haspopup="menu" aria-expanded={actionsKey === bomKey}>
-                          ⋮
-                        </button>
-                        {actionsKey === bomKey && (
-                          <div role="menu" onMouseDown={(e) => e.stopPropagation()}
-                               className="absolute right-0 top-full mt-1 z-30 w-44 rounded-lg overflow-hidden"
-                               style={{ background: "#0d1018", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 24px 60px rgba(0,0,0,0.85)" }}>
-                            <button onClick={() => { setActionsKey(null); if (canDo("outward","bom")) openBomFlow(); }}
-                                    className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-300 hover:bg-white/[0.06] hover:text-white transition-all flex items-center gap-2">
-                              <span>📤</span>Open BOM (Issue)
-                            </button>
-                            <button onClick={() => { setActionsKey(null); setOpenBOM(bomKey); }}
-                                    className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-300 hover:bg-white/[0.06] hover:text-white transition-all flex items-center gap-2">
-                              <span>✏️</span>Edit BOM
-                            </button>
-                            {onDuplicateBOM && canDo("outward","bom") && (
-                              <button onClick={() => {
-                                        setActionsKey(null);
-                                        const res = onDuplicateBOM(bomKey);
-                                        if (res?.success) {
-                                          setBomActionToast({ text: `Duplicated → ${res.newKey}`, sub: bom.label });
-                                          setTimeout(() => setBomActionToast(null), 3000);
-                                        }
-                                      }}
-                                      className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-300 hover:bg-white/[0.06] hover:text-white transition-all flex items-center gap-2">
-                                <span>📑</span>Duplicate BOM
-                              </button>
-                            )}
-                            {/* Delete BOM — gating mirrors Duplicate so the
-                                two destructive/configuration actions follow
-                                the same permission rule. handleDeleteBOM in
-                                App.jsx enforces:
-                                  never issued     → direct delete + audit
-                                  rack machines    → confirm + reverse stock
-                                                     via handleRemoveRackMachine
-                                                     + delete BOM definition
-                                  active production → block, list blocking
-                                                       serials in the modal
-                                  completed builds  → retained (denormalised
-                                                       bomKey on machine_log)
-                                The action is ALWAYS rendered when the operator
-                                has bom-edit permission; the destructive rules
-                                are enforced by the confirm modal that follows. */}
-                            {onDeleteBOM && computeBOMDeletionInfo && canDo("outward","bom") && (
-                              <button onClick={() => {
-                                        setActionsKey(null);
-                                        const info = computeBOMDeletionInfo(bomKey);
-                                        setConfirmDeleteBOM({ key: bomKey, label: bom.label, info });
-                                      }}
-                                      className="w-full text-left px-3 py-2 text-[11px] font-bold text-red-400 hover:bg-red-500/10 transition-all flex items-center gap-2 border-t border-white/[0.05]">
-                                <span>🗑</span>Delete BOM
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
                     </div>
                     <div className="flex flex-wrap gap-1 mt-3">
                       {bom.items.slice(0, 4).map(({ code, qty }) => {
@@ -8624,19 +6637,9 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                       })}
                       {bom.items.length > 4 && <span className="text-[9px] text-slate-600">+{bom.items.length - 4} more</span>}
                     </div>
-                    <div className="mt-3 pt-3 border-t border-white/[0.05] flex items-center justify-between gap-2">
+                    <div className="mt-3 pt-3 border-t border-white/[0.05] flex items-center justify-between">
                       <span className="text-[10px] text-slate-600">{bom.items.length} components</span>
-                      {/* Capacity-blank BOMs skip the rack entirely. Surface
-                          that on the card so operators know the destination
-                          popup won't appear and the issue lands directly in
-                          Active Builds. */}
-                      {noRackTracking && (
-                        <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded-full"
-                              style={{ background: "rgba(139,92,246,0.12)", color: "#c4b5fd", border: "1px solid rgba(139,92,246,0.3)" }}>
-                          ▶ Direct production
-                        </span>
-                      )}
-                      <span className="text-[10px] font-bold text-blue-400 group-hover:text-blue-300 transition-colors ml-auto">Open BOM →</span>
+                      <span className="text-[10px] font-bold text-blue-400 group-hover:text-blue-300 transition-colors">Open BOM →</span>
                     </div>
                   </div>
                 </div>
@@ -8670,13 +6673,14 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <OLabel text="Select Item" req />
-              <ItemSearchSelect
-                items={Object.entries(items).flatMap(([cat, list]) => list.map((it) => ({ ...it, category: cat })))}
-                value={manualCode}
-                onChange={setManualCode}
-                showStock={true}
-                placeholder="Search inventory item by name or code…"
-              />
+              <select value={manualCode} onChange={(e) => setManualCode(e.target.value)} className={inpCls} style={selStyle}>
+                <option value="">— Select Item —</option>
+                {Object.entries(items).flatMap(([cat, list]) =>
+                  list.map((item) => (
+                    <option key={item.code} value={item.code}>[{cat}] {item.code} — {item.name} (Stock: {item.stock} {item.unit})</option>
+                  ))
+                )}
+              </select>
             </div>
             <div>
               <OLabel text="Quantity" req />
@@ -8735,10 +6739,10 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
           <div className="mt-5 flex justify-end gap-2">
             <Btn variant="ghost" size="sm" onClick={() => { setManualCode(""); setManualQty(""); setManualDept(""); setManualNotes(""); setManualError(""); }}>Clear</Btn>
             {canDo("outward","manual") && (
-              <button onClick={handleManualSubmit} disabled={manualBusy}
-                      className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white border transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              <button onClick={handleManualSubmit}
+                      className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white border transition-all duration-200"
                       style={{ background: "linear-gradient(135deg,#ea580c,#c2410c)", borderColor: "rgba(249,115,22,0.5)", boxShadow: "0 0 16px rgba(249,115,22,0.3)" }}>
-                {manualBusy ? "⏳ Issuing…" : "📤 Issue Stock"}
+                📤 Issue Stock
               </button>
             )}
           </div>
@@ -8797,114 +6801,19 @@ const STAGE_COLORS = {
   "Ready":      "#22c55e",
 };
 
-function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo = () => true, bomDefs = {}, onStartProduction, onRemoveRackMachine, onUpdateBOM }) {
+function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo = () => true }) {
   const [filter,   setFilter]   = useState("active");
   const [expanded, setExpanded] = useState(null);
   const [stageMap, setStageMap] = useState({});
   const [toast,    setToast]    = useState(null);
-  const [startProd, setStartProd] = useState(null); // rack object { key, label, ready, capacity }
-  const [startSel,  setStartSel]  = useState(() => new Set()); // selected rack-machine ids
-  const [startErr,  setStartErr]  = useState("");
-  // 2026-06-02 — confirm-modal state for rack remove. Feature 3 (rack remove)
-  // shipped without these declarations in MachinePage, so referencing them
-  // inside the Start Production modal threw ReferenceError and blanked the
-  // page on any rack-card click. This restores the state + the confirm modal
-  // render so both Outward and Machine Tracker can remove rack machines.
-  const [removeRackConfirm, setRemoveRackConfirm] = useState(null); // { machineId, serialNo, bomKey }
-
-  // 2026-06-05f — Rack management on rack cards (parity with BOM card ⋮ menu in
-  // Outward). Lets the operator edit Rack Capacity or Delete Rack from inside
-  // Machine Tracker, without going back to Outward to edit the BOM.
-  //   rackActionsKey   → which rack card's menu is open (closes on outside click)
-  //   editRackModal    → { key, label, capacity }   while the operator enters new capacity
-  //   deleteRackConfirm → { key, label, ready }     while the operator confirms delete
-  const [rackActionsKey,   setRackActionsKey]   = useState(null);
-  const [editRackModal,    setEditRackModal]    = useState(null);
-  const [deleteRackConfirm, setDeleteRackConfirm] = useState(null);
-  useEffect(() => {
-    if (!rackActionsKey) return;
-    const close = () => setRackActionsKey(null);
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [rackActionsKey]);
 
   const showToast = (text, sub) => { setToast({ text, sub }); setTimeout(() => setToast(null), 3000); };
 
-  // Machine Tracker shows ONLY machines that have STARTED production (left the rack).
-  // Rack machines sit at stage "BOM Issued" and appear solely in the Production Rack View.
-  const started   = machineLog.filter((m) => m.stage !== "BOM Issued");
-  const active    = started.filter((m) => m.status !== "completed");
-  const completed = started.filter((m) => m.status === "completed");
-  const filtered  = filter === "active" ? active : filter === "completed" ? completed : started;
+  const active    = machineLog.filter((m) => m.status !== "completed");
+  const completed = machineLog.filter((m) => m.status === "completed");
+  const filtered  = filter === "active" ? active : filter === "completed" ? completed : machineLog;
 
   const stageIdx = (s) => MACHINE_STAGES.indexOf(s);
-
-  // ─── Production Rack view (computed from existing data) ────────────────────
-  // Rack Ready Qty = count of machines for this bomKey still at "BOM Issued" stage.
-  //
-  // Inclusion rule (per the manufacturing flow spec):
-  //   - A BOM appears in Rack View only when it is rack-tracked
-  //     (rackCapacity > 0). Capacity = 0 / blank means "no rack tracking for
-  //     this BOM" — those BOMs route directly to Active Builds and must NOT
-  //     show a rack card.
-  //   - Orphan rack machines (BOM was deleted, but rack-stage entries still
-  //     exist for the now-missing key) are kept visible so the operator can
-  //     remove them and reclaim stock. They show up as cards with capacity
-  //     reported as 0 but ready > 0; the state is still "partial".
-  const rackData = (() => {
-    const allKeys = new Set([
-      ...Object.keys(bomDefs || {}),
-      ...machineLog.map((m) => m.bomKey).filter(Boolean),
-    ]);
-    return [...allKeys].sort()
-      .map((key) => {
-        const def      = bomDefs[key] || {};
-        const ready    = machineLog.filter((m) => m.bomKey === key && m.stage === "BOM Issued").length;
-        const capacity = Number(def.rackCapacity) || 0;
-        const empty    = Math.max(0, capacity - ready);
-        let state;
-        if (capacity > 0 && ready >= capacity)        state = "full";
-        else if (ready > 0)                           state = "partial";
-        else                                          state = "empty";
-        return {
-          key, label: def.label || key,
-          capacity, ready, empty, state,
-          configured: capacity > 0,
-        };
-      })
-      // Filter: only rack-tracked BOMs (configured) get a card. Non-rack BOMs
-      // are hidden unless they have orphan rack machines waiting for clean-up.
-      .filter((r) => r.configured || r.ready > 0);
-  })();
-  // replenishAlerts was the data source for the now-removed banner — kept the
-  // line as a comment so the rationale is recoverable from blame. (Computed
-  // on-demand inside the card render if ever needed again.)
-
-  // Rack machines (serial-wise, oldest first) waiting to start for a model.
-  const rackMachinesFor = (key) =>
-    machineLog.filter((m) => m.bomKey === key && m.stage === "BOM Issued")
-              .sort((a, b) => (a.createdDate || "").localeCompare(b.createdDate || ""));
-
-  const openStartProd = (rack) => {
-    if (rack.ready === 0) return;
-    setStartProd(rack);
-    setStartSel(new Set());
-    setStartErr("");
-  };
-  const toggleStartSel = (id) => setStartSel((prev) => {
-    const next = new Set(prev);
-    next.has(id) ? next.delete(id) : next.add(id);
-    return next;
-  });
-  const confirmStartProd = () => {
-    if (!startProd || !onStartProduction) return;
-    const ids = [...startSel];
-    if (ids.length === 0) { setStartErr("Select at least one machine (serial) to start."); return; }
-    const res = onStartProduction(ids);
-    if (res?.success === false) { setStartErr(res.error || "Failed to start production"); return; }
-    showToast(`${startProd.key} — ${res.count} machine(s) into production`, (res.serials || []).join(", ") || "Assembly stage active");
-    setStartProd(null); setStartErr("");
-  };
 
   const handleStageUpdate = (machine) => {
     const newStage = stageMap[machine.id];
@@ -8937,8 +6846,8 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         <div className="grid grid-cols-3 gap-4">
           <div className="p-5 rounded-xl" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.2)" }}>
             <div className="text-[9px] font-bold text-blue-500 uppercase tracking-[0.08em] mb-1">Total Machines</div>
-            <div className="text-4xl font-black text-blue-400 mb-1">{started.length}</div>
-            <div className="text-[10px] text-slate-500">started from rack</div>
+            <div className="text-4xl font-black text-blue-400 mb-1">{machineLog.length}</div>
+            <div className="text-[10px] text-slate-500">all builds tracked</div>
           </div>
           <div className="p-5 rounded-xl" style={{ background: "rgba(249,115,22,0.06)", border: "1px solid rgba(249,115,22,0.2)" }}>
             <div className="text-[9px] font-bold text-orange-500 uppercase tracking-[0.08em] mb-1">Active Builds</div>
@@ -8952,149 +6861,12 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           </div>
         </div>
 
-        {/* ── Production Rack View ── */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <div className="text-sm font-black text-white">Production Rack View</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">Ready-to-start machines waiting on the rack for each model</div>
-            </div>
-            <div className="text-[10px] text-slate-500">
-              <span className="text-emerald-400">●</span> Full &nbsp;
-              <span className="text-amber-400">●</span> Partial &nbsp;
-              <span className="text-red-400">●</span> Empty
-            </div>
-          </div>
-
-          {/* Replenishment alerts removed — the rack cards below now carry
-              FULL/PARTIAL/EMPTY status badges and per-card shortage info, so
-              the separate banner was duplicate noise that pushed the cards
-              below the fold. Feature 2 of 2026-06-01h. */}
-
-          {rackData.length === 0 ? (
-            <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl py-10 text-center">
-              <div className="text-3xl mb-2">📦</div>
-              <div className="text-xs font-bold text-white mb-1">No Machine Models Defined</div>
-              <div className="text-[10px] text-slate-500">Create a BOM definition from <button onClick={() => onNavigate("outward")} className="text-blue-400 underline hover:text-blue-300">Outward</button> to start tracking racks.</div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {rackData.map((r) => {
-                const STATE = {
-                  full:    { color: "#22c55e", bg: "rgba(34,197,94,0.08)",  border: "rgba(34,197,94,0.3)",  label: "Full",    icon: "✓" },
-                  partial: { color: "#f59e0b", bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.3)", label: "Partial", icon: "◐" },
-                  empty:   { color: "#ef4444", bg: "rgba(239,68,68,0.06)",  border: "rgba(239,68,68,0.22)", label: "Empty",   icon: "○" },
-                }[r.state];
-                const pct = r.capacity > 0 ? Math.min(100, Math.round((r.ready / r.capacity) * 100)) : 0;
-                const canManage = !!(onUpdateBOM && bomDefs[r.key] && canDo("outward","bom"));
-                const activateRack = () => { if (r.ready > 0) openStartProd(r); };
-                return (
-                  // role="button" wrapper so we can nest the actions ⋮ button
-                  // inside without invalid <button>-inside-<button> HTML. The
-                  // outer click + Enter/Space activate Start Production, same
-                  // UX as before.
-                  <div
-                    key={r.key}
-                    role="button"
-                    tabIndex={r.ready > 0 ? 0 : -1}
-                    onClick={activateRack}
-                    onKeyDown={(e) => { if (r.ready > 0 && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); activateRack(); } }}
-                    className="text-left rounded-xl p-4 transition-all relative outline-none"
-                    style={{
-                      background: STATE.bg,
-                      border: `1px solid ${STATE.border}`,
-                      cursor: r.ready > 0 ? "pointer" : "default",
-                      opacity: r.ready > 0 ? 1 : 0.78,
-                    }}
-                    onMouseEnter={(e) => { if (r.ready > 0) e.currentTarget.style.transform = "translateY(-1px)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.transform = ""; }}
-                  >
-                    <div className="flex items-start justify-between mb-2.5">
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-black text-white">{r.key}</div>
-                        <div className="text-[10px] text-slate-500 truncate mt-0.5">{r.label}</div>
-                      </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                              style={{ background: STATE.color + "22", color: STATE.color, border: `1px solid ${STATE.color}40` }}>
-                          {STATE.icon} {STATE.label}
-                        </span>
-                        {canManage && (
-                          <div className="relative" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); setRackActionsKey(rackActionsKey === r.key ? null : r.key); }}
-                              title="Rack actions"
-                              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.08] transition-all"
-                              aria-haspopup="menu" aria-expanded={rackActionsKey === r.key}>
-                              ⋮
-                            </button>
-                            {rackActionsKey === r.key && (
-                              <div role="menu" onMouseDown={(e) => e.stopPropagation()}
-                                   className="absolute right-0 top-full mt-1 z-30 w-44 rounded-lg overflow-hidden"
-                                   style={{ background: "#0d1018", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 24px 60px rgba(0,0,0,0.85)" }}>
-                                <button type="button"
-                                        onClick={() => {
-                                          setRackActionsKey(null);
-                                          setEditRackModal({ key: r.key, label: r.label, capacity: r.capacity || 0 });
-                                        }}
-                                        className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-300 hover:bg-white/[0.06] hover:text-white transition-all flex items-center gap-2">
-                                  <span>✏️</span>Edit Rack Capacity
-                                </button>
-                                <button type="button"
-                                        onClick={() => {
-                                          setRackActionsKey(null);
-                                          setDeleteRackConfirm({ key: r.key, label: r.label, ready: r.ready });
-                                        }}
-                                        className="w-full text-left px-3 py-2 text-[11px] font-bold text-red-400 hover:bg-red-500/10 transition-all flex items-center gap-2 border-t border-white/[0.05]">
-                                  <span>🗑</span>Delete Rack
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 mb-2.5">
-                      <div>
-                        <div className="text-[9px] text-slate-600 uppercase tracking-wide">Ready</div>
-                        <div className="text-lg font-black" style={{ color: STATE.color }}>{r.ready}</div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] text-slate-600 uppercase tracking-wide">Capacity</div>
-                        <div className="text-lg font-black text-slate-300">{r.configured ? r.capacity : "—"}</div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] text-slate-600 uppercase tracking-wide">Empty</div>
-                        <div className="text-lg font-black text-slate-400">{r.configured ? r.empty : "—"}</div>
-                      </div>
-                    </div>
-
-                    {r.configured && (
-                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                        <div className="h-full transition-all" style={{ width: `${pct}%`, background: STATE.color }} />
-                      </div>
-                    )}
-                    {!r.configured && (
-                      <div className="text-[9px] text-slate-600 italic">Capacity not set — edit BOM to assign</div>
-                    )}
-                    {r.ready > 0 && (
-                      <div className="mt-2 text-[10px] font-bold text-blue-400">▶ Click to start production</div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
         {/* ── Filter tabs ── */}
         <div className="flex items-center gap-2">
           {[["active","Active Builds"], ["completed","Completed"], ["all","All Machines"]].map(([key, label]) => (
             <button key={key} onClick={() => setFilter(key)}
                     className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${filter === key ? "bg-blue-500/15 text-blue-400 border-blue-500/30" : "text-slate-500 border-white/[0.08] hover:text-slate-300"}`}>
-              {label} ({key === "active" ? active.length : key === "completed" ? completed.length : started.length})
+              {label} ({key === "active" ? active.length : key === "completed" ? completed.length : machineLog.length})
             </button>
           ))}
         </div>
@@ -9108,7 +6880,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               <div className="text-[11px] text-slate-500">No completed machines yet.</div>
             ) : (
               <div className="text-[11px] text-slate-500">
-                Issue a BOM from Outward to add a machine to the rack, then use the Production Rack View above to start a build.{" "}
+                Issue a BOM from Outward to start tracking a machine build.{" "}
                 <button onClick={() => onNavigate("outward")}
                         className="text-blue-400 underline hover:text-blue-300 transition-colors">
                   Go to Outward →
@@ -9263,277 +7035,6 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         </div>
 
       </div>
-
-      {/* ── 2026-06-05f — Edit Rack Capacity Modal ──
-          Updates the BOM definition's rackCapacity in place. The rack card
-          re-renders immediately (capacity, empty, state, progress bar) because
-          rackData reads bomDefs from props. */}
-      {editRackModal && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4"
-             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
-             onClick={(e) => e.target === e.currentTarget && setEditRackModal(null)}>
-          <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-               style={{ background: "#0d1018", border: "1px solid rgba(59,130,246,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
-            <div className="px-5 py-4 border-b border-white/[0.08]"
-                 style={{ background: "rgba(59,130,246,0.06)" }}>
-              <div className="text-sm font-black text-blue-300">✏️ Edit Rack Capacity</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">
-                {editRackModal.key} · {editRackModal.label}
-              </div>
-            </div>
-            <div className="px-5 py-4 space-y-3">
-              <div>
-                <div className="text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">New Capacity</div>
-                <input
-                  autoFocus
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={editRackModal.capacity}
-                  onChange={(e) => setEditRackModal((prev) => prev ? { ...prev, capacity: e.target.value } : prev)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") { setEditRackModal(null); return; }
-                    if (e.key === "Enter") {
-                      const cap = Math.max(0, parseInt(editRackModal.capacity, 10) || 0);
-                      const def = bomDefs[editRackModal.key];
-                      if (def && onUpdateBOM) onUpdateBOM(editRackModal.key, { ...def, rackCapacity: cap });
-                      showToast(`${editRackModal.key} rack capacity → ${cap}`, cap === 0 ? "Rack tracking disabled" : `${cap} slot${cap === 1 ? "" : "s"}`);
-                      setEditRackModal(null);
-                    }
-                  }}
-                  className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none transition-all text-right font-mono"
-                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
-                />
-                <div className="text-[10px] text-slate-600 mt-1">0 = no rack tracking. The card disappears from Production Rack View when capacity drops to 0.</div>
-              </div>
-            </div>
-            <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-end gap-2"
-                 style={{ background: "rgba(0,0,0,0.35)" }}>
-              <button onClick={() => setEditRackModal(null)}
-                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
-                Cancel
-              </button>
-              <button onClick={() => {
-                        const cap = Math.max(0, parseInt(editRackModal.capacity, 10) || 0);
-                        const def = bomDefs[editRackModal.key];
-                        if (def && onUpdateBOM) onUpdateBOM(editRackModal.key, { ...def, rackCapacity: cap });
-                        showToast(`${editRackModal.key} rack capacity → ${cap}`, cap === 0 ? "Rack tracking disabled" : `${cap} slot${cap === 1 ? "" : "s"}`);
-                        setEditRackModal(null);
-                      }}
-                      className="text-[11px] font-bold px-4 py-1.5 rounded-lg text-white border transition-all"
-                      style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", borderColor: "rgba(99,130,255,0.5)" }}>
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── 2026-06-05f — Delete Rack Confirmation ──
-          Delete just sets rackCapacity = 0 on the BOM. The rackData filter
-          (r.configured || r.ready > 0) hides the card when capacity is 0 and
-          no rack machines exist, so the card disappears instantly. Stock,
-          completed history, and the BOM definition's items/label/colour are
-          untouched. */}
-      {deleteRackConfirm && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4"
-             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
-             onClick={(e) => e.target === e.currentTarget && setDeleteRackConfirm(null)}>
-          <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-               style={{ background: "#0d1018", border: `1px solid ${deleteRackConfirm.ready > 0 ? "rgba(245,158,11,0.4)" : "rgba(239,68,68,0.4)"}`, boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
-            <div className="px-5 py-4 border-b border-white/[0.08]"
-                 style={{ background: deleteRackConfirm.ready > 0 ? "rgba(245,158,11,0.06)" : "rgba(239,68,68,0.06)" }}>
-              <div className={`text-sm font-black ${deleteRackConfirm.ready > 0 ? "text-amber-300" : "text-red-400"}`}>
-                {deleteRackConfirm.ready > 0 ? "⚠ Cannot Delete Rack" : "🗑 Delete Rack?"}
-              </div>
-              <div className="text-[10px] text-slate-500 mt-0.5">
-                {deleteRackConfirm.key} · {deleteRackConfirm.label}
-              </div>
-            </div>
-            <div className="px-5 py-4 space-y-2 text-[11px]">
-              {deleteRackConfirm.ready > 0 ? (
-                <>
-                  <div className="text-slate-300">
-                    This rack has <span className="font-bold text-white">{deleteRackConfirm.ready}</span> machine{deleteRackConfirm.ready === 1 ? "" : "s"} waiting on it.
-                  </div>
-                  <div className="text-slate-400">
-                    <span className="font-bold text-amber-300">Remove rack machines first</span> (open the rack card → Start Production modal → ✕ Remove From Rack). Then return here to delete.
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="text-slate-300">
-                    Removes the rack configuration / card only. The BOM definition stays in Outward; you can re-enable rack tracking later by editing capacity.
-                  </div>
-                  <ul className="space-y-1 ml-1 mt-2">
-                    <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Stock is not touched</span></li>
-                    <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Production history is preserved</span></li>
-                    <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Completed machines stay in Machine Tracker</span></li>
-                    <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">BOM definition (items, label) retained</span></li>
-                  </ul>
-                </>
-              )}
-            </div>
-            <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-end gap-2"
-                 style={{ background: "rgba(0,0,0,0.35)" }}>
-              <button autoFocus onClick={() => setDeleteRackConfirm(null)}
-                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
-                {deleteRackConfirm.ready > 0 ? "Close" : "Cancel"}
-              </button>
-              {deleteRackConfirm.ready === 0 && (
-                <button onClick={() => {
-                          const def = bomDefs[deleteRackConfirm.key];
-                          if (def && onUpdateBOM) onUpdateBOM(deleteRackConfirm.key, { ...def, rackCapacity: 0 });
-                          showToast(`${deleteRackConfirm.key} rack deleted`, "Rack tracking disabled — BOM definition retained");
-                          setDeleteRackConfirm(null);
-                        }}
-                        className="text-[11px] font-bold px-4 py-1.5 rounded-lg text-white border transition-all"
-                        style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", borderColor: "rgba(239,68,68,0.5)" }}>
-                  🗑 Delete Rack
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Start Production Modal ── */}
-      {startProd && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4"
-             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
-             onClick={(e) => e.target === e.currentTarget && setStartProd(null)}>
-          <div className="w-full max-w-md rounded-2xl p-6 space-y-4"
-               style={{ background: "#0d1018", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: "rgba(34,197,94,0.15)" }}>▶</div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-black text-white">Start Production</div>
-                <div className="text-[10px] text-slate-500 mt-0.5 truncate">{startProd.key} — {startProd.label}</div>
-              </div>
-              <button onClick={() => setStartProd(null)} className="text-slate-500 hover:text-white transition-colors text-lg leading-none">✕</button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-xl text-center" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.22)" }}>
-                <div className="text-[9px] font-bold text-emerald-400 uppercase tracking-wide">Available on Rack</div>
-                <div className="text-2xl font-black text-emerald-400 mt-1">{startProd.ready}</div>
-              </div>
-              <div className="p-3 rounded-xl text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Rack Capacity</div>
-                <div className="text-2xl font-black text-slate-300 mt-1">{startProd.configured ? startProd.capacity : "—"}</div>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Select Machine(s) to Start</label>
-              <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-                {rackMachinesFor(startProd.key).map((m) => {
-                  const sel = startSel.has(m.id);
-                  return (
-                    <div key={m.id}
-                         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all"
-                         style={{ background: sel ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.03)", border: `1px solid ${sel ? "rgba(34,197,94,0.45)" : "rgba(255,255,255,0.08)"}` }}>
-                      <button onClick={() => { toggleStartSel(m.id); setStartErr(""); }}
-                              className="flex items-center gap-3 flex-1 min-w-0 text-left">
-                        <span className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 text-[10px] font-black"
-                              style={{ background: sel ? "#16a34a" : "transparent", border: `1.5px solid ${sel ? "#16a34a" : "rgba(255,255,255,0.25)"}`, color: "#fff" }}>
-                          {sel ? "✓" : ""}
-                        </span>
-                        <span className="text-[12px] font-mono font-bold text-white flex-1 truncate">{m.serialNo || "(no serial)"}</span>
-                        <span className="text-[9px] text-slate-500 flex-shrink-0">Issued {m.createdDate}</span>
-                      </button>
-                      {/* Feature 3: remove from rack — stock is reversed via the
-                          engine and audit is logged. Only shown when prop is
-                          provided. */}
-                      {onRemoveRackMachine && canDo("outward","delete") && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setRemoveRackConfirm({ machineId: m.id, serialNo: m.serialNo, bomKey: m.bomKey }); }}
-                          title="Remove from rack (restore materials to stock)"
-                          className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-black text-red-400 hover:text-white hover:bg-red-500/20 transition-all flex-shrink-0"
-                          style={{ border: "1px solid rgba(239,68,68,0.25)" }}>
-                          🗑
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="text-[10px] text-slate-500 mt-1.5">
-                {startSel.size} selected · will move from rack → Assembly stage.
-              </div>
-              {startErr && <div className="text-[10px] text-red-400 mt-1">{startErr}</div>}
-            </div>
-
-            <div className="flex gap-2">
-              <button onClick={() => setStartProd(null)}
-                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-all"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                Cancel
-              </button>
-              <button onClick={confirmStartProd}
-                className="flex-1 py-2.5 rounded-xl text-xs font-black text-white transition-all"
-                style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.35)" }}>
-                ▶ Start Production
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 2026-06-02 — Confirm-then-remove rack build modal. Mirrors the
-          OutwardPage version. Without this modal AND its state, the parent
-          Start Production modal threw a ReferenceError on render because
-          setRemoveRackConfirm was undefined in scope. */}
-      {removeRackConfirm && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4"
-             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
-             onClick={(e) => e.target === e.currentTarget && setRemoveRackConfirm(null)}>
-          <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-               style={{ background: "#0d1018", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
-            <div className="px-5 py-4 border-b border-white/[0.08]" style={{ background: "rgba(239,68,68,0.06)" }}>
-              <div className="text-sm font-black text-red-400">🗑 Remove Machine From Rack?</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">
-                {removeRackConfirm.bomKey}{removeRackConfirm.serialNo ? ` · S/N ${removeRackConfirm.serialNo}` : ""}
-              </div>
-            </div>
-            <div className="px-5 py-4 space-y-2.5 text-[11px]">
-              <div className="text-slate-300">This will:</div>
-              <ul className="space-y-1 ml-1">
-                <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Restore the issued components to inventory</span></li>
-                <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Cancel any pending material requests for this build</span></li>
-                <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Remove the outward entry from reports</span></li>
-                <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Write an audit log entry</span></li>
-              </ul>
-              <div className="text-[10px] text-slate-500 pt-1">This action cannot be undone.</div>
-            </div>
-            <div className="px-5 py-4 border-t border-white/[0.08] flex gap-2" style={{ background: "rgba(0,0,0,0.35)" }}>
-              <button autoFocus
-                      onClick={() => setRemoveRackConfirm(null)}
-                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
-                Cancel
-              </button>
-              <div className="flex-1" />
-              <button onClick={async () => {
-                          const cfm = removeRackConfirm;
-                          setRemoveRackConfirm(null);
-                          if (!onRemoveRackMachine) { showToast("Remove unavailable", "Permission missing"); return; }
-                          const res = await onRemoveRackMachine(cfm.machineId);
-                          if (res?.success) {
-                            showToast(`Removed ${cfm.bomKey}${cfm.serialNo ? ` · ${cfm.serialNo}` : ""}`, `${res.restored || 0} component(s) returned to stock`);
-                            const remaining = rackMachinesFor(startProd?.key || "").filter((m) => m.id !== cfm.machineId);
-                            if (startProd && remaining.length === 0) setStartProd(null);
-                          } else {
-                            showToast("Failed to remove", res?.error || "unknown error");
-                          }
-                        }}
-                      className="inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-4 py-1.5 text-white border transition-all"
-                      style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", borderColor: "rgba(239,68,68,0.5)" }}>
-                🗑 Remove
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -9590,18 +7091,16 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
     return "partial";
   };
 
-  const handleGiveMaterial = (entry) => {
-    if (entry.canIssue <= 0) return;
-    handleUpdateStock(entry.category, entry.code, -entry.canIssue, `Fulfill: ${entry.bomKey}`);
-    onFulfillPending(entry, entry.canIssue);
-    const rem = entry.pendingQty - entry.canIssue;
-    showToast(
-      `Issued ${entry.canIssue} ${entry.unit} — ${entry.name}`,
-      rem > 0 ? `${rem} ${entry.unit} still pending` : "Fully fulfilled"
-    );
+  // Guards against duplicate-submit (rapid double-click / double-fire) issuing the same
+  // material twice before the resulting state update is applied.
+  const busyRef = useRef(false);
+  const withGuard = (fn) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    try { fn(); } finally { setTimeout(() => { busyRef.current = false; }, 400); }
   };
 
-  const handleGiveAllForGroup = (group) => {
+  const fulfillGroupCore = (group) => {
     const available = group.items.filter((e) => e.canIssue > 0);
     if (available.length === 0) return;
     if (onFulfillGroup && group.issueId) {
@@ -9616,7 +7115,22 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
               group.serialNo ? `S/N: ${group.serialNo}` : group.bomLabel);
   };
 
-  const handleFulfillAll = () => groups.forEach((g) => handleGiveAllForGroup(g));
+  const handleGiveMaterial = (entry) => {
+    if (entry.canIssue <= 0) return;
+    withGuard(() => {
+      handleUpdateStock(entry.category, entry.code, -entry.canIssue, `Fulfill: ${entry.bomKey}`);
+      onFulfillPending(entry, entry.canIssue);
+      const rem = entry.pendingQty - entry.canIssue;
+      showToast(
+        `Issued ${entry.canIssue} ${entry.unit} — ${entry.name}`,
+        rem > 0 ? `${rem} ${entry.unit} still pending` : "Fully fulfilled"
+      );
+    });
+  };
+
+  const handleGiveAllForGroup = (group) => withGuard(() => fulfillGroupCore(group));
+
+  const handleFulfillAll = () => withGuard(() => groups.forEach((g) => fulfillGroupCore(g)));
 
   const AC = { full: "#22c55e", partial: "#f97316", none: "#ef4444" };
   const AL = { full: "Ready",   partial: "Partial Stock", none: "Waiting" };
@@ -9902,6 +7416,7 @@ const AUDIT_META = {
   vendor_edit:       { label: "Vendor Updated",      icon: "✏️", color: "#3b82f6", module: "Vendor"     },
   vendor_delete:     { label: "Vendor Deleted",      icon: "🗑️", color: "#ef4444", module: "Vendor"     },
   role_changed:      { label: "Role Changed",        icon: "👤", color: "#8b5cf6", module: "Settings"   },
+  ai_query:          { label: "AI Query",             icon: "🤖", color: "#a78bfa", module: "AI Assistant" },
 };
 
 function hrExportCSV(rows, cols, filename) {
@@ -10003,8 +7518,6 @@ const HR_TABS = [
   { id: "purchase",   label: "Purchase History",  icon: "🛒" },
   { id: "machine",    label: "Machine History",   icon: "🔧" },
   { id: "inventory",  label: "Inventory Movement",icon: "📦" },
-  { id: "stock",      label: "Current Stock",     icon: "📊" },
-  { id: "lowstock",   label: "Low Stock",         icon: "🔴" },
   { id: "vendor",     label: "Vendor History",    icon: "🏭" },
   { id: "pending",    label: "Pending History",   icon: "⏳" },
   { id: "reports",    label: "Reports Dashboard", icon: "📊" },
@@ -10150,66 +7663,6 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
     { key: "refCol",   label: "Reference" },
   ];
   const invExport = invRows.map((r) => ({ ...r, itemName: r.item || r.name || "" }));
-
-  // ── CURRENT STOCK REPORT ── (live snapshot of every item)
-  const stockFlat = Object.entries(items).flatMap(([cat, list]) => list.map((i) => ({ ...i, category: cat })));
-  const stockReportRows = stockFlat.filter((i) => {
-    if (itemFilter && i.code !== itemFilter) return false;
-    if (q && !`${i.code}${i.name}${i.category}${i.location || ""}`.toLowerCase().includes(q)) return false;
-    return true;
-  }).sort((a, b) => (a.code || "").localeCompare(b.code || ""));
-  const stockReportCols = [
-    { key: "code",        label: "Item Code" },
-    { key: "name",        label: "Item" },
-    { key: "category",    label: "Category" },
-    { key: "stock_fmt",   label: "On Hand" },
-    { key: "reserved_fmt",label: "Reserved" },
-    { key: "available_fmt",label: "Available" },
-    { key: "min",         label: "Min" },
-    { key: "status_label",label: "Status" },
-    { key: "value_fmt",   label: "Stock Value" },
-  ];
-  const stockReportExport = stockReportRows.map((i) => ({
-    ...i,
-    stock_fmt:     `${i.stock} ${i.unit || ""}`.trim(),
-    reserved_fmt:  `${i.reservedStock ?? 0} ${i.unit || ""}`.trim(),
-    available_fmt: `${i.availableStock ?? i.stock} ${i.unit || ""}`.trim(),
-    status_label:  i.status === "critical" ? "Critical" : i.status === "warning" ? "Low" : "Safe",
-    value_fmt:     i.lastPurchaseRate ? `₹${(i.stock * i.lastPurchaseRate).toLocaleString("en-IN")}` : "—",
-  }));
-
-  // ── LOW STOCK REPORT ── (status critical/warning OR available ≤ reorder level)
-  const lowStockRows = stockReportRows.filter((i) =>
-    i.status === "critical" || i.status === "warning" ||
-    (i.reorderLevel > 0 && (i.availableStock ?? i.stock) <= i.reorderLevel)
-  ).sort((a, b) => {
-    const order = { critical: 0, warning: 1, safe: 2 };
-    return (order[a.status] ?? 3) - (order[b.status] ?? 3) || (a.stock - a.min) - (b.stock - b.min);
-  });
-  const lowStockCols = [
-    { key: "code",        label: "Item Code" },
-    { key: "name",        label: "Item" },
-    { key: "category",    label: "Category" },
-    { key: "stock_fmt",   label: "On Hand" },
-    { key: "available_fmt",label: "Available" },
-    { key: "min",         label: "Min" },
-    { key: "reorderLevel",label: "Reorder Lvl" },
-    { key: "shortage_fmt",label: "Shortage" },
-    { key: "status_label",label: "Status" },
-    { key: "vendor",      label: "Preferred Vendor" },
-  ];
-  const lowStockExport = lowStockRows.map((i) => {
-    const shortage = Math.max(0, i.min - i.stock);
-    const v = (i.vendorLinks || []).find((x) => x.role === "Preferred") || (i.vendorLinks || [])[0];
-    return {
-      ...i,
-      stock_fmt:     `${i.stock} ${i.unit || ""}`.trim(),
-      available_fmt: `${i.availableStock ?? i.stock} ${i.unit || ""}`.trim(),
-      shortage_fmt:  shortage > 0 ? `${shortage} ${i.unit || ""}`.trim() : "—",
-      status_label:  i.status === "critical" ? "Critical" : i.status === "warning" ? "Low" : "At reorder",
-      vendor:        v?.vendorName || i.vendor || "—",
-    };
-  });
 
   // ── VENDOR HISTORY ──
   const vendorMap = {};
@@ -10548,88 +8001,6 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                     </div>
                   );
                 })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ─── CURRENT STOCK REPORT ─── */}
-        {tab === "stock" && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <div className="text-sm font-bold text-white">Current Stock Report</div>
-                <div className="text-[10px] text-slate-500 mt-0.5">{stockReportRows.length} items — live on-hand / reserved / available</div>
-              </div>
-              <HRExportBar onCSV={()=>hrExportCSV(stockReportExport,stockReportCols,"current-stock")} onExcel={()=>hrExportExcel(stockReportExport,stockReportCols,"current-stock")} onPDF={()=>hrExportPDF("Current Stock Report",stockReportExport,stockReportCols)} />
-            </div>
-            {stockReportRows.length === 0 ? (
-              <div className="text-center py-20 text-slate-600 text-sm">No items match the current filters.</div>
-            ) : (
-              <div className="rounded-xl overflow-x-auto" style={{ border:"1px solid rgba(255,255,255,0.06)" }}>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr style={{ background:"rgba(255,255,255,0.03)" }}>
-                      {stockReportCols.map((c) => (
-                        <th key={c.key} className="text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 py-2.5 whitespace-nowrap">{c.label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {stockReportExport.map((r, i) => (
-                      <tr key={r.code || i} className="hover:bg-white/[0.025] transition-all" style={{ borderTop:"1px solid rgba(255,255,255,0.04)" }}>
-                        {stockReportCols.map((c) => (
-                          <td key={c.key} className={`px-3 py-2 whitespace-nowrap ${c.key==="code"?"font-mono text-slate-400 text-[10px]":"text-slate-300"}`}>
-                            {c.key === "status_label"
-                              ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: r.status==="critical"?"rgba(239,68,68,0.15)":r.status==="warning"?"rgba(245,158,11,0.15)":"rgba(34,197,94,0.12)", color: r.status==="critical"?"#f87171":r.status==="warning"?"#fbbf24":"#4ade80" }}>{r[c.key]}</span>
-                              : (r[c.key] ?? "—")}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ─── LOW STOCK REPORT ─── */}
-        {tab === "lowstock" && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <div className="text-sm font-bold text-white">Low Stock Report</div>
-                <div className="text-[10px] text-slate-500 mt-0.5">{lowStockRows.length} items at/below minimum or reorder level — order soon</div>
-              </div>
-              <HRExportBar onCSV={()=>hrExportCSV(lowStockExport,lowStockCols,"low-stock")} onExcel={()=>hrExportExcel(lowStockExport,lowStockCols,"low-stock")} onPDF={()=>hrExportPDF("Low Stock Report",lowStockExport,lowStockCols)} />
-            </div>
-            {lowStockRows.length === 0 ? (
-              <div className="text-center py-20 text-green-400 text-sm">✅ All stock levels are healthy.</div>
-            ) : (
-              <div className="rounded-xl overflow-x-auto" style={{ border:"1px solid rgba(255,255,255,0.06)" }}>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr style={{ background:"rgba(255,255,255,0.03)" }}>
-                      {lowStockCols.map((c) => (
-                        <th key={c.key} className="text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 py-2.5 whitespace-nowrap">{c.label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lowStockExport.map((r, i) => (
-                      <tr key={r.code || i} className="hover:bg-white/[0.025] transition-all" style={{ borderTop:"1px solid rgba(255,255,255,0.04)" }}>
-                        {lowStockCols.map((c) => (
-                          <td key={c.key} className={`px-3 py-2 whitespace-nowrap ${c.key==="code"?"font-mono text-slate-400 text-[10px]":"text-slate-300"}`}>
-                            {c.key === "status_label"
-                              ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: r.status==="critical"?"rgba(239,68,68,0.15)":r.status==="warning"?"rgba(245,158,11,0.15)":"rgba(251,146,60,0.15)", color: r.status==="critical"?"#f87171":r.status==="warning"?"#fbbf24":"#fb923c" }}>{r[c.key]}</span>
-                              : (r[c.key] ?? "—")}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </div>
             )}
           </div>
@@ -11304,45 +8675,19 @@ function NotificationPanel({ notifications, dismissed, onClose, onNavigate, onDi
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const { currentUser, canDo: authCanDo, canView, isLoading: authLoading } = useAuth();
-
-  // Boot mode. In Supabase mode the DB is the single source of truth — state starts EMPTY
-  // and is filled by the on-mount hydration, so no demo/stale data is ever shown.
-  // Demo seed data loads ONLY when explicitly allowed (VITE_ALLOW_DEMO=true) and Supabase is off.
-  const SUPA      = isSupabaseEnabled();
-  const SEED_DEMO = ALLOW_DEMO && !SUPA;
+  const { currentUser, canDo: authCanDo, canView } = useAuth();
 
   const [activePage,    setActivePage]    = useState("dashboard");
   const [collapsed,     setCollapsed]     = useState(false);
   const [showSearch,    setShowSearch]    = useState(false);
   const [showNotifs,    setShowNotifs]    = useState(false);
-  const [showShortcuts, setShowShortcuts] = useState(false);
   const [dismissedIds,  setDismissedIds]  = useState(() => new Set());
 
   const [items, setItems] = useState(() => {
-    // Supabase mode → start empty; the on-mount hydration is the source of truth (no demo flash).
-    if (SUPA) return {};
     try {
       const s = localStorage.getItem("erp_items");
-      if (s) {
-        // Recompute status on load so the stock<=min business rule applies to data
-        // saved under the older stock<min rule. Pure status refresh, no stock change.
-        const parsed = JSON.parse(s);
-        // Only iterate if the shape matches { category: [items] }; otherwise pass-through
-        // to preserve the user's data even if it's in an unexpected shape.
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          const refreshed = {};
-          for (const [cat, list] of Object.entries(parsed)) {
-            refreshed[cat] = Array.isArray(list)
-              ? list.map((it) => ({ ...it, status: recomputeStatus(it.stock, it.min) }))
-              : list;
-          }
-          return refreshed;
-        }
-        return parsed;
-      }
+      if (s) return JSON.parse(s);
     } catch {}
-    if (!SEED_DEMO) return {};                 // demo disabled → empty, never fake data
     const out = {};
     for (const [cat, list] of Object.entries(inventoryData)) {
       out[cat] = list.map((item) => ({ ...item, history: buildInitialHistory(item.trend) }));
@@ -11350,273 +8695,80 @@ export default function App() {
     return out;
   });
 
-  const [pos,        setPos]        = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_pos");        if (s) return JSON.parse(s); } catch {} return SEED_DEMO ? initialPOs : []; });
-  const [vendorList, setVendorList] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_vendors");    if (s) return JSON.parse(s); } catch {} return SEED_DEMO ? vendors : []; });
-  const [bomDefs,    setBomDefs]    = useState(() => { if (SUPA) return {}; try { const s = localStorage.getItem("erp_bomdefs");    if (s) return JSON.parse(s); } catch {} return SEED_DEMO ? bomDefinitions : {}; });
-  const [outwardLog, setOutwardLog] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_outward");   if (s) return JSON.parse(s); } catch {} return []; });
-  const [inwardLog,  setInwardLog]  = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_inward");    if (s) return JSON.parse(s); } catch {} return []; });
-  const [pendingLog, setPendingLog] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_pending");   if (s) return JSON.parse(s); } catch {} return []; });
-  const [followUps,  setFollowUps]  = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_followups"); if (s) return JSON.parse(s); } catch {} return SEED_DEMO ? initialFollowUps : []; });
-  const [machineLog, setMachineLog] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_machines");  if (s) return JSON.parse(s); } catch {} return []; });
+  const [pos,        setPos]        = useState(() => { try { const s = localStorage.getItem("erp_pos");        if (s) return JSON.parse(s); } catch {} return initialPOs; });
+  const [vendorList, setVendorList] = useState(() => { try { const s = localStorage.getItem("erp_vendors");    if (s) return JSON.parse(s); } catch {} return vendors; });
+  const [bomDefs,    setBomDefs]    = useState(() => { try { const s = localStorage.getItem("erp_bomdefs");    if (s) return JSON.parse(s); } catch {} return bomDefinitions; });
+  const [outwardLog, setOutwardLog] = useState(() => { try { const s = localStorage.getItem("erp_outward");   if (s) return JSON.parse(s); } catch {} return []; });
+  const [inwardLog,  setInwardLog]  = useState(() => { try { const s = localStorage.getItem("erp_inward");    if (s) return JSON.parse(s); } catch {} return []; });
+  const [pendingLog, setPendingLog] = useState(() => { try { const s = localStorage.getItem("erp_pending");   if (s) return JSON.parse(s); } catch {} return []; });
+  const [followUps,  setFollowUps]  = useState(() => { try { const s = localStorage.getItem("erp_followups"); if (s) return JSON.parse(s); } catch {} return initialFollowUps; });
+  const [machineLog, setMachineLog] = useState(() => { try { const s = localStorage.getItem("erp_machines");  if (s) return JSON.parse(s); } catch {} return []; });
   const [auditLog,   setAuditLog]   = useState(() => getAuditLog());
   const [settings,   setSettings]   = useState(() => { try { const s = localStorage.getItem("erp_settings"); if (s) return { ...SETTINGS_DEFAULTS, ...JSON.parse(s) }; } catch {} return { ...SETTINGS_DEFAULTS }; });
 
-  // Save settings + propagate to all pages (now async — Supabase upsert when enabled).
-  // Returns the save result so the UI can SURFACE failures (the previous console.warn
-  // was invisible — operators saw "✅ Saved!" while Supabase silently rejected the row,
-  // and the next hydration overrode the local copy with the stale remote value).
-  const handleSaveSettings = async (newSettings) => {
-    console.info("[App] handleSaveSettings called");
-    setSettings(newSettings);                            // optimistic UI
-    const res = await saveSettings(newSettings);
-    if (!res.success) {
-      console.warn("[App] handleSaveSettings: Supabase save failed —", res.error);
-    }
-    return res;
+  // Save settings + propagate to all pages
+  const handleSaveSettings = (newSettings) => {
+    setSettings(newSettings);
+    try { localStorage.setItem("erp_settings", JSON.stringify(newSettings)); } catch {}
   };
-
-  // Realtime — re-fetch authoritative state on any row change. Handlers are stabilized with
-  // useCallback so the channel subscribes ONCE, not on every render. items reconciliation is
-  // debounced so a multi-line PO receive (which fires items + stock_movements + inward events
-  // back-to-back) coalesces into a single refetch. This is also the rollback path: any failed
-  // movement calls reconcileItems() to discard the optimistic UI and pull DB truth.
-  const reconcileTimer = useRef(null);
-  const reconcileItems = useCallback(() => {
-    if (reconcileTimer.current) clearTimeout(reconcileTimer.current);
-    reconcileTimer.current = setTimeout(() => {
-      fetchItems().then((i) => { if (i) setItems(i); });
-    }, 150);
-  }, []);
-  // Surfaced when a stock movement is rejected (e.g. insufficient stock / concurrent edit).
-  // The optimistic UI is reverted by reconcileItems(); this tells the operator why.
-  const [stockError, setStockError] = useState(null);
-  const stockErrTimer = useRef(null);
-  const flashStockError = useCallback((msg) => {
-    setStockError(msg);
-    if (stockErrTimer.current) clearTimeout(stockErrTimer.current);
-    stockErrTimer.current = setTimeout(() => setStockError(null), 6000);
-  }, []);
-  // In-flight PO-receive guard — blocks duplicate movement writes from rapid double-clicks
-  // before the optimistic status flip to "received" has rendered.
-  const receivingRef = useRef(new Set());
-  const rtPos     = useCallback(() => { fetchPOs().then((p) => p && setPos(p)); }, []);
-  const rtInward  = useCallback(() => { fetchInward().then((x) => x && setInwardLog(x)); }, []);
-  const rtOutward = useCallback(() => { fetchOutward().then((x) => x && setOutwardLog(x)); }, []);
-  const rtMach    = useCallback(() => { fetchMachines().then((m) => m && setMachineLog(m)); }, []);
-  const rtPending = useCallback(() => { fetchPending().then((p) => p && setPendingLog(p)); }, []);
-  useRealtimeTables({
-    onItemsChange:     reconcileItems,
-    onMovementsChange: reconcileItems,   // a ledger movement means stock changed → reconcile
-    onPosChange:       rtPos,
-    onInwardChange:    rtInward,
-    onOutwardChange:   rtOutward,
-    onMachinesChange:  rtMach,
-    onPendingChange:   rtPending,
-    // onAuditChange omitted — AuditHistoryPage re-fetches itself via subscribeAudit
-  });
-
-  // Hydrate all tables from Supabase whenever we get an authenticated session.
-  //
-  // Bug previously: this effect had an empty dependency array and ran once on
-  // mount, BEFORE the AuthProvider had finished restoring / establishing the
-  // Supabase session. Without the auth token attached, RLS blocked every read,
-  // each fetch returned empty/local-fallback, and the dashboard rendered zeros.
-  // Hard-refreshing the page made it work because the token was already in
-  // localStorage by the time the effect fired. Fresh logins were broken until
-  // a manual refresh.
-  //
-  // Fix: re-run hydration when `currentUser` transitions from null → set. The
-  // `currentUser?.id` dep ensures it also reloads on user switch.
-  useEffect(() => {
-    if (!isSupabaseEnabled()) return;
-    if (!currentUser?.id) return;        // wait for AuthContext to land the session
-    let cancelled = false;
-    (async () => {
-      console.info("[App] hydrating Supabase state for user", currentUser.id);
-      const [s, v, i, b, p, inw, out, pend, fu, mac] = await Promise.all([
-        loadSettings(), listVendors(), fetchItems(), fetchBOMs(),
-        fetchPOs(), fetchInward(), fetchOutward(),
-        fetchPending(), fetchFollowUps(), fetchMachines(),
-      ]);
-      if (cancelled) return;
-      if (s) setSettings((prev) => {
-        // Hydration-safety: if the remote settings row is missing companies but the
-        // local cache has them (e.g. previous save Supabase-rejected, or a stale
-        // pre-PO-settings row), KEEP the local companies. Without this guard the blind
-        // spread used to silently wipe newly-added companies on every page reload.
-        const remotePo = s.po;
-        const localPo  = prev.po;
-        const remoteHasCompanies = remotePo && Array.isArray(remotePo.companies) && remotePo.companies.length > 0;
-        const localHasCompanies  = localPo  && Array.isArray(localPo.companies)  && localPo.companies.length > 0;
-        const merged = { ...prev, ...s };
-        if (localHasCompanies && !remoteHasCompanies) {
-          console.warn("[App] hydration: remote settings.po has no companies but local does — keeping local copy");
-          merged.po = localPo;
-        }
-        return merged;
-      });
-      if (v) setVendorList(v);
-      if (i && Object.keys(i).length >= 0) setItems(i);
-      if (b && Object.keys(b).length >= 0) setBomDefs(b);
-      if (p) setPos(p);
-      if (inw)  setInwardLog(inw);
-      if (out)  setOutwardLog(out);
-      if (pend) setPendingLog(pend);
-      if (fu)   setFollowUps(fu);
-      if (mac)  setMachineLog(mac);
-      console.info("[App] hydrated", {
-        vendors: v?.length, items: Object.values(i || {}).reduce((s, l) => s + (l?.length || 0), 0),
-        boms: Object.keys(b || {}).length, pos: p?.length,
-        inward: inw?.length, outward: out?.length, pending: pend?.length,
-        followups: fu?.length, machines: mac?.length,
-      });
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.id]);
 
 
   // Persist all mutable state to localStorage so data survives page refresh
-  // Legacy auto-persist — only fires in LOCAL mode. In Supabase mode each store handles its own cache.
-  useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_items",     JSON.stringify(items));      } catch {} }, [items]);
-  useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_pos",       JSON.stringify(pos));        } catch {} }, [pos]);
-  useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_vendors",   JSON.stringify(vendorList)); } catch {} }, [vendorList]);
-  useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_bomdefs",   JSON.stringify(bomDefs));    } catch {} }, [bomDefs]);
-  useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_outward",   JSON.stringify(outwardLog)); } catch {} }, [outwardLog]);
-  useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_inward",    JSON.stringify(inwardLog));  } catch {} }, [inwardLog]);
-  useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_pending",   JSON.stringify(pendingLog)); } catch {} }, [pendingLog]);
-  useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_followups", JSON.stringify(followUps));  } catch {} }, [followUps]);
-  useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_machines",  JSON.stringify(machineLog)); } catch {} }, [machineLog]);
+  useEffect(() => { try { localStorage.setItem("erp_items",     JSON.stringify(items));      } catch {} }, [items]);
+  useEffect(() => { try { localStorage.setItem("erp_pos",       JSON.stringify(pos));        } catch {} }, [pos]);
+  useEffect(() => { try { localStorage.setItem("erp_vendors",   JSON.stringify(vendorList)); } catch {} }, [vendorList]);
+  useEffect(() => { try { localStorage.setItem("erp_bomdefs",   JSON.stringify(bomDefs));    } catch {} }, [bomDefs]);
+  useEffect(() => { try { localStorage.setItem("erp_outward",   JSON.stringify(outwardLog)); } catch {} }, [outwardLog]);
+  useEffect(() => { try { localStorage.setItem("erp_inward",    JSON.stringify(inwardLog));  } catch {} }, [inwardLog]);
+  useEffect(() => { try { localStorage.setItem("erp_pending",   JSON.stringify(pendingLog)); } catch {} }, [pendingLog]);
+  useEffect(() => { try { localStorage.setItem("erp_followups", JSON.stringify(followUps));  } catch {} }, [followUps]);
+  useEffect(() => { try { localStorage.setItem("erp_machines",  JSON.stringify(machineLog)); } catch {} }, [machineLog]);
   // auditLog is persisted by auditStore; just subscribe to keep state in sync
   useEffect(() => subscribeAudit((next) => setAuditLog(next)), []);
 
-  // ── Global keyboard layer (2026-06-05i) ──
-  // Tally-style operator workflow: keyboard-first navigation across the app.
-  //
-  // Alt + H : Dashboard
-  // Alt + I : Item Master
-  // Alt + N : Inward
-  // Alt + O : Outward
-  // Alt + P : Pending Stock
-  // Alt + M : Machine Tracker
-  // Alt + V : Vendors
-  // Ctrl/Cmd + K : Global Search toggle
-  // ?      : Keyboard cheatsheet overlay (Shift + / on US layouts)
-  // Esc    : Close in priority order — cheatsheet > search > notifs
-  //          (modals/drawers own their own Esc handlers and take precedence
-  //          because we ignore the keystroke while focus is in an input.)
-  //
-  // Skip handling when the user is typing in a text field so Alt-combos and
-  // arrows don't fight native input shortcuts. canView is silently honoured —
-  // a denied page is a no-op rather than a flash to AccessDeniedPage.
+  // ── Ctrl+K global search ──
   useEffect(() => {
-    const NAV = { h: "dashboard", i: "inventory", n: "inward", o: "outward", p: "pending", m: "machines", v: "vendors" };
-    const isTyping = () => {
-      const el = document.activeElement;
-      if (!el) return false;
-      const tag = (el.tagName || "").toLowerCase();
-      if (tag === "input" || tag === "textarea" || tag === "select") return true;
-      if (el.isContentEditable) return true;
-      return false;
-    };
     const handler = (e) => {
-      // Ctrl/Cmd + K — global search (works even inside inputs so the
-      // operator can jump out of a form into search.)
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setShowSearch((v) => !v);
-        return;
-      }
-      // Esc — close one overlay at a time, top-most first.
-      if (e.key === "Escape" && !isTyping()) {
-        if (showShortcuts) { setShowShortcuts(false); return; }
-        if (showSearch)    { setShowSearch(false);    return; }
-        if (showNotifs)    { setShowNotifs(false);    return; }
-        // modals/drawers have their own Esc handlers; don't preventDefault
-      }
-      // Alt + nav — only fires outside text fields so it doesn't compete
-      // with browser/OS Alt-shortcuts inside an active editor.
-      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        const target = NAV[e.key.toLowerCase()];
-        if (target && !isTyping()) {
-          e.preventDefault();
-          if (typeof canView !== "function" || canView(target)) {
-            setActivePage(target);
-            setShowSearch(false);
-            setShowNotifs(false);
-          }
-        }
-        return;
-      }
-      // ? — open cheatsheet. Shift+/ on US layouts; e.key === '?' covers it.
-      if (e.key === "?" && !isTyping()) {
-        e.preventDefault();
-        setShowShortcuts(true);
-      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") { e.preventDefault(); setShowSearch((v) => !v); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [showShortcuts, showSearch, showNotifs, canView]);
+  }, []);
 
   // Auth gate — after all hooks
-  if (authLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen text-slate-400 text-xs" style={{ background: "#080a0f", fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}>
-        <div className="text-center">
-          <div className="w-8 h-8 mx-auto mb-3 rounded-full animate-spin" style={{ border: "2px solid rgba(255,255,255,0.08)", borderTopColor: "#3b82f6" }} />
-          <div>Restoring session…</div>
-        </div>
-      </div>
-    );
-  }
   if (!currentUser) return <LoginPage />;
 
   // ── Computed notifications (live, derived from existing state) ──
-  // Defensive shape coercion. `items` / `pos` / `followUps` / `pendingLog` /
-  // `machineLog` can land in unexpected shapes during the brief window between
-  // login → hydration → realtime reconcile (e.g. a category mapped to `null`
-  // by a stale cache, a pos row with no lineItems). This computation runs in
-  // App's render body — ABOVE both PageErrorBoundary wrappers — so any throw
-  // here unmounts the whole tree (= blank screen) and no boundary catches it.
-  // Every iteration uses Array.isArray + ?. so a malformed row can never
-  // brick the dashboard render.
-  const safeItems     = items     && typeof items === "object" && !Array.isArray(items) ? items : {};
-  const safePos       = Array.isArray(pos)        ? pos        : [];
-  const safeFollowUps = Array.isArray(followUps)  ? followUps  : [];
-  const safePending   = Array.isArray(pendingLog) ? pendingLog : [];
-  const safeMachines  = Array.isArray(machineLog) ? machineLog : [];
-  const allItemsForNotif = Object.entries(safeItems).flatMap(([cat, list]) =>
-    Array.isArray(list) ? list.map((i) => ({ ...(i || {}), category: cat })) : []
-  );
+  const allItemsForNotif = Object.entries(items).flatMap(([cat, list]) => list.map((i) => ({ ...i, category: cat })));
   const notifications = [
-    ...allItemsForNotif.filter((i) => i?.status === "critical").map((i) => ({
+    ...allItemsForNotif.filter((i) => i.status === "critical").map((i) => ({
       id: `critical-${i.code}`, type: "critical",
       title: `Critical: ${i.name}`,
       desc:  `Only ${i.stock} ${i.unit} remaining — minimum is ${i.min} ${i.unit}`,
     })),
-    ...allItemsForNotif.filter((i) => i?.status === "warning").map((i) => ({
+    ...allItemsForNotif.filter((i) => i.status === "warning").map((i) => ({
       id: `warning-${i.code}`, type: "warning",
       title: `Low Stock: ${i.name}`,
       desc:  `${i.stock} ${i.unit} left, below minimum of ${i.min} ${i.unit}`,
     })),
-    ...safePos.filter((p) => p?.status === "pending").map((p) => ({
+    ...pos.filter((p) => p.status === "pending").map((p) => ({
       id: `approval-${p.id}`, type: "approval",
       title: `PO Approval Needed: ${p.id}`,
-      desc:  `${p.vendor || ""} · ₹${(p.amount || 0).toLocaleString("en-IN")} · ${(p.lineItems || []).length} item(s)`,
+      desc:  `${p.vendor} · ₹${(p.amount || 0).toLocaleString("en-IN")} · ${(p.lineItems || []).length} item(s)`,
     })),
-    ...safeFollowUps.map((f) => ({
-      id: `followup-${f?.id}`, type: "followup",
-      title: `Follow-Up Due: ${f?.poId || ""}`,
-      desc:  `${f?.vendor || ""} · Next: ${f?.nextFollowUp || ""}`,
+    ...followUps.map((f) => ({
+      id: `followup-${f.id}`, type: "followup",
+      title: `Follow-Up Due: ${f.poId}`,
+      desc:  `${f.vendor} · Next: ${f.nextFollowUp}`,
     })),
-    ...(safePending.length > 0 ? [{
+    ...(pendingLog.length > 0 ? [{
       id: "pending_alert-all", type: "pending_alert",
-      title: `${safePending.length} Pending Material${safePending.length > 1 ? "s" : ""} Awaiting`,
-      desc:  `${[...new Set(safePending.map((p) => p?.bomKey).filter(Boolean))].slice(0, 3).join(", ")}${safePending.length > 3 ? "…" : ""}`,
+      title: `${pendingLog.length} Pending Material${pendingLog.length > 1 ? "s" : ""} Awaiting`,
+      desc:  `${[...new Set(pendingLog.map((p) => p.bomKey))].slice(0, 3).join(", ")}${pendingLog.length > 3 ? "…" : ""}`,
     }] : []),
-    ...safeMachines.filter((m) => m?.status === "completed" && m?.stage === "Ready").slice(0, 3).map((m) => ({
+    ...machineLog.filter((m) => m.status === "completed" && m.stage === "Ready").slice(0, 3).map((m) => ({
       id: `machine_ready-${m.id}`, type: "machine_ready",
-      title: `Machine Ready: ${m.bomKey || ""}`,
+      title: `Machine Ready: ${m.bomKey}`,
       desc:  `${m.bomLabel || ""}${m.serialNo ? " · S/N: " + m.serialNo : ""} · Completed ${m.completedDate || ""}`,
     })),
   ];
@@ -11627,11 +8779,9 @@ export default function App() {
 
   const logAudit = (entry) => { appendAuditWithUser(entry); };
 
-  const handleUpdateStock = async (category, code, delta, eventType = null) => {
+  const handleUpdateStock = (category, code, delta, eventType = null) => {
     const dateStr = fmtDate(new Date());
     const event   = eventType || (delta > 0 ? "Restock" : "Usage");
-    const before  = items[category]?.find((i) => i.code === code);
-    // Optimistic local update (immediate UI)
     setItems((prev) => ({
       ...prev,
       [category]: prev[category].map((i) => {
@@ -11647,31 +8797,6 @@ export default function App() {
         };
       }),
     }));
-    // Persist to Supabase (no-op when local mode)
-    if (isSupabaseEnabled()) {
-      const res = await updateStockAndHistory(category, code, delta, event);
-      if (!res.success) {
-        console.warn("[App] handleUpdateStock: Supabase persist failed —", res.error);
-        flashStockError(`${before?.name || code}: ${res.error || "movement rejected"}`);
-        reconcileItems();   // revert optimistic UI to DB truth
-        return { success: false, error: res.error };
-      }
-    }
-    // Only log when called as a standalone manual adjust (no eventType from a calling flow).
-    // BOM/Inward/Outward/Receive flows pass an eventType and log their own audit entries.
-    if (!eventType && before) {
-      const newStock = Math.max(0, before.stock + delta);
-      logAudit({
-        type: "stock_adjust", module: "Inventory",
-        action: `Stock Adjusted: ${before.name} ${before.stock} → ${newStock} (${delta > 0 ? "+" : ""}${delta})`,
-        ref: code, itemCode: code, itemName: before.name,
-        qty: delta,
-        oldValue: { stock: before.stock },
-        newValue: { stock: newStock },
-        details: { category, event },
-      });
-    }
-    return { success: true };
   };
 
   // ── PO handlers ──
@@ -11683,23 +8808,20 @@ export default function App() {
     const dateStr = fmtDate(new Date());
     const newId   = `PO-${maxNum + 1}`;
     const count   = (data.lineItems || []).length;
-    const newPO   = {
+    setPos((prev) => [{
       ...data,
       id: newId, date: dateStr, receivedDate: null,
       status: data.status || "pending",
       activityLog: [
         { action: "Created PO", date: dateStr, note: `${count} item${count !== 1 ? "s" : ""} · ₹${(data.amount || 0).toLocaleString("en-IN")}` },
       ],
-    };
-    setPos((prev) => [newPO, ...prev]);
-    if (isSupabaseEnabled()) poCreate(newPO).then((r) => { if (!r.success) console.warn("[App] PO create Supabase failed:", r.error); });
+    }, ...prev]);
     logAudit({ type: "po_created", module: "Purchase", action: `PO Created: ${newId}`, ref: newId, vendor: data.vendor, amount: data.amount || 0, details: { items: count, status: "pending" } });
   };
 
   const handleUpdatePO = (id, updates) => {
     const dateStr = fmtDate(new Date());
     const po = pos.find((p) => p.id === id);
-    let supabaseUpdates = { ...updates };
     setPos((prev) => prev.map((p) => {
       if (p.id !== id) return p;
       const log    = p.activityLog || [];
@@ -11708,45 +8830,17 @@ export default function App() {
         newLog.push({ action: "Approved", date: dateStr });
       if (updates.status === "rejected" && p.status !== "rejected")
         newLog.push({ action: "Rejected", date: dateStr, note: updates.rejectReason || "No reason given" });
-      supabaseUpdates.activityLog = newLog;
       return { ...p, ...updates, activityLog: newLog };
     }));
-    if (isSupabaseEnabled()) poUpdate(id, supabaseUpdates).then((r) => { if (!r.success) console.warn("[App] PO update Supabase failed:", r.error); });
     if (updates.status === "approved" && po?.status !== "approved")
       logAudit({ type: "po_approved", module: "Purchase", action: `PO Approved: ${id}`, ref: id, vendor: po?.vendor, amount: po?.amount || 0 });
-    else if (updates.status === "rejected" && po?.status !== "rejected")
+    if (updates.status === "rejected" && po?.status !== "rejected")
       logAudit({ type: "po_rejected", module: "Purchase", action: `PO Rejected: ${id}`, ref: id, vendor: po?.vendor, amount: po?.amount || 0, details: { reason: updates.rejectReason } });
-    else if (po) {
-      // Generic edit (priority, notes, line items, etc.) — log diff of changed fields only
-      const ignored = new Set(["activityLog"]);
-      const changed = {};
-      const oldSnap = {};
-      Object.keys(updates).forEach((k) => {
-        if (ignored.has(k)) return;
-        if (JSON.stringify(po[k]) !== JSON.stringify(updates[k])) {
-          changed[k] = updates[k];
-          oldSnap[k] = po[k];
-        }
-      });
-      if (Object.keys(changed).length > 0) {
-        logAudit({
-          type: "po_edited", module: "Purchase",
-          action: `PO Edited: ${id} (${Object.keys(changed).join(", ")})`,
-          ref: id, vendor: po.vendor, amount: po.amount || 0,
-          oldValue: oldSnap, newValue: changed,
-        });
-      }
-    }
   };
 
   const handleReceivePO = (id) => {
     const po = pos.find((p) => p.id === id);
     if (!po) return;
-    // Duplicate-write guard: already received, or a receive for this PO is already in flight.
-    if (po.status === "received") { console.warn("[App] handleReceivePO: PO already received, ignoring", id); return; }
-    if (receivingRef.current.has(id)) { console.warn("[App] handleReceivePO: receive already in flight, ignoring", id); return; }
-    receivingRef.current.add(id);
-    setTimeout(() => receivingRef.current.delete(id), 2000);  // self-heal so a later reverse→re-receive works
     const dateStr = fmtDate(new Date());
 
     // Pre-compute how much of each received line item can fulfill pending entries
@@ -11789,22 +8883,6 @@ export default function App() {
       return next;
     });
 
-    // Persist each line-item stock change to Supabase (net of auto-fulfilled pending)
-    if (isSupabaseEnabled()) {
-      Promise.all((po.lineItems || []).map((li) => {
-        const deduct = lineDeductions[li.code]?.deduct || 0;
-        const netDelta = li.qty - deduct;
-        return updateStockAndHistory(li.category, li.code, netDelta, `PO: ${id}`);
-      })).then((results) => {
-        const failed = results.filter((r) => !r.success);
-        if (failed.length) {
-          console.warn("[App] handleReceivePO: some Supabase updates failed", failed);
-          flashStockError(`PO ${id}: ${failed.length} line item(s) failed — ${failed[0]?.error || "movement rejected"}`);
-          reconcileItems();
-        }
-      });
-    }
-
     // Batch-update pendingLog for all auto-fulfilled items
     if (Object.keys(lineDeductions).length > 0) {
       const newPendingLog = pendingLog.reduce((acc, p) => {
@@ -11818,24 +8896,19 @@ export default function App() {
         } else { acc.push(p); }
         return acc;
       }, []);
-      setPendingLog(newPendingLog);
-      // Mirror to Supabase: for each pending row touched, decide update vs delete
-      if (isSupabaseEnabled()) {
-        pendingLog.forEach((p) => {
-          const ld = lineDeductions[p.code];
-          if (!ld) return;
-          const key = p.issueId ? `${p.issueId}::${p.code}` : `${p.code}::${p.bomKey}::${p.date}`;
-          const can = ld.fMap.get(key) || 0;
-          if (!can || !p.id) return;
+      // Apply against the latest pendingLog (functional form) so this correctly stacks
+      // even if another pending-fulfillment update is queued in the same batch.
+      setPendingLog((prev) => prev.reduce((acc, p) => {
+        const ld = lineDeductions[p.code];
+        if (!ld) { acc.push(p); return acc; }
+        const key = p.issueId ? `${p.issueId}::${p.code}` : `${p.code}::${p.bomKey}::${p.date}`;
+        const can = ld.fMap.get(key) || 0;
+        if (can) {
           const rem = p.pendingQty - can;
-          if (rem > 0) {
-            pendingUpdate(p.id, { pendingQty: rem, issueQty: (p.issueQty || 0) + can })
-              .then((r) => { if (!r.success) console.warn("[App] handleReceivePO: pending update Supabase failed", r.error); });
-          } else {
-            pendingDelete(p.id).then((r) => { if (!r.success) console.warn("[App] handleReceivePO: pending delete Supabase failed", r.error); });
-          }
-        });
-      }
+          if (rem > 0) acc.push({ ...p, pendingQty: rem, issueQty: (p.issueQty || 0) + can });
+        } else { acc.push(p); }
+        return acc;
+      }, []));
       // Notify Machine Tracker for any issueIds that are now fully cleared
       const affectedIds = [...new Set(
         [...Object.values(lineDeductions)].flatMap(({ fMap }) =>
@@ -11850,23 +8923,22 @@ export default function App() {
 
     const newLog = [...(po.activityLog || []), { action: "Received", date: dateStr, note: "Stock updated automatically" }];
     setPos((prev) => prev.map((p) => p.id !== id ? p : { ...p, status: "received", receivedDate: dateStr, activityLog: newLog }));
-    if (isSupabaseEnabled()) poUpdate(id, { status: "received", receivedDate: dateStr, activityLog: newLog }).then((r) => { if (!r.success) console.warn("[App] PO receive Supabase failed:", r.error); });
     setFollowUps((prev) => prev.filter((f) => f.poId !== id));
-    if (isSupabaseEnabled()) deleteFollowUpsByPO(id).then((r) => { if (!r.success) console.warn("[App] FollowUp delete Supabase failed:", r.error); });
     logAudit({ type: "po_received", module: "Purchase", action: `PO Received: ${id}`, ref: id, vendor: po.vendor, amount: po.amount || 0, details: { items: (po.lineItems || []).length } });
-    const inwardEntries = (po.lineItems || []).map((li, i) => ({
-      id:     Date.now() + i,
-      date:   dateStr,
-      vendor: po.vendor,
-      item:   li.name,
-      code:   li.code,
-      unit:   li.unit,
-      qty:    li.qty,
-      notes:  `Auto-received via ${id}`,
-      fromPO: id,
-    }));
-    setInwardLog((prev) => [...inwardEntries, ...prev]);
-    if (isSupabaseEnabled()) bulkCreateInward(inwardEntries).then((r) => { if (!r.success) console.warn("[App] Inward bulk Supabase failed:", r.error); });
+    setInwardLog((prev) => [
+      ...(po.lineItems || []).map((li, i) => ({
+        id:     Date.now() + i,
+        date:   dateStr,
+        vendor: po.vendor,
+        item:   li.name,
+        code:   li.code,
+        unit:   li.unit,
+        qty:    li.qty,
+        notes:  `Auto-received via ${id}`,
+        fromPO: id,
+      })),
+      ...prev,
+    ]);
   };
 
   const handleDeletePO = (id) => {
@@ -11874,7 +8946,6 @@ export default function App() {
     const isSuperAdmin = currentUser?.role === "super_admin";
     const wasReceived  = po?.status === "received";
     setPos((prev) => prev.filter((p) => p.id !== id));
-    if (isSupabaseEnabled()) poDelete(id).then((r) => { if (!r.success) console.warn("[App] PO delete Supabase failed:", r.error); });
     logAudit({
       type: wasReceived ? "po_deleted_received" : "po_deleted",
       module: "Purchase",
@@ -11895,7 +8966,7 @@ export default function App() {
 
     const dateStr = fmtDate(new Date());
 
-    // Subtract back the qty added when receiving (optimistic local update)
+    // Subtract back the qty added when receiving
     setItems((prev) => {
       const next = { ...prev };
       (po.lineItems || []).forEach((li) => {
@@ -11915,29 +8986,13 @@ export default function App() {
       return next;
     });
 
-    // Persist each line-item reversal to Supabase (with item_history rows)
-    if (isSupabaseEnabled()) {
-      Promise.all((po.lineItems || []).map((li) =>
-        updateStockAndHistory(li.category, li.code, -li.qty, `PO Receive Reversed: ${id}`)
-      )).then((results) => {
-        const failed = results.filter((r) => !r.success);
-        if (failed.length) {
-          console.warn("[App] handleReverseReceive: some Supabase updates failed", failed);
-          flashStockError(`Reverse ${id}: ${failed.length} line item(s) failed — ${failed[0]?.error || "movement rejected"}`);
-          reconcileItems();
-        }
-      });
-    }
-
     // Revert PO status to "ordered" (or "pending" if no orderedDate)
     const revertStatus = po.orderedDate ? "ordered" : "pending";
     const newLog = [...(po.activityLog || []), { action: "Receive Reversed", date: dateStr, note: reason || "Reversed by Super Admin" }];
     setPos((prev) => prev.map((p) => p.id !== id ? p : { ...p, status: revertStatus, receivedDate: null, activityLog: newLog }));
-    if (isSupabaseEnabled()) poUpdate(id, { status: revertStatus, receivedDate: null, activityLog: newLog }).then((r) => { if (!r.success) console.warn("[App] PO reverse Supabase failed:", r.error); });
 
     // Remove inward entries linked to this PO
     setInwardLog((prev) => prev.filter((e) => e.fromPO !== id));
-    if (isSupabaseEnabled()) deleteInwardByPO(id).then((r) => { if (!r.success) console.warn("[App] Inward delete Supabase failed:", r.error); });
 
     logAudit({
       type: "po_receive_reversed", module: "Purchase",
@@ -11950,17 +9005,13 @@ export default function App() {
     return { success: true };
   };
 
-  const handleInventoryCorrection = async (category, code, newStock, reason = "") => {
+  const handleInventoryCorrection = (category, code, newStock, reason = "") => {
     if (currentUser?.role !== "super_admin") return { success: false, error: "Only Super Admin can perform inventory corrections" };
     const item = items[category]?.find((i) => i.code === code);
     if (!item) return { success: false, error: "Item not found" };
     const oldStock = item.stock;
     const delta    = newStock - oldStock;
     const dateStr  = fmtDate(new Date());
-    if (isSupabaseEnabled()) {
-      const res = await updateStockAndHistory(category, code, delta, `Correction: ${reason || "Super Admin adjustment"}`);
-      if (!res.success) { console.warn("[App] handleInventoryCorrection: Supabase failed —", res.error); return { success: false, error: res.error }; }
-    }
     setItems((prev) => ({
       ...prev,
       [category]: prev[category].map((it) => it.code !== code ? it : {
@@ -11991,21 +9042,21 @@ export default function App() {
     const nextDate = new Date(); nextDate.setDate(nextDate.getDate() + 1);
     const newLog   = [...(po.activityLog || []), { action: "Order Placed", date: dateStr, note: `ETA: ${etaStr}` }];
     setPos((prev) => prev.map((p) => p.id !== poId ? p : { ...p, status: "ordered", orderedDate: dateStr, eta: etaStr, activityLog: newLog }));
-    if (isSupabaseEnabled()) poUpdate(poId, { status: "ordered", orderedDate: dateStr, eta: etaStr, activityLog: newLog }).then((r) => { if (!r.success) console.warn("[App] PO confirm Supabase failed:", r.error); });
     logAudit({ type: "po_ordered", module: "Purchase", action: `Order Placed: ${poId}`, ref: poId, vendor: po.vendor, amount: po.amount || 0, details: { eta: etaStr } });
-    const newFU = {
-      id: Date.now(),
-      poId,
-      vendor:       po.vendor,
-      itemNames:    (po.lineItems || []).map((li) => li.name),
-      eta:          etaStr,
-      confirmedDate: dateStr,
-      nextFollowUp:  fmtDate(nextDate),
-      lastFollowUp:  null,
-      frequency:     1,
-    };
-    setFollowUps((prev) => [...prev, newFU]);
-    if (isSupabaseEnabled()) followupCreate(newFU).then((r) => { if (!r.success) console.warn("[App] FollowUp create Supabase failed:", r.error); });
+    setFollowUps((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        poId,
+        vendor:       po.vendor,
+        itemNames:    (po.lineItems || []).map((li) => li.name),
+        eta:          etaStr,
+        confirmedDate: dateStr,
+        nextFollowUp:  fmtDate(nextDate),
+        lastFollowUp:  null,
+        frequency:     1,
+      },
+    ]);
   };
 
   const handleFollowUpDone = (id, freq, nextDateStr) => {
@@ -12017,18 +9068,10 @@ export default function App() {
         const log = p.activityLog || [];
         return { ...p, activityLog: [...log, { action: "Follow Up Done", date: dateStr, note: `Next: ${nextDateStr}` }] };
       }));
-      logAudit({
-        type: "followup_done", module: "Purchase",
-        action: `Follow-Up: ${fu.poId} — Next: ${nextDateStr}`,
-        ref: fu.poId, vendor: fu.vendor,
-        oldValue: { lastFollowUp: fu.lastFollowUp, nextFollowUp: fu.nextFollowUp, frequency: fu.frequency },
-        newValue: { lastFollowUp: dateStr, nextFollowUp: nextDateStr, frequency: freq },
-      });
     }
     setFollowUps((prev) => prev.map((f) =>
       f.id !== id ? f : { ...f, lastFollowUp: dateStr, nextFollowUp: nextDateStr, frequency: freq }
     ));
-    if (isSupabaseEnabled()) followupUpdate(id, { lastFollowUp: dateStr, nextFollowUp: nextDateStr, frequency: freq }).then((r) => { if (!r.success) console.warn("[App] FollowUp update Supabase failed:", r.error); });
   };
 
   const handleInwardComplete = (code, category, inwardQty) => {
@@ -12062,20 +9105,16 @@ export default function App() {
             } else { acc.push(p); }
             return acc;
           }, []);
-          setPendingLog(newPendingLog);
-          // Mirror to Supabase: for each fulfilled entry, update or delete
-          if (isSupabaseEnabled()) {
-            fulfillments.forEach(({ entry, canFulfill }) => {
-              if (!entry.id) return;
-              const rem = entry.pendingQty - canFulfill;
-              if (rem > 0) {
-                pendingUpdate(entry.id, { pendingQty: rem, issueQty: (entry.issueQty || 0) + canFulfill })
-                  .then((r) => { if (!r.success) console.warn("[App] handleInwardComplete: pending update Supabase failed", r.error); });
-              } else {
-                pendingDelete(entry.id).then((r) => { if (!r.success) console.warn("[App] handleInwardComplete: pending delete Supabase failed", r.error); });
-              }
-            });
-          }
+          // Functional form: correctly stacks even if called more than once in the same batch.
+          setPendingLog((prev) => prev.reduce((acc, p) => {
+            const key = p.issueId ? `${p.issueId}::${p.code}` : `${p.code}::${p.bomKey}::${p.date}`;
+            const can = fulfillMap.get(key);
+            if (can) {
+              const rem = p.pendingQty - can;
+              if (rem > 0) acc.push({ ...p, pendingQty: rem, issueQty: (p.issueQty || 0) + can });
+            } else { acc.push(p); }
+            return acc;
+          }, []));
           // notify Machine Tracker for each issueId that is now fully cleared
           const affectedIds = [...new Set(fulfillments.map((f) => f.entry.issueId).filter(Boolean))];
           affectedIds.forEach((id) => {
@@ -12086,506 +9125,26 @@ export default function App() {
     }
   };
 
-  // ── Item handlers ── (routed through itemsStore: Supabase when enabled, localStorage otherwise)
-  const handleCreateItemRow = async (category, newItem) => {
-    console.log("%c[App] handleCreateItemRow CALLED", "color:#10b981;font-weight:bold", { code: newItem.code, category });
-    let res;
-    try {
-      res = await itemCreate(category, newItem);
-      console.log("%c[App] handleCreateItemRow → itemCreate returned:", "color:#10b981", res);
-    } catch (thrown) {
-      console.error("%c[App] handleCreateItemRow → itemCreate THREW:", "color:#ef4444;font-weight:bold", thrown);
-      return { success: false, error: `itemCreate threw: ${thrown?.message || thrown}` };
-    }
-    if (!res.success) { console.warn("[App] item create failed:", res.error); return { success: false, error: res.error }; }
-    setItems((prev) => ({ ...prev, [category]: [...(prev[category] || []), res.item] }));
-    // If itemsStore had to strip the media columns because migration 016 hasn't been
-    // run, alert the operator — the previous silent retry was the root cause of the
-    // "uploads succeed then disappear on reopen" bug.
-    if (res.mediaStripped) {
-      alert("⚠️ Item saved, but the photo / design file were NOT persisted because the items.photo / design_file columns don't exist in your Supabase yet.\n\nRun supabase/migrations/016_item_media.sql in your Supabase SQL Editor, then re-upload the media on this item.");
-    }
-    return { success: true, item: res.item, mediaStripped: !!res.mediaStripped };
-  };
-  const handleUpdateItemRow = async (origCode, origCategory, updatedItem, newCategory) => {
-    console.info("[App] handleUpdateItemRow", { origCode, origCategory, newCode: updatedItem.code, newCategory });
-    const res = await itemUpdate(origCode, origCategory, updatedItem, newCategory);
-    if (!res.success) { console.warn("[App] item update failed:", res.error); return { success: false, error: res.error }; }
-    const target = newCategory || origCategory;
-    setItems((prev) => {
-      const next = { ...prev };
-      next[origCategory] = (prev[origCategory] || []).filter((i) => i.code !== origCode);
-      next[target] = [...(next[target] || []), { ...res.item, history: updatedItem.history || [] }];
-      return next;
-    });
-    if (res.mediaStripped) {
-      alert("⚠️ Item saved, but the photo / design file were NOT persisted because the items.photo / design_file columns don't exist in your Supabase yet.\n\nRun supabase/migrations/016_item_media.sql in your Supabase SQL Editor, then re-upload the media on this item.");
-    }
-    return { success: true, item: res.item, mediaStripped: !!res.mediaStripped };
-  };
-  const handleDeleteItemRow = async (category, code) => {
-    console.info("[App] handleDeleteItemRow", { code, category });
-    const res = await itemDelete(category, code);
-    if (!res.success) { console.warn("[App] item delete failed:", res.error); return { success: false, error: res.error }; }
-    setItems((prev) => ({ ...prev, [category]: (prev[category] || []).filter((i) => i.code !== code) }));
-    return { success: true };
-  };
-
-  // 2026-06-02 — Save-as-Default-Rate from PO modal.
-  // When the operator types a rate on a PO line for an item that has no
-  // historical rate (last == 0 and default == 0) and ticks "Save as Default
-  // Rate", this handler persists the new rate to the item so the next PO line
-  // for the same item auto-fills from it. Fire-and-forget — the line save
-  // shouldn't wait on this round trip.
-  const handleSetItemDefaultRate = async (code, rate) => {
-    const r = Number(rate);
-    if (!code || !isFinite(r) || r <= 0) return { success: false, error: "invalid rate" };
-    // Find which category holds the item — items are grouped that way in state.
-    let cat = null, existing = null;
-    for (const [c, list] of Object.entries(items)) {
-      const hit = (list || []).find((i) => i.code === code);
-      if (hit) { cat = c; existing = hit; break; }
-    }
-    if (!cat || !existing) return { success: false, error: "item not found" };
-    // Only update if the value actually changes — keeps audit noise down.
-    if (Number(existing.defaultPurchaseRate || 0) === r) return { success: true, noop: true };
-    const merged = { ...existing, defaultPurchaseRate: r };
-    const res = await itemUpdate(existing.code, cat, merged, cat);
-    if (!res.success) { console.warn("[App] handleSetItemDefaultRate failed", res.error); return res; }
-    setItems((prev) => ({
-      ...prev,
-      [cat]: (prev[cat] || []).map((i) => i.code === code ? { ...i, defaultPurchaseRate: r } : i),
-    }));
-    logAudit({
-      type: "inventory_edit", module: "Inventory",
-      action: `Default Rate Updated via PO: ${existing.name} (${existing.code}) → ₹${r}`,
-      ref: existing.code, itemCode: existing.code, itemName: existing.name,
-      oldValue: { defaultPurchaseRate: existing.defaultPurchaseRate || 0 },
-      newValue: { defaultPurchaseRate: r },
-    });
-    return { success: true };
-  };
-
-  // Per-row item import. Mirrors handleBulkAddVendors so a single bad row never
-  // kills the batch. Defaults (unit=Nos, category=Mechanical, stock=0, min=0,
-  // lastPurchaseRate=0, location="", vendorLinks=[], photo/designFile=null) are
-  // already baked into the row by itemImport.mapRow — the handler just shovels
-  // them at itemCreate / itemUpdate.
-  //
-  // Update rule: fill ONLY blank fields on the existing item — never overwrite
-  // a populated value. In practice the only thing the import can add to an
-  // existing item is the HSN code (if existing.code was empty, which is rare
-  // — code is the table's PK-style identifier so it's almost always set).
-  // Returns { imported, updated, failed, failures } for the toast.
-  const handleBulkAddItems = async (importRows) => {
-    let imported = 0, updated = 0, failed = 0;
-    const failures = [];
-    if (!Array.isArray(importRows) || importRows.length === 0) return { imported, updated, failed, failures };
-
-    // Build a flat code-set across categories so auto-generated codes don't collide
-    // mid-batch (importRows themselves can also collide on auto-gen).
-    const usedCodes = new Set();
-    for (const arr of Object.values(items)) for (const it of (arr || [])) if (it.code) usedCodes.add(String(it.code).toUpperCase());
-
-    const ensureUniqueCode = (base) => {
-      let c = String(base || "").toUpperCase();
-      if (!c) c = generateItemCode("ITEM").toUpperCase();
-      if (!usedCodes.has(c)) { usedCodes.add(c); return c; }
-      let n = 2;
-      while (usedCodes.has(`${c}-${n}`)) n++;
-      const final = `${c}-${n}`;
-      usedCodes.add(final);
-      return final;
-    };
-
-    for (const row of importRows) {
-      try {
-        if (row._status === "update") {
-          // Locate the existing item — parseRows tagged it, but local state is
-          // the source of truth at write time. Prefer the existing code (which
-          // can match the row code or come via the name-fallback path).
-          const existingCat = row._existingCategory || Object.keys(items).find((cat) =>
-            (items[cat] || []).some((it) =>
-              (row._existingCode && it.code === row._existingCode) ||
-              String(it.name || "").toLowerCase() === String(row.name || "").toLowerCase()
-            )
-          );
-          const existing = (items[existingCat] || []).find((it) =>
-            (row._existingCode && it.code === row._existingCode) ||
-            String(it.name || "").toLowerCase() === String(row.name || "").toLowerCase()
-          );
-          if (!existing) { failed++; failures.push({ name: row.name, error: "existing item not found in state" }); continue; }
-
-          // Fill ONLY blank fields. With the 2-column import the only field the
-          // sheet can contribute is `code` (HSN) — everything else came from
-          // DEFAULTS and would clobber a real value. So we only touch `code`,
-          // and only when the existing item has no code at all.
-          const incomingCode = String(row.code || "").trim();
-          const needsCode = !existing.code && incomingCode;
-          if (!needsCode) { continue; }   // nothing to fill — silent skip
-
-          const merged = { ...existing, code: incomingCode };
-          const ures = await itemUpdate(existing.code, existingCat, merged, existingCat);
-          if (ures?.success) {
-            updated++;
-            setItems((prev) => {
-              const next = { ...prev };
-              next[existingCat] = (prev[existingCat] || []).map((it) => it.code === existing.code ? { ...ures.item, history: existing.history || [] } : it);
-              return next;
-            });
-            logAudit({ type: "inventory_edit", module: "Inventory", action: `Item Updated via Import: ${existing.name}`, ref: incomingCode, itemCode: incomingCode, itemName: existing.name });
-          } else {
-            failed++; failures.push({ name: row.name, error: ures?.error || "update failed" });
-          }
-        } else {
-          // New item — defaults already in the row from mapRow. Auto-gen code
-          // only when HSN was blank, and ensure it's unique against state + this
-          // batch's prior auto-gens.
-          const category = row.category || "Mechanical";
-          const code     = ensureUniqueCode(row.code || generateItemCode(row.name));
-          const stock    = Number(row.stock) || 0;
-          const min      = Number(row.min)   || 0;
-          const newItem = {
-            code,
-            name:             row.name,
-            unit:             row.unit || "Nos",
-            location:         row.location || "",
-            stock, min, max: 0,
-            status:           recomputeStatus(stock, min),
-            trend:            [stock, stock, stock, stock, stock],
-            vendorLinks:      row.vendorLinks || [],
-            vendorId:         "",
-            vendor:           "",
-            vendorPhone:      "",
-            lastPurchaseRate: Number(row.lastPurchaseRate) || 0,
-            photo:            row.photo       || "",
-            designFile:       row.designFile  || "",
-            designName:       row.designName  || "",
-          };
-          const cres = await itemCreate(category, newItem);
-          if (cres?.success) {
-            imported++;
-            setItems((prev) => ({ ...prev, [category]: [...(prev[category] || []), cres.item] }));
-            logAudit({ type: "inventory_add", module: "Inventory", action: `Item Imported: ${newItem.name} (${newItem.code})`, ref: newItem.code, itemCode: newItem.code, itemName: newItem.name, qty: 0 });
-          } else {
-            failed++; failures.push({ name: row.name, error: cres?.error || "create failed" });
-          }
-        }
-      } catch (e) {
-        failed++; failures.push({ name: row?.name, error: e?.message || String(e) });
-      }
-    }
-    if (failures.length) console.warn("[App] handleBulkAddItems — per-row failures:", failures);
-    return { imported, updated, failed, failures };
-  };
-
-  // ── Vendor handlers ── (routed through vendorsStore: Supabase when enabled, localStorage otherwise)
-  const handleAddVendor = async (v) => {
-    const res = await createVendor(v);
-    if (!res.success) { console.warn("[App] handleAddVendor failed:", res.error); return; }
-    setVendorList((prev) => [...prev, res.vendor]);
-    logAudit({ type: "vendor_add", module: "Vendor", action: `Vendor Added: ${res.vendor.name}`, ref: res.vendor.name, vendor: res.vendor.name });
-  };
-  const handleEditVendor = async (upd) => {
-    const res = await updateVendor(upd);
-    if (!res.success) { console.warn("[App] handleEditVendor failed:", res.error); return; }
-    setVendorList((prev) => prev.map((v) => v.id === res.vendor.id ? res.vendor : v));
-    logAudit({ type: "vendor_edit", module: "Vendor", action: `Vendor Updated: ${res.vendor.name}`, ref: res.vendor.name, vendor: res.vendor.name });
-  };
-  // Phase 4: vendor delete = hard delete when unused, archive when referenced.
-  // History-safe: hard delete leaves POs intact (po.vendor is the NAME string, not a
-  // FK), but archive is preferred whenever live data references the vendor so the
-  // operator can still see the vendor name on existing rows.
-  const handleDeleteVendor = async (id) => {
-    const v = vendorList.find((x) => x.id === id);
-    if (!v) return { success: false, error: "vendor not found" };
-
-    const hasPOs           = pos.some((p) => p.vendor === v.name);
-    const hasLinkedItems   = Object.values(items).some((arr) => (arr || []).some((it) =>
-      (it.vendorLinks || []).some((l) => l.vendorId === v.id) || it.vendor === v.name
-    ));
-    const shouldArchive    = hasPOs || hasLinkedItems;
-
-    if (shouldArchive) {
-      const res = await archiveVendor(v);
-      if (!res.success) { console.warn("[App] handleDeleteVendor archive failed:", res.error); return { success: false, error: res.error }; }
-      setVendorList((prev) => prev.map((x) => x.id === id ? (res.vendor || { ...v, archived: true }) : x));
-      logAudit({
-        type: "vendor_archive", module: "Vendor",
-        action: `Vendor Archived: ${v.name} (referenced by ${hasPOs ? "POs" : ""}${hasPOs && hasLinkedItems ? " + " : ""}${hasLinkedItems ? "items" : ""})`,
-        ref: v.name, vendor: v.name,
-      });
-      return { success: true, mode: "archived" };
-    }
-
-    const res = await deleteVendor(id);
-    if (!res.success) { console.warn("[App] handleDeleteVendor failed:", res.error); return { success: false, error: res.error }; }
-    setVendorList((prev) => prev.filter((x) => x.id !== id));
-    logAudit({ type: "vendor_delete", module: "Vendor", action: `Vendor Deleted: ${v.name}`, ref: v.name, vendor: v.name });
-    return { success: true, mode: "deleted" };
-  };
-  // Per-row vendor import. Replaces the previous all-or-nothing bulk insert so a single
-  // failing row no longer kills the whole batch. Rows tagged _status:"update" merge
-  // missing fields into the existing vendor (operator requirement #5); rows tagged
-  // _status:"ready" become new vendors. Returns { imported, updated, failed, failures }
-  // so the toast can show "Imported X · Updated Y · Failed Z".
-  const handleBulkAddVendors = async (importRows) => {
-    let imported = 0, updated = 0, failed = 0;
-    const failures = [];
-    if (!Array.isArray(importRows) || importRows.length === 0) {
-      return { imported, updated, failed, failures };
-    }
-    const buildNewVendor = (r) => ({
-      id:            r._localId || `V${Date.now().toString(36)}${Math.random().toString(36).slice(2,5)}`,
-      name:          r.name,
-      contactPerson: r.contactPerson || "",
-      phone:         r.phone         || "",
-      email:         r.email         || "",
-      gst:           r.gst           || "",
-      address:       r.address       || "",
-      location:      r.location      || "",
-      category:      r.category      || "",
-      paymentTerms:  r.paymentTerms  || "30 days",
-      status:        "active",
-      priority:      "Approved",
-      leadDays:      0,
-      performance:   0,
-      notes:         "",
-      rating:        4.0,
-      years:         1,
-      annualValue:   "₹0",
-      poCount:       0,
-    });
-    for (const row of importRows) {
-      try {
-        if (row._status === "update" && row._existingId) {
-          // Merge "missing fields only" — never overwrite a field that already has data.
-          const existing = vendorList.find((v) => v.id === row._existingId);
-          if (!existing) { failed++; failures.push({ name: row.name, error: "existing vendor not found" }); continue; }
-          const fillIfBlank = (key) => existing[key] && String(existing[key]).trim() ? existing[key] : (row[key] || existing[key] || "");
-          const merged = {
-            ...existing,
-            contactPerson: fillIfBlank("contactPerson"),
-            phone:         fillIfBlank("phone"),
-            email:         fillIfBlank("email"),
-            gst:           fillIfBlank("gst"),
-            address:       fillIfBlank("address"),
-            location:      fillIfBlank("location"),
-            category:      fillIfBlank("category"),
-            paymentTerms:  fillIfBlank("paymentTerms"),
-          };
-          // Skip the network call if nothing actually changed
-          const dirty = ["contactPerson","phone","email","gst","address","location","category","paymentTerms"]
-            .some((k) => (existing[k] || "") !== (merged[k] || ""));
-          if (!dirty) { continue; }
-          const ures = await updateVendor(merged);
-          if (ures?.success) {
-            updated++;
-            setVendorList((prev) => prev.map((v) => v.id === merged.id ? (ures.vendor || merged) : v));
-            logAudit({ type: "vendor_edit", module: "Vendor", action: `Vendor Updated via Import: ${merged.name}`, ref: merged.name, vendor: merged.name });
-          } else {
-            failed++; failures.push({ name: row.name, error: ures?.error || "update failed" });
-          }
-        } else {
-          const newVendor = buildNewVendor(row);
-          const cres = await createVendor(newVendor);
-          if (cres?.success) {
-            imported++;
-            setVendorList((prev) => [...prev, cres.vendor || newVendor]);
-            logAudit({ type: "vendor_add", module: "Vendor", action: `Vendor Imported: ${newVendor.name}`, ref: newVendor.name, vendor: newVendor.name });
-          } else {
-            failed++; failures.push({ name: row.name, error: cres?.error || "create failed" });
-          }
-        }
-      } catch (e) {
-        failed++; failures.push({ name: row?.name, error: e?.message || String(e) });
-      }
-    }
-    if (failures.length) console.warn("[App] handleBulkAddVendors — per-row failures:", failures);
-    return { imported, updated, failed, failures };
+  // ── Vendor handlers ──
+  const handleAddVendor    = (v)   => { setVendorList((prev) => [...prev, v]); logAudit({ type: "vendor_add", module: "Vendor", action: `Vendor Added: ${v.name}`, ref: v.name, vendor: v.name }); };
+  const handleEditVendor   = (upd) => { setVendorList((prev) => prev.map((v) => v.id === upd.id ? upd : v)); logAudit({ type: "vendor_edit", module: "Vendor", action: `Vendor Updated: ${upd.name}`, ref: upd.name, vendor: upd.name }); };
+  const handleDeleteVendor = (id)  => { const v = vendorList.find((x) => x.id === id); setVendorList((prev) => prev.filter((v) => v.id !== id)); logAudit({ type: "vendor_delete", module: "Vendor", action: `Vendor Deleted: ${v?.name || id}`, ref: v?.name || "", vendor: v?.name || "" }); };
+  const handleBulkAddVendors = (vendors) => {
+    setVendorList((prev) => [...prev, ...vendors]);
+    vendors.forEach((v) => logAudit({ type: "vendor_add", module: "Vendor", action: `Vendor Imported: ${v.name}`, ref: v.name, vendor: v.name }));
   };
 
   // ── BOM / Outward handlers ──
   const handleUpdateBOM  = (key, newBom) => {
     setBomDefs((prev) => ({ ...prev, [key]: newBom }));
-    if (isSupabaseEnabled()) bomUpdate(key, newBom).then((r) => { if (!r.success) console.warn("[App] BOM update Supabase failed:", r.error); });
     logAudit({ type: "bom_updated", module: "BOM", action: `BOM Updated: ${key}`, ref: key, details: { items: (newBom.items || []).length } });
-  };
-
-  const handleCreateBOM = (key, def) => {
-    const k = (key || "").trim();
-    if (!k) return { success: false, error: "BOM Key is required" };
-    if (bomDefs[k]) return { success: false, error: "A BOM with this key already exists" };
-    if (!(def.label || "").trim()) return { success: false, error: "Machine Model Name is required" };
-    if (!(def.items || []).length) return { success: false, error: "At least one component is required" };
-    const palette = ["#3b82f6","#6366f1","#8b5cf6","#ec4899","#f59e0b","#22c55e","#06b6d4","#14b8a6","#f97316","#a855f7"];
-    const color = def.color || palette[Object.keys(bomDefs).length % palette.length];
-    const newBom = {
-      label: def.label.trim(),
-      color,
-      items: def.items.filter((i) => i.code && Number(i.qty) > 0).map((i) => ({ code: i.code, qty: Number(i.qty) })),
-      rackCapacity: Math.max(0, parseInt(def.rackCapacity, 10) || 0),
-    };
-    setBomDefs((prev) => ({ ...prev, [k]: newBom }));
-    if (isSupabaseEnabled()) bomCreate(k, newBom).then((r) => { if (!r.success) console.warn("[App] BOM create Supabase failed:", r.error); });
-    logAudit({
-      type: "bom_created", module: "BOM",
-      action: `BOM Created: ${k} — ${newBom.label}`,
-      ref: k,
-      newValue: { key: k, label: newBom.label, items: newBom.items.length, rackCapacity: newBom.rackCapacity },
-    });
-    return { success: true };
-  };
-
-  // 2026-06-02d — BOM duplicate. Copies the source BOM under a fresh key
-  // (default "<src>-COPY", then "-COPY-2", "-COPY-3" if the operator already
-  // has copies). The new BOM gets the same items / capacity but a new color
-  // (next entry in the palette) so cards stay visually distinguishable.
-  const handleDuplicateBOM = (srcKey) => {
-    const src = bomDefs[srcKey];
-    if (!src) return { success: false, error: "BOM not found" };
-    let newKey = `${srcKey}-COPY`;
-    let n = 2;
-    while (bomDefs[newKey]) { newKey = `${srcKey}-COPY-${n++}`; }
-    const palette = ["#3b82f6","#6366f1","#8b5cf6","#ec4899","#f59e0b","#22c55e","#06b6d4","#14b8a6","#f97316","#a855f7"];
-    const newBom = {
-      label:        src.label ? `${src.label} (Copy)` : newKey,
-      color:        palette[Object.keys(bomDefs).length % palette.length],
-      items:        (src.items || []).map((i) => ({ code: i.code, qty: Number(i.qty) || 0 })),
-      rackCapacity: Number(src.rackCapacity) || 0,
-    };
-    setBomDefs((prev) => ({ ...prev, [newKey]: newBom }));
-    if (isSupabaseEnabled()) bomCreate(newKey, newBom).then((r) => { if (!r.success) console.warn("[App] BOM duplicate Supabase failed:", r.error); });
-    logAudit({
-      type: "bom_duplicated", module: "BOM",
-      action: `BOM Duplicated: ${srcKey} → ${newKey}`,
-      ref: newKey,
-      details: { sourceKey: srcKey, items: newBom.items.length, rackCapacity: newBom.rackCapacity },
-    });
-    return { success: true, newKey };
-  };
-
-  // 2026-06-02d — Safe BOM delete with reference-aware rules.
-  //   Never issued (no machines, no outward entries) → direct delete.
-  //   Has rack machines (stage "BOM Issued") → reverse stock via the existing
-  //     handleRemoveRackMachine engine for each, then delete the BOM.
-  //   Has active builds past BOM Issued (stage in MACHINE_STAGES post-rack,
-  //     status not "completed") → BLOCK. Operator must finish or complete those.
-  //   Completed builds → KEEP the BOM rows; history must survive (denormalized
-  //     bomKey on machine_log stays valid even after BOM deletion).
-  //
-  // Pre-check phase exposes the counts so the UI can present an accurate
-  // confirmation. The commit phase reverses rack machines + deletes the BOM.
-  //
-  // Plain arrow, not useCallback: this declaration sits AFTER the auth-gate
-  // early returns (if (!currentUser) return <LoginPage/>) — wrapping it in
-  // useCallback violated the Rules of Hooks (hook count differed between
-  // pre- and post-login renders), which React 18 reported as Error #310
-  // and the RootErrorBoundary surfaced as a blank-app crash. No call site
-  // depends on a stable reference (event-handler prop only, no useEffect
-  // dep), so memoisation was unnecessary anyway.
-  const computeBOMDeletionInfo = (key) => {
-    const refs = machineLog.filter((m) => m.bomKey === key);
-    const rack       = refs.filter((m) => m.stage === "BOM Issued");
-    const active     = refs.filter((m) => m.stage !== "BOM Issued" && m.status !== "completed");
-    const completed  = refs.filter((m) => m.status === "completed");
-    const canDelete  = active.length === 0;
-    const needsReverseStock = rack.length > 0;
-    return { rack, active, completed, canDelete, needsReverseStock };
-  };
-
-  const handleDeleteBOM = async (key) => {
-    if (!bomDefs[key]) return { success: false, error: "BOM not found" };
-    const info = computeBOMDeletionInfo(key);
-    if (!info.canDelete) {
-      return { success: false, error: `Cannot delete — ${info.active.length} active production build(s) still reference this BOM. Complete or cancel them first.` };
-    }
-    // Step 1: reverse stock + clean up for each rack machine. Reuses the
-    // existing handleRemoveRackMachine engine so stock integrity follows the
-    // same audited path as a manual rack remove.
-    let restored = 0;
-    for (const m of info.rack) {
-      try {
-        const res = await handleRemoveRackMachine(m.id);
-        if (res?.success) restored += (res.restored || 0);
-        else console.warn("[App] handleDeleteBOM: rack remove failed for machine", m.id, res?.error);
-      } catch (e) {
-        console.error("[App] handleDeleteBOM: rack remove threw for machine", m.id, e);
-      }
-    }
-    // Step 2: drop the BOM definition. Completed machine_log rows survive —
-    // they carry denormalized bomKey/bomLabel so history reads stay intact.
-    const oldDef = bomDefs[key];
-    setBomDefs((prev) => { const next = { ...prev }; delete next[key]; return next; });
-    if (isSupabaseEnabled()) {
-      const r = await bomDelete(key);
-      if (!r.success) {
-        console.warn("[App] handleDeleteBOM: Supabase delete failed", r.error);
-        // Roll back local state so the operator can retry without ghost
-        setBomDefs((prev) => ({ ...prev, [key]: oldDef }));
-        return { success: false, error: r.error };
-      }
-    }
-    logAudit({
-      type: "bom_deleted", module: "BOM",
-      action: `BOM Deleted: ${key} — ${info.rack.length} rack machine(s) cleared, ${restored} component(s) returned to stock`,
-      ref: key,
-      details: { rackCount: info.rack.length, completedCount: info.completed.length, restored },
-    });
-    return { success: true, rackCount: info.rack.length, completedCount: info.completed.length, restored };
-  };
-
-  const handleRenameBOM = (oldKey, newKey, newLabel) => {
-    const nk = (newKey || "").trim();
-    const nl = (newLabel || "").trim();
-    if (!bomDefs[oldKey]) return { success: false, error: "BOM not found" };
-    if (!nk) return { success: false, error: "BOM Key is required" };
-    if (!nl) return { success: false, error: "Machine Model Name is required" };
-    if (nk !== oldKey && bomDefs[nk]) return { success: false, error: "A BOM with this key already exists" };
-    const old = bomDefs[oldKey];
-    const keyChanged   = nk !== oldKey;
-    const labelChanged = nl !== old.label;
-    if (!keyChanged && !labelChanged) return { success: true, noop: true };
-
-    setBomDefs((prev) => {
-      const next = { ...prev };
-      if (keyChanged) delete next[oldKey];
-      next[nk] = { ...old, label: nl };
-      return next;
-    });
-    if (isSupabaseEnabled()) {
-      if (keyChanged) bomRename(oldKey, nk, nl).then((r) => { if (!r.success) console.warn("[App] BOM rename Supabase failed:", r.error); });
-      else bomUpdate(oldKey, { ...old, label: nl }).then((r) => { if (!r.success) console.warn("[App] BOM label update Supabase failed:", r.error); });
-    }
-    if (keyChanged || labelChanged) {
-      setMachineLog((prev) => prev.map((m) => m.bomKey !== oldKey ? m : { ...m, bomKey: nk, bomLabel: nl }));
-      setOutwardLog((prev) => prev.map((e) => e.ref !== oldKey ? e : { ...e, ref: nk, label: nl }));
-      setPendingLog((prev) => prev.map((p) => p.bomKey !== oldKey ? p : { ...p, bomKey: nk, bomLabel: nl }));
-      if (isSupabaseEnabled()) {
-        updateMachineBomKey(oldKey, nk, nl).then((r) => { if (!r.success) console.warn("[App] BOM rename: machine cascade failed", r.error); });
-        updateOutwardRef(oldKey, nk, nl).then((r) => { if (!r.success) console.warn("[App] BOM rename: outward cascade failed", r.error); });
-        updatePendingBomKey(oldKey, nk, nl).then((r) => { if (!r.success) console.warn("[App] BOM rename: pending cascade failed", r.error); });
-      }
-    }
-    logAudit({
-      type: "bom_renamed", module: "BOM",
-      action: keyChanged
-        ? `BOM Renamed: ${oldKey} → ${nk} (${nl})`
-        : `BOM Label Updated: ${oldKey} → "${nl}"`,
-      ref: nk,
-      oldValue: { key: oldKey, label: old.label },
-      newValue: { key: nk,     label: nl },
-    });
-    return { success: true };
   };
   const handleAddOutward = (entry, pending) => {
     setOutwardLog((prev) => [entry, ...prev]);
-    if (isSupabaseEnabled()) createOutward(entry).then((r) => { if (!r.success) console.warn("[App] Outward Supabase failed:", r.error); });
     if (pending && pending.length > 0) {
       const issueId = entry.id;
       const rows = pending.map((p) => ({ ...p, bomKey: entry.ref, bomLabel: entry.label, date: entry.date, issueId, serialNo: entry.serialNo || "" }));
       setPendingLog((prev) => [...rows, ...prev]);
-      if (isSupabaseEnabled()) bulkCreatePending(rows).then((r) => { if (!r.success) console.warn("[App] Pending bulk-create Supabase failed:", r.error); });
     }
     if (entry.type === "bom") {
       logAudit({ type: "outward_bom", module: "Outward", action: `BOM Issued: ${entry.ref} × ${entry.units}`, ref: entry.ref, serialNo: entry.serialNo || "", qty: entry.units, details: { label: entry.label, issued: (entry.items || []).length, pending: (pending || []).length } });
@@ -12596,43 +9155,25 @@ export default function App() {
   };
   const handleClearPending  = () => {
     setPendingLog([]);
-    if (isSupabaseEnabled()) clearAllPending().then((r) => { if (!r.success) console.warn("[App] Pending clear Supabase failed:", r.error); });
     logAudit({ type: "pending_cleared", module: "Pending", action: "All pending stock cleared", ref: "" });
   };
 
   // ── Machine Tracker handlers ──
-  const handleCreateMachine = (bomKey, bomLabel, serialNo, date, issueId, destination = "rack") => {
+  const handleCreateMachine = (bomKey, bomLabel, serialNo, date, issueId) => {
     const dateStr = date || fmtDate(new Date());
-    // Feature 1: direct production lands the machine in Assembly immediately,
-    // skipping the BOM Issued / rack waiting stage. Used for R&D, prototypes,
-    // one-off / custom builds where there's no batch to wait for.
-    const directMode = destination === "direct";
-    const initialStage = directMode ? "Assembly" : "BOM Issued";
-    const initialNote  = directMode ? "BOM issued — direct production" : "BOM issued";
-    logAudit({
-      type: "machine_created", module: "Machine",
-      action: `Machine Created: ${bomKey}${directMode ? " (direct production)" : ""}`,
-      ref: bomKey, serialNo: serialNo || "",
-      details: { bomLabel, issueId, destination, initialStage },
-    });
-    const history = [{ stage: initialStage, date: dateStr, note: initialNote }];
-    // If we skipped the rack, also record the implicit BOM Issued → Assembly
-    // transition so the machine's history is honest about what happened.
-    if (directMode) history.unshift({ stage: "BOM Issued", date: dateStr, note: "BOM issued (auto-promoted)" });
-    const newMachine = {
+    logAudit({ type: "machine_created", module: "Machine", action: `Machine Created: ${bomKey}`, ref: bomKey, serialNo: serialNo || "", details: { bomLabel, issueId } });
+    setMachineLog((prev) => [{
       id:          Date.now(),
       issueId:     issueId || null,
       bomKey,
       bomLabel,
       serialNo,
-      stage:       initialStage,
+      stage:       "BOM Issued",
       status:      "active",
       createdDate: dateStr,
       completedDate: null,
-      history,
-    };
-    setMachineLog((prev) => [newMachine, ...prev]);
-    if (isSupabaseEnabled()) machineCreate(newMachine).then((r) => { if (!r.success) console.warn("[App] Machine create Supabase failed:", r.error); });
+      history:     [{ stage: "BOM Issued", date: dateStr, note: "BOM issued" }],
+    }, ...prev]);
   };
 
   const handleUpdateMachineStage = (machineId, newStage) => {
@@ -12650,150 +9191,17 @@ export default function App() {
         history:       [...m.history, { stage: newStage, date: dateStr }],
       };
     }));
-    if (isSupabaseEnabled() && machine) {
-      machineUpdate(machineId, {
-        stage: newStage,
-        status: isComplete ? "completed" : "active",
-        completedDate: isComplete ? dateStr : machine.completedDate,
-        history: [...(machine.history || []), { stage: newStage, date: dateStr }],
-      }).then((r) => { if (!r.success) console.warn("[App] Machine stage Supabase failed:", r.error); });
-    }
-  };
-
-  // SERIAL-BASED start production. Takes the specific rack-machine id(s) the operator
-  // selected and promotes ONLY those from "BOM Issued" (rack) → "Assembly" (active build).
-  // The machine now leaves the rack and appears in the Machine Tracker.
-  const handleStartProduction = (machineIds) => {
-    const idArr  = Array.isArray(machineIds) ? machineIds : [machineIds];
-    const idSet  = new Set(idArr);
-    const targets = machineLog.filter((m) => idSet.has(m.id) && m.stage === "BOM Issued");
-    if (targets.length === 0) return { success: false, error: "Select at least one machine on the rack" };
-    const dateStr = fmtDate(new Date());
-    setMachineLog((prev) => prev.map((m) => {
-      if (!idSet.has(m.id) || m.stage !== "BOM Issued") return m;
-      return {
-        ...m,
-        stage:   "Assembly",
-        status:  "active",
-        history: [...(m.history || []), { stage: "Assembly", date: dateStr, note: "Started production from rack" }],
-      };
-    }));
-    if (isSupabaseEnabled()) {
-      Promise.all(targets.map((m) =>
-        machineUpdate(m.id, {
-          stage: "Assembly",
-          status: "active",
-          history: [...(m.history || []), { stage: "Assembly", date: dateStr, note: "Started production from rack" }],
-        })
-      )).then((results) => {
-        const failed = results.filter((r) => !r.success);
-        if (failed.length) console.warn("[App] handleStartProduction: Supabase machine updates failed", failed);
-      });
-    }
-    const serials = targets.map((m) => m.serialNo).filter(Boolean);
-    logAudit({
-      type: "production_started", module: "Machine",
-      action: `Production Started: ${targets[0].bomKey} — ${serials.join(", ") || `${targets.length} machine(s)`}`,
-      ref: targets[0].bomKey,
-      serialNo: serials[0] || "",
-      qty: targets.length,
-      oldValue: { stage: "BOM Issued" },
-      newValue: { stage: "Assembly", started: targets.length },
-      details: { serialNos: serials },
-    });
-    return { success: true, count: targets.length, serials };
-  };
-
-  // Feature 3: remove a machine from the rack. Restores the materials that
-  // were issued to inventory, deletes the outward + pending rows for the
-  // issue, and removes the machine. Refuses if the machine isn't on the rack
-  // anymore — anything past Assembly is already being built and reversing
-  // would break stock integrity.
-  const handleRemoveRackMachine = async (machineId) => {
-    const machine = machineLog.find((m) => m.id === machineId);
-    if (!machine) return { success: false, error: "Machine not found" };
-    if (machine.stage !== "BOM Issued") {
-      return { success: false, error: `Cannot remove — machine is in ${machine.stage}, not on rack` };
-    }
-    // Find the matching outward entry by issueId
-    const outwardEntry = outwardLog.find((e) => String(e.id) === String(machine.issueId));
-    const issuedLines  = (outwardEntry?.items || []).filter((it) => Number(it.issueQty) > 0);
-
-    // 1) Reverse stock for each issued component. Fire one stock movement
-    //    per line via the canonical engine so the audit trail mentions the
-    //    machine's serial number.
-    if (issuedLines.length > 0) {
-      const reversalRef = `Rack remove: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}`;
-      for (const li of issuedLines) {
-        const cat = li.category || Object.keys(items).find((c) => (items[c] || []).some((i) => i.code === li.code));
-        if (!cat) continue;
-        try {
-          await handleUpdateStock(cat, li.code, +Number(li.issueQty) || 0, reversalRef);
-        } catch (e) {
-          console.error("[App] handleRemoveRackMachine: stock reversal failed", e);
-        }
-      }
-    }
-
-    // 2) Remove pending entries for this issue (these were waiting on inward)
-    if (machine.issueId) {
-      const orphans = pendingLog.filter((p) => String(p.issueId) === String(machine.issueId));
-      if (orphans.length > 0) {
-        setPendingLog((prev) => prev.filter((p) => String(p.issueId) !== String(machine.issueId)));
-        if (isSupabaseEnabled()) {
-          orphans.forEach((p) => {
-            if (p.id) pendingDelete(p.id).then((r) => { if (!r.success) console.warn("[App] handleRemoveRackMachine: pending delete failed", r.error); });
-          });
-        }
-      }
-    }
-
-    // 3) Remove the outward entry so reports don't double-count
-    if (machine.issueId) {
-      setOutwardLog((prev) => prev.filter((e) => String(e.id) !== String(machine.issueId)));
-      if (isSupabaseEnabled()) {
-        deleteOutwardByIssueId(machine.issueId).then((r) => { if (!r.success) console.warn("[App] handleRemoveRackMachine: outward delete failed", r.error); });
-      }
-    }
-
-    // 4) Remove the machine itself
-    setMachineLog((prev) => prev.filter((m) => m.id !== machineId));
-    if (isSupabaseEnabled()) {
-      machineDelete(machineId).then((r) => { if (!r.success) console.warn("[App] handleRemoveRackMachine: machine delete failed", r.error); });
-    }
-
-    logAudit({
-      type: "machine_rack_removed", module: "Machine",
-      action: `Rack build removed: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""} — ${issuedLines.length} component(s) returned to stock`,
-      ref: machine.bomKey, serialNo: machine.serialNo || "",
-      details: { issueId: machine.issueId, restored: issuedLines.map((l) => ({ code: l.code, qty: l.issueQty })) },
-    });
-
-    return { success: true, restored: issuedLines.length };
   };
 
   // Adds a "materials fully issued" note to Machine Tracker when an issueId is cleared
   const notifyMachineComplete = (issueId, newLog) => {
     if (!issueId || newLog.some((p) => p.issueId === issueId)) return;
     const dateStr = fmtDate(new Date());
-    // Find machines that need the note BEFORE setMachineLog so we can mirror to Supabase
-    const targets = machineLog.filter((m) =>
-      String(m.issueId) === String(issueId) &&
-      !(m.history || []).some((h) => h.note === "All materials issued")
-    );
     setMachineLog((prev) => prev.map((m) => {
       if (String(m.issueId) !== String(issueId)) return m;
       if (m.history.some((h) => h.note === "All materials issued")) return m;
       return { ...m, history: [...m.history, { stage: m.stage, date: dateStr, note: "All materials issued" }] };
     }));
-    if (isSupabaseEnabled() && targets.length) {
-      Promise.all(targets.map((m) =>
-        machineUpdate(m.id, { history: [...(m.history || []), { stage: m.stage, date: dateStr, note: "All materials issued" }] })
-      )).then((results) => {
-        const failed = results.filter((r) => !r.success);
-        if (failed.length) console.warn("[App] notifyMachineComplete: Supabase failed", failed);
-      });
-    }
   };
 
   const handleFulfillPending = (entry, issuedQty) => {
@@ -12807,15 +9215,16 @@ export default function App() {
       } else { acc.push(p); }
       return acc;
     }, []);
-    setPendingLog(newLog);
-    if (isSupabaseEnabled()) {
-      const matchedRow = pendingLog.find(matched);
-      if (matchedRow && matchedRow.id) {
-        const rem = matchedRow.pendingQty - issuedQty;
-        if (rem > 0) pendingUpdate(matchedRow.id, { pendingQty: rem, issueQty: (matchedRow.issueQty || 0) + issuedQty }).then((r) => { if (!r.success) console.warn("[App] Pending update Supabase failed:", r.error); });
-        else pendingDelete(matchedRow.id).then((r) => { if (!r.success) console.warn("[App] Pending delete Supabase failed:", r.error); });
-      }
-    }
+    // Functional form for the real state update — correctly stacks if "Give Material" is
+    // clicked more than once (or another fulfillment fires) in the same event batch, instead
+    // of silently overwriting an earlier queued update with a stale snapshot.
+    setPendingLog((prev) => prev.reduce((acc, p) => {
+      if (matched(p)) {
+        const rem = p.pendingQty - issuedQty;
+        if (rem > 0) acc.push({ ...p, pendingQty: rem, issueQty: (p.issueQty || 0) + issuedQty });
+      } else { acc.push(p); }
+      return acc;
+    }, []));
     notifyMachineComplete(entry.issueId, newLog);
     logAudit({ type: "pending_fulfilled", module: "Pending", action: `Fulfilled: ${entry.name || entry.code} × ${issuedQty}`, ref: entry.issueId || entry.code, itemCode: entry.code, itemName: entry.name || entry.code, qty: issuedQty, serialNo: entry.serialNo || "", details: { bomKey: entry.bomKey } });
   };
@@ -12834,51 +9243,39 @@ export default function App() {
       if (rem > 0) acc.push({ ...p, pendingQty: rem, issueQty: (p.issueQty || 0) + can });
       return acc;
     }, []);
-    setPendingLog(newLog);
-    if (isSupabaseEnabled()) {
-      // Per affected row: update or delete in Supabase
-      pendingLog.filter((p) => p.issueId === issueId && canMap[p.code]).forEach((p) => {
-        const can = canMap[p.code];
-        const rem = p.pendingQty - can;
-        if (p.id) {
-          if (rem > 0) pendingUpdate(p.id, { pendingQty: rem, issueQty: (p.issueQty || 0) + can }).then((r) => { if (!r.success) console.warn("[App] Pending group-update Supabase failed:", r.error); });
-          else pendingDelete(p.id).then((r) => { if (!r.success) console.warn("[App] Pending group-delete Supabase failed:", r.error); });
-        }
-      });
-    }
+    // Functional form for the real state update — this is what makes "Fulfill All"
+    // (which calls this once per pending group in a single synchronous loop) correctly
+    // stack every group's reduction instead of only the last group's update surviving.
+    setPendingLog((prev) => prev.reduce((acc, p) => {
+      if (p.issueId !== issueId) { acc.push(p); return acc; }
+      const can = canMap[p.code];
+      if (!can) { acc.push(p); return acc; }
+      const rem = p.pendingQty - can;
+      if (rem > 0) acc.push({ ...p, pendingQty: rem, issueQty: (p.issueQty || 0) + can });
+      return acc;
+    }, []));
     notifyMachineComplete(issueId, newLog);
     logAudit({ type: "pending_fulfilled", module: "Pending", action: `Batch Fulfilled: ${itemsToFulfill.length} items for Issue #${issueId}`, ref: String(issueId), qty: itemsToFulfill.reduce((s, e) => s + e.canIssue, 0), details: { items: itemsToFulfill.map((e) => `${e.code}×${e.canIssue}`) } });
   };
 
   const canDo = authCanDo;
 
-  // Same defensive coercion as the notifications block above — this also runs
-  // ABOVE the per-page boundary, so a malformed state cannot be allowed to
-  // crash the render and unmount the tree.
-  const allItemsFlat  = Object.values(safeItems)
-                              .flatMap((list) => Array.isArray(list) ? list : []);
-  const lowStockN     = allItemsFlat.filter((i) => i?.status === "critical" || i?.status === "warning").length;
-  const pipelineBadge = lowStockN + safePos.filter((p) => !["received","rejected"].includes(p?.status)).length;
+  const allItemsFlat     = Object.values(items).flat();
+  const lowStockN        = allItemsFlat.filter(i => i.status === "critical" || i.status === "warning").length;
+  const pipelineBadge    = lowStockN + pos.filter(p => !["received","rejected"].includes(p.status)).length;
 
   const pages = {
     dashboard: <DashboardPage items={items} pos={pos} vendorList={vendorList} machineLog={machineLog} pendingLog={pendingLog} followUps={followUps} onNavigate={setActivePage} settings={settings} />,
     inventory: <InventoryPage items={items} setItems={setItems} handleUpdateStock={handleUpdateStock}
                               pos={pos} inwardLog={inwardLog} outwardLog={outwardLog}
                               pendingLog={pendingLog} bomDefs={bomDefs} machineLog={machineLog}
-                              onLogAudit={logAudit} canDo={canDo} vendorList={vendorList} settings={settings}
-                              onCreateItem={handleCreateItemRow} onUpdateItem={handleUpdateItemRow} onDeleteItem={handleDeleteItemRow}
-                              onBulkAddItems={handleBulkAddItems} />,
-    inward:    <InwardPage    items={items} handleUpdateStock={handleUpdateStock} vendorList={vendorList} onInwardComplete={handleInwardComplete} onAddInward={(entry) => { setInwardLog(prev => [entry, ...prev]); if (isSupabaseEnabled()) createInward(entry).then((r) => { if (!r.success) console.warn("[App] Inward create Supabase failed:", r.error); }); logAudit({ type: "inward_manual", module: "Inward", action: `Manual Inward: ${entry.item} × ${entry.qty}`, ref: entry.code, itemCode: entry.code, itemName: entry.item, vendor: entry.vendor, qty: entry.qty, details: { unit: entry.unit, notes: entry.notes } }); }} appInwardLog={inwardLog} canDo={canDo} />,
+                              onLogAudit={logAudit} canDo={canDo} vendorList={vendorList} settings={settings} />,
+    inward:    <InwardPage    items={items} handleUpdateStock={handleUpdateStock} vendorList={vendorList} onInwardComplete={handleInwardComplete} onAddInward={(entry) => { setInwardLog(prev => [entry, ...prev]); logAudit({ type: "inward_manual", module: "Inward", action: `Manual Inward: ${entry.item} × ${entry.qty}`, ref: entry.code, itemCode: entry.code, itemName: entry.item, vendor: entry.vendor, qty: entry.qty, details: { unit: entry.unit, notes: entry.notes } }); }} appInwardLog={inwardLog} canDo={canDo} />,
     outward:   <OutwardPage   items={items} handleUpdateStock={handleUpdateStock}
                               bomDefs={bomDefs} onUpdateBOM={handleUpdateBOM}
-                              onCreateBOM={handleCreateBOM} onRenameBOM={handleRenameBOM}
                               outwardLog={outwardLog} onAddOutward={handleAddOutward}
                               pendingLog={pendingLog} onClearPending={handleClearPending}
-                              onCreateMachine={handleCreateMachine} machineLog={machineLog} canDo={canDo}
-                              onRemoveRackMachine={handleRemoveRackMachine}
-                              onDuplicateBOM={handleDuplicateBOM}
-                              onDeleteBOM={handleDeleteBOM}
-                              computeBOMDeletionInfo={computeBOMDeletionInfo} />,
+                              onCreateMachine={handleCreateMachine} canDo={canDo} />,
     pending:   <PendingPage   pendingLog={pendingLog} items={items} bomDefs={bomDefs}
                               machineLog={machineLog}
                               onFulfillPending={handleFulfillPending}
@@ -12895,59 +9292,38 @@ export default function App() {
                               handleUpdateStock={handleUpdateStock} inwardLog={inwardLog} canDo={canDo}
                               settings={settings}
                               isSuperAdmin={currentUser?.role === "super_admin"}
-                              onReverseReceive={handleReverseReceive}
-                              onSetItemDefaultRate={handleSetItemDefaultRate} />,
-    machines:  <MachinePage   machineLog={machineLog} onUpdateStage={handleUpdateMachineStage} onNavigate={setActivePage} canDo={canDo}
-                              bomDefs={bomDefs} onStartProduction={handleStartProduction}
-                              onRemoveRackMachine={handleRemoveRackMachine}
-                              onUpdateBOM={handleUpdateBOM} />,
+                              onReverseReceive={handleReverseReceive} />,
+    machines:  <MachinePage   machineLog={machineLog} onUpdateStage={handleUpdateMachineStage} onNavigate={setActivePage} canDo={canDo} />,
     vendors:   <VendorsPage   vendorList={vendorList} pos={pos} items={items}
                               onAddVendor={handleAddVendor} onEditVendor={handleEditVendor}
                               onDeleteVendor={handleDeleteVendor} onBulkAddVendors={handleBulkAddVendors} canDo={canDo} />,
     analytics: <AnalyticsPage items={items} pos={pos} vendorList={vendorList} settings={settings} />,
-    ai:        <AIPage items={items} pos={pos} />,
+    ai:        <AIPage items={items} pos={pos} vendorList={vendorList} bomDefs={bomDefs} machineLog={machineLog} pendingLog={pendingLog} settings={settings} />,
     history:   <HistoryPage auditLog={auditLog} pos={pos} inwardLog={inwardLog} outwardLog={outwardLog} pendingLog={pendingLog} machineLog={machineLog} items={items} vendorList={vendorList} bomDefs={bomDefs} />,
-    settings:  <SettingsPage settings={settings} onSave={handleSaveSettings} isSuperAdmin={currentUser?.role === "super_admin"} />,
+    settings:  <SettingsPage settings={settings} onSave={handleSaveSettings} />,
     users:     <UserManagementPage canDo={canDo} />,
     roles:     <RoleManagementPage canDo={canDo} />,
-    audit:     <AuditHistoryPage />,
   };
 
   return (
     <div className="flex h-screen bg-[#080a0f] text-white overflow-hidden"
          style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif", fontFeatureSettings: '"cv02","cv03","cv04","cv11"' }}>
 
-      {/* Sidebar in its own boundary — historically the blast site (UserProfileMenu
-          dereferenced currentUser.fullName, which is nullable in Supabase, blanking
-          the entire app post-login). Even with that bug fixed, isolating the shell
-          here means any future sidebar-side crash leaves the page area usable. */}
-      <PageErrorBoundary pageId="sidebar" buildTag={APP_BUILD}>
-        <Sidebar
-          activePage={activePage} setActivePage={setActivePage}
-          collapsed={collapsed} setCollapsed={setCollapsed}
-          badges={{ pending: pendingLog.length, pipeline: pipelineBadge, machines: machineLog.filter((m) => m.status !== "completed" && m.stage !== "BOM Issued").length }}
-          canView={canView}
-          onSearchOpen={() => setShowSearch(true)}
-          onNotifsOpen={() => setShowNotifs((v) => !v)}
-          notifCount={activeNotifs.length}
-          settings={settings}
-        />
-      </PageErrorBoundary>
+      <Sidebar
+        activePage={activePage} setActivePage={setActivePage}
+        collapsed={collapsed} setCollapsed={setCollapsed}
+        badges={{ pending: pendingLog.length, pipeline: pipelineBadge, machines: machineLog.filter((m) => m.status !== "completed").length }}
+        canView={canView}
+        onSearchOpen={() => setShowSearch(true)}
+        onNotifsOpen={() => setShowNotifs((v) => !v)}
+        notifCount={activeNotifs.length}
+        settings={settings}
+      />
 
-      {/* Page render guarded by its own boundary. A render error in any page now
-          surfaces a recoverable fallback (Try again / Go to Dashboard / Reload)
-          instead of unmounting the React tree → blank screen. The boundary
-          auto-resets when activePage changes, so navigating away clears it. */}
-      <PageErrorBoundary
-        pageId={activePage}
-        buildTag={APP_BUILD}
-        onNavigateHome={() => setActivePage("dashboard")}
-      >
-        {canView(activePage)
-          ? (pages[activePage] || <DashboardPage />)
-          : <AccessDeniedPage onNavigateHome={() => setActivePage("dashboard")} />
-        }
-      </PageErrorBoundary>
+      {canView(activePage)
+        ? (pages[activePage] || <DashboardPage />)
+        : <AccessDeniedPage onNavigateHome={() => setActivePage("dashboard")} />
+      }
 
       {/* ── Global overlays ── */}
       {showSearch && (
@@ -12966,100 +9342,6 @@ export default function App() {
           onDismiss={dismissNotif}
           onDismissAll={dismissAllNotifs}
         />
-      )}
-
-      {/* ── 2026-06-05i — Keyboard shortcuts cheatsheet (press ? to open) ── */}
-      {showShortcuts && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4"
-             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
-             onClick={(e) => e.target === e.currentTarget && setShowShortcuts(false)}>
-          <div className="w-full max-w-2xl rounded-2xl overflow-hidden"
-               style={{ background: "#0d1018", border: "1px solid rgba(99,102,241,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
-            <div className="px-5 py-4 border-b border-white/[0.08] flex items-center justify-between"
-                 style={{ background: "linear-gradient(90deg,rgba(59,130,246,0.10),rgba(99,102,241,0.05))" }}>
-              <div>
-                <div className="text-sm font-black text-white">⌨ Keyboard Shortcuts</div>
-                <div className="text-[10px] text-slate-500 mt-0.5">Press <kbd className="px-1 py-0.5 text-[9px] font-mono rounded bg-white/[0.08] border border-white/[0.1]">Esc</kbd> to close</div>
-              </div>
-              <button onClick={() => setShowShortcuts(false)} className="text-slate-500 hover:text-white transition-colors text-lg leading-none">✕</button>
-            </div>
-            <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-[11px]">
-              <div>
-                <div className="text-[10px] font-black text-blue-300 uppercase tracking-wider mb-2">Navigation</div>
-                {[
-                  ["Alt", "H", "Dashboard"],
-                  ["Alt", "I", "Item Master"],
-                  ["Alt", "N", "Inward"],
-                  ["Alt", "O", "Outward"],
-                  ["Alt", "P", "Pending Stock"],
-                  ["Alt", "M", "Machine Tracker"],
-                  ["Alt", "V", "Vendors"],
-                ].map(([m, k, label]) => (
-                  <div key={k} className="flex items-center justify-between py-1 border-b border-white/[0.04] last:border-0">
-                    <span className="text-slate-300">{label}</span>
-                    <span className="flex items-center gap-1">
-                      <kbd className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-white/[0.08] border border-white/[0.12] text-slate-200">{m}</kbd>
-                      <span className="text-slate-600">+</span>
-                      <kbd className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-white/[0.08] border border-white/[0.12] text-slate-200">{k}</kbd>
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <div>
-                <div className="text-[10px] font-black text-purple-300 uppercase tracking-wider mb-2">Global</div>
-                {[
-                  [["Ctrl", "K"], "Global search (works in forms)"],
-                  [["?"],         "This shortcut sheet"],
-                  [["Esc"],       "Close overlay / modal / drawer"],
-                  [["Enter"],     "Submit form / confirm action"],
-                  [["Tab"],       "Next field"],
-                  [["Shift", "Tab"], "Previous field"],
-                ].map(([keys, label], i) => (
-                  <div key={i} className="flex items-center justify-between py-1 border-b border-white/[0.04] last:border-0">
-                    <span className="text-slate-300">{label}</span>
-                    <span className="flex items-center gap-1">
-                      {keys.map((k, j) => (
-                        <span key={k} className="flex items-center gap-1">
-                          {j > 0 && <span className="text-slate-600">+</span>}
-                          <kbd className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-white/[0.08] border border-white/[0.12] text-slate-200">{k}</kbd>
-                        </span>
-                      ))}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="px-5 py-3 text-[10px] text-slate-500 border-t border-white/[0.08]"
-                 style={{ background: "rgba(0,0,0,0.25)" }}>
-              <strong className="text-slate-400">Tip:</strong> Alt-combos are ignored while you're typing in a text field, so they don't fight in-form shortcuts. Modals support <kbd className="px-1 py-0.5 text-[9px] font-mono rounded bg-white/[0.06] border border-white/[0.08]">Esc</kbd> to cancel and <kbd className="px-1 py-0.5 text-[9px] font-mono rounded bg-white/[0.06] border border-white/[0.08]">Enter</kbd> on the primary action.
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Supabase misconfiguration banner — deployed build without DB env vars shows this
-          instead of silently falling back to empty/demo data. */}
-      {!SUPA && (
-        <div className="fixed top-0 inset-x-0 z-[200] flex items-center justify-center gap-2 px-4 py-2 text-center"
-             style={{ background: "linear-gradient(90deg,#7f1d1d,#991b1b)", borderBottom: "1px solid rgba(239,68,68,0.5)" }}>
-          <span className="text-sm">⚠️</span>
-          <span className="text-[11px] font-bold text-red-100">
-            Live database not connected — set VITE_USE_SUPABASE, VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY in Vercel and redeploy.
-          </span>
-        </div>
-      )}
-
-      {/* Stock movement error toast — movement rejected, optimistic UI reverted to DB truth */}
-      {stockError && (
-        <div className="fixed bottom-5 right-5 z-[100] max-w-sm flex items-start gap-3 px-4 py-3 rounded-xl shadow-2xl"
-             style={{ background: "linear-gradient(180deg,#2a1216,#1a0c0e)", border: "1px solid rgba(239,68,68,0.4)", animation: "slideUp 0.2s ease both" }}>
-          <span className="text-lg leading-none mt-0.5">⚠️</span>
-          <div className="flex-1 min-w-0">
-            <div className="text-[12px] font-bold text-red-300">Stock update rejected</div>
-            <div className="text-[11px] text-slate-400 mt-0.5 break-words">{stockError}</div>
-          </div>
-          <button onClick={() => setStockError(null)} className="text-slate-600 hover:text-slate-300 text-xs flex-shrink-0">✕</button>
-        </div>
       )}
     </div>
   );
