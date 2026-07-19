@@ -315,32 +315,58 @@ async function toolAuditEvents(userScopedClient: any, args: { module?: string; l
 }
 
 // ─── Handler ────────────────────────────────────────────────────────────────
+// The ENTIRE body below is wrapped in one try/catch (see bottom of file) so that
+// literally nothing — a Supabase client throw, a network blip, a coding mistake —
+// can ever escape as Deno's bare, un-JSON, CORS-less default 500. Every exit path
+// goes through json(), which always sets status + CORS headers + a specific
+// { error: "..." } message, and every catch also console.error()s the real cause
+// so it's visible in Supabase Dashboard → Edge Functions → ai-assistant → Logs.
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST")   return json(405, { error: "Method not allowed" });
   if (!GEMINI_API_KEY)         return json(500, { error: "AI service not configured (GEMINI_API_KEY missing)." });
 
+  try {
   // 1) Authenticate the caller — never trust a client-asserted role.
   const authHeader = req.headers.get("Authorization") || "";
   if (!authHeader) return json(401, { error: "Missing Authorization header" });
 
   const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { global: { headers: { Authorization: authHeader } } });
-  const { data: { user }, error: userErr } = await userClient.auth.getUser();
-  if (userErr || !user) return json(401, { error: "Invalid session" });
+  let user;
+  try {
+    const { data, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !data?.user) { console.error("[ai-assistant] auth.getUser failed:", userErr?.message); return json(401, { error: "Invalid session" }); }
+    user = data.user;
+  } catch (e) {
+    console.error("[ai-assistant] auth.getUser threw:", (e as Error).message);
+    return json(401, { error: "Could not verify session" });
+  }
 
   const service = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  const { data: caller, error: callerErr } = await service
-    .from("users").select("role_key, status, full_name, overrides").eq("id", user.id).single();
-  if (callerErr || !caller)       return json(403, { error: "Profile not found" });
+  let caller;
+  try {
+    const { data, error: callerErr } = await service
+      .from("users").select("role_key, status, full_name, overrides").eq("id", user.id).single();
+    if (callerErr || !data) { console.error("[ai-assistant] users lookup failed:", callerErr?.message); return json(403, { error: "Profile not found" }); }
+    caller = data;
+  } catch (e) {
+    console.error("[ai-assistant] users lookup threw:", (e as Error).message);
+    return json(500, { error: `Could not load user profile: ${(e as Error).message}` });
+  }
   if (caller.status !== "active") return json(403, { error: "Account disabled" });
 
   const isSuperAdmin = caller.role_key === "super_admin";
   let allowedPages = new Set<string>();
   if (!isSuperAdmin) {
-    const { data: role } = await service.from("roles").select("pages").eq("key", caller.role_key).single();
-    allowedPages = new Set<string>((role?.pages as string[]) || []);
-    const overridePages = caller.overrides?.pages || {};
-    Object.entries(overridePages).forEach(([page, allowed]) => { if (allowed) allowedPages.add(page); else allowedPages.delete(page); });
+    try {
+      const { data: role, error: roleErr } = await service.from("roles").select("pages").eq("key", caller.role_key).single();
+      if (roleErr) console.error("[ai-assistant] roles lookup failed (continuing with no extra pages):", roleErr.message);
+      allowedPages = new Set<string>((role?.pages as string[]) || []);
+      const overridePages = caller.overrides?.pages || {};
+      Object.entries(overridePages).forEach(([page, allowed]) => { if (allowed) allowedPages.add(page); else allowedPages.delete(page); });
+    } catch (e) {
+      console.error("[ai-assistant] roles lookup threw (continuing with no extra pages):", (e as Error).message);
+    }
   }
 
   // 2) Parse request
@@ -404,6 +430,7 @@ serve(async (req: Request) => {
       });
       if (!resp.ok) {
         const errText = await resp.text().catch(() => "");
+        console.error(`[ai-assistant] Gemini API returned ${resp.status}:`, errText.slice(0, 2000));
         return json(502, { error: `AI service error (${resp.status}): ${errText.slice(0, 300)}` });
       }
       const data = await resp.json();
@@ -433,16 +460,31 @@ serve(async (req: Request) => {
       }
     }
   } catch (err) {
+    console.error("[ai-assistant] Gemini round-trip threw:", (err as Error).message, (err as Error).stack);
     return json(502, { error: `AI service call failed: ${(err as Error).message}` });
   }
 
-  // 6) Audit the query itself (who asked what, which tools were consulted)
-  await service.from("audit_log").insert({
-    user_id: user.id, user_name: caller.full_name, user_role: caller.role_key,
-    type: "ai_query", module: "AI Assistant",
-    action: `AI query: "${question.slice(0, 140)}"`,
-    details: { toolsUsed: toolCallsMade.map((t) => t.name) },
-  });
+  // 6) Audit the query itself (who asked what, which tools were consulted) — best-effort,
+  // must never block the actual answer from reaching the user.
+  try {
+    const { error: auditErr } = await service.from("audit_log").insert({
+      user_id: user.id, user_name: caller.full_name, user_role: caller.role_key,
+      type: "ai_query", module: "AI Assistant",
+      action: `AI query: "${question.slice(0, 140)}"`,
+      details: { toolsUsed: toolCallsMade.map((t) => t.name) },
+    });
+    if (auditErr) console.error("[ai-assistant] audit_log insert failed (non-fatal):", auditErr.message);
+  } catch (e) {
+    console.error("[ai-assistant] audit_log insert threw (non-fatal):", (e as Error).message);
+  }
 
   return json(200, { answer: finalText, toolCalls: toolCallsMade });
+
+  } catch (err) {
+    // Final safety net — guarantees no path through this function can ever return
+    // Deno's bare default 500 with no body/CORS headers. Full detail goes to the
+    // server-side log; the client gets a clean, specific-enough JSON error.
+    console.error("[ai-assistant] UNHANDLED ERROR:", (err as Error).message, (err as Error).stack);
+    return json(500, { error: `AI Assistant internal error: ${(err as Error).message}` });
+  }
 });

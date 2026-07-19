@@ -4401,7 +4401,18 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
       const { data, error } = await client.functions.invoke("ai-assistant", {
         body: { question: text, history, snapshot: { items, pos, vendorList, bomDefs, machineLog, pendingLog, settings } },
       });
-      if (error) throw error;
+      if (error) {
+        // supabase-js's FunctionsHttpError.message is always the generic
+        // "Edge Function returned a non-2xx status code" — the actual reason the
+        // function gave lives on error.context (the raw Response). Read it so the
+        // real error surfaces instead of that placeholder text.
+        let detail = error.message;
+        try {
+          const body = await error.context?.json();
+          if (body?.error) detail = body.error;
+        } catch { /* context wasn't JSON — fall back to error.message */ }
+        throw new Error(detail);
+      }
       setMessages((prev) => [...prev, { role: "ai", text: data?.answer || "No data found in ERP." }]);
     } catch (err) {
       setMessages((prev) => [...prev, { role: "ai", text: `⚠️ AI Assistant error: ${err?.message || "request failed"}` }]);
