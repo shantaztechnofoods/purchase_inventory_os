@@ -8686,7 +8686,7 @@ function NotificationPanel({ notifications, dismissed, onClose, onNavigate, onDi
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const { currentUser, canDo: authCanDo, canView } = useAuth();
+  const { currentUser, canDo: authCanDo, canView, isLoading: authLoading, authLoadError, retryAuthLoad, supabaseMode } = useAuth();
 
   const [activePage,    setActivePage]    = useState("dashboard");
   const [collapsed,     setCollapsed]     = useState(false);
@@ -8746,7 +8746,62 @@ export default function App() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  // Auth gate — after all hooks
+  // Auth gate — after all hooks.
+  //
+  // Order matters:
+  //   1. `authLoadError` → the initial session restore failed (network, RLS misconfig,
+  //      profile missing, disabled account, roles fetch failed). Show a retry screen so
+  //      the operator sees a real error instead of a silent "logged in but Access Denied
+  //      on every module" state.
+  //   2. `authLoading` → we haven't decided yet. Show a loading placeholder instead of
+  //      flashing the LoginPage over a valid-but-restoring session.
+  //   3. `!currentUser` → definitely signed out. Show LoginPage.
+  //
+  // Without step (2), a page refresh with a valid Supabase session briefly renders the
+  // login form on top of the app, and in the transient-failure case where roles never
+  // load, the operator would be stuck seeing Access Denied on every protected module.
+  if (authLoadError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-6" style={{ background: "#080a0f", color: "#e5e7eb", fontFamily: "Inter, system-ui, sans-serif" }}>
+        <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: "#0d1018", border: "1px solid rgba(239,68,68,0.35)", boxShadow: "0 24px 60px rgba(0,0,0,0.7)" }}>
+          <div className="flex items-center gap-3 mb-3">
+            <div style={{ fontSize: 24 }}>⚠️</div>
+            <div>
+              <div style={{ color: "#fca5a5", fontWeight: 800, fontSize: 13 }}>Session couldn't be restored</div>
+              <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>Retry, or sign in again.</div>
+            </div>
+          </div>
+          <div style={{ background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.18)", borderRadius: 10, padding: 10, fontSize: 11, color: "#cbd5e1", marginBottom: 14 }}>
+            {authLoadError}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={retryAuthLoad}
+                    className="flex-1 py-2 rounded-xl text-xs font-semibold text-white"
+                    style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", boxShadow: "0 4px 12px rgba(99,102,241,0.35)" }}>
+              ↻ Retry
+            </button>
+            <button onClick={() => { try { localStorage.removeItem("erp_session"); } catch {} try { localStorage.removeItem("erp_supabase_session"); } catch {} try { window.location.reload(); } catch {} }}
+                    className="flex-1 py-2 rounded-xl text-xs font-semibold"
+                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#e5e7eb" }}>
+              Sign in again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#080a0f", color: "#e5e7eb", fontFamily: "Inter, system-ui, sans-serif" }}>
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full animate-spin" style={{ border: "3px solid rgba(99,102,241,0.15)", borderTopColor: "#6366f1" }} />
+          <div style={{ fontSize: 11, color: "#64748b", letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 700 }}>
+            Restoring session{supabaseMode ? "" : ""}…
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (!currentUser) return <LoginPage />;
 
   // ── Computed notifications (live, derived from existing state) ──

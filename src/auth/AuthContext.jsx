@@ -30,6 +30,9 @@ export function AuthProvider({ children }) {
   const [roles,      setRolesState] = useState(() => SUPA ? {} : getRoles());
   const [supaUser,   setSupaUser]   = useState(null);            // Supabase-mode current user (already mapped)
   const [isLoading,  setIsLoading]  = useState(SUPA);            // true while initial session is restored
+  // Set when session restore fails (network/RLS/etc.). Surfaces a retry UI at the app shell
+  // instead of the "Invalid username or password" scenario or a silent stuck-on-loading screen.
+  const [authLoadError, setAuthLoadError] = useState(null);
 
   // currentUser derivation:
   // - Supabase mode → supaUser state (set on login / session restore)
@@ -53,30 +56,107 @@ export function AuthProvider({ children }) {
 
     let unsub = () => {};
     let cancelled = false;
+    let loadSeq = 0; // guards against stale concurrent loadFromSession() results
 
     const loadFromSession = async (sess) => {
-      if (!sess?.user) { setSupaUser(null); setIsLoading(false); return; }
-      const [u, rolesMap, allUsers] = await Promise.all([
-        fetchUserById(sess.user.id),
-        fetchAllRoles(),
-        fetchAllUsers(),
-      ]);
-      if (cancelled) return;
+      const mySeq = ++loadSeq;
+      if (!sess?.user) {
+        if (cancelled || mySeq !== loadSeq) return;
+        setSupaUser(null);
+        setSession(null);
+        setAuthLoadError(null);
+        setIsLoading(false);
+        return;
+      }
+      // Fetch profile + roles + users in parallel. If ANY of them fail (network / RLS
+      // misconfig / transient outage), we must NOT silently leave the user "authenticated
+      // with an empty roles map" — that's the exact state where every canView() returns
+      // false and the operator gets Access Denied on every module. Instead we sign out,
+      // surface a retry-able error, and let them try again.
+      let u, rolesMap, allUsers;
+      try {
+        [u, rolesMap, allUsers] = await Promise.all([
+          fetchUserById(sess.user.id),
+          fetchAllRoles(),
+          fetchAllUsers(),
+        ]);
+      } catch (err) {
+        if (cancelled || mySeq !== loadSeq) return;
+        setAuthLoadError(err?.message || "Failed to load session data.");
+        setIsLoading(false);
+        return;
+      }
+      if (cancelled || mySeq !== loadSeq) return;
+      if (!u) {
+        // Profile row missing → do not authenticate; sign out to clear the orphaned session.
+        try { await c.auth.signOut(); } catch {}
+        setSupaUser(null);
+        setSession(null);
+        setAuthLoadError("User profile missing in database. Contact your administrator.");
+        setIsLoading(false);
+        return;
+      }
+      if (u.status === "disabled") {
+        try { await c.auth.signOut(); } catch {}
+        setSupaUser(null);
+        setSession(null);
+        setAuthLoadError("Account disabled. Contact your administrator.");
+        setIsLoading(false);
+        return;
+      }
+      // Roles are required for anyone except super_admin. Without them,
+      // resolveCanView returns false for every page and the operator hits
+      // "Access Denied" on every module they open — the exact recurrence
+      // pattern this audit was created to prevent.
+      if (!rolesMap && u.role !== "super_admin") {
+        try { await c.auth.signOut(); } catch {}
+        setSupaUser(null);
+        setSession(null);
+        setAuthLoadError("Could not load permission data. Please retry.");
+        setIsLoading(false);
+        return;
+      }
       if (rolesMap) setRolesState(rolesMap);
       if (allUsers) setUsersState(allUsers);
       setSupaUser(u);
       setSession({ userId: sess.user.id, loginTime: Date.now() });
+      setAuthLoadError(null);
       setIsLoading(false);
     };
 
-    c.auth.getSession().then(({ data }) => loadFromSession(data?.session));
+    // Cap the initial-restore wait so a hung fetch doesn't leave the UI stuck on the
+    // loading screen forever. If we haven't heard from Supabase in 8s, drop into the
+    // login screen so the operator can act.
+    const initialTimeout = setTimeout(() => {
+      if (cancelled) return;
+      setIsLoading((prev) => {
+        if (!prev) return prev;
+        setAuthLoadError("Session restore timed out. Please sign in.");
+        return false;
+      });
+    }, 8000);
 
-    const { data: listener } = c.auth.onAuthStateChange((_event, sess) => {
+    c.auth.getSession().then(({ data }) => {
+      clearTimeout(initialTimeout);
+      loadFromSession(data?.session);
+    }).catch((err) => {
+      clearTimeout(initialTimeout);
+      if (cancelled) return;
+      setAuthLoadError(err?.message || "Failed to restore session.");
+      setIsLoading(false);
+    });
+
+    // Filter noisy events: TOKEN_REFRESHED means the same session with a fresher token —
+    // no need to re-fetch users/roles/profile. USER_UPDATED and PASSWORD_RECOVERY don't
+    // affect the auth state we care about here either. Only re-run loadFromSession for
+    // real transitions: initial hydration, sign-in, sign-out.
+    const { data: listener } = c.auth.onAuthStateChange((event, sess) => {
+      if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED" || event === "PASSWORD_RECOVERY") return;
       loadFromSession(sess);
     });
     unsub = () => { try { listener?.subscription?.unsubscribe(); } catch {} };
 
-    return () => { cancelled = true; unsub(); };
+    return () => { cancelled = true; clearTimeout(initialTimeout); unsub(); };
   }, [SUPA]);
 
   // ── login ──────────────────────────────────────────────────────────────────
@@ -117,14 +197,23 @@ export function AuthProvider({ children }) {
         await c.auth.signOut();
         return { success: false, error: "Account disabled." };
       }
-      // Load roles + all users for the rest of the app
+      // Load roles + all users for the rest of the app. If roles fail to load for a
+      // non-super-admin user, we CANNOT let the login "succeed" — the user would land
+      // in a state where canView() returns false for every module (silent lockout).
+      // Sign out and report the error so the operator sees a real failure they can act on
+      // instead of a broken "logged in but Access Denied everywhere" state.
       const [rolesMap, allUsers] = await Promise.all([fetchAllRoles(), fetchAllUsers()]);
+      if (!rolesMap && profile.role !== "super_admin") {
+        try { await c.auth.signOut(); } catch {}
+        return { success: false, error: "Could not load permission data. Please retry." };
+      }
       if (rolesMap) setRolesState(rolesMap);
       if (allUsers) setUsersState(allUsers);
       // Update last_login (best-effort)
       touchLastLogin(profile.id);
       setSupaUser(profile);
       setSession({ userId: profile.id, loginTime: Date.now() });
+      setAuthLoadError(null);
       appendAudit({
         type: "login", module: "Auth",
         action: `User signed in: ${profile.fullName}`,
@@ -185,11 +274,55 @@ export function AuthProvider({ children }) {
       if (c) await c.auth.signOut();
       setSupaUser(null);
       setSession(null);
+      setAuthLoadError(null);
     } else {
       clearSession();
       setSession(null);
     }
   }, [currentUser, roles, SUPA]);
+
+  // Retry initial session restore after a transient failure (used by the auth error screen).
+  const retryAuthLoad = useCallback(async () => {
+    if (!SUPA) return;
+    const c = getSupabase();
+    if (!c) return;
+    setAuthLoadError(null);
+    setIsLoading(true);
+    try {
+      const { data } = await c.auth.getSession();
+      const sess = data?.session;
+      if (!sess?.user) { setSupaUser(null); setSession(null); setIsLoading(false); return; }
+      const [u, rolesMap, allUsers] = await Promise.all([
+        fetchUserById(sess.user.id), fetchAllRoles(), fetchAllUsers(),
+      ]);
+      if (!u) {
+        try { await c.auth.signOut(); } catch {}
+        setSupaUser(null); setSession(null);
+        setAuthLoadError("User profile missing in database. Contact your administrator.");
+        setIsLoading(false); return;
+      }
+      if (u.status === "disabled") {
+        try { await c.auth.signOut(); } catch {}
+        setSupaUser(null); setSession(null);
+        setAuthLoadError("Account disabled. Contact your administrator.");
+        setIsLoading(false); return;
+      }
+      if (!rolesMap && u.role !== "super_admin") {
+        try { await c.auth.signOut(); } catch {}
+        setSupaUser(null); setSession(null);
+        setAuthLoadError("Could not load permission data. Please retry.");
+        setIsLoading(false); return;
+      }
+      if (rolesMap) setRolesState(rolesMap);
+      if (allUsers) setUsersState(allUsers);
+      setSupaUser(u);
+      setSession({ userId: sess.user.id, loginTime: Date.now() });
+      setIsLoading(false);
+    } catch (err) {
+      setAuthLoadError(err?.message || "Retry failed.");
+      setIsLoading(false);
+    }
+  }, [SUPA]);
 
   // ── Permissions ────────────────────────────────────────────────────────────
   const canDo = useCallback(
@@ -275,6 +408,8 @@ export function AuthProvider({ children }) {
         resetPassword,
         roleLabel, roleColor, roleIcon,
         isLoading,           // true while Supabase restores the initial session
+        authLoadError,       // non-null when session restore failed (roles/profile/timeout)
+        retryAuthLoad,       // retries the failed session restore
         supabaseMode: SUPA,  // useful for UI hints
       }}
     >
