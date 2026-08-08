@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { hashPassword, checkPassword } from "../auth/authStore.js";
 import { appendAuditWithUser } from "../auth/auditStore.js";
+import { isSupabaseEnabled } from "../config/env.js";
+import { getSupabase } from "../supabase/client.js";
 
 function fmtDateTime(iso) {
   if (!iso) return "Never";
@@ -233,8 +235,20 @@ export default function UserProfileMenu({ collapsed = false }) {
         <ChangePasswordModal
           user={currentUser}
           onClose={() => setShowPasswordModal(false)}
-          onSave={(newPassword) => {
+          onLocalSave={(newPassword) => {
+            // Local-mode only: persist the new hash in the client-side users list.
+            // In Supabase mode the modal writes via supabase.auth.updateUser() and
+            // does not call this path at all — the auth password lives in Supabase,
+            // not in local React state.
             setUsers((prev) => prev.map((u) => u.id !== currentUser.id ? u : { ...u, password: hashPassword(newPassword) }));
+            appendAuditWithUser({
+              type: "password_change", module: "Auth",
+              action: `Password changed by ${currentUser.fullName}`,
+              ref: currentUser.id,
+            });
+            setShowPasswordModal(false);
+          }}
+          onSupabaseSaved={() => {
             appendAuditWithUser({
               type: "password_change", module: "Auth",
               action: `Password changed by ${currentUser.fullName}`,
@@ -364,12 +378,31 @@ function ProfileModal({ user, roleLabel, roleColor, onClose, onSave }) {
 }
 
 // ─── Change Password Modal ───────────────────────────────────────────────────
-function ChangePasswordModal({ user, onClose, onSave }) {
+// Two code paths depending on mode:
+//
+//  Local mode (VITE_USE_SUPABASE=false)
+//    - Current-password verification hashes against user.password (present in the
+//      local users list).
+//    - Save writes the new hash into local state via onLocalSave (setUsers).
+//
+//  Supabase mode (VITE_USE_SUPABASE=true)
+//    - The Supabase user profile row does NOT expose a password hash (by design —
+//      auth passwords live only in auth.users). So user.password is undefined here
+//      and the old checkPassword(currentPw, user.password) always returned false,
+//      making self-serve password change permanently broken.
+//    - Fix: verify current password by attempting signInWithPassword against the
+//      caller's own email. That both proves knowledge of the current password AND
+//      keeps the session alive.
+//    - Save writes via supabase.auth.updateUser({ password }), which is the
+//      correct self-serve API for the currently-signed-in user (no admin call
+//      needed). onSupabaseSaved then records the audit and closes the modal.
+function ChangePasswordModal({ user, onClose, onLocalSave, onSupabaseSaved }) {
   const [currentPw, setCurrentPw] = useState("");
   const [newPw,     setNewPw]     = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [error,     setError]     = useState("");
   const [success,   setSuccess]   = useState(false);
+  const [saving,    setSaving]    = useState(false);
   const [showCur,   setShowCur]   = useState(false);
   const [showNew,   setShowNew]   = useState(false);
 
@@ -389,14 +422,41 @@ function ChangePasswordModal({ user, onClose, onSave }) {
     return                  { score: 3, label: "Strong", color: "#22c55e" };
   })();
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (saving) return;
     setError("");
     if (!currentPw) { setError("Enter your current password"); return; }
-    if (!checkPassword(currentPw, user.password)) { setError("Current password is incorrect"); return; }
     if (!newPw || newPw.length < 4) { setError("New password must be at least 4 characters"); return; }
     if (newPw !== confirmPw) { setError("New passwords do not match"); return; }
     if (newPw === currentPw) { setError("New password must differ from current"); return; }
-    onSave(newPw);
+
+    if (isSupabaseEnabled()) {
+      // Supabase mode: verify + update through Supabase auth.
+      const c = getSupabase();
+      if (!c) { setError("Supabase client not available. Please refresh."); return; }
+      setSaving(true);
+      try {
+        // 1) Verify current password by re-signing in with it. Uses the same email
+        //    synthesis rule the login page uses so username-only users still work.
+        const raw   = String(user.username || "").trim().toLowerCase();
+        const email = raw.includes("@") ? raw : `${raw}@users.shantaz.local`;
+        const { error: verifyErr } = await c.auth.signInWithPassword({ email, password: currentPw });
+        if (verifyErr) { setError("Current password is incorrect"); return; }
+        // 2) Update the auth password for the currently-signed-in user.
+        const { error: updateErr } = await c.auth.updateUser({ password: newPw });
+        if (updateErr) { setError(`Password update failed: ${updateErr.message}`); return; }
+        onSupabaseSaved && onSupabaseSaved();
+        setSuccess(true);
+        setTimeout(() => onClose(), 900);
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    // Local mode: existing behavior — verify against local hash, then write local state.
+    if (!checkPassword(currentPw, user.password)) { setError("Current password is incorrect"); return; }
+    onLocalSave && onLocalSave(newPw);
     setSuccess(true);
     setTimeout(() => onClose(), 900);
   };
@@ -480,20 +540,21 @@ function ChangePasswordModal({ user, onClose, onSave }) {
             </div>
 
             <div className="flex gap-2.5 p-5" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-              <button onClick={onClose}
+              <button onClick={onClose} disabled={saving}
                 className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", opacity: saving ? 0.5 : 1 }}>
                 Cancel
               </button>
               <button onClick={handleSave}
-                disabled={!currentPw || !newPw || !confirmPw}
+                disabled={!currentPw || !newPw || !confirmPw || saving}
                 className="flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-all"
                 style={{
                   background: "linear-gradient(135deg,#3b82f6,#6366f1)",
                   boxShadow: "0 4px 12px rgba(99,102,241,0.35)",
-                  opacity: (!currentPw || !newPw || !confirmPw) ? 0.4 : 1,
+                  opacity: (!currentPw || !newPw || !confirmPw || saving) ? 0.4 : 1,
+                  cursor: saving ? "wait" : (!currentPw || !newPw || !confirmPw) ? "not-allowed" : "pointer",
                 }}>
-                Update Password
+                {saving ? "Updating…" : "Update Password"}
               </button>
             </div>
           </>
