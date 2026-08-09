@@ -142,7 +142,14 @@ export function AuthProvider({ children }) {
     }).catch((err) => {
       clearTimeout(initialTimeout);
       if (cancelled) return;
-      setAuthLoadError(err?.message || "Failed to restore session.");
+      // getSession itself failed to reach Supabase → project URL is unreachable.
+      // Surface the exact remediation so the operator doesn't chase a phantom
+      // credential problem when the project itself is paused/deleted/misconfigured.
+      const msg = String(err?.message || err);
+      const isNetworkError = /fetch|network|failed to fetch|load failed|abort|resolve|dns|ENOTFOUND/i.test(msg);
+      setAuthLoadError(isNetworkError
+        ? "Cannot reach the authentication service. The Supabase project URL is unreachable — it may be paused, deleted, or misconfigured. Contact your administrator to restore the Supabase project or update the Vercel environment variables (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY) and redeploy."
+        : msg || "Failed to restore session.");
       setIsLoading(false);
     });
 
@@ -177,14 +184,54 @@ export function AuthProvider({ children }) {
       const raw = String(username || "").trim().toLowerCase();
       const email = raw.includes("@") ? raw : `${raw}@users.shantaz.local`;
       console.info("[auth] login: signing in", { input: raw, resolvedEmail: email, passwordLength: password?.length || 0 });
-      const { data, error } = await c.auth.signInWithPassword({ email, password });
-      console.info("[auth] login: signInWithPassword result", { hasUser: !!data?.user, errorMessage: error?.message, errorStatus: error?.status });
+      let data, error;
+      try {
+        ({ data, error } = await c.auth.signInWithPassword({ email, password }));
+      } catch (thrown) {
+        // Supabase-js normally wraps network failures into `error`, but occasionally
+        // the underlying fetch throws (e.g. AbortError, TypeError). Treat these
+        // exactly like the SDK's own network-error path below.
+        error = thrown;
+      }
+      console.info("[auth] login: signInWithPassword result", { hasUser: !!data?.user, errorMessage: error?.message, errorStatus: error?.status, errorName: error?.name });
       if (error || !data?.user) {
+        // Differentiate infrastructure failures (DNS / project deleted / project
+        // paused / offline / CORS / blocked network) from actual credential
+        // rejections. Supabase-js returns:
+        //   - status 400 + "Invalid login credentials" → real credential failure
+        //   - status 400 + "Email not confirmed"       → account state issue
+        //   - AuthRetryableFetchError or a plain TypeError with no status →
+        //     the auth endpoint could not be reached (project URL doesn't
+        //     resolve, project paused/deleted, or network is offline)
+        // Prior behavior mapped every one of these to "Invalid username or
+        // password", which masked project-outage failures as bad credentials —
+        // the exact scenario that produced the current live-site symptom when
+        // the Supabase project ref went NXDOMAIN.
+        const msg    = String(error?.message || "");
+        const status = error?.status;
+        const name   = String(error?.name || "");
+        const isCredentialError  = status === 400 && /invalid.*(login|credential|grant)/i.test(msg);
+        const isEmailUnconfirmed = status === 400 && /email.*not.*confirm/i.test(msg);
+        const isNetworkError     = (!status || status === 0)
+          && (/fetch|network|failed to fetch|load failed|abort|resolve|dns|ENOTFOUND|ECONNREFUSED|ECONNRESET|getaddrinfo/i.test(msg)
+              || /AuthRetryableFetchError|TypeError|NetworkError/.test(name));
+
         appendAudit({
           type: "login_failed", module: "Auth",
           action: `Failed login attempt: ${username}`,
           ref: username, user: username, userId: "",
+          details: { status, name, message: msg }, // no password, ever
         });
+
+        if (isEmailUnconfirmed) {
+          return { success: false, error: "Account email is not confirmed. Ask an administrator to confirm it in Supabase." };
+        }
+        if (isNetworkError && !isCredentialError) {
+          return {
+            success: false,
+            error: "Cannot reach the authentication service. The Supabase project URL is unreachable — it may be paused, deleted, or misconfigured. Contact your administrator to restore the Supabase project or update the Vercel environment variables (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY) and redeploy.",
+          };
+        }
         return { success: false, error: "Invalid username or password." };
       }
       // Fetch profile

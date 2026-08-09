@@ -221,3 +221,56 @@ test("DEFAULT_ROLES contract: every role has pipeline actions defined (even if a
     }
   }
 });
+
+// ── Auth-error categorisation ──────────────────────────────────────────────
+// Locks down the mapping from raw Supabase errors to the message the operator
+// sees on the LoginPage. If a network / DNS / project-outage failure ever
+// gets mislabelled as "Invalid username or password" again, this test fails.
+
+// Pure re-implementation of the exact categorisation logic used in
+// AuthContext.jsx login(); if the AuthContext logic ever diverges from this,
+// update BOTH sides together.
+function categoriseSupabaseAuthError(error) {
+  const msg    = String(error?.message || "");
+  const status = error?.status;
+  const name   = String(error?.name || "");
+  const isCredentialError  = status === 400 && /invalid.*(login|credential|grant)/i.test(msg);
+  const isEmailUnconfirmed = status === 400 && /email.*not.*confirm/i.test(msg);
+  const isNetworkError     = (!status || status === 0)
+    && (/fetch|network|failed to fetch|load failed|abort|resolve|dns|ENOTFOUND|ECONNREFUSED|ECONNRESET|getaddrinfo/i.test(msg)
+        || /AuthRetryableFetchError|TypeError|NetworkError/.test(name));
+  if (isEmailUnconfirmed) return "email-unconfirmed";
+  if (isNetworkError && !isCredentialError) return "network-unreachable";
+  return "invalid-credentials";
+}
+
+test("Auth error: real wrong-credentials → 'invalid-credentials'", () => {
+  assert.equal(categoriseSupabaseAuthError({ status: 400, message: "Invalid login credentials" }), "invalid-credentials");
+  assert.equal(categoriseSupabaseAuthError({ status: 400, message: "invalid_grant" }),               "invalid-credentials");
+});
+
+test("Auth error: email not confirmed → distinct 'email-unconfirmed' bucket", () => {
+  assert.equal(categoriseSupabaseAuthError({ status: 400, message: "Email not confirmed" }), "email-unconfirmed");
+});
+
+test("REGRESSION: DNS NXDOMAIN / network failure MUST NOT be mislabelled as bad credentials", () => {
+  // This is the exact failure that hit production when the Supabase project ref
+  // went NXDOMAIN — every login attempt showed "Invalid username or password"
+  // because the login handler mapped any error to that message. If this test
+  // fails, the regression has returned.
+  assert.equal(categoriseSupabaseAuthError({ name: "TypeError", message: "Failed to fetch" }),                  "network-unreachable");
+  assert.equal(categoriseSupabaseAuthError({ name: "AuthRetryableFetchError", message: "Load failed" }),        "network-unreachable");
+  assert.equal(categoriseSupabaseAuthError({ name: "TypeError", message: "NetworkError when attempting to fetch resource" }), "network-unreachable");
+  assert.equal(categoriseSupabaseAuthError({ message: "getaddrinfo ENOTFOUND kneklzurkwayfpawtdvf.supabase.co" }), "network-unreachable");
+  assert.equal(categoriseSupabaseAuthError({ status: 0, message: "fetch failed" }),                             "network-unreachable");
+});
+
+test("Auth error: unknown / server error stays in the safe default bucket (not mislabelled as network)", () => {
+  // 500-series server errors from Supabase are genuine server-side failures —
+  // showing "Invalid username or password" is still misleading but it's better
+  // to keep the safe default here than to promise unreachability that isn't true.
+  // The important assertion is that they don't leak as network errors and
+  // suggest env-var changes when the URL is actually reachable.
+  assert.equal(categoriseSupabaseAuthError({ status: 500, message: "Internal server error" }), "invalid-credentials");
+  assert.equal(categoriseSupabaseAuthError({ status: 429, message: "Too many requests" }),     "invalid-credentials");
+});
