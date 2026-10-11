@@ -189,6 +189,10 @@ const AUDIT_EVENT_TYPES = [
   "pending_fulfilled",
   "po_created", "po_received", "po_deleted", "po_deleted_received",
   "inward_manual",
+  // Added by the full-system-check audit — item master-data mutations and
+  // company settings changes now emit audit events too.
+  "item_created", "item_updated", "item_deleted",
+  "settings_updated",
 ];
 
 for (const type of AUDIT_EVENT_TYPES) {
