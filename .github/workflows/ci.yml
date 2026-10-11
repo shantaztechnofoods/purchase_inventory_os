@@ -1,0 +1,61 @@
+# CI for SHANTAZ ERP — tests + production build must pass before merge.
+#
+# This workflow is intentionally minimal (install → test → build) because
+# that is already enough to catch:
+#   * 2b71bbc-class mass-deletion regressions (tests/regression.test.mjs)
+#   * Pure-logic regressions in gst / itemImport / auth
+#   * Build-time errors (missing imports, JSX syntax, broken paths)
+#
+# The job name is "ci" because the GitHub branch-protection "Required
+# status checks" setting is keyed on job name. Enabling branch
+# protection on main → require "ci" to pass → merges and auto-deploys
+# cannot proceed with a red build.
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+# One run per branch at a time — if a new push arrives, cancel the
+# in-flight run instead of queuing. Keeps the PR status fresh.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # Reads .nvmrc at repo root — must match the Vercel runtime.
+          node-version-file: ".nvmrc"
+          cache: "npm"
+
+      - name: Install dependencies
+        # `npm ci` is strict about package-lock.json integrity — exactly
+        # what we want in CI (reproducible), as opposed to `npm install`.
+        run: npm ci
+
+      - name: Run tests (unit + regression)
+        # tests/regression.test.mjs is the tripwire that would have
+        # blocked the 2b71bbc mass-deletion. Keep this step BEFORE build:
+        # a failed test is cheaper than a failed build.
+        run: npm test
+
+      - name: Production build
+        # Catches missing imports, JSX syntax, and any transformation
+        # error Vite would hit on Vercel. Env vars are intentionally
+        # unset here — the build must succeed without live Supabase
+        # creds (localStorage mode fallback).
+        env:
+          VITE_USE_SUPABASE: "false"
+        run: npm run build
