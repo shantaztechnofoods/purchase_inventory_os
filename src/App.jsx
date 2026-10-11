@@ -11399,11 +11399,32 @@ export default function App() {
   // and the next hydration overrode the local copy with the stale remote value).
   const handleSaveSettings = async (newSettings) => {
     console.info("[App] handleSaveSettings called");
+    // Snapshot before so the audit record can show what actually changed. Keep
+    // the detail payload shallow (no logo blob) so audit rows stay small.
+    const before = settings || {};
     setSettings(newSettings);                            // optimistic UI
     const res = await saveSettings(newSettings);
     if (!res.success) {
       console.warn("[App] handleSaveSettings: Supabase save failed —", res.error);
+      return res;
     }
+    // Audit trail: company settings (name, GST, address, phone, PO template,
+    // alert toggles) are business-config changes — track who flipped what.
+    const changedKeys = Object.keys(newSettings).filter((k) => {
+      const a = before[k], b = newSettings[k];
+      if (typeof a === "object" || typeof b === "object") return JSON.stringify(a) !== JSON.stringify(b);
+      return a !== b;
+    });
+    logAudit({
+      type: "settings_updated", module: "Settings",
+      action: `Settings saved${changedKeys.length ? ` (${changedKeys.length} field${changedKeys.length === 1 ? "" : "s"} changed)` : ""}`,
+      ref: "settings",
+      details: {
+        changedFields: changedKeys.filter((k) => k !== "logo"),  // omit logo blob key
+        companyName: newSettings.companyName || "",
+        gstPresent: !!newSettings.gst,
+      },
+    });
     return res;
   };
 
@@ -12179,6 +12200,14 @@ export default function App() {
     }
     if (!res.success) { console.warn("[App] item create failed:", res.error); return { success: false, error: res.error }; }
     setItems((prev) => ({ ...prev, [category]: [...(prev[category] || []), res.item] }));
+    // Audit trail: creating a new SKU is a master-data change — operators need to be
+    // able to answer "who added FUSE-10A on which date?" in History / Audit Trail.
+    logAudit({
+      type: "item_created", module: "Inventory",
+      action: `Item Created: ${res.item.name} (${res.item.code}) in ${category}`,
+      ref: res.item.code, itemCode: res.item.code, itemName: res.item.name,
+      details: { category, unit: res.item.unit, min: res.item.min, max: res.item.max, vendor: res.item.vendor || "" },
+    });
     // If itemsStore had to strip the media columns because migration 016 hasn't been
     // run, alert the operator — the previous silent retry was the root cause of the
     // "uploads succeed then disappear on reopen" bug.
@@ -12189,6 +12218,7 @@ export default function App() {
   };
   const handleUpdateItemRow = async (origCode, origCategory, updatedItem, newCategory) => {
     console.info("[App] handleUpdateItemRow", { origCode, origCategory, newCode: updatedItem.code, newCategory });
+    const before = (items[origCategory] || []).find((i) => i.code === origCode);
     const res = await itemUpdate(origCode, origCategory, updatedItem, newCategory);
     if (!res.success) { console.warn("[App] item update failed:", res.error); return { success: false, error: res.error }; }
     const target = newCategory || origCategory;
@@ -12198,6 +12228,18 @@ export default function App() {
       next[target] = [...(next[target] || []), { ...res.item, history: updatedItem.history || [] }];
       return next;
     });
+    // Audit trail: item master edits (rename / category move / vendor change /
+    // min-max change) are governance-critical. Record enough context to spot
+    // suspicious reconfigurations without replaying stock history.
+    const codeChanged     = res.item.code !== origCode;
+    const categoryChanged = target !== origCategory;
+    logAudit({
+      type: "item_updated", module: "Inventory",
+      action: `Item Updated: ${res.item.name} (${origCode}${codeChanged ? ` → ${res.item.code}` : ""}${categoryChanged ? ` · ${origCategory} → ${target}` : ""})`,
+      ref: res.item.code, itemCode: res.item.code, itemName: res.item.name,
+      oldValue: before ? { code: origCode, category: origCategory, name: before.name, unit: before.unit, min: before.min, max: before.max, vendor: before.vendor || "" } : { code: origCode, category: origCategory },
+      newValue: { code: res.item.code, category: target, name: res.item.name, unit: res.item.unit, min: res.item.min, max: res.item.max, vendor: res.item.vendor || "" },
+    });
     if (res.mediaStripped) {
       alert("⚠️ Item saved, but the photo / design file were NOT persisted because the items.photo / design_file columns don't exist in your Supabase yet.\n\nRun supabase/migrations/016_item_media.sql in your Supabase SQL Editor, then re-upload the media on this item.");
     }
@@ -12205,9 +12247,19 @@ export default function App() {
   };
   const handleDeleteItemRow = async (category, code) => {
     console.info("[App] handleDeleteItemRow", { code, category });
+    const before = (items[category] || []).find((i) => i.code === code);
     const res = await itemDelete(category, code);
     if (!res.success) { console.warn("[App] item delete failed:", res.error); return { success: false, error: res.error }; }
     setItems((prev) => ({ ...prev, [category]: (prev[category] || []).filter((i) => i.code !== code) }));
+    // Audit trail: deletions must be recoverable from the log — capture the
+    // name, unit, and current stock level at delete time so Audit Trail reads
+    // show WHAT disappeared, not just "code X deleted".
+    logAudit({
+      type: "item_deleted", module: "Inventory",
+      action: `Item Deleted: ${before?.name || code} (${code}) from ${category}`,
+      ref: code, itemCode: code, itemName: before?.name || code,
+      details: { category, stockAtDelete: before?.stock ?? 0, unit: before?.unit || "", vendor: before?.vendor || "" },
+    });
     return { success: true };
   };
 
