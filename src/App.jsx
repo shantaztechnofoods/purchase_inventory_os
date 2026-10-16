@@ -23,6 +23,14 @@ import { fetchOutward, createOutward, updateOutwardRef, deleteOutwardByIssueId }
 import { fetchPending, bulkCreatePending, updatePending as pendingUpdate, deletePending as pendingDelete, clearAllPending, updatePendingBomKey } from "./stores/pendingStore.js";
 import { fetchFollowUps, createFollowUp as followupCreate, updateFollowUp as followupUpdate, deleteFollowUpsByPO } from "./stores/followupsStore.js";
 import { fetchMachines, createMachine as machineCreate, updateMachine as machineUpdate, updateMachineBomKey, deleteMachine as machineDelete } from "./stores/machinesStore.js";
+import { fetchHandovers, createHandover as handoverCreate, acceptHandover as handoverAccept } from "./stores/handoverStore.js";
+import { getMySignature, saveMySignature, reauthenticateByPassword } from "./stores/signaturesStore.js";
+import {
+  DEPARTMENT_SEQUENCE, DEFAULT_DEPT_DURATIONS, DEFAULT_ACCEPT_TIMEOUT_MINUTES,
+  readDeptWorkflowSettings, writeDeptWorkflowSettings,
+  nextDepartment, computeElapsedMinutes, computeOverrun, isHoldOverdue, heldMinutes,
+  formatDuration, canAcceptHandover, canFinishTransfer, canConfigureDept,
+} from "./utils/handoverLogic.js";
 import { useRealtimeTables } from "./realtime/useRealtimeTables.js";
 import { fetchRecentMovements, MOVEMENT_META } from "./stores/stockMovementsStore.js";
 import { sendPOWhatsApp, openVendorWhatsApp, waErrorToast } from "./utils/whatsapp.js";
@@ -45,7 +53,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-11-restore-bom-rack";
+const APP_BUILD = "2026-10-16-dept-workflow-phase-a";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -5605,7 +5613,7 @@ const SETTINGS_DEFAULTS = {
   po:              null,   // Purchase Order settings (company profiles, templates) — see utils/poTemplate
 };
 
-function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, isSuperAdmin = false }) {
+function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, isSuperAdmin = false, canDo = () => true, onRegisterSignature, currentUser = null }) {
   // Snapshot of the last KNOWN-PERSISTED settings — used for the dirty-state pill
   // ("Unsaved changes") so operators see they need to click Save. Updated only after
   // a save round-trips successfully.
@@ -5699,6 +5707,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
     { id: "company",       label: "🏭 Company",        desc: "Multiple companies + active selection" },
     { id: "po",            label: "🧾 Purchase Order", desc: "Template, T&C, declaration" },
     { id: "inventory",     label: "📦 Inventory",      desc: "Currency + low-stock rules" },
+    { id: "department",    label: "🔧 Department Workflow", desc: "Per-dept duration + accept timeout" },
     { id: "notifications", label: "🔔 Notifications",  desc: "WhatsApp / email alerts" },
     { id: "data",          label: "💾 Data & Backup",  desc: "Export + backup" },
   ];
@@ -5798,6 +5807,73 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
             </div>
           </Section>
         )}
+
+        {/* ── Department Workflow tab (Phase A) ─────────────────────────────── */}
+        {tab === "department" && (() => {
+          const current = readDeptWorkflowSettings(settings);
+          const commitWorkflow = (patch) => {
+            const nextWf = { ...current, ...patch, dept_durations: { ...current.dept_durations, ...(patch.dept_durations || {}) } };
+            const merged = writeDeptWorkflowSettings(settings, nextWf);
+            setSettings((prev) => ({ ...prev, department_workflow: merged.department_workflow }));
+          };
+          const canConfig = canConfigureDept(canDo);
+          const DEPTS = ["Assembly", "Mechanical", "Electrical", "Trial"];
+          return (
+            <Section icon="🔧" title="Department Workflow">
+              {!canConfig && (
+                <div className="mb-4 px-3 py-2 rounded-lg text-[11px]"
+                     style={{ background: "rgba(249,115,22,0.08)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.3)" }}>
+                  You can view these settings but not change them. Admin role required.
+                </div>
+              )}
+              <div className="space-y-5">
+                <div>
+                  <SLabel text="Accept timeout (minutes)" hint="A handover not accepted within this window shows as OVERDUE / HOLD in Machine Tracker and reports." />
+                  <input type="number" min="0" step="1"
+                         value={current.accept_timeout_minutes}
+                         disabled={!canConfig}
+                         onChange={(e) => commitWorkflow({ accept_timeout_minutes: parseInt(e.target.value, 10) || 0 })}
+                         className="w-40 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                  <div className="text-[10px] text-slate-500 mt-1">Default 120 min = 2 hours.</div>
+                </div>
+                <div>
+                  <SLabel text="Per-department work duration (minutes)" hint="If a department exceeds its duration, the operator must enter an explanation on Finish & Transfer." />
+                  <div className="space-y-2 mt-2">
+                    {DEPTS.map((d) => {
+                      const mins = (current.dept_durations[d]?.minutes) ?? 0;
+                      return (
+                        <div key={d} className="flex items-center gap-3 flex-wrap">
+                          <div className="w-24 text-[12px] font-semibold text-slate-300">{d}</div>
+                          <input type="number" min="0" step="1" value={mins} disabled={!canConfig}
+                                 onChange={(e) => commitWorkflow({ dept_durations: { [d]: { minutes: parseInt(e.target.value, 10) || 0 } } })}
+                                 className="w-32 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                          <span className="text-[11px] text-slate-500">≈ {formatDuration(mins)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-2">Durations are stored at the time of each handover, so changing them here does NOT retroactively re-flag past transfers.</div>
+                </div>
+                {onRegisterSignature && currentUser && (
+                  <div className="pt-5 border-t border-white/[0.05]">
+                    <SLabel text="My digital signature" hint="A one-time signature used when you accept a department handover. The acceptance also re-verifies your password." />
+                    <SignaturePad
+                      onSave={async (svg) => {
+                        const r = await onRegisterSignature(svg);
+                        if (r && r.success === false) {
+                          setSaveError(r.error || "Signature save failed.");
+                        } else {
+                          setSaved(true);
+                          setTimeout(() => setSaved(false), 2500);
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </Section>
+          );
+        })()}
 
         {/* ── Notifications tab ─────────────────────────────────────────────── */}
         {tab === "notifications" && (
@@ -8805,7 +8881,104 @@ const STAGE_COLORS = {
   "Ready":      "#22c55e",
 };
 
-function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo = () => true, bomDefs = {}, onStartProduction, onRemoveRackMachine, onUpdateBOM }) {
+// ── Phase A — Signature Pad ────────────────────────────────────────────────
+// Minimal <canvas>-based pad. Captures mouse + touch strokes, serializes to
+// an SVG path on export. Zero third-party deps; the serialized SVG is what
+// gets persisted to employee_signatures.signature_svg.
+function SignaturePad({ onSave, onCancel, initialSvg = "" }) {
+  const canvasRef = useRef(null);
+  const [drawing, setDrawing] = useState(false);
+  const [strokes, setStrokes] = useState([]);
+  const [current, setCurrent] = useState([]);
+  const [hint,    setHint]    = useState(initialSvg ? "Draw to replace the previous signature." : "Draw your signature inside the box.");
+  const WIDTH = 400, HEIGHT = 150;
+
+  useEffect(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#0d1018";
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    ctx.strokeStyle = "#e5e7eb";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    // Replay strokes so a mid-draw re-render doesn't blank the pad.
+    for (const s of strokes) {
+      if (s.length < 1) continue;
+      ctx.beginPath();
+      ctx.moveTo(s[0].x, s[0].y);
+      for (let i = 1; i < s.length; i++) ctx.lineTo(s[i].x, s[i].y);
+      ctx.stroke();
+    }
+    if (current.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(current[0].x, current[0].y);
+      for (let i = 1; i < current.length; i++) ctx.lineTo(current[i].x, current[i].y);
+      ctx.stroke();
+    }
+  }, [strokes, current]);
+
+  const pointFromEvent = (e) => {
+    const c = canvasRef.current;
+    const rect = c.getBoundingClientRect();
+    const scaleX = WIDTH / rect.width;
+    const scaleY = HEIGHT / rect.height;
+    const t = e.touches ? e.touches[0] : e;
+    return { x: (t.clientX - rect.left) * scaleX, y: (t.clientY - rect.top) * scaleY };
+  };
+
+  const start = (e) => { e.preventDefault(); setDrawing(true); setCurrent([pointFromEvent(e)]); };
+  const move  = (e) => { if (!drawing) return; e.preventDefault(); setCurrent((prev) => [...prev, pointFromEvent(e)]); };
+  const end   = () => { if (!drawing) return; setDrawing(false); setStrokes((prev) => [...prev, current]); setCurrent([]); };
+
+  const clear = () => { setStrokes([]); setCurrent([]); setHint("Draw your signature inside the box."); };
+
+  const save = () => {
+    if (strokes.length === 0) { setHint("Please draw a signature first."); return; }
+    // Serialize to SVG. Each stroke becomes an <polyline>.
+    const polylines = strokes.map((s) =>
+      `<polyline points="${s.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")}" />`
+    ).join("");
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" width="${WIDTH}" height="${HEIGHT}" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${polylines}</svg>`;
+    onSave(svg);
+  };
+
+  return (
+    <div className="w-full">
+      <div className="text-[11px] text-slate-400 mb-2">{hint}</div>
+      <canvas
+        ref={canvasRef}
+        width={WIDTH} height={HEIGHT}
+        style={{ width: "100%", maxWidth: WIDTH, height: HEIGHT, background: "#0d1018", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, touchAction: "none", cursor: "crosshair" }}
+        onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
+        onTouchStart={start} onTouchMove={move} onTouchEnd={end}
+      />
+      <div className="flex items-center gap-2 mt-3">
+        <button type="button" onClick={clear}
+                className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+          Clear
+        </button>
+        <div className="flex-1" />
+        {onCancel && (
+          <button type="button" onClick={onCancel}
+                  className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+            Cancel
+          </button>
+        )}
+        <button type="button" onClick={save}
+                className="text-[11px] font-black text-white px-4 py-1.5 rounded-lg transition-all"
+                style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 12px rgba(37,99,235,0.3)" }}>
+          Save Signature
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo = () => true, bomDefs = {}, onStartProduction, onRemoveRackMachine, onUpdateBOM,
+  // Phase A props (optional — the page keeps working if any are missing)
+  handovers = [], settings = {}, onFinishTransfer, onAcceptHandover, onRegisterSignature, currentUser = null }) {
   const [filter,   setFilter]   = useState("active");
   const [expanded, setExpanded] = useState(null);
   const [stageMap, setStageMap] = useState({});
@@ -8836,7 +9009,111 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     return () => document.removeEventListener("mousedown", close);
   }, [rackActionsKey]);
 
+  // Phase A — department workflow state.
+  const workflow = readDeptWorkflowSettings(settings);
+  // Minute-tick to re-render HOLD badges + overrun chips without a cron. Zero
+  // network traffic; just forces a React re-render every 60s. Clock drift is
+  // minor over a 2h accept window.
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, []);
+  const [finishModal, setFinishModal] = useState(null); // { machine, toDepartment, narration }
+  const [acceptModal, setAcceptModal] = useState(null); // { handover, password, needSig, sigSvg, busy, error }
+  const [transferBusy, setTransferBusy] = useState(false);
+
+  // Pending handovers filtered to those awaiting acceptance.
+  const pendingHandovers = (handovers || []).filter((h) => h && h.status === "pending");
+  const overdueHandovers = pendingHandovers.filter((h) => isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick));
+
   const showToast = (text, sub) => { setToast({ text, sub }); setTimeout(() => setToast(null), 3000); };
+
+  // Open the Finish & Transfer modal for a given machine.
+  const openFinishModal = (machine) => {
+    const toDepartment = nextDepartment(machine.currentDepartment || machine.stage);
+    if (!toDepartment) {
+      showToast("No further department", `${machine.bomKey} is at ${machine.stage} — no transfer possible.`);
+      return;
+    }
+    setFinishModal({ machine, toDepartment, narration: "" });
+  };
+
+  const submitFinishTransfer = async () => {
+    if (!finishModal || transferBusy) return;
+    const { machine, toDepartment, narration } = finishModal;
+    const fromDepartment = machine.currentDepartment || machine.stage;
+    const expectedCfg = workflow.dept_durations[fromDepartment];
+    const expectedDurationMinutes = (expectedCfg && expectedCfg.minutes) || 0;
+    const { actualMinutes, overrunMinutes, isOverrun } = computeOverrun(
+      machine.departmentEnteredAt, expectedDurationMinutes, nowTick
+    );
+    if (isOverrun && !narration.trim()) {
+      showToast("Narration required", "This department exceeded its configured duration. Please add an explanation.");
+      return;
+    }
+    setTransferBusy(true);
+    try {
+      const res = await onFinishTransfer({
+        machineId: machine.id,
+        fromDepartment,
+        toDepartment,
+        expectedDurationMinutes,
+        actualDurationMinutes: actualMinutes,
+        overrunNarration: narration.trim() || null,
+      });
+      if (res && res.success === false) {
+        showToast("Transfer failed", res.error || "Unknown error");
+        return;
+      }
+      setFinishModal(null);
+      showToast(`${machine.bomKey} → ${toDepartment}`,
+        overrunMinutes > 0 ? `Awaiting accept · Overrun ${formatDuration(overrunMinutes)}` : "Awaiting accept");
+    } finally {
+      setTransferBusy(false);
+    }
+  };
+
+  const openAcceptModal = async (handover) => {
+    setAcceptModal({ handover, password: "", needSig: false, sigSvg: null, busy: false, error: "" });
+    // Pre-check: does the current user have a stored signature? If not, we
+    // show the pad before password re-auth. The actual signature creation
+    // still happens through onRegisterSignature.
+    if (!currentUser?.id) return;
+    const sigRes = await getMySignature(currentUser.id);
+    setAcceptModal((prev) => prev && prev.handover.id === handover.id
+      ? { ...prev, needSig: !sigRes.signature }
+      : prev
+    );
+  };
+
+  const submitAcceptHandover = async () => {
+    if (!acceptModal || acceptModal.busy) return;
+    const { handover, password, needSig, sigSvg } = acceptModal;
+    if (needSig && !sigSvg) {
+      setAcceptModal((prev) => prev ? { ...prev, error: "Please register your signature first." } : prev);
+      return;
+    }
+    if (!password) {
+      setAcceptModal((prev) => prev ? { ...prev, error: "Please enter your password." } : prev);
+      return;
+    }
+    setAcceptModal((prev) => prev ? { ...prev, busy: true, error: "" } : prev);
+    if (needSig && sigSvg) {
+      const sr = await onRegisterSignature(sigSvg);
+      if (!sr || sr.success === false) {
+        setAcceptModal((prev) => prev ? { ...prev, busy: false, error: sr?.error || "Signature save failed." } : prev);
+        return;
+      }
+    }
+    const res = await onAcceptHandover({ handoverId: handover.id, password });
+    if (!res || res.success === false) {
+      setAcceptModal((prev) => prev ? { ...prev, busy: false, error: res?.error || "Accept failed." } : prev);
+      return;
+    }
+    setAcceptModal(null);
+    showToast(`Accepted into ${handover.toDepartment}`, `${handover.bomKey}${handover.serialNo ? ` · S/N ${handover.serialNo}` : ""}`);
+  };
 
   // Machine Tracker shows ONLY machines that have STARTED production (left the rack).
   // Rack machines sit at stage "BOM Issued" and appear solely in the Production Rack View.
@@ -8940,6 +9217,57 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       <Topbar title="Machine Tracker" subtitle="Production build tracking — BOM issue through completion" />
 
       <div className="p-6 space-y-5">
+
+        {/* ── Phase A — Pending Handovers banner (awaiting acceptance) ── */}
+        {pendingHandovers.length > 0 && (
+          <div className="rounded-xl p-4"
+               style={{ background: "rgba(249,115,22,0.06)", border: `1px solid ${overdueHandovers.length ? "rgba(239,68,68,0.4)" : "rgba(249,115,22,0.3)"}` }}>
+            <div className="flex items-center gap-3 mb-3 flex-wrap">
+              <div className="text-sm font-black text-orange-300">⏳ {pendingHandovers.length} handover{pendingHandovers.length === 1 ? "" : "s"} waiting for acceptance</div>
+              {overdueHandovers.length > 0 && (
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full"
+                      style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.4)" }}>
+                  ⚠ {overdueHandovers.length} OVERDUE (HOLD)
+                </span>
+              )}
+            </div>
+            <div className="space-y-2">
+              {pendingHandovers.map((h) => {
+                const sentMin   = Math.max(0, Math.floor((nowTick - Date.parse(h.sentAt)) / 60000));
+                const overdue   = isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
+                const heldMin   = heldMinutes(h.sentAt, h.acceptTimeoutMinutes, nowTick);
+                const canAccept = canAcceptHandover(canDo, h.toDepartment);
+                return (
+                  <div key={h.id}
+                       className="flex items-center gap-3 flex-wrap rounded-lg px-3 py-2"
+                       style={{ background: overdue ? "rgba(239,68,68,0.07)" : "rgba(255,255,255,0.03)", border: `1px solid ${overdue ? "rgba(239,68,68,0.3)" : "rgba(255,255,255,0.08)"}` }}>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[12px] font-bold text-white">
+                        {h.bomKey}{h.serialNo ? <span className="text-blue-300 font-mono"> · S/N {h.serialNo}</span> : null}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        {h.fromDepartment} → <span className="font-bold text-orange-300">{h.toDepartment}</span>
+                        <span className="text-slate-500 ml-2">· sent {formatDuration(sentMin)} ago</span>
+                        {overdue && <span className="text-red-400 font-bold ml-2">· HOLD {formatDuration(heldMin)}</span>}
+                        {h.overrunMinutes > 0 && <span className="text-yellow-300 ml-2">· overrun {formatDuration(h.overrunMinutes)}</span>}
+                      </div>
+                      {h.overrunNarration && (
+                        <div className="text-[10px] text-slate-300 mt-1 italic">"{h.overrunNarration}"</div>
+                      )}
+                    </div>
+                    {canAccept && onAcceptHandover && (
+                      <button onClick={() => openAcceptModal(h)}
+                              className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg"
+                              style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 10px rgba(34,197,94,0.25)" }}>
+                        Accept →
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ── Summary cards ── */}
         <div className="grid grid-cols-3 gap-4">
@@ -9215,7 +9543,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
                       {!isComplete && futureStages.length > 0 && canDo("machines","updateStage") && (
                         <>
                           <select value={selStage}
@@ -9232,6 +9560,26 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                             Update
                           </button>
                         </>
+                      )}
+                      {/* Phase A — Finish & Transfer (handover flow). Shown only when:
+                          (a) the machine isn't complete, (b) a next department exists,
+                          (c) there's no handover already pending for this machine,
+                          (d) the user has the permission, and (e) the parent passed
+                          the handler. Lives next to Update Stage so operators can
+                          pick either flow during the Phase A rollout. */}
+                      {!isComplete && nextDepartment(machine.currentDepartment || machine.stage) && !machine.pendingHandoverId && canFinishTransfer(canDo) && onFinishTransfer && (
+                        <button onClick={() => openFinishModal(machine)}
+                                className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
+                                style={{ background: "linear-gradient(135deg,#f97316,#ea580c)", boxShadow: "0 0 10px rgba(249,115,22,0.3)" }}
+                                title={`Finish ${machine.currentDepartment || machine.stage} → ${nextDepartment(machine.currentDepartment || machine.stage)}`}>
+                          Finish & Transfer →
+                        </button>
+                      )}
+                      {machine.pendingHandoverId && (
+                        <span className="text-[10px] font-black px-2 py-1 rounded-lg"
+                              style={{ background: "rgba(249,115,22,0.12)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.35)" }}>
+                          ⏳ Awaiting accept
+                        </span>
                       )}
                       <button onClick={() => setExpanded(isExpanded ? null : machine.id)}
                               className="text-[10px] font-bold text-slate-500 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-white/[0.07] hover:border-white/20 transition-all">
@@ -9542,6 +9890,153 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           </div>
         </div>
       )}
+
+      {/* ── Phase A — Finish & Transfer modal ── */}
+      {finishModal && (() => {
+        const { machine, toDepartment, narration } = finishModal;
+        const fromDepartment = machine.currentDepartment || machine.stage;
+        const expectedCfg = workflow.dept_durations[fromDepartment];
+        const expectedMin = (expectedCfg && expectedCfg.minutes) || 0;
+        const { actualMinutes, overrunMinutes, isOverrun } = computeOverrun(machine.departmentEnteredAt, expectedMin, nowTick);
+        return (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+               style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(10px)" }}
+               onClick={(e) => e.target === e.currentTarget && !transferBusy && setFinishModal(null)}>
+            <div className="w-full max-w-md rounded-2xl overflow-hidden"
+                 style={{ background: "#0d1018", border: "1px solid rgba(249,115,22,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+              <div className="px-6 py-5 border-b border-white/[0.08]"
+                   style={{ background: "linear-gradient(90deg,rgba(249,115,22,0.10),rgba(234,88,12,0.05))" }}>
+                <div className="text-sm font-black text-white">Finish & Transfer</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">{machine.bomKey}{machine.serialNo ? ` · S/N ${machine.serialNo}` : ""}</div>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">From</div>
+                    <div className="text-[13px] font-black text-white mt-0.5">{fromDepartment}</div>
+                  </div>
+                  <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.25)" }}>
+                    <div className="text-[9px] font-bold text-emerald-500 uppercase tracking-wide">To (next)</div>
+                    <div className="text-[13px] font-black text-emerald-300 mt-0.5">{toDepartment}</div>
+                  </div>
+                </div>
+                <div className="rounded-lg px-3 py-2.5" style={{ background: isOverrun ? "rgba(239,68,68,0.07)" : "rgba(255,255,255,0.03)", border: `1px solid ${isOverrun ? "rgba(239,68,68,0.3)" : "rgba(255,255,255,0.08)"}` }}>
+                  <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">Time in {fromDepartment}</div>
+                  <div className="text-[12px] text-slate-200 mt-0.5">
+                    Actual <span className="font-bold text-white">{formatDuration(actualMinutes)}</span>
+                    <span className="text-slate-500"> · expected {formatDuration(expectedMin)}</span>
+                    {isOverrun && <span className="text-red-400 font-bold ml-2">· overrun {formatDuration(overrunMinutes)}</span>}
+                  </div>
+                </div>
+                {isOverrun && (
+                  <div>
+                    <label className="text-[11px] font-bold text-red-300 block mb-1.5">
+                      Explanation required (overrun)
+                      <span className="text-red-400 ml-0.5">*</span>
+                    </label>
+                    <textarea
+                      value={narration}
+                      onChange={(e) => setFinishModal((prev) => prev ? { ...prev, narration: e.target.value } : prev)}
+                      placeholder="Why did this department take longer than configured?"
+                      rows={3}
+                      autoFocus
+                      className="w-full bg-white/[0.04] border border-red-500/40 rounded-lg px-3 py-2 text-[12px] text-white placeholder-slate-500 outline-none focus:border-red-500/70"
+                    />
+                    <div className="text-[10px] text-slate-500 mt-1">This explanation is saved to the handover audit record and shown on reports.</div>
+                  </div>
+                )}
+              </div>
+              <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between"
+                   style={{ background: "rgba(0,0,0,0.35)" }}>
+                <button onClick={() => !transferBusy && setFinishModal(null)} disabled={transferBusy}
+                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
+                  Cancel
+                </button>
+                <button onClick={submitFinishTransfer} disabled={transferBusy || (isOverrun && !narration.trim())}
+                        className="text-[11px] font-black text-white px-5 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{ background: "linear-gradient(135deg,#f97316,#ea580c)", boxShadow: "0 0 12px rgba(249,115,22,0.3)" }}>
+                  {transferBusy ? "⏳ Sending…" : `Finish & Transfer → ${toDepartment}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Phase A — Accept modal (password re-auth + signature) ── */}
+      {acceptModal && (() => {
+        const { handover, password, needSig, sigSvg, busy, error } = acceptModal;
+        const setField = (patch) => setAcceptModal((prev) => prev ? { ...prev, ...patch } : prev);
+        return (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+               style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(10px)" }}
+               onClick={(e) => e.target === e.currentTarget && !busy && setAcceptModal(null)}>
+            <div className="w-full max-w-md rounded-2xl overflow-hidden"
+                 style={{ background: "#0d1018", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)", maxHeight: "90vh", overflowY: "auto" }}>
+              <div className="px-6 py-5 border-b border-white/[0.08]"
+                   style={{ background: "linear-gradient(90deg,rgba(34,197,94,0.10),rgba(22,163,74,0.05))" }}>
+                <div className="text-sm font-black text-white">Accept into {handover.toDepartment}</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">{handover.bomKey}{handover.serialNo ? ` · S/N ${handover.serialNo}` : ""}</div>
+              </div>
+              <div className="p-5 space-y-4">
+                {handover.overrunNarration && (
+                  <div className="rounded-lg px-3 py-2" style={{ background: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.3)" }}>
+                    <div className="text-[10px] font-bold text-yellow-300 uppercase tracking-wide mb-0.5">Sender's note on overrun</div>
+                    <div className="text-[11px] text-yellow-100 italic">"{handover.overrunNarration}"</div>
+                  </div>
+                )}
+                {needSig && (
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-300 mb-2">Register your signature (one-time setup)</div>
+                    <SignaturePad
+                      onSave={(svg) => setField({ sigSvg: svg, needSig: false, error: "" })}
+                      onCancel={() => setAcceptModal(null)}
+                    />
+                  </div>
+                )}
+                {!needSig && (
+                  <>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-300 block mb-1.5">Confirm your password to sign this acceptance</label>
+                      <input type="password" value={password} autoFocus
+                             onChange={(e) => setField({ password: e.target.value, error: "" })}
+                             onKeyDown={(e) => { if (e.key === "Enter") submitAcceptHandover(); }}
+                             placeholder="Password"
+                             className="w-full bg-white/[0.04] border border-white/[0.1] rounded-lg px-3 py-2 text-[12px] text-white placeholder-slate-500 outline-none focus:border-green-500/60" />
+                      <div className="text-[10px] text-slate-500 mt-1">Your saved signature will be attached to this acceptance record.</div>
+                    </div>
+                    {sigSvg && (
+                      <div className="rounded-lg px-3 py-2" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.25)" }}>
+                        <div className="text-[10px] font-bold text-emerald-300">✓ Signature ready</div>
+                      </div>
+                    )}
+                  </>
+                )}
+                {error && (
+                  <div className="rounded-lg px-3 py-2 text-[11px] font-semibold"
+                       style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                    ⚠ {error}
+                  </div>
+                )}
+              </div>
+              <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between"
+                   style={{ background: "rgba(0,0,0,0.35)" }}>
+                <button onClick={() => !busy && setAcceptModal(null)} disabled={busy}
+                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
+                  Cancel
+                </button>
+                {!needSig && (
+                  <button onClick={submitAcceptHandover} disabled={busy || !password}
+                          className="text-[11px] font-black text-white px-5 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 12px rgba(34,197,94,0.3)" }}>
+                    {busy ? "⏳ Verifying…" : "Verify & Accept"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -11390,6 +11885,10 @@ export default function App() {
   const [pendingLog, setPendingLog] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_pending");   if (s) return JSON.parse(s); } catch {} return []; });
   const [followUps,  setFollowUps]  = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_followups"); if (s) return JSON.parse(s); } catch {} return SEED_DEMO ? initialFollowUps : []; });
   const [machineLog, setMachineLog] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_machines");  if (s) return JSON.parse(s); } catch {} return []; });
+  // Phase A — handover events for the Finish & Transfer / Accept flow. Loaded on
+  // mount; refreshed by realtime (new handlers in rtHandovers below). Falls back
+  // gracefully to [] when migration 021 isn't applied yet.
+  const [handovers,  setHandovers]  = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_handovers"); if (s) return JSON.parse(s); } catch {} return []; });
   const [auditLog,   setAuditLog]   = useState(() => getAuditLog());
   const [settings,   setSettings]   = useState(() => { try { const s = localStorage.getItem("erp_settings"); if (s) return { ...SETTINGS_DEFAULTS, ...JSON.parse(s) }; } catch {} return { ...SETTINGS_DEFAULTS }; });
 
@@ -11457,6 +11956,10 @@ export default function App() {
   const rtOutward = useCallback(() => { fetchOutward().then((x) => x && setOutwardLog(x)); }, []);
   const rtMach    = useCallback(() => { fetchMachines().then((m) => m && setMachineLog(m)); }, []);
   const rtPending = useCallback(() => { fetchPending().then((p) => p && setPendingLog(p)); }, []);
+  // Phase A — handovers refresh. Falls back silently if table doesn't exist
+  // (store handles the error). Not wired through useRealtimeTables yet; the
+  // handover handlers below re-fetch locally after each write.
+  const rtHandovers = useCallback(() => { fetchHandovers().then((h) => { if (h) setHandovers(h); }); }, []);
   useRealtimeTables({
     onItemsChange:     reconcileItems,
     onMovementsChange: reconcileItems,   // a ledger movement means stock changed → reconcile
@@ -11486,10 +11989,11 @@ export default function App() {
     let cancelled = false;
     (async () => {
       console.info("[App] hydrating Supabase state for user", currentUser.id);
-      const [s, v, i, b, p, inw, out, pend, fu, mac] = await Promise.all([
+      const [s, v, i, b, p, inw, out, pend, fu, mac, ho] = await Promise.all([
         loadSettings(), listVendors(), fetchItems(), fetchBOMs(),
         fetchPOs(), fetchInward(), fetchOutward(),
         fetchPending(), fetchFollowUps(), fetchMachines(),
+        fetchHandovers(),
       ]);
       if (cancelled) return;
       if (s) setSettings((prev) => {
@@ -11517,6 +12021,7 @@ export default function App() {
       if (pend) setPendingLog(pend);
       if (fu)   setFollowUps(fu);
       if (mac)  setMachineLog(mac);
+      if (ho)   setHandovers(ho);
       console.info("[App] hydrated", {
         vendors: v?.length, items: Object.values(i || {}).reduce((s, l) => s + (l?.length || 0), 0),
         boms: Object.keys(b || {}).length, pos: p?.length,
@@ -11540,6 +12045,7 @@ export default function App() {
   useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_pending",   JSON.stringify(pendingLog)); } catch {} }, [pendingLog]);
   useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_followups", JSON.stringify(followUps));  } catch {} }, [followUps]);
   useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_machines",  JSON.stringify(machineLog)); } catch {} }, [machineLog]);
+  useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_handovers", JSON.stringify(handovers));  } catch {} }, [handovers]);
   // auditLog is persisted by auditStore; just subscribe to keep state in sync
   useEffect(() => subscribeAudit((next) => setAuditLog(next)), []);
 
@@ -12751,6 +13257,10 @@ export default function App() {
     // If we skipped the rack, also record the implicit BOM Issued → Assembly
     // transition so the machine's history is honest about what happened.
     if (directMode) history.unshift({ stage: "BOM Issued", date: dateStr, note: "BOM issued (auto-promoted)" });
+    // Phase A: track department ownership. Direct machines start the Assembly
+    // clock immediately; rack-bound machines stay at "BOM Issued" until Start
+    // Production (handleStartProduction below) resets the clock to Assembly.
+    const nowIso = new Date().toISOString();
     const newMachine = {
       id:          Date.now(),
       issueId:     issueId || null,
@@ -12762,6 +13272,9 @@ export default function App() {
       createdDate: dateStr,
       completedDate: null,
       history,
+      currentDepartment:   initialStage,
+      departmentEnteredAt: nowIso,
+      pendingHandoverId:   null,
     };
     setMachineLog((prev) => [newMachine, ...prev]);
     if (isSupabaseEnabled()) machineCreate(newMachine).then((r) => { if (!r.success) console.warn("[App] Machine create Supabase failed:", r.error); });
@@ -12769,6 +13282,7 @@ export default function App() {
 
   const handleUpdateMachineStage = (machineId, newStage) => {
     const dateStr = fmtDate(new Date());
+    const nowIso = new Date().toISOString();
     const machine = machineLog.find((m) => m.id === machineId);
     const isComplete = newStage === "Ready";
     logAudit({ type: isComplete ? "machine_completed" : "machine_stage", module: "Machine", action: `${machine?.bomKey || ""} [${machine?.serialNo || ""}] → ${newStage}`, ref: machine?.bomKey || "", serialNo: machine?.serialNo || "", details: { from: machine?.stage, to: newStage, bomLabel: machine?.bomLabel } });
@@ -12780,6 +13294,9 @@ export default function App() {
         status:        isComplete ? "completed" : "active",
         completedDate: isComplete ? dateStr : m.completedDate,
         history:       [...m.history, { stage: newStage, date: dateStr }],
+        // Phase A: reset the department clock on every stage transition.
+        currentDepartment:   newStage,
+        departmentEnteredAt: nowIso,
       };
     }));
     if (isSupabaseEnabled() && machine) {
@@ -12788,6 +13305,8 @@ export default function App() {
         status: isComplete ? "completed" : "active",
         completedDate: isComplete ? dateStr : machine.completedDate,
         history: [...(machine.history || []), { stage: newStage, date: dateStr }],
+        currentDepartment:   newStage,
+        departmentEnteredAt: nowIso,
       }).then((r) => { if (!r.success) console.warn("[App] Machine stage Supabase failed:", r.error); });
     }
   };
@@ -12801,6 +13320,7 @@ export default function App() {
     const targets = machineLog.filter((m) => idSet.has(m.id) && m.stage === "BOM Issued");
     if (targets.length === 0) return { success: false, error: "Select at least one machine on the rack" };
     const dateStr = fmtDate(new Date());
+    const nowIso  = new Date().toISOString();
     setMachineLog((prev) => prev.map((m) => {
       if (!idSet.has(m.id) || m.stage !== "BOM Issued") return m;
       return {
@@ -12808,6 +13328,9 @@ export default function App() {
         stage:   "Assembly",
         status:  "active",
         history: [...(m.history || []), { stage: "Assembly", date: dateStr, note: "Started production from rack" }],
+        // Phase A: Assembly clock starts here for rack-origin machines.
+        currentDepartment:   "Assembly",
+        departmentEnteredAt: nowIso,
       };
     }));
     if (isSupabaseEnabled()) {
@@ -12816,6 +13339,8 @@ export default function App() {
           stage: "Assembly",
           status: "active",
           history: [...(m.history || []), { stage: "Assembly", date: dateStr, note: "Started production from rack" }],
+          currentDepartment:   "Assembly",
+          departmentEnteredAt: nowIso,
         })
       )).then((results) => {
         const failed = results.filter((r) => !r.success);
@@ -12926,6 +13451,186 @@ export default function App() {
         if (failed.length) console.warn("[App] notifyMachineComplete: Supabase failed", failed);
       });
     }
+  };
+
+  // ── Phase A — Department Workflow handlers ─────────────────────────────────
+  //
+  // Finish & Transfer creates a handover_events row with status='pending' and
+  // writes machine_log.pending_handover_id. The machine stays in its current
+  // stage until the receiving-dept operator Accepts (handleAcceptHandover).
+  //
+  // Narration gate is enforced at UI + DB (CHECK constraint). The actual stage
+  // promotion happens at accept time, mirroring handleUpdateMachineStage so
+  // all downstream reports (history, audit) stay consistent.
+  const handleFinishTransfer = async ({
+    machineId, fromDepartment, toDepartment,
+    expectedDurationMinutes, actualDurationMinutes, overrunNarration,
+  }) => {
+    if (!currentUser?.id) return { success: false, error: "Not authenticated" };
+    const machine = machineLog.find((m) => m.id === machineId);
+    if (!machine) return { success: false, error: "Machine not found" };
+    if (machine.pendingHandoverId) return { success: false, error: "Handover already in progress for this machine." };
+
+    const workflow = readDeptWorkflowSettings(settings);
+    const payload = {
+      machineId,
+      bomKey:   machine.bomKey,
+      serialNo: machine.serialNo,
+      fromDepartment,
+      toDepartment,
+      sentBy:   currentUser.id,
+      expectedDurationMinutes,
+      actualDurationMinutes,
+      overrunNarration: overrunNarration || null,
+      acceptTimeoutMinutes: workflow.accept_timeout_minutes,
+      status: "pending",
+    };
+
+    const res = await handoverCreate(payload);
+    if (!res.success) return res;
+
+    // Attach pending_handover_id to the machine, append a history annotation.
+    const dateStr = fmtDate(new Date());
+    const historyNote = `Finished ${fromDepartment} → ${toDepartment} (awaiting accept)`;
+    setMachineLog((prev) => prev.map((m) =>
+      m.id === machineId
+        ? { ...m, pendingHandoverId: res.handover.id, history: [...(m.history || []), { stage: m.stage, date: dateStr, note: historyNote }] }
+        : m
+    ));
+    if (isSupabaseEnabled()) {
+      machineUpdate(machineId, {
+        pendingHandoverId: res.handover.id,
+        history: [...(machine.history || []), { stage: machine.stage, date: dateStr, note: historyNote }],
+      }).then((r) => { if (!r.success) console.warn("[App] handleFinishTransfer: machine update failed", r.error); });
+    }
+
+    // Refresh handovers list locally — realtime will catch up but immediate
+    // UI feedback matters more.
+    setHandovers((prev) => [res.handover, ...prev]);
+
+    logAudit({
+      type: "handover_sent", module: "Machine",
+      action: `Handover sent: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}  ${fromDepartment} → ${toDepartment}`,
+      ref: machine.bomKey, serialNo: machine.serialNo || "",
+      details: {
+        machineId, handoverId: res.handover.id, fromDepartment, toDepartment,
+        expectedDurationMinutes, actualDurationMinutes,
+        overrunMinutes: Math.max(0, actualDurationMinutes - expectedDurationMinutes),
+        narration_present: !!(overrunNarration && overrunNarration.trim()),
+      },
+    });
+    if (overrunNarration && overrunNarration.trim()) {
+      logAudit({
+        type: "handover_overrun_narrated", module: "Machine",
+        action: `Overrun narration recorded for handover ${res.handover.id}`,
+        ref: machine.bomKey, serialNo: machine.serialNo || "",
+        details: { handoverId: res.handover.id, narration: overrunNarration.trim() },
+      });
+    }
+    return { success: true, handover: res.handover };
+  };
+
+  // Accept flow: verify password via secondary Supabase client (does NOT touch
+  // main session), attach the operator's signature, flip status to accepted,
+  // promote the machine to the new department. Password re-auth is required
+  // by design — a saved signature alone is not proof of authorization.
+  const handleAcceptHandover = async ({ handoverId, password }) => {
+    if (!currentUser?.id) return { success: false, error: "Not authenticated" };
+    const handover = handovers.find((h) => h.id === handoverId);
+    if (!handover) return { success: false, error: "Handover not found" };
+    if (handover.status !== "pending") return { success: false, error: "This handover is no longer pending." };
+
+    // Permission check (receiving dept role; auto-mapped from updateStage).
+    if (!canAcceptHandover(authCanDo, handover.toDepartment)) {
+      return { success: false, error: "You don't have permission to accept into this department." };
+    }
+
+    // Step 1: re-authenticate. Local mode has no Supabase auth; signaturesStore
+    // returns a clear error. Supabase mode: disposable client verifies without
+    // touching main session.
+    const authEmail = currentUser.email || `${currentUser.username}@users.shantaz.local`;
+    const reauth = await reauthenticateByPassword(authEmail, password);
+    if (!reauth.success) return reauth;
+
+    // Step 2: fetch (or require) a stored signature. If none, the UI should
+    // have opened the signature pad first and called handleRegisterSignature.
+    const sigRes = await getMySignature(currentUser.id);
+    if (!sigRes.success) return { success: false, error: sigRes.error };
+    if (!sigRes.signature) return { success: false, error: "Register your signature before accepting a handover." };
+
+    // Step 3: atomic UPDATE to status='accepted' (RLS: status='pending' guard).
+    const accRes = await handoverAccept(handoverId, {
+      acceptedBy: currentUser.id,
+      acceptedBySignatureId: sigRes.signature.id,
+    });
+    if (!accRes.success) return accRes;
+
+    // Step 4: promote the machine. Same body as handleUpdateMachineStage —
+    // kept inline so we can also clear pending_handover_id atomically.
+    const machine = machineLog.find((m) => m.id === handover.machineId);
+    const dateStr = fmtDate(new Date());
+    const nowIso  = new Date().toISOString();
+    const newStage = handover.toDepartment;
+    const isComplete = newStage === "Ready";
+    const historyEntry = { stage: newStage, date: dateStr, note: `Accepted into ${newStage}` };
+
+    setMachineLog((prev) => prev.map((m) =>
+      m.id === handover.machineId
+        ? {
+            ...m,
+            stage:               newStage,
+            status:              isComplete ? "completed" : "active",
+            completedDate:       isComplete ? dateStr : m.completedDate,
+            history:             [...(m.history || []), historyEntry],
+            currentDepartment:   newStage,
+            departmentEnteredAt: nowIso,
+            pendingHandoverId:   null,
+          }
+        : m
+    ));
+    if (isSupabaseEnabled() && machine) {
+      machineUpdate(handover.machineId, {
+        stage: newStage,
+        status: isComplete ? "completed" : "active",
+        completedDate: isComplete ? dateStr : machine.completedDate,
+        history: [...(machine.history || []), historyEntry],
+        currentDepartment:   newStage,
+        departmentEnteredAt: nowIso,
+        pendingHandoverId:   null,
+      }).then((r) => { if (!r.success) console.warn("[App] handleAcceptHandover: machine promote failed", r.error); });
+    }
+
+    // Refresh handovers list locally.
+    setHandovers((prev) => prev.map((h) => h.id === handoverId ? accRes.handover : h));
+
+    const timeToAcceptMin = Math.max(0, Math.floor((Date.parse(accRes.handover.acceptedAt) - Date.parse(accRes.handover.sentAt)) / 60000));
+    const wasOverdue = timeToAcceptMin > (accRes.handover.acceptTimeoutMinutes || 0);
+    logAudit({
+      type: isComplete ? "machine_completed" : "handover_accepted",
+      module: "Machine",
+      action: `Handover accepted: ${handover.bomKey}${handover.serialNo ? ` [${handover.serialNo}]` : ""}  ${handover.fromDepartment} → ${newStage}${wasOverdue ? " (OVERDUE)" : ""}`,
+      ref: handover.bomKey, serialNo: handover.serialNo || "",
+      details: {
+        handoverId, machineId: handover.machineId,
+        from: handover.fromDepartment, to: newStage,
+        timeToAcceptMin, wasOverdue, acceptTimeoutMinutes: accRes.handover.acceptTimeoutMinutes,
+      },
+    });
+    return { success: true };
+  };
+
+  const handleRegisterSignature = async (signatureSvg) => {
+    if (!currentUser?.id) return { success: false, error: "Not authenticated" };
+    if (!signatureSvg || !signatureSvg.trim()) return { success: false, error: "Please draw your signature." };
+    const res = await saveMySignature(currentUser.id, signatureSvg);
+    if (!res.success) return res;
+    logAudit({
+      type: "signature_registered", module: "Users",
+      action: `Signature ${res.replacement ? "replaced" : "registered"} for ${currentUser.username || currentUser.email || "user"}`,
+      ref: String(currentUser.id),
+      details: { replacement: !!res.replacement, length: signatureSvg.length },
+    });
+    return { success: true, signature: res.signature, replacement: res.replacement };
   };
 
   const handleFulfillPending = (entry, issuedQty) => {
@@ -13039,14 +13744,19 @@ export default function App() {
     machines:  <MachinePage   machineLog={machineLog} onUpdateStage={handleUpdateMachineStage} onNavigate={setActivePage} canDo={canDo}
                               bomDefs={bomDefs} onStartProduction={handleStartProduction}
                               onRemoveRackMachine={handleRemoveRackMachine}
-                              onUpdateBOM={handleUpdateBOM} />,
+                              onUpdateBOM={handleUpdateBOM}
+                              handovers={handovers} settings={settings}
+                              onFinishTransfer={handleFinishTransfer}
+                              onAcceptHandover={handleAcceptHandover}
+                              onRegisterSignature={handleRegisterSignature}
+                              currentUser={currentUser} />,
     vendors:   <VendorsPage   vendorList={vendorList} pos={pos} items={items}
                               onAddVendor={handleAddVendor} onEditVendor={handleEditVendor}
                               onDeleteVendor={handleDeleteVendor} onBulkAddVendors={handleBulkAddVendors} canDo={canDo} />,
     analytics: <AnalyticsPage items={items} pos={pos} vendorList={vendorList} settings={settings} />,
     ai:        <AIPage items={items} pos={pos} vendorList={vendorList} bomDefs={bomDefs} machineLog={machineLog} pendingLog={pendingLog} settings={settings} />,
     history:   <HistoryPage auditLog={auditLog} pos={pos} inwardLog={inwardLog} outwardLog={outwardLog} pendingLog={pendingLog} machineLog={machineLog} items={items} vendorList={vendorList} bomDefs={bomDefs} />,
-    settings:  <SettingsPage settings={settings} onSave={handleSaveSettings} isSuperAdmin={currentUser?.role === "super_admin"} />,
+    settings:  <SettingsPage settings={settings} onSave={handleSaveSettings} isSuperAdmin={currentUser?.role === "super_admin"} canDo={canDo} onRegisterSignature={handleRegisterSignature} currentUser={currentUser} />,
     users:     <UserManagementPage canDo={canDo} />,
     roles:     <RoleManagementPage canDo={canDo} />,
     audit:     <AuditHistoryPage />,

@@ -1,0 +1,183 @@
+// Handover-events store — public.handover_events
+//
+// Same gating pattern as src/stores/posStore.js:
+//   isSupabaseEnabled() === false → operate on localStorage only.
+//   getSupabase() === null         → silent fallback to local.
+//   RLS enforces security server-side; this file just maps shapes.
+//
+// See docs/department-workflow-phase-a.md for the field semantics.
+
+import { isSupabaseEnabled } from "../config/env.js";
+import { getSupabase } from "../supabase/client.js";
+
+const LOCAL_KEY = "erp_handovers";
+
+function toRow(h) {
+  return {
+    machine_id:                h.machineId,
+    bom_key:                   h.bomKey,
+    serial_no:                 h.serialNo || null,
+    from_department:           h.fromDepartment,
+    to_department:             h.toDepartment,
+    sent_by:                   h.sentBy || null,
+    sent_by_signature_id:      h.sentBySignatureId || null,
+    expected_duration_minutes: Math.max(0, Math.floor(Number(h.expectedDurationMinutes) || 0)),
+    actual_duration_minutes:   Math.max(0, Math.floor(Number(h.actualDurationMinutes)   || 0)),
+    overrun_narration:         h.overrunNarration || null,
+    accept_timeout_minutes:    Math.max(0, Math.floor(Number(h.acceptTimeoutMinutes)    || 0)),
+    status:                    h.status || "pending",
+  };
+}
+function fromRow(r) {
+  return {
+    id:                        r.id,
+    machineId:                 r.machine_id,
+    bomKey:                    r.bom_key,
+    serialNo:                  r.serial_no || "",
+    fromDepartment:            r.from_department,
+    toDepartment:              r.to_department,
+    sentBy:                    r.sent_by || null,
+    sentBySignatureId:         r.sent_by_signature_id || null,
+    sentAt:                    r.sent_at || null,
+    expectedDurationMinutes:   Number(r.expected_duration_minutes) || 0,
+    actualDurationMinutes:     Number(r.actual_duration_minutes)   || 0,
+    overrunMinutes:            Number(r.overrun_minutes)           || 0,  // generated col
+    overrunNarration:          r.overrun_narration || "",
+    acceptedBy:                r.accepted_by || null,
+    acceptedBySignatureId:     r.accepted_by_signature_id || null,
+    acceptedAt:                r.accepted_at || null,
+    status:                    r.status,
+    cancelledAt:               r.cancelled_at || null,
+    cancellationReason:        r.cancellation_reason || "",
+    acceptTimeoutMinutes:      Number(r.accept_timeout_minutes) || 0,
+    createdAt:                 r.created_at || null,
+  };
+}
+
+function getLocal() { try { const s = localStorage.getItem(LOCAL_KEY); if (s) return JSON.parse(s); } catch {} return []; }
+function setLocal(a) { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(a)); } catch {} }
+
+// Returns all handovers, newest-first.
+export async function fetchHandovers() {
+  const mode = isSupabaseEnabled() ? "SUPABASE" : "LOCAL";
+  console.info("[handovers:load] start", { mode });
+  if (!isSupabaseEnabled()) { const a = getLocal(); console.info("[handovers:load] local ok", { count: a.length }); return a; }
+  const c = getSupabase(); if (!c) return getLocal();
+  const { data, error } = await c
+    .from("handover_events")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) { console.error("[handovers:load] failed", error); return getLocal(); }
+  const out = (data || []).map(fromRow);
+  setLocal(out);
+  console.info("[handovers:load] supabase ok", { count: out.length });
+  return out;
+}
+
+// Convenience: pending handovers only. Used to render the Machine Tracker
+// "awaiting acceptance" banner without pulling the full history.
+export async function fetchPendingHandovers() {
+  const all = await fetchHandovers();
+  return all.filter((h) => h.status === "pending");
+}
+
+export async function createHandover(h) {
+  console.info("[handovers:create] start", { machineId: h.machineId, from: h.fromDepartment, to: h.toDepartment, overrun: h.overrunNarration ? "yes" : "no" });
+  if (!isSupabaseEnabled()) {
+    // Local-mode: fabricate id + sent_at so the UI sees a complete object.
+    const row = {
+      id: Date.now(),
+      sent_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      overrun_minutes: Math.max(0, (h.actualDurationMinutes || 0) - (h.expectedDurationMinutes || 0)),
+      ...toRow(h),
+    };
+    setLocal([fromRow(row), ...getLocal()]);
+    return { success: true, handover: fromRow(row) };
+  }
+  const c = getSupabase(); if (!c) return { success: false, error: "no client" };
+  const { data, error } = await c
+    .from("handover_events")
+    .insert(toRow(h))
+    .select()
+    .single();
+  if (error) {
+    console.error("[handovers:create] failed", error);
+    // Specific CHECK-constraint hints
+    const msg = String(error.message || "");
+    if (/handover_narration_when_over/i.test(msg)) {
+      return { success: false, error: "Narration required when work time exceeds the configured duration." };
+    }
+    if (/handover_dept_different/i.test(msg)) {
+      return { success: false, error: "From and To departments must differ." };
+    }
+    return { success: false, error: error.message };
+  }
+  const out = fromRow(data);
+  console.info("[handovers:create] ok", { id: out.id });
+  return { success: true, handover: out };
+}
+
+// Accept transitions status 'pending' → 'accepted' atomically.
+// The WHERE status = 'pending' makes it race-safe: a second accept returns
+// zero rows and the UI reads the latest state.
+export async function acceptHandover(id, { acceptedBy, acceptedBySignatureId }) {
+  console.info("[handovers:accept] start", { id, acceptedBy });
+  if (!acceptedBy) return { success: false, error: "acceptedBy is required" };
+  if (!isSupabaseEnabled()) {
+    const all = getLocal();
+    const i = all.findIndex((h) => h.id === id);
+    if (i < 0) return { success: false, error: "handover not found" };
+    if (all[i].status !== "pending") return { success: false, error: "already finalised" };
+    all[i] = { ...all[i], status: "accepted", acceptedBy, acceptedBySignatureId: acceptedBySignatureId || null, acceptedAt: new Date().toISOString() };
+    setLocal(all);
+    return { success: true, handover: all[i] };
+  }
+  const c = getSupabase(); if (!c) return { success: false, error: "no client" };
+  const { data, error } = await c
+    .from("handover_events")
+    .update({
+      status: "accepted",
+      accepted_by: acceptedBy,
+      accepted_by_signature_id: acceptedBySignatureId || null,
+      accepted_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("status", "pending")       // race-safe
+    .select()
+    .maybeSingle();
+  if (error) { console.error("[handovers:accept] failed", error); return { success: false, error: error.message }; }
+  if (!data)  return { success: false, error: "Handover is no longer pending (someone else may have accepted it)." };
+  console.info("[handovers:accept] ok", { id });
+  return { success: true, handover: fromRow(data) };
+}
+
+// Phase A does not expose Cancel in the UI, but the store supports it so
+// Phase B can wire the button without needing a schema change.
+export async function cancelHandover(id, reason, cancelledBy) {
+  if (!isSupabaseEnabled()) {
+    const all = getLocal();
+    const i = all.findIndex((h) => h.id === id);
+    if (i < 0) return { success: false, error: "handover not found" };
+    if (all[i].status !== "pending") return { success: false, error: "already finalised" };
+    all[i] = { ...all[i], status: "cancelled", cancelledAt: new Date().toISOString(), cancellationReason: reason || "" };
+    setLocal(all);
+    return { success: true };
+  }
+  const c = getSupabase(); if (!c) return { success: false, error: "no client" };
+  const { data, error } = await c
+    .from("handover_events")
+    .update({
+      status: "cancelled",
+      cancelled_at: new Date().toISOString(),
+      cancellation_reason: reason || null,
+    })
+    .eq("id", id)
+    .eq("status", "pending")
+    .eq("sent_by", cancelledBy)
+    .select()
+    .maybeSingle();
+  if (error) { console.error("[handovers:cancel] failed", error); return { success: false, error: error.message }; }
+  if (!data)  return { success: false, error: "Only the sender can cancel a pending handover." };
+  return { success: true, handover: fromRow(data) };
+}
