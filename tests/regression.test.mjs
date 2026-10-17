@@ -264,8 +264,9 @@ const USER_FACING_STRINGS = [
   "Finish & Transfer",
   "Awaiting accept",
   "Accept into",
-  "Department Workflow",
-  "Accept timeout",
+  "Department Workflow Settings",
+  "Acceptance timeout",
+  "Per-department work time limits",
   "Explanation required",
   // Phase B — Checklists / Pending items / Attachments / Ratings
   "Department Checklists",
