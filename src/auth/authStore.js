@@ -8,7 +8,7 @@ export const checkPassword = (pw, hash) => hashPassword(pw) === hash;
 export const DEFAULT_ROLES = {
   Admin: {
     label: "Admin", icon: "👑", color: "#6366f1", badge: "Full Access",
-    pages: ["dashboard","inventory","inward","outward","pending","pipeline","machines","vendors","analytics","ai","history","audit","settings","users","roles"],
+    pages: ["dashboard","inventory","inward","outward","pending","pipeline","machines","vendors","analytics","ai","history","reports","audit","settings","users","roles"],
     actions: {
       inventory: { add: true,  edit: true,  delete: true,  adjust: true  },
       pipeline:  { create: true,  approve: true,  reject: true,  ordered: true,  receive: true,  delete: true  },
@@ -25,7 +25,7 @@ export const DEFAULT_ROLES = {
   },
   "Purchase Manager": {
     label: "Purchase Manager", icon: "🛒", color: "#3b82f6", badge: "Purchase",
-    pages: ["dashboard","inventory","inward","pipeline","vendors","history","analytics"],
+    pages: ["dashboard","inventory","inward","pipeline","vendors","history","reports","analytics"],
     actions: {
       inventory: { add: false, edit: false, delete: false, adjust: false },
       pipeline:  { create: true,  approve: true,  reject: true,  ordered: true,  receive: true,  delete: false },
@@ -40,7 +40,7 @@ export const DEFAULT_ROLES = {
   },
   "Store Manager": {
     label: "Store Manager", icon: "📦", color: "#22c55e", badge: "Store",
-    pages: ["dashboard","inventory","inward","outward","pending","machines","history"],
+    pages: ["dashboard","inventory","inward","outward","pending","machines","history","reports"],
     actions: {
       inventory: { add: false, edit: false, delete: false, adjust: true  },
       pipeline:  { create: false, approve: false, reject: false, ordered: false, receive: false, delete: false },
@@ -58,7 +58,7 @@ export const DEFAULT_ROLES = {
   },
   Production: {
     label: "Production", icon: "🔧", color: "#f59e0b", badge: "Production",
-    pages: ["dashboard","inventory","outward","pending","machines","history"],
+    pages: ["dashboard","inventory","outward","pending","machines","history","reports"],
     actions: {
       inventory: { add: false, edit: false, delete: false, adjust: false },
       pipeline:  { create: false, approve: false, reject: false, ordered: false, receive: false, delete: false },
