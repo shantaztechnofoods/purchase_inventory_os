@@ -23,6 +23,21 @@ import { fetchOutward, createOutward, updateOutwardRef, deleteOutwardByIssueId }
 import { fetchPending, bulkCreatePending, updatePending as pendingUpdate, deletePending as pendingDelete, clearAllPending, updatePendingBomKey } from "./stores/pendingStore.js";
 import { fetchFollowUps, createFollowUp as followupCreate, updateFollowUp as followupUpdate, deleteFollowUpsByPO } from "./stores/followupsStore.js";
 import { fetchMachines, createMachine as machineCreate, updateMachine as machineUpdate, updateMachineBomKey, deleteMachine as machineDelete } from "./stores/machinesStore.js";
+import { fetchHandovers, createHandover as handoverCreate, acceptHandover as handoverAccept } from "./stores/handoverStore.js";
+import { getMySignature, saveMySignature, reauthenticateByPassword } from "./stores/signaturesStore.js";
+import {
+  DEPARTMENT_SEQUENCE, DEFAULT_DEPT_DURATIONS, DEFAULT_ACCEPT_TIMEOUT_MINUTES,
+  readDeptWorkflowSettings, writeDeptWorkflowSettings,
+  nextDepartment, computeElapsedMinutes, computeOverrun, isHoldOverdue, heldMinutes,
+  formatDuration, canAcceptHandover, canFinishTransfer, canConfigureDept,
+} from "./utils/handoverLogic.js";
+// Phase B
+import { fetchTemplates, createTemplate, updateTemplate, deleteTemplate, fetchResponses, createResponse } from "./stores/checklistsStore.js";
+import { fetchPendingItems, createPendingItem, resolvePendingItem } from "./stores/pendingItemsStore.js";
+import { fetchAllAttachments, fetchAttachmentsForMachine, uploadAttachment, signedUrlFor, deleteAttachment } from "./stores/attachmentsStore.js";
+import { fetchRatings, createRating, overrideRating } from "./stores/ratingsStore.js";
+import { computeDepartmentRating, formatRatingBadge, summarizeMachineRatings } from "./utils/ratingLogic.js";
+import { startChecklistResponse, toggleAnswer, setAnswerRemark, validateChecklistAnswers, snapshotResponse } from "./utils/checklistLogic.js";
 import { useRealtimeTables } from "./realtime/useRealtimeTables.js";
 import { fetchRecentMovements, MOVEMENT_META } from "./stores/stockMovementsStore.js";
 import { sendPOWhatsApp, openVendorWhatsApp, waErrorToast } from "./utils/whatsapp.js";
@@ -45,7 +60,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-11-restore-bom-rack";
+const APP_BUILD = "2026-10-16-dept-workflow-phase-b-c";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -457,6 +472,7 @@ const navItems = [
   { id: "analytics",  icon: "📊", label: "Analytics",        section: "INTELLIGENCE" },
   { id: "ai",         icon: "🤖", label: "AI Assistant",     section: null },
   { id: "history",    icon: "📜", label: "History & Reports",section: "REPORTS" },
+  { id: "reports",    icon: "📈", label: "Report Center",    section: null },
   { id: "audit",      icon: "🛡️", label: "Audit Trail",      section: null },
   { id: "settings",   icon: "⚙️", label: "Settings",         section: "SYSTEM" },
   { id: "users",      icon: "👤", label: "User Management",  section: null },
@@ -5605,7 +5621,151 @@ const SETTINGS_DEFAULTS = {
   po:              null,   // Purchase Order settings (company profiles, templates) — see utils/poTemplate
 };
 
-function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, isSuperAdmin = false }) {
+// ── Phase B — Checklist admin panel (Settings tab) ───────────────────────
+function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUpdate, onDelete }) {
+  const DEPTS = ["Assembly", "Mechanical", "Electrical", "Trial"];
+  const [editing, setEditing] = useState(null); // { id?, department, name, items, active }
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const start = (tpl) => setEditing(tpl ? { ...tpl, items: Array.isArray(tpl.items) ? tpl.items : [] } : { department: "Assembly", name: "", items: [], active: true });
+  const addItem = () => setEditing((e) => e && ({ ...e, items: [...e.items, { id: `i${Date.now()}`, label: "", required: false }] }));
+  const removeItem = (idx) => setEditing((e) => e && ({ ...e, items: e.items.filter((_, i) => i !== idx) }));
+  const patchItem = (idx, patch) => setEditing((e) => e && ({ ...e, items: e.items.map((it, i) => i === idx ? { ...it, ...patch } : it) }));
+
+  const save = async () => {
+    if (!editing) return;
+    if (!editing.name.trim())      { setErr("Template name is required."); return; }
+    if (!editing.department)       { setErr("Department is required."); return; }
+    if (!editing.items.length)     { setErr("Add at least one checklist item."); return; }
+    if (editing.items.some((it) => !it.label || !it.label.trim())) { setErr("Each item must have a label."); return; }
+    setBusy(true); setErr("");
+    try {
+      const payload = { department: editing.department, name: editing.name.trim(), items: editing.items, active: editing.active !== false };
+      const res = editing.id
+        ? await onUpdate?.(editing.id, payload)
+        : await onCreate?.(payload);
+      if (res && res.success === false) { setErr(res.error || "Save failed."); return; }
+      setEditing(null);
+    } finally { setBusy(false); }
+  };
+
+  const remove = async (id) => {
+    if (!window.confirm("Delete this checklist template? Existing responses stay in reports.")) return;
+    const res = await onDelete?.(id);
+    if (res && res.success === false) alert(res.error || "Delete failed.");
+  };
+
+  return (
+    <Section icon="📋" title="Department Checklists">
+      {!canConfig && (
+        <div className="mb-4 px-3 py-2 rounded-lg text-[11px]"
+             style={{ background: "rgba(249,115,22,0.08)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.3)" }}>
+          You can view checklists but not modify them. Admin role required.
+        </div>
+      )}
+
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[11px] text-slate-500">{templates.length} template{templates.length === 1 ? "" : "s"} configured.</div>
+        {canConfig && !editing && (
+          <button onClick={() => start(null)}
+                  className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg"
+                  style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 10px rgba(37,99,235,0.3)" }}>
+            + New template
+          </button>
+        )}
+      </div>
+
+      {!editing && (
+        <div className="space-y-2">
+          {templates.length === 0 && (
+            <div className="text-[11px] text-slate-500 italic">No templates yet. Add one so operators see a checklist on Finish & Transfer.</div>
+          )}
+          {templates.map((t) => (
+            <div key={t.id} className="rounded-lg px-3 py-2 flex items-center gap-3 flex-wrap"
+                 style={{ background: t.active === false ? "rgba(255,255,255,0.02)" : "rgba(59,130,246,0.05)", border: `1px solid ${t.active === false ? "rgba(255,255,255,0.06)" : "rgba(59,130,246,0.25)"}` }}>
+              <span className="text-[11px] font-black text-blue-300 w-28">{t.department}</span>
+              <span className="text-[12px] font-bold text-white flex-1">{t.name}</span>
+              <span className="text-[10px] text-slate-500">{(t.items || []).length} item{(t.items || []).length === 1 ? "" : "s"} · v{t.version || 1}</span>
+              {t.active === false && <span className="text-[9px] font-bold text-slate-500 px-1.5 py-0.5 rounded-full bg-white/5 border border-white/10">inactive</span>}
+              {canConfig && (
+                <>
+                  <button onClick={() => start(t)} className="text-[10px] font-bold text-blue-300 hover:text-blue-200 px-2 py-0.5 rounded border border-blue-500/30 bg-blue-500/10">Edit</button>
+                  <button onClick={() => remove(t.id)} className="text-[10px] font-bold text-red-300 hover:text-red-200 px-2 py-0.5 rounded border border-red-500/30 bg-red-500/10">Delete</button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {editing && (
+        <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.3)" }}>
+          <div className="text-[11px] font-black text-blue-300">{editing.id ? "Edit template" : "New template"}</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <SLabel text="Department" />
+              <select value={editing.department} onChange={(e) => setEditing((p) => ({ ...p, department: e.target.value }))}
+                      disabled={!canConfig} className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-white outline-none">
+                {DEPTS.map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+            <div>
+              <SLabel text="Template name" />
+              <input type="text" value={editing.name} onChange={(e) => setEditing((p) => ({ ...p, name: e.target.value }))}
+                     disabled={!canConfig} placeholder="e.g. Assembly QC"
+                     className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-white outline-none" />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="text-[11px] font-semibold text-slate-300">Checklist items</div>
+              {canConfig && <button onClick={addItem} className="text-[10px] font-bold text-blue-300">+ Add item</button>}
+            </div>
+            <div className="space-y-2">
+              {editing.items.length === 0 && (
+                <div className="text-[10px] text-slate-500 italic">No items yet.</div>
+              )}
+              {editing.items.map((it, i) => (
+                <div key={it.id || i} className="flex items-center gap-2">
+                  <input type="text" value={it.label || ""}
+                         onChange={(e) => patchItem(i, { label: e.target.value })}
+                         disabled={!canConfig} placeholder="Checklist item label"
+                         className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-[11px] text-white outline-none focus:border-blue-500/40" />
+                  <label className="text-[10px] text-slate-400 flex items-center gap-1">
+                    <input type="checkbox" checked={!!it.required} onChange={(e) => patchItem(i, { required: e.target.checked })} disabled={!canConfig} />
+                    required
+                  </label>
+                  {canConfig && <button onClick={() => removeItem(i)} className="text-[11px] text-slate-500 hover:text-red-400">×</button>}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="text-[11px] text-slate-300 flex items-center gap-2">
+              <input type="checkbox" checked={editing.active !== false} onChange={(e) => setEditing((p) => ({ ...p, active: e.target.checked }))} disabled={!canConfig} />
+              Active (shown on Finish & Transfer)
+            </label>
+            <div className="flex-1" />
+            <button onClick={() => setEditing(null)} className="text-[11px] font-bold text-slate-400 px-3 py-1.5 rounded-lg border border-white/[0.1] bg-white/[0.04]">
+              Cancel
+            </button>
+            {canConfig && (
+              <button onClick={save} disabled={busy} className="text-[11px] font-black text-white px-4 py-1.5 rounded-lg disabled:opacity-50" style={{ background: "linear-gradient(135deg,#16a34a,#15803d)" }}>
+                {busy ? "⏳ Saving…" : (editing.id ? "Save changes" : "Create template")}
+              </button>
+            )}
+          </div>
+          {err && <div className="text-[11px] font-semibold text-red-300">⚠ {err}</div>}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, isSuperAdmin = false, canDo = () => true, onRegisterSignature, currentUser = null,
+  // Phase B — checklist admin props (optional)
+  checklistTemplates = [], onCreateChecklistTemplate, onUpdateChecklistTemplate, onDeleteChecklistTemplate }) {
   // Snapshot of the last KNOWN-PERSISTED settings — used for the dirty-state pill
   // ("Unsaved changes") so operators see they need to click Save. Updated only after
   // a save round-trips successfully.
@@ -5699,6 +5859,8 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
     { id: "company",       label: "🏭 Company",        desc: "Multiple companies + active selection" },
     { id: "po",            label: "🧾 Purchase Order", desc: "Template, T&C, declaration" },
     { id: "inventory",     label: "📦 Inventory",      desc: "Currency + low-stock rules" },
+    { id: "department",    label: "🔧 Department Workflow", desc: "Per-dept duration + accept timeout" },
+    { id: "checklists",    label: "📋 Department Checklists", desc: "Admin-managed per-department checklists" },
     { id: "notifications", label: "🔔 Notifications",  desc: "WhatsApp / email alerts" },
     { id: "data",          label: "💾 Data & Backup",  desc: "Export + backup" },
   ];
@@ -5797,6 +5959,84 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
               </div>
             </div>
           </Section>
+        )}
+
+        {/* ── Department Workflow tab (Phase A) ─────────────────────────────── */}
+        {tab === "department" && (() => {
+          const current = readDeptWorkflowSettings(settings);
+          const commitWorkflow = (patch) => {
+            const nextWf = { ...current, ...patch, dept_durations: { ...current.dept_durations, ...(patch.dept_durations || {}) } };
+            const merged = writeDeptWorkflowSettings(settings, nextWf);
+            setSettings((prev) => ({ ...prev, department_workflow: merged.department_workflow }));
+          };
+          const canConfig = canConfigureDept(canDo);
+          const DEPTS = ["Assembly", "Mechanical", "Electrical", "Trial"];
+          return (
+            <Section icon="🔧" title="Department Workflow">
+              {!canConfig && (
+                <div className="mb-4 px-3 py-2 rounded-lg text-[11px]"
+                     style={{ background: "rgba(249,115,22,0.08)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.3)" }}>
+                  You can view these settings but not change them. Admin role required.
+                </div>
+              )}
+              <div className="space-y-5">
+                <div>
+                  <SLabel text="Accept timeout (minutes)" hint="A handover not accepted within this window shows as OVERDUE / HOLD in Machine Tracker and reports." />
+                  <input type="number" min="0" step="1"
+                         value={current.accept_timeout_minutes}
+                         disabled={!canConfig}
+                         onChange={(e) => commitWorkflow({ accept_timeout_minutes: parseInt(e.target.value, 10) || 0 })}
+                         className="w-40 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                  <div className="text-[10px] text-slate-500 mt-1">Default 120 min = 2 hours.</div>
+                </div>
+                <div>
+                  <SLabel text="Per-department work duration (minutes)" hint="If a department exceeds its duration, the operator must enter an explanation on Finish & Transfer." />
+                  <div className="space-y-2 mt-2">
+                    {DEPTS.map((d) => {
+                      const mins = (current.dept_durations[d]?.minutes) ?? 0;
+                      return (
+                        <div key={d} className="flex items-center gap-3 flex-wrap">
+                          <div className="w-24 text-[12px] font-semibold text-slate-300">{d}</div>
+                          <input type="number" min="0" step="1" value={mins} disabled={!canConfig}
+                                 onChange={(e) => commitWorkflow({ dept_durations: { [d]: { minutes: parseInt(e.target.value, 10) || 0 } } })}
+                                 className="w-32 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                          <span className="text-[11px] text-slate-500">≈ {formatDuration(mins)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-2">Durations are stored at the time of each handover, so changing them here does NOT retroactively re-flag past transfers.</div>
+                </div>
+                {onRegisterSignature && currentUser && (
+                  <div className="pt-5 border-t border-white/[0.05]">
+                    <SLabel text="My digital signature" hint="A one-time signature used when you accept a department handover. The acceptance also re-verifies your password." />
+                    <SignaturePad
+                      onSave={async (svg) => {
+                        const r = await onRegisterSignature(svg);
+                        if (r && r.success === false) {
+                          setSaveError(r.error || "Signature save failed.");
+                        } else {
+                          setSaved(true);
+                          setTimeout(() => setSaved(false), 2500);
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </Section>
+          );
+        })()}
+
+        {/* ── Department Checklists tab (Phase B) ──────────────────────────── */}
+        {tab === "checklists" && (
+          <ChecklistAdminPanel
+            templates={checklistTemplates}
+            canConfig={canConfigureDept(canDo)}
+            onCreate={onCreateChecklistTemplate}
+            onUpdate={onUpdateChecklistTemplate}
+            onDelete={onDeleteChecklistTemplate}
+          />
         )}
 
         {/* ── Notifications tab ─────────────────────────────────────────────── */}
@@ -8794,6 +9034,387 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
   );
 }
 
+// ─── PHASE C — REPORT CENTER PAGE ─────────────────────────────────────────────
+// Eight report categories with shared date / machine / department filters.
+// Export: CSV, Excel (xlsx dep already present), and browser Print (lets the
+// operator Save-as-PDF through the native print dialog — no new dependency).
+// The Customer Progress Report deliberately strips HOLD reasons, employee
+// names, ratings, narration, and private remarks (customer-safe output).
+
+function ReportCenterPage({
+  machineLog = [], handovers = [], pendingHandoverItems = [], deptRatings = [],
+  attachments = [], checklistResponses = [], bomDefs = {}, settings = {},
+  outwardLog = [], inwardLog = [], pos = [], items = {}, canDo = () => true,
+}) {
+  const [tab,         setTab]         = useState("summary");
+  const [dateFrom,    setDateFrom]    = useState("");
+  const [dateTo,      setDateTo]      = useState("");
+  const [machineFilter,  setMachineFilter]  = useState("");
+  const [deptFilter,     setDeptFilter]     = useState("");
+
+  const workflow = readDeptWorkflowSettings(settings);
+
+  const tabs = [
+    { id: "summary",    label: "📊 Overall Summary"       },
+    { id: "delay",      label: "⏰ Delay-wise"             },
+    { id: "hold",       label: "🚦 HOLD-wise"              },
+    { id: "pending",    label: "⏳ Pending-wise"           },
+    { id: "rating",     label: "⭐ Rating-wise"            },
+    { id: "machineHistory", label: "🔧 Machine Full History" },
+    { id: "factory",    label: "🏭 Factory / Internal"     },
+    { id: "customer",   label: "👥 Customer Progress"      },
+  ];
+
+  // ── Filters ──
+  const inRange = (iso) => {
+    if (!iso) return true;
+    const t = Date.parse(iso);
+    if (dateFrom && t < Date.parse(dateFrom + "T00:00:00")) return false;
+    if (dateTo   && t > Date.parse(dateTo   + "T23:59:59")) return false;
+    return true;
+  };
+  const machineMatches = (m) => {
+    if (!machineFilter) return true;
+    const q = machineFilter.toLowerCase();
+    return (m.bomKey || "").toLowerCase().includes(q)
+        || (m.serialNo || "").toLowerCase().includes(q)
+        || (m.bomLabel || "").toLowerCase().includes(q);
+  };
+  const deptMatches = (d) => !deptFilter || d === deptFilter;
+
+  const filteredMachines = (machineLog || []).filter(machineMatches).filter((m) =>
+    inRange(m.createdDate) || inRange(m.completedDate)
+  );
+  const filteredHandovers = (handovers || [])
+    .filter((h) => deptMatches(h.fromDepartment) || deptMatches(h.toDepartment))
+    .filter((h) => inRange(h.sentAt))
+    .filter((h) => !machineFilter || machineMatches({ bomKey: h.bomKey, serialNo: h.serialNo, bomLabel: "" }));
+  const filteredPending = (pendingHandoverItems || [])
+    .filter((p) => inRange(p.raisedAt))
+    .filter((p) => deptMatches(p.raisedInDepartment) || deptMatches(p.resolvedInDepartment))
+    .filter((p) => !machineFilter || machineMatches((machineLog || []).find((m) => m.id === p.machineId) || {}));
+  const filteredRatings = (deptRatings || [])
+    .filter((r) => inRange(r.createdAt))
+    .filter((r) => deptMatches(r.department))
+    .filter((r) => !machineFilter || machineMatches((machineLog || []).find((m) => m.id === r.machineId) || {}));
+
+  // ── Export helpers (xlsx is already a dep) ──
+  const downloadWorkbook = (rows, filename, sheetName = "Report") => {
+    if (!rows || rows.length === 0) { alert("Nothing to export for current filters."); return; }
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
+    XLSX.writeFile(wb, filename);
+  };
+  const exportCSV   = (rows, filename) => downloadWorkbook(rows, filename.replace(/\.xlsx$/i, ".csv"));
+  const exportExcel = (rows, filename) => downloadWorkbook(rows, filename.endsWith(".xlsx") ? filename : filename + ".xlsx");
+  const printReport = () => {
+    // Browser's native print dialog — operator chooses "Save as PDF" or paper.
+    // Print styles come from the <style> at the top of this page.
+    window.print();
+  };
+
+  // ── Per-report rows ──
+  // SUMMARY KPIs
+  const summary = (() => {
+    const total = filteredMachines.length;
+    const active = filteredMachines.filter((m) => m.status !== "completed").length;
+    const completed = filteredMachines.filter((m) => m.status === "completed").length;
+    const delayedHandovers = filteredHandovers.filter((h) => (h.overrunMinutes || 0) > 0).length;
+    const heldHandovers = filteredHandovers.filter((h) =>
+      h.status === "pending"
+        ? isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, Date.now())
+        : (h.acceptedAt && (Date.parse(h.acceptedAt) - Date.parse(h.sentAt)) / 60000 > (h.acceptTimeoutMinutes || 0))
+    ).length;
+    const openPending = filteredPending.filter((p) => p.status === "open").length;
+    const resolvedPending = filteredPending.filter((p) => p.status === "resolved").length;
+    const avgRating = filteredRatings.length
+      ? Math.round((filteredRatings.reduce((s, r) => s + (Number(r.rating) || 0), 0) / filteredRatings.length) * 10) / 10
+      : null;
+    return { total, active, completed, delayedHandovers, heldHandovers, openPending, resolvedPending, avgRating };
+  })();
+
+  const delayRows = filteredHandovers
+    .filter((h) => (h.overrunMinutes || 0) > 0)
+    .map((h) => ({
+      Machine: h.bomKey, Serial: h.serialNo || "", From: h.fromDepartment, To: h.toDepartment,
+      ExpectedMin: h.expectedDurationMinutes, ActualMin: h.actualDurationMinutes, OverrunMin: h.overrunMinutes,
+      Narration: h.overrunNarration || "", SentAt: h.sentAt || "", Status: h.status,
+    }));
+
+  const holdRows = filteredHandovers
+    .filter((h) => {
+      if (h.status === "pending") return isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, Date.now());
+      if (h.acceptedAt) return (Date.parse(h.acceptedAt) - Date.parse(h.sentAt)) / 60000 > (h.acceptTimeoutMinutes || 0);
+      return false;
+    })
+    .map((h) => {
+      const until = h.acceptedAt ? Date.parse(h.acceptedAt) : Date.now();
+      const timeToAccept = Math.max(0, Math.floor((until - Date.parse(h.sentAt)) / 60000));
+      const held = Math.max(0, timeToAccept - (h.acceptTimeoutMinutes || 0));
+      return {
+        Machine: h.bomKey, Serial: h.serialNo || "", From: h.fromDepartment, To: h.toDepartment,
+        SentAt: h.sentAt || "", AcceptedAt: h.acceptedAt || "", Status: h.status,
+        AcceptTimeoutMin: h.acceptTimeoutMinutes || 0, TimeToAcceptMin: timeToAccept, HeldMin: held,
+      };
+    });
+
+  const pendingRows = filteredPending.map((p) => {
+    const m = (machineLog || []).find((mm) => mm.id === p.machineId);
+    return {
+      Machine: m?.bomKey || "", Serial: m?.serialNo || "",
+      Description: p.description, RaisedInDepartment: p.raisedInDepartment,
+      RaisedAt: p.raisedAt || "", Status: p.status,
+      ResolvedInDepartment: p.resolvedInDepartment || "",
+      ResolvedAt: p.resolvedAt || "", ResolutionNotes: p.resolutionNotes || "",
+    };
+  });
+
+  const ratingRows = filteredRatings.map((r) => {
+    const m = (machineLog || []).find((mm) => mm.id === r.machineId);
+    return {
+      Machine: m?.bomKey || "", Serial: m?.serialNo || "",
+      Department: r.department, Rating: r.rating,
+      Overridden: !!r.overriddenBy ? "yes" : "no", OverrideReason: r.overrideReason || "",
+      CreatedAt: r.createdAt || "",
+    };
+  });
+
+  const machineHistoryRows = filteredMachines.map((m) => {
+    const machineHos = filteredHandovers.filter((h) => h.machineId === m.id);
+    const machineRat = filteredRatings.filter((r) => r.machineId === m.id);
+    const machinePen = filteredPending.filter((p) => p.machineId === m.id);
+    const machineAtt = (attachments || []).filter((a) => a.machineId === m.id);
+    const sum = summarizeMachineRatings(machineRat);
+    return {
+      Machine: m.bomKey, Serial: m.serialNo || "", BOM: m.bomLabel || m.bomKey,
+      CurrentStage: m.stage, Status: m.status,
+      StartedOn: m.createdDate || "", CompletedOn: m.completedDate || "",
+      Handovers: machineHos.length,
+      AvgRating: sum.average === null ? "" : sum.average,
+      PendingOpen: machinePen.filter((p) => p.status === "open").length,
+      PendingResolved: machinePen.filter((p) => p.status === "resolved").length,
+      Attachments: machineAtt.length,
+    };
+  });
+
+  // Factory/Internal — one row per handover, with ALL internal detail.
+  const factoryRows = filteredHandovers.map((h) => {
+    const m = (machineLog || []).find((mm) => mm.id === h.machineId);
+    const rating = (filteredRatings || []).find((r) => r.handoverId === h.id);
+    const relatedPending = (filteredPending || []).filter((p) => p.raisedInHandoverId === h.id);
+    return {
+      Machine: h.bomKey, Serial: h.serialNo || "",
+      BOMLabel: m?.bomLabel || "",
+      From: h.fromDepartment, To: h.toDepartment,
+      ExpectedMin: h.expectedDurationMinutes || 0,
+      ActualMin: h.actualDurationMinutes || 0,
+      OverrunMin: h.overrunMinutes || 0,
+      Narration: h.overrunNarration || "",
+      SentAt: h.sentAt || "", AcceptedAt: h.acceptedAt || "",
+      SentBy: h.sentBy || "", AcceptedBy: h.acceptedBy || "",
+      Status: h.status, AcceptTimeoutMin: h.acceptTimeoutMinutes || 0,
+      Rating: rating?.rating ?? "", RatingOverrideReason: rating?.overrideReason || "",
+      PendingRaised: relatedPending.length,
+    };
+  });
+
+  // Customer Progress — strict allowlist: machine ID, stage, days-in-stage,
+  // completed? Yes/No, customer-visible attachment count. NO HOLD reasons,
+  // employee names, ratings, narration, or private remarks.
+  const customerRows = filteredMachines.map((m) => {
+    const machineAtt = (attachments || []).filter((a) => a.machineId === m.id && a.isCustomerVisible);
+    const machineHos = filteredHandovers.filter((h) => h.machineId === m.id);
+    const stagesCompleted = DEPARTMENT_SEQUENCE.filter((s) => (m.history || []).some((h) => h.stage === s));
+    const trialAttachments = machineAtt.filter((a) => a.kind === "trial_report" || /trial/i.test(a.fileName || ""));
+    return {
+      Machine: m.bomKey, Serial: m.serialNo || "",
+      Model: m.bomLabel || m.bomKey,
+      StagesCompleted: stagesCompleted.join(" → "),
+      CurrentStage: m.stage,
+      CompletedOn: m.completedDate || "",
+      StagesHandedOver: machineHos.filter((h) => h.status === "accepted").length,
+      ApprovedPhotos: machineAtt.filter((a) => a.kind === "photo").length,
+      ApprovedVideos: machineAtt.filter((a) => a.kind === "video").length,
+      TrialHighlights: trialAttachments.length,
+    };
+  });
+
+  // Mapping of tabId → export dataset + filename
+  const exportable = {
+    delay:          { rows: delayRows,    file: "shantaz-delay-report" },
+    hold:           { rows: holdRows,     file: "shantaz-hold-report"  },
+    pending:        { rows: pendingRows,  file: "shantaz-pending-report" },
+    rating:         { rows: ratingRows,   file: "shantaz-rating-report" },
+    machineHistory: { rows: machineHistoryRows, file: "shantaz-machine-history" },
+    factory:        { rows: factoryRows,  file: "shantaz-factory-internal" },
+    customer:       { rows: customerRows, file: "shantaz-customer-progress" },
+    summary:        { rows: [{
+                        TotalMachines: summary.total, Active: summary.active, Completed: summary.completed,
+                        DelayedHandovers: summary.delayedHandovers, HeldHandovers: summary.heldHandovers,
+                        OpenPendingItems: summary.openPending, ResolvedPendingItems: summary.resolvedPending,
+                        AverageRating: summary.avgRating ?? "",
+                      }], file: "shantaz-summary" },
+  };
+
+  const activeExport = exportable[tab] || { rows: [], file: "shantaz-report" };
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      {/* Print styles — hide chrome, keep content */}
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white !important; }
+          .report-area { color: #000 !important; background: #fff !important; }
+          .report-area * { color: #000 !important; background: #fff !important; border-color: #ccc !important; }
+          .report-area table { page-break-inside: auto; }
+          .report-area tr { page-break-inside: avoid; }
+        }
+      `}</style>
+
+      <Topbar title="Report Center" subtitle={`Operational + customer reports · ${filteredMachines.length} machine${filteredMachines.length === 1 ? "" : "s"} in scope`} />
+
+      <div className="p-6 space-y-5 report-area">
+        {/* Filters */}
+        <div className="rounded-xl p-4 no-print" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div className="flex items-end gap-3 flex-wrap">
+            <div>
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">From</div>
+              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                     className="bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-[11px] text-white outline-none" />
+            </div>
+            <div>
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">To</div>
+              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                     className="bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-[11px] text-white outline-none" />
+            </div>
+            <div>
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Machine / BOM / Serial</div>
+              <input type="text" value={machineFilter} onChange={(e) => setMachineFilter(e.target.value)}
+                     placeholder="e.g. BOM-ASSY-01 or S/N A-104"
+                     className="bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-[11px] text-white outline-none" />
+            </div>
+            <div>
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Department</div>
+              <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}
+                      className="bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-[11px] text-white outline-none">
+                <option value="">All</option>
+                {DEPARTMENT_SEQUENCE.map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+            <div className="flex-1" />
+            <button onClick={() => { setDateFrom(""); setDateTo(""); setMachineFilter(""); setDeptFilter(""); }}
+                    className="text-[11px] font-bold text-slate-400 px-3 py-1.5 rounded border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white">
+              Reset filters
+            </button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex items-center gap-2 flex-wrap no-print">
+          {tabs.map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+                    className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${tab === t.id ? "bg-blue-500/15 text-blue-400 border-blue-500/30" : "text-slate-500 border-white/[0.08] hover:text-slate-300"}`}>
+              {t.label}
+            </button>
+          ))}
+          <div className="flex-1" />
+          <button onClick={() => exportCSV(activeExport.rows, activeExport.file)}
+                  className="text-[11px] font-bold text-emerald-300 px-3 py-1.5 rounded border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20">
+            ⬇ CSV
+          </button>
+          <button onClick={() => exportExcel(activeExport.rows, activeExport.file)}
+                  className="text-[11px] font-bold text-emerald-300 px-3 py-1.5 rounded border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20">
+            ⬇ Excel
+          </button>
+          <button onClick={printReport}
+                  className="text-[11px] font-bold text-blue-300 px-3 py-1.5 rounded border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20">
+            🖨 Print / Save as PDF
+          </button>
+        </div>
+
+        {/* Tab content */}
+        {tab === "summary" && (
+          <div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <ReportKPI label="Total machines" value={summary.total} color="#3b82f6" />
+              <ReportKPI label="Active" value={summary.active} color="#f97316" />
+              <ReportKPI label="Completed" value={summary.completed} color="#22c55e" />
+              <ReportKPI label="Avg rating" value={summary.avgRating ?? "—"} color="#eab308" suffix={summary.avgRating ? "★" : ""} />
+              <ReportKPI label="Delayed handovers" value={summary.delayedHandovers} color="#ef4444" />
+              <ReportKPI label="Held handovers" value={summary.heldHandovers} color="#ef4444" />
+              <ReportKPI label="Open pending items" value={summary.openPending} color="#f97316" />
+              <ReportKPI label="Resolved pending items" value={summary.resolvedPending} color="#22c55e" />
+            </div>
+          </div>
+        )}
+
+        {tab === "delay" && <ReportTable title="Delays — handovers that exceeded configured duration" rows={delayRows} />}
+        {tab === "hold"  && <ReportTable title="HOLDs — handovers that were accepted after the 2h timeout (or still pending overdue)" rows={holdRows} />}
+        {tab === "pending" && <ReportTable title="Pending handover items" rows={pendingRows} />}
+        {tab === "rating" && <ReportTable title="Department ratings" rows={ratingRows} />}
+        {tab === "machineHistory" && <ReportTable title="Machine-wise full history" rows={machineHistoryRows} />}
+        {tab === "factory" && <ReportTable title="Factory / Internal — full operational detail per handover" rows={factoryRows} />}
+        {tab === "customer" && (
+          <>
+            <div className="rounded-lg px-3 py-2 text-[11px] no-print" style={{ background: "rgba(34,197,94,0.06)", color: "#86efac", border: "1px solid rgba(34,197,94,0.25)" }}>
+              Customer-safe output. HOLD reasons, employee names, ratings, narration, and internal remarks are intentionally not shown.
+            </div>
+            <ReportTable title="Customer Progress Report" rows={customerRows} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReportKPI({ label, value, color = "#3b82f6", suffix = "" }) {
+  return (
+    <div className="p-4 rounded-xl" style={{ background: `${color}10`, border: `1px solid ${color}33` }}>
+      <div className="text-[9px] font-bold uppercase tracking-[0.08em] mb-1" style={{ color }}>{label}</div>
+      <div className="text-3xl font-black mb-0.5" style={{ color }}>{value}{suffix}</div>
+    </div>
+  );
+}
+
+function ReportTable({ title, rows }) {
+  if (!rows || rows.length === 0) {
+    return (
+      <div className="rounded-xl py-14 text-center" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <div className="text-sm font-bold text-slate-400 mb-1">{title}</div>
+        <div className="text-[11px] text-slate-600">No records match the current filters.</div>
+      </div>
+    );
+  }
+  const columns = Object.keys(rows[0]);
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}>
+      <div className="px-4 py-3 text-[11px] font-black text-slate-300 border-b border-white/[0.07]">{title}  ·  {rows.length} row{rows.length === 1 ? "" : "s"}</div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[11px]">
+          <thead>
+            <tr>
+              {columns.map((c) => (
+                <th key={c} className="text-left px-3 py-2 font-bold text-slate-500 bg-white/[0.03] whitespace-nowrap">{c}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} className="border-t border-white/[0.04]">
+                {columns.map((c) => (
+                  <td key={c} className="px-3 py-1.5 text-slate-300 whitespace-nowrap">{String(r[c] ?? "")}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ─── MACHINE TRACKER PAGE ────────────────────────────────────────────────────
 
 const STAGE_COLORS = {
@@ -8805,7 +9426,133 @@ const STAGE_COLORS = {
   "Ready":      "#22c55e",
 };
 
-function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo = () => true, bomDefs = {}, onStartProduction, onRemoveRackMachine, onUpdateBOM }) {
+// ── Phase A — Signature Pad ────────────────────────────────────────────────
+// Minimal <canvas>-based pad. Captures mouse + touch strokes, serializes to
+// an SVG path on export. Zero third-party deps; the serialized SVG is what
+// gets persisted to employee_signatures.signature_svg.
+function SignaturePad({ onSave, onCancel, initialSvg = "" }) {
+  const canvasRef = useRef(null);
+  const [drawing, setDrawing] = useState(false);
+  const [strokes, setStrokes] = useState([]);
+  const [current, setCurrent] = useState([]);
+  const [hint,    setHint]    = useState(initialSvg ? "Draw to replace the previous signature." : "Draw your signature inside the box.");
+  const WIDTH = 400, HEIGHT = 150;
+
+  useEffect(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#0d1018";
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    ctx.strokeStyle = "#e5e7eb";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    // Replay strokes so a mid-draw re-render doesn't blank the pad.
+    for (const s of strokes) {
+      if (s.length < 1) continue;
+      ctx.beginPath();
+      ctx.moveTo(s[0].x, s[0].y);
+      for (let i = 1; i < s.length; i++) ctx.lineTo(s[i].x, s[i].y);
+      ctx.stroke();
+    }
+    if (current.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(current[0].x, current[0].y);
+      for (let i = 1; i < current.length; i++) ctx.lineTo(current[i].x, current[i].y);
+      ctx.stroke();
+    }
+  }, [strokes, current]);
+
+  const pointFromEvent = (e) => {
+    const c = canvasRef.current;
+    const rect = c.getBoundingClientRect();
+    const scaleX = WIDTH / rect.width;
+    const scaleY = HEIGHT / rect.height;
+    const t = e.touches ? e.touches[0] : e;
+    return { x: (t.clientX - rect.left) * scaleX, y: (t.clientY - rect.top) * scaleY };
+  };
+
+  const start = (e) => { e.preventDefault(); setDrawing(true); setCurrent([pointFromEvent(e)]); };
+  const move  = (e) => { if (!drawing) return; e.preventDefault(); setCurrent((prev) => [...prev, pointFromEvent(e)]); };
+  const end   = () => { if (!drawing) return; setDrawing(false); setStrokes((prev) => [...prev, current]); setCurrent([]); };
+
+  const clear = () => { setStrokes([]); setCurrent([]); setHint("Draw your signature inside the box."); };
+
+  const save = () => {
+    if (strokes.length === 0) { setHint("Please draw a signature first."); return; }
+    // Serialize to SVG. Each stroke becomes an <polyline>.
+    const polylines = strokes.map((s) =>
+      `<polyline points="${s.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")}" />`
+    ).join("");
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" width="${WIDTH}" height="${HEIGHT}" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${polylines}</svg>`;
+    onSave(svg);
+  };
+
+  return (
+    <div className="w-full">
+      <div className="text-[11px] text-slate-400 mb-2">{hint}</div>
+      <canvas
+        ref={canvasRef}
+        width={WIDTH} height={HEIGHT}
+        style={{ width: "100%", maxWidth: WIDTH, height: HEIGHT, background: "#0d1018", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, touchAction: "none", cursor: "crosshair" }}
+        onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
+        onTouchStart={start} onTouchMove={move} onTouchEnd={end}
+      />
+      <div className="flex items-center gap-2 mt-3">
+        <button type="button" onClick={clear}
+                className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+          Clear
+        </button>
+        <div className="flex-1" />
+        {onCancel && (
+          <button type="button" onClick={onCancel}
+                  className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+            Cancel
+          </button>
+        )}
+        <button type="button" onClick={save}
+                className="text-[11px] font-black text-white px-4 py-1.5 rounded-lg transition-all"
+                style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 12px rgba(37,99,235,0.3)" }}>
+          Save Signature
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Phase B — Attachment link with signed-URL resolution ──
+// For Supabase-stored attachments, the storage_path is a bucket path, not a
+// public URL. This component resolves a 1h signed URL on demand (click).
+function AttachmentLink({ attachment }) {
+  const [resolving, setResolving] = useState(false);
+  const open = async (e) => {
+    e.preventDefault();
+    if (!attachment) return;
+    // Local-mode data: URLs can open directly.
+    if (attachment.storagePath && attachment.storagePath.startsWith("data:")) {
+      window.open(attachment.storagePath, "_blank", "noopener");
+      return;
+    }
+    setResolving(true);
+    const url = await signedUrlFor(attachment);
+    setResolving(false);
+    if (url) window.open(url, "_blank", "noopener");
+    else alert("Could not open file. Ensure migration 024 is applied and the 'machine-attachments' bucket exists.");
+  };
+  return (
+    <a href="#" onClick={open} className="text-blue-300 hover:text-blue-200 underline">
+      {attachment.fileName || "(unnamed)"}{resolving ? "…" : ""}
+    </a>
+  );
+}
+
+function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo = () => true, bomDefs = {}, onStartProduction, onRemoveRackMachine, onUpdateBOM,
+  // Phase A props (optional — the page keeps working if any are missing)
+  handovers = [], settings = {}, onFinishTransfer, onAcceptHandover, onRegisterSignature, currentUser = null,
+  // Phase B props (optional — fall back to [] when migrations not applied)
+  checklistTemplates = [], pendingHandoverItems = [], attachments = [], deptRatings = [],
+  onUploadAttachment, onDeleteAttachment, onResolvePendingItem }) {
   const [filter,   setFilter]   = useState("active");
   const [expanded, setExpanded] = useState(null);
   const [stageMap, setStageMap] = useState({});
@@ -8836,7 +9583,127 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     return () => document.removeEventListener("mousedown", close);
   }, [rackActionsKey]);
 
+  // Phase A — department workflow state.
+  const workflow = readDeptWorkflowSettings(settings);
+  // Minute-tick to re-render HOLD badges + overrun chips without a cron. Zero
+  // network traffic; just forces a React re-render every 60s. Clock drift is
+  // minor over a 2h accept window.
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, []);
+  const [finishModal, setFinishModal] = useState(null); // { machine, toDepartment, narration }
+  const [acceptModal, setAcceptModal] = useState(null); // { handover, password, needSig, sigSvg, busy, error }
+  const [transferBusy, setTransferBusy] = useState(false);
+
+  // Pending handovers filtered to those awaiting acceptance.
+  const pendingHandovers = (handovers || []).filter((h) => h && h.status === "pending");
+  const overdueHandovers = pendingHandovers.filter((h) => isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick));
+
   const showToast = (text, sub) => { setToast({ text, sub }); setTimeout(() => setToast(null), 3000); };
+
+  // Open the Finish & Transfer modal for a given machine.
+  const openFinishModal = (machine) => {
+    const toDepartment = nextDepartment(machine.currentDepartment || machine.stage);
+    if (!toDepartment) {
+      showToast("No further department", `${machine.bomKey} is at ${machine.stage} — no transfer possible.`);
+      return;
+    }
+    const fromDepartment = machine.currentDepartment || machine.stage;
+    // Phase B — pick an active checklist template for this dept (newest first).
+    const template = (checklistTemplates || []).find((t) => t && t.active !== false && t.department === fromDepartment) || null;
+    const answers  = template ? startChecklistResponse(template) : [];
+    setFinishModal({ machine, toDepartment, narration: "", template, answers });
+  };
+
+  const submitFinishTransfer = async () => {
+    if (!finishModal || transferBusy) return;
+    const { machine, toDepartment, narration, template, answers } = finishModal;
+    const fromDepartment = machine.currentDepartment || machine.stage;
+    const expectedCfg = workflow.dept_durations[fromDepartment];
+    const expectedDurationMinutes = (expectedCfg && expectedCfg.minutes) || 0;
+    const { actualMinutes, overrunMinutes, isOverrun } = computeOverrun(
+      machine.departmentEnteredAt, expectedDurationMinutes, nowTick
+    );
+    if (isOverrun && !narration.trim()) {
+      showToast("Narration required", "This department exceeded its configured duration. Please add an explanation.");
+      return;
+    }
+    // Phase B — enforce "every unchecked item has a remark" before submit.
+    if (template && Array.isArray(answers) && answers.length) {
+      const chk = validateChecklistAnswers(answers);
+      if (!chk.ok) {
+        showToast("Checklist incomplete", `Add a remark for ${chk.missing.length} unchecked item${chk.missing.length === 1 ? "" : "s"}.`);
+        return;
+      }
+    }
+    setTransferBusy(true);
+    try {
+      const res = await onFinishTransfer({
+        machineId: machine.id,
+        fromDepartment,
+        toDepartment,
+        expectedDurationMinutes,
+        actualDurationMinutes: actualMinutes,
+        overrunNarration: narration.trim() || null,
+        checklistTemplate: template || null,
+        checklistAnswers:  Array.isArray(answers) ? answers : [],
+      });
+      if (res && res.success === false) {
+        showToast("Transfer failed", res.error || "Unknown error");
+        return;
+      }
+      setFinishModal(null);
+      showToast(`${machine.bomKey} → ${toDepartment}`,
+        overrunMinutes > 0 ? `Awaiting accept · Overrun ${formatDuration(overrunMinutes)}` : "Awaiting accept");
+    } finally {
+      setTransferBusy(false);
+    }
+  };
+
+  const openAcceptModal = async (handover) => {
+    setAcceptModal({ handover, password: "", needSig: false, sigSvg: null, busy: false, error: "", pendingItemsToRaise: [""], newPendingText: "" });
+    // Pre-check: does the current user have a stored signature? If not, we
+    // show the pad before password re-auth. The actual signature creation
+    // still happens through onRegisterSignature.
+    if (!currentUser?.id) return;
+    const sigRes = await getMySignature(currentUser.id);
+    setAcceptModal((prev) => prev && prev.handover.id === handover.id
+      ? { ...prev, needSig: !sigRes.signature }
+      : prev
+    );
+  };
+
+  const submitAcceptHandover = async () => {
+    if (!acceptModal || acceptModal.busy) return;
+    const { handover, password, needSig, sigSvg } = acceptModal;
+    if (needSig && !sigSvg) {
+      setAcceptModal((prev) => prev ? { ...prev, error: "Please register your signature first." } : prev);
+      return;
+    }
+    if (!password) {
+      setAcceptModal((prev) => prev ? { ...prev, error: "Please enter your password." } : prev);
+      return;
+    }
+    setAcceptModal((prev) => prev ? { ...prev, busy: true, error: "" } : prev);
+    if (needSig && sigSvg) {
+      const sr = await onRegisterSignature(sigSvg);
+      if (!sr || sr.success === false) {
+        setAcceptModal((prev) => prev ? { ...prev, busy: false, error: sr?.error || "Signature save failed." } : prev);
+        return;
+      }
+    }
+    const pendingItemsToRaise = (acceptModal.pendingItemsToRaise || []).filter((s) => s && s.trim());
+    const res = await onAcceptHandover({ handoverId: handover.id, password, pendingItemsToRaise });
+    if (!res || res.success === false) {
+      setAcceptModal((prev) => prev ? { ...prev, busy: false, error: res?.error || "Accept failed." } : prev);
+      return;
+    }
+    setAcceptModal(null);
+    showToast(`Accepted into ${handover.toDepartment}`,
+      `${handover.bomKey}${handover.serialNo ? ` · S/N ${handover.serialNo}` : ""}${pendingItemsToRaise.length ? ` · ${pendingItemsToRaise.length} pending item${pendingItemsToRaise.length === 1 ? "" : "s"} raised` : ""}`);
+  };
 
   // Machine Tracker shows ONLY machines that have STARTED production (left the rack).
   // Rack machines sit at stage "BOM Issued" and appear solely in the Production Rack View.
@@ -8940,6 +9807,57 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       <Topbar title="Machine Tracker" subtitle="Production build tracking — BOM issue through completion" />
 
       <div className="p-6 space-y-5">
+
+        {/* ── Phase A — Pending Handovers banner (awaiting acceptance) ── */}
+        {pendingHandovers.length > 0 && (
+          <div className="rounded-xl p-4"
+               style={{ background: "rgba(249,115,22,0.06)", border: `1px solid ${overdueHandovers.length ? "rgba(239,68,68,0.4)" : "rgba(249,115,22,0.3)"}` }}>
+            <div className="flex items-center gap-3 mb-3 flex-wrap">
+              <div className="text-sm font-black text-orange-300">⏳ {pendingHandovers.length} handover{pendingHandovers.length === 1 ? "" : "s"} waiting for acceptance</div>
+              {overdueHandovers.length > 0 && (
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full"
+                      style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.4)" }}>
+                  ⚠ {overdueHandovers.length} OVERDUE (HOLD)
+                </span>
+              )}
+            </div>
+            <div className="space-y-2">
+              {pendingHandovers.map((h) => {
+                const sentMin   = Math.max(0, Math.floor((nowTick - Date.parse(h.sentAt)) / 60000));
+                const overdue   = isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
+                const heldMin   = heldMinutes(h.sentAt, h.acceptTimeoutMinutes, nowTick);
+                const canAccept = canAcceptHandover(canDo, h.toDepartment);
+                return (
+                  <div key={h.id}
+                       className="flex items-center gap-3 flex-wrap rounded-lg px-3 py-2"
+                       style={{ background: overdue ? "rgba(239,68,68,0.07)" : "rgba(255,255,255,0.03)", border: `1px solid ${overdue ? "rgba(239,68,68,0.3)" : "rgba(255,255,255,0.08)"}` }}>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[12px] font-bold text-white">
+                        {h.bomKey}{h.serialNo ? <span className="text-blue-300 font-mono"> · S/N {h.serialNo}</span> : null}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        {h.fromDepartment} → <span className="font-bold text-orange-300">{h.toDepartment}</span>
+                        <span className="text-slate-500 ml-2">· sent {formatDuration(sentMin)} ago</span>
+                        {overdue && <span className="text-red-400 font-bold ml-2">· HOLD {formatDuration(heldMin)}</span>}
+                        {h.overrunMinutes > 0 && <span className="text-yellow-300 ml-2">· overrun {formatDuration(h.overrunMinutes)}</span>}
+                      </div>
+                      {h.overrunNarration && (
+                        <div className="text-[10px] text-slate-300 mt-1 italic">"{h.overrunNarration}"</div>
+                      )}
+                    </div>
+                    {canAccept && onAcceptHandover && (
+                      <button onClick={() => openAcceptModal(h)}
+                              className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg"
+                              style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 10px rgba(34,197,94,0.25)" }}>
+                        Accept →
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ── Summary cards ── */}
         <div className="grid grid-cols-3 gap-4">
@@ -9215,7 +10133,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
                       {!isComplete && futureStages.length > 0 && canDo("machines","updateStage") && (
                         <>
                           <select value={selStage}
@@ -9233,6 +10151,26 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           </button>
                         </>
                       )}
+                      {/* Phase A — Finish & Transfer (handover flow). Shown only when:
+                          (a) the machine isn't complete, (b) a next department exists,
+                          (c) there's no handover already pending for this machine,
+                          (d) the user has the permission, and (e) the parent passed
+                          the handler. Lives next to Update Stage so operators can
+                          pick either flow during the Phase A rollout. */}
+                      {!isComplete && nextDepartment(machine.currentDepartment || machine.stage) && !machine.pendingHandoverId && canFinishTransfer(canDo) && onFinishTransfer && (
+                        <button onClick={() => openFinishModal(machine)}
+                                className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
+                                style={{ background: "linear-gradient(135deg,#f97316,#ea580c)", boxShadow: "0 0 10px rgba(249,115,22,0.3)" }}
+                                title={`Finish ${machine.currentDepartment || machine.stage} → ${nextDepartment(machine.currentDepartment || machine.stage)}`}>
+                          Finish & Transfer →
+                        </button>
+                      )}
+                      {machine.pendingHandoverId && (
+                        <span className="text-[10px] font-black px-2 py-1 rounded-lg"
+                              style={{ background: "rgba(249,115,22,0.12)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.35)" }}>
+                          ⏳ Awaiting accept
+                        </span>
+                      )}
                       <button onClick={() => setExpanded(isExpanded ? null : machine.id)}
                               className="text-[10px] font-bold text-slate-500 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-white/[0.07] hover:border-white/20 transition-all">
                         {isExpanded ? "Hide" : "History"}
@@ -9241,30 +10179,153 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   </div>
                 </div>
 
-                {/* ── Stage History (expandable) ── */}
-                {isExpanded && (
+                {/* ── Stage History + Phase B pending items + attachments ── */}
+                {isExpanded && (() => {
+                  const machineAttachments = (attachments || []).filter((a) => a.machineId === machine.id);
+                  const machinePendingItems = (pendingHandoverItems || []).filter((p) => p.machineId === machine.id);
+                  const openItems = machinePendingItems.filter((p) => p.status === "open");
+                  const machineRatings = (deptRatings || []).filter((r) => r.machineId === machine.id);
+                  const ratingSummary = summarizeMachineRatings(machineRatings);
+                  return (
                   <div className="px-5 pb-5 pt-1" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-3">Stage History</div>
-                    <div className="relative pl-5">
-                      <div className="absolute left-2 top-0 bottom-0 w-px" style={{ background: "rgba(255,255,255,0.06)" }} />
-                      {[...machine.history].reverse().map((h, i, arr) => {
-                        const sc = STAGE_COLORS[h.stage] || "#3b82f6";
-                        return (
-                          <div key={i} className="relative mb-3 last:mb-0">
-                            <div className="absolute -left-[13px] top-1 w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                 style={{ background: sc + "22", border: `1.5px solid ${sc}`, boxShadow: i === 0 ? `0 0 8px ${sc}55` : "none" }} />
-                            <div className="flex items-center gap-3 flex-wrap">
-                              <span className="text-[10px] font-bold text-white">{h.stage}</span>
-                              {i === 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: sc+"18", color: sc, border: `1px solid ${sc}30` }}>Current</span>}
-                              <span className="text-[9px] text-slate-600 font-mono ml-auto">{h.date}</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {/* Stage history */}
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-3">Stage History</div>
+                        <div className="relative pl-5">
+                          <div className="absolute left-2 top-0 bottom-0 w-px" style={{ background: "rgba(255,255,255,0.06)" }} />
+                          {[...machine.history].reverse().map((h, i) => {
+                            const sc = STAGE_COLORS[h.stage] || "#3b82f6";
+                            return (
+                              <div key={i} className="relative mb-3 last:mb-0">
+                                <div className="absolute -left-[13px] top-1 w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                     style={{ background: sc + "22", border: `1.5px solid ${sc}`, boxShadow: i === 0 ? `0 0 8px ${sc}55` : "none" }} />
+                                <div className="flex items-center gap-3 flex-wrap">
+                                  <span className="text-[10px] font-bold text-white">{h.stage}</span>
+                                  {i === 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: sc+"18", color: sc, border: `1px solid ${sc}30` }}>Current</span>}
+                                  <span className="text-[9px] text-slate-600 font-mono ml-auto">{h.date}</span>
+                                </div>
+                                {h.note && <div className="text-[10px] text-slate-500 mt-0.5">{h.note}</div>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Phase B — Ratings + Pending items + Attachments */}
+                      <div className="space-y-4">
+                        {/* Rating summary */}
+                        {ratingSummary.count > 0 && (
+                          <div>
+                            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">Department Ratings</div>
+                            <div className="space-y-1">
+                              {Object.entries(ratingSummary.perDept).map(([dept, info]) => (
+                                <div key={dept} className="flex items-center gap-2 text-[11px]">
+                                  <span className="w-24 text-slate-300">{dept}</span>
+                                  <span className="font-black text-yellow-300" style={{ letterSpacing: "0.1em" }}>{formatRatingBadge(info.rating)}</span>
+                                  {info.overridden && <span className="text-[9px] font-bold text-blue-300">(overridden)</span>}
+                                </div>
+                              ))}
+                              <div className="text-[10px] text-slate-500 mt-1">Average {ratingSummary.average}★</div>
                             </div>
-                            {h.note && <div className="text-[10px] text-slate-500 mt-0.5">{h.note}</div>}
                           </div>
-                        );
-                      })}
+                        )}
+
+                        {/* Pending items */}
+                        <div>
+                          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">Pending Handover Items</div>
+                          {machinePendingItems.length === 0 && (
+                            <div className="text-[10px] text-slate-500">None.</div>
+                          )}
+                          {machinePendingItems.length > 0 && (
+                            <div className="space-y-1.5">
+                              {machinePendingItems.map((p) => (
+                                <div key={p.id} className="rounded px-2 py-1.5" style={{ background: p.status === "resolved" ? "rgba(34,197,94,0.06)" : "rgba(249,115,22,0.08)", border: `1px solid ${p.status === "resolved" ? "rgba(34,197,94,0.25)" : "rgba(249,115,22,0.3)"}` }}>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-[11px] text-slate-200 flex-1">{p.description}</span>
+                                    {p.status === "resolved" ? (
+                                      <span className="text-[9px] font-bold text-emerald-300">✓ Resolved</span>
+                                    ) : (
+                                      canFinishTransfer(canDo) && onResolvePendingItem && (
+                                        <button onClick={async () => {
+                                                   const notes = window.prompt("Resolution notes (optional):", "");
+                                                   if (notes === null) return;
+                                                   const r = await onResolvePendingItem(p.id, { notes });
+                                                   if (r && r.success === false) showToast("Resolve failed", r.error || "");
+                                                   else showToast("Pending item resolved", "");
+                                                }}
+                                                className="text-[10px] font-bold text-emerald-300 hover:text-emerald-200 px-2 py-0.5 rounded border border-emerald-500/40 bg-emerald-500/10">
+                                          Mark resolved
+                                        </button>
+                                      )
+                                    )}
+                                  </div>
+                                  <div className="text-[9px] text-slate-500 mt-0.5">
+                                    From {p.raisedInDepartment}{p.resolvedInDepartment ? ` · Resolved in ${p.resolvedInDepartment}` : ""}
+                                    {p.resolutionNotes ? ` · "${p.resolutionNotes}"` : ""}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Attachments */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Attachments ({machineAttachments.length})</div>
+                            {onUploadAttachment && canFinishTransfer(canDo) && (
+                              <label className="text-[10px] font-bold text-blue-300 hover:text-blue-200 cursor-pointer px-2 py-0.5 rounded border border-blue-500/30 bg-blue-500/10">
+                                + Upload
+                                <input type="file" className="hidden"
+                                       accept="image/*,video/*,application/pdf"
+                                       onChange={async (e) => {
+                                         const file = e.target.files?.[0];
+                                         if (!file) return;
+                                         const dept = machine.currentDepartment || machine.stage;
+                                         const customer = window.confirm("Make this attachment visible on the Customer Progress Report? Click OK for YES, Cancel for internal-only.");
+                                         const r = await onUploadAttachment({ machineId: machine.id, department: dept, stage: dept, file, caption: "", isCustomerVisible: customer });
+                                         e.target.value = "";
+                                         if (r && r.success === false) showToast("Upload failed", r.error || "");
+                                         else showToast("Attachment uploaded", file.name);
+                                       }} />
+                              </label>
+                            )}
+                          </div>
+                          {machineAttachments.length === 0 && (
+                            <div className="text-[10px] text-slate-500">No files yet.</div>
+                          )}
+                          {machineAttachments.length > 0 && (
+                            <ul className="space-y-1 text-[11px]">
+                              {machineAttachments.map((a) => (
+                                <li key={a.id} className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-slate-400">
+                                    {a.kind === "photo" ? "🖼" : a.kind === "video" ? "🎞" : a.kind === "trial_report" ? "📄" : "📎"}
+                                  </span>
+                                  <AttachmentLink attachment={a} />
+                                  <span className="text-slate-600 text-[10px]">{a.department}</span>
+                                  {a.isCustomerVisible && (
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-emerald-300 bg-emerald-500/10 border border-emerald-500/30">customer-visible</span>
+                                  )}
+                                  {canConfigureDept(canDo) && onDeleteAttachment && (
+                                    <button onClick={async () => {
+                                              if (!window.confirm("Delete this attachment?")) return;
+                                              const r = await onDeleteAttachment(a.id);
+                                              if (r && r.success === false) showToast("Delete failed", r.error || "");
+                                              else showToast("Attachment deleted", "");
+                                            }}
+                                            className="text-[10px] text-slate-500 hover:text-red-400">×</button>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                )}
+                  );
+                })()}
               </div>
             );
           })}
@@ -9542,6 +10603,218 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           </div>
         </div>
       )}
+
+      {/* ── Phase A — Finish & Transfer modal ── */}
+      {finishModal && (() => {
+        const { machine, toDepartment, narration } = finishModal;
+        const fromDepartment = machine.currentDepartment || machine.stage;
+        const expectedCfg = workflow.dept_durations[fromDepartment];
+        const expectedMin = (expectedCfg && expectedCfg.minutes) || 0;
+        const { actualMinutes, overrunMinutes, isOverrun } = computeOverrun(machine.departmentEnteredAt, expectedMin, nowTick);
+        return (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+               style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(10px)" }}
+               onClick={(e) => e.target === e.currentTarget && !transferBusy && setFinishModal(null)}>
+            <div className="w-full max-w-md rounded-2xl overflow-hidden"
+                 style={{ background: "#0d1018", border: "1px solid rgba(249,115,22,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+              <div className="px-6 py-5 border-b border-white/[0.08]"
+                   style={{ background: "linear-gradient(90deg,rgba(249,115,22,0.10),rgba(234,88,12,0.05))" }}>
+                <div className="text-sm font-black text-white">Finish & Transfer</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">{machine.bomKey}{machine.serialNo ? ` · S/N ${machine.serialNo}` : ""}</div>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">From</div>
+                    <div className="text-[13px] font-black text-white mt-0.5">{fromDepartment}</div>
+                  </div>
+                  <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.25)" }}>
+                    <div className="text-[9px] font-bold text-emerald-500 uppercase tracking-wide">To (next)</div>
+                    <div className="text-[13px] font-black text-emerald-300 mt-0.5">{toDepartment}</div>
+                  </div>
+                </div>
+                <div className="rounded-lg px-3 py-2.5" style={{ background: isOverrun ? "rgba(239,68,68,0.07)" : "rgba(255,255,255,0.03)", border: `1px solid ${isOverrun ? "rgba(239,68,68,0.3)" : "rgba(255,255,255,0.08)"}` }}>
+                  <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">Time in {fromDepartment}</div>
+                  <div className="text-[12px] text-slate-200 mt-0.5">
+                    Actual <span className="font-bold text-white">{formatDuration(actualMinutes)}</span>
+                    <span className="text-slate-500"> · expected {formatDuration(expectedMin)}</span>
+                    {isOverrun && <span className="text-red-400 font-bold ml-2">· overrun {formatDuration(overrunMinutes)}</span>}
+                  </div>
+                </div>
+                {isOverrun && (
+                  <div>
+                    <label className="text-[11px] font-bold text-red-300 block mb-1.5">
+                      Explanation required (overrun)
+                      <span className="text-red-400 ml-0.5">*</span>
+                    </label>
+                    <textarea
+                      value={narration}
+                      onChange={(e) => setFinishModal((prev) => prev ? { ...prev, narration: e.target.value } : prev)}
+                      placeholder="Why did this department take longer than configured?"
+                      rows={3}
+                      autoFocus
+                      className="w-full bg-white/[0.04] border border-red-500/40 rounded-lg px-3 py-2 text-[12px] text-white placeholder-slate-500 outline-none focus:border-red-500/70"
+                    />
+                    <div className="text-[10px] text-slate-500 mt-1">This explanation is saved to the handover audit record and shown on reports.</div>
+                  </div>
+                )}
+                {/* Phase B — Department checklist (if a template exists for this dept) */}
+                {finishModal.template && Array.isArray(finishModal.answers) && finishModal.answers.length > 0 && (
+                  <div className="rounded-lg px-3 py-3" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.3)" }}>
+                    <div className="text-[11px] font-black text-blue-300 mb-2">
+                      Checklist · {finishModal.template.name}
+                      <span className="text-slate-500 font-normal ml-1">(unchecked items need a remark)</span>
+                    </div>
+                    <div className="space-y-2 max-h-56 overflow-y-auto">
+                      {finishModal.answers.map((a, i) => (
+                        <div key={i} className="rounded-md px-2 py-2" style={{ background: a.checked ? "rgba(34,197,94,0.06)" : "rgba(255,255,255,0.03)", border: `1px solid ${a.checked ? "rgba(34,197,94,0.25)" : "rgba(255,255,255,0.08)"}` }}>
+                          <label className="flex items-start gap-2 cursor-pointer">
+                            <input type="checkbox" checked={!!a.checked}
+                                   onChange={(e) => setFinishModal((prev) => prev ? { ...prev, answers: toggleAnswer(prev.answers, i, e.target.checked) } : prev)}
+                                   className="mt-0.5" />
+                            <span className="text-[12px] text-slate-200 flex-1">{a.label}{a.required && <span className="text-red-400 ml-0.5">*</span>}</span>
+                          </label>
+                          {!a.checked && (
+                            <input type="text" value={a.remark || ""}
+                                   onChange={(e) => setFinishModal((prev) => prev ? { ...prev, answers: setAnswerRemark(prev.answers, i, e.target.value) } : prev)}
+                                   placeholder="Remark (required for unchecked item)"
+                                   className="w-full mt-2 bg-white/[0.04] border border-orange-500/40 rounded px-2 py-1.5 text-[11px] text-white placeholder-slate-500 outline-none focus:border-orange-500/70" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {!finishModal.template && (
+                  <div className="text-[10px] text-slate-500">No checklist template configured for {fromDepartment}. Admins can add one in Settings → Department Checklists.</div>
+                )}
+              </div>
+              <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between"
+                   style={{ background: "rgba(0,0,0,0.35)" }}>
+                <button onClick={() => !transferBusy && setFinishModal(null)} disabled={transferBusy}
+                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
+                  Cancel
+                </button>
+                <button onClick={submitFinishTransfer} disabled={transferBusy || (isOverrun && !narration.trim())}
+                        className="text-[11px] font-black text-white px-5 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{ background: "linear-gradient(135deg,#f97316,#ea580c)", boxShadow: "0 0 12px rgba(249,115,22,0.3)" }}>
+                  {transferBusy ? "⏳ Sending…" : `Finish & Transfer → ${toDepartment}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Phase A — Accept modal (password re-auth + signature) ── */}
+      {acceptModal && (() => {
+        const { handover, password, needSig, sigSvg, busy, error } = acceptModal;
+        const setField = (patch) => setAcceptModal((prev) => prev ? { ...prev, ...patch } : prev);
+        return (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+               style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(10px)" }}
+               onClick={(e) => e.target === e.currentTarget && !busy && setAcceptModal(null)}>
+            <div className="w-full max-w-md rounded-2xl overflow-hidden"
+                 style={{ background: "#0d1018", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)", maxHeight: "90vh", overflowY: "auto" }}>
+              <div className="px-6 py-5 border-b border-white/[0.08]"
+                   style={{ background: "linear-gradient(90deg,rgba(34,197,94,0.10),rgba(22,163,74,0.05))" }}>
+                <div className="text-sm font-black text-white">Accept into {handover.toDepartment}</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">{handover.bomKey}{handover.serialNo ? ` · S/N ${handover.serialNo}` : ""}</div>
+              </div>
+              <div className="p-5 space-y-4">
+                {handover.overrunNarration && (
+                  <div className="rounded-lg px-3 py-2" style={{ background: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.3)" }}>
+                    <div className="text-[10px] font-bold text-yellow-300 uppercase tracking-wide mb-0.5">Sender's note on overrun</div>
+                    <div className="text-[11px] text-yellow-100 italic">"{handover.overrunNarration}"</div>
+                  </div>
+                )}
+                {needSig && (
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-300 mb-2">Register your signature (one-time setup)</div>
+                    <SignaturePad
+                      onSave={(svg) => setField({ sigSvg: svg, needSig: false, error: "" })}
+                      onCancel={() => setAcceptModal(null)}
+                    />
+                  </div>
+                )}
+                {!needSig && (
+                  <>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-300 block mb-1.5">Confirm your password to sign this acceptance</label>
+                      <input type="password" value={password} autoFocus
+                             onChange={(e) => setField({ password: e.target.value, error: "" })}
+                             onKeyDown={(e) => { if (e.key === "Enter") submitAcceptHandover(); }}
+                             placeholder="Password"
+                             className="w-full bg-white/[0.04] border border-white/[0.1] rounded-lg px-3 py-2 text-[12px] text-white placeholder-slate-500 outline-none focus:border-green-500/60" />
+                      <div className="text-[10px] text-slate-500 mt-1">Your saved signature will be attached to this acceptance record.</div>
+                    </div>
+                    {sigSvg && (
+                      <div className="rounded-lg px-3 py-2" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.25)" }}>
+                        <div className="text-[10px] font-bold text-emerald-300">✓ Signature ready</div>
+                      </div>
+                    )}
+                    {/* Phase B — carry-forward: show previously unresolved items for this machine */}
+                    {(pendingHandoverItems || []).filter((p) => p.machineId === handover.machineId && p.status === "open").length > 0 && (
+                      <div className="rounded-lg px-3 py-2" style={{ background: "rgba(249,115,22,0.07)", border: "1px solid rgba(249,115,22,0.3)" }}>
+                        <div className="text-[10px] font-bold text-orange-300 uppercase tracking-wide mb-1">⏳ Pending items carried forward from previous departments</div>
+                        <ul className="list-disc list-inside text-[11px] text-orange-100 space-y-0.5">
+                          {(pendingHandoverItems || []).filter((p) => p.machineId === handover.machineId && p.status === "open").map((p) => (
+                            <li key={p.id}><span className="font-semibold">{p.raisedInDepartment}:</span> {p.description}</li>
+                          ))}
+                        </ul>
+                        <div className="text-[10px] text-slate-500 mt-1.5">These items appear in your checklist until resolved. Resolve them from the machine card's History panel after you accept.</div>
+                      </div>
+                    )}
+                    {/* Phase B — raise new pending items at this transfer */}
+                    <div className="rounded-lg px-3 py-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                      <div className="text-[10px] font-bold text-slate-300 uppercase tracking-wide mb-1.5">Any work from {handover.fromDepartment} still pending? (optional)</div>
+                      <div className="space-y-2">
+                        {(acceptModal.pendingItemsToRaise || []).map((desc, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <input type="text" value={desc}
+                                   onChange={(e) => setField({ pendingItemsToRaise: (acceptModal.pendingItemsToRaise || []).map((d, idx) => idx === i ? e.target.value : d) })}
+                                   placeholder={`Pending item ${i + 1} (e.g. missing fasteners, incomplete wiring)`}
+                                   className="flex-1 bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-[11px] text-white placeholder-slate-500 outline-none focus:border-orange-500/60" />
+                            <button type="button"
+                                    onClick={() => setField({ pendingItemsToRaise: (acceptModal.pendingItemsToRaise || []).filter((_, idx) => idx !== i) })}
+                                    className="text-[11px] text-slate-500 hover:text-red-400 px-1">×</button>
+                          </div>
+                        ))}
+                        <button type="button"
+                                onClick={() => setField({ pendingItemsToRaise: [...(acceptModal.pendingItemsToRaise || []), ""] })}
+                                className="text-[11px] font-semibold text-blue-300 hover:text-blue-200">
+                          + Add another pending item
+                        </button>
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-1.5">Non-empty items are saved and shown in reports until marked completed.</div>
+                    </div>
+                  </>
+                )}
+                {error && (
+                  <div className="rounded-lg px-3 py-2 text-[11px] font-semibold"
+                       style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                    ⚠ {error}
+                  </div>
+                )}
+              </div>
+              <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between"
+                   style={{ background: "rgba(0,0,0,0.35)" }}>
+                <button onClick={() => !busy && setAcceptModal(null)} disabled={busy}
+                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
+                  Cancel
+                </button>
+                {!needSig && (
+                  <button onClick={submitAcceptHandover} disabled={busy || !password}
+                          className="text-[11px] font-black text-white px-5 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 12px rgba(34,197,94,0.3)" }}>
+                    {busy ? "⏳ Verifying…" : "Verify & Accept"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -11390,6 +12663,17 @@ export default function App() {
   const [pendingLog, setPendingLog] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_pending");   if (s) return JSON.parse(s); } catch {} return []; });
   const [followUps,  setFollowUps]  = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_followups"); if (s) return JSON.parse(s); } catch {} return SEED_DEMO ? initialFollowUps : []; });
   const [machineLog, setMachineLog] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_machines");  if (s) return JSON.parse(s); } catch {} return []; });
+  // Phase A — handover events for the Finish & Transfer / Accept flow. Loaded on
+  // mount; refreshed by realtime (new handlers in rtHandovers below). Falls back
+  // gracefully to [] when migration 021 isn't applied yet.
+  const [handovers,  setHandovers]  = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_handovers"); if (s) return JSON.parse(s); } catch {} return []; });
+  // Phase B — department workflow depth. Each falls back silently if its
+  // migration hasn't been applied yet (the stores swallow errors to [] / {}).
+  const [checklistTemplates, setChecklistTemplates] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_checklist_templates"); if (s) return JSON.parse(s); } catch {} return []; });
+  const [checklistResponses, setChecklistResponses] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_checklist_responses"); if (s) return JSON.parse(s); } catch {} return []; });
+  const [pendingHandoverItems, setPendingHandoverItems] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_pending_handover_items"); if (s) return JSON.parse(s); } catch {} return []; });
+  const [attachments, setAttachments] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_attachments"); if (s) return JSON.parse(s); } catch {} return []; });
+  const [deptRatings, setDeptRatings] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_dept_ratings"); if (s) return JSON.parse(s); } catch {} return []; });
   const [auditLog,   setAuditLog]   = useState(() => getAuditLog());
   const [settings,   setSettings]   = useState(() => { try { const s = localStorage.getItem("erp_settings"); if (s) return { ...SETTINGS_DEFAULTS, ...JSON.parse(s) }; } catch {} return { ...SETTINGS_DEFAULTS }; });
 
@@ -11457,6 +12741,10 @@ export default function App() {
   const rtOutward = useCallback(() => { fetchOutward().then((x) => x && setOutwardLog(x)); }, []);
   const rtMach    = useCallback(() => { fetchMachines().then((m) => m && setMachineLog(m)); }, []);
   const rtPending = useCallback(() => { fetchPending().then((p) => p && setPendingLog(p)); }, []);
+  // Phase A — handovers refresh. Falls back silently if table doesn't exist
+  // (store handles the error). Not wired through useRealtimeTables yet; the
+  // handover handlers below re-fetch locally after each write.
+  const rtHandovers = useCallback(() => { fetchHandovers().then((h) => { if (h) setHandovers(h); }); }, []);
   useRealtimeTables({
     onItemsChange:     reconcileItems,
     onMovementsChange: reconcileItems,   // a ledger movement means stock changed → reconcile
@@ -11486,10 +12774,14 @@ export default function App() {
     let cancelled = false;
     (async () => {
       console.info("[App] hydrating Supabase state for user", currentUser.id);
-      const [s, v, i, b, p, inw, out, pend, fu, mac] = await Promise.all([
+      const [s, v, i, b, p, inw, out, pend, fu, mac, ho, ct, cr, phi, atts, rt] = await Promise.all([
         loadSettings(), listVendors(), fetchItems(), fetchBOMs(),
         fetchPOs(), fetchInward(), fetchOutward(),
         fetchPending(), fetchFollowUps(), fetchMachines(),
+        fetchHandovers(),
+        // Phase B — each tolerates a missing migration (store returns [])
+        fetchTemplates(), fetchResponses(), fetchPendingItems(),
+        fetchAllAttachments(), fetchRatings(),
       ]);
       if (cancelled) return;
       if (s) setSettings((prev) => {
@@ -11517,6 +12809,12 @@ export default function App() {
       if (pend) setPendingLog(pend);
       if (fu)   setFollowUps(fu);
       if (mac)  setMachineLog(mac);
+      if (ho)   setHandovers(ho);
+      if (ct)   setChecklistTemplates(ct);
+      if (cr)   setChecklistResponses(cr);
+      if (phi)  setPendingHandoverItems(phi);
+      if (atts) setAttachments(atts);
+      if (rt)   setDeptRatings(rt);
       console.info("[App] hydrated", {
         vendors: v?.length, items: Object.values(i || {}).reduce((s, l) => s + (l?.length || 0), 0),
         boms: Object.keys(b || {}).length, pos: p?.length,
@@ -11540,6 +12838,13 @@ export default function App() {
   useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_pending",   JSON.stringify(pendingLog)); } catch {} }, [pendingLog]);
   useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_followups", JSON.stringify(followUps));  } catch {} }, [followUps]);
   useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_machines",  JSON.stringify(machineLog)); } catch {} }, [machineLog]);
+  useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_handovers", JSON.stringify(handovers));  } catch {} }, [handovers]);
+  // Phase B — persist new slices in local mode (Supabase mirror is per-call in each store).
+  useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_checklist_templates",   JSON.stringify(checklistTemplates));   } catch {} }, [checklistTemplates]);
+  useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_checklist_responses",   JSON.stringify(checklistResponses));   } catch {} }, [checklistResponses]);
+  useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_pending_handover_items",JSON.stringify(pendingHandoverItems)); } catch {} }, [pendingHandoverItems]);
+  useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_attachments",           JSON.stringify(attachments));          } catch {} }, [attachments]);
+  useEffect(() => { if (isSupabaseEnabled()) return; try { localStorage.setItem("erp_dept_ratings",          JSON.stringify(deptRatings));          } catch {} }, [deptRatings]);
   // auditLog is persisted by auditStore; just subscribe to keep state in sync
   useEffect(() => subscribeAudit((next) => setAuditLog(next)), []);
 
@@ -12751,6 +14056,10 @@ export default function App() {
     // If we skipped the rack, also record the implicit BOM Issued → Assembly
     // transition so the machine's history is honest about what happened.
     if (directMode) history.unshift({ stage: "BOM Issued", date: dateStr, note: "BOM issued (auto-promoted)" });
+    // Phase A: track department ownership. Direct machines start the Assembly
+    // clock immediately; rack-bound machines stay at "BOM Issued" until Start
+    // Production (handleStartProduction below) resets the clock to Assembly.
+    const nowIso = new Date().toISOString();
     const newMachine = {
       id:          Date.now(),
       issueId:     issueId || null,
@@ -12762,6 +14071,9 @@ export default function App() {
       createdDate: dateStr,
       completedDate: null,
       history,
+      currentDepartment:   initialStage,
+      departmentEnteredAt: nowIso,
+      pendingHandoverId:   null,
     };
     setMachineLog((prev) => [newMachine, ...prev]);
     if (isSupabaseEnabled()) machineCreate(newMachine).then((r) => { if (!r.success) console.warn("[App] Machine create Supabase failed:", r.error); });
@@ -12769,6 +14081,7 @@ export default function App() {
 
   const handleUpdateMachineStage = (machineId, newStage) => {
     const dateStr = fmtDate(new Date());
+    const nowIso = new Date().toISOString();
     const machine = machineLog.find((m) => m.id === machineId);
     const isComplete = newStage === "Ready";
     logAudit({ type: isComplete ? "machine_completed" : "machine_stage", module: "Machine", action: `${machine?.bomKey || ""} [${machine?.serialNo || ""}] → ${newStage}`, ref: machine?.bomKey || "", serialNo: machine?.serialNo || "", details: { from: machine?.stage, to: newStage, bomLabel: machine?.bomLabel } });
@@ -12780,6 +14093,9 @@ export default function App() {
         status:        isComplete ? "completed" : "active",
         completedDate: isComplete ? dateStr : m.completedDate,
         history:       [...m.history, { stage: newStage, date: dateStr }],
+        // Phase A: reset the department clock on every stage transition.
+        currentDepartment:   newStage,
+        departmentEnteredAt: nowIso,
       };
     }));
     if (isSupabaseEnabled() && machine) {
@@ -12788,6 +14104,8 @@ export default function App() {
         status: isComplete ? "completed" : "active",
         completedDate: isComplete ? dateStr : machine.completedDate,
         history: [...(machine.history || []), { stage: newStage, date: dateStr }],
+        currentDepartment:   newStage,
+        departmentEnteredAt: nowIso,
       }).then((r) => { if (!r.success) console.warn("[App] Machine stage Supabase failed:", r.error); });
     }
   };
@@ -12801,6 +14119,7 @@ export default function App() {
     const targets = machineLog.filter((m) => idSet.has(m.id) && m.stage === "BOM Issued");
     if (targets.length === 0) return { success: false, error: "Select at least one machine on the rack" };
     const dateStr = fmtDate(new Date());
+    const nowIso  = new Date().toISOString();
     setMachineLog((prev) => prev.map((m) => {
       if (!idSet.has(m.id) || m.stage !== "BOM Issued") return m;
       return {
@@ -12808,6 +14127,9 @@ export default function App() {
         stage:   "Assembly",
         status:  "active",
         history: [...(m.history || []), { stage: "Assembly", date: dateStr, note: "Started production from rack" }],
+        // Phase A: Assembly clock starts here for rack-origin machines.
+        currentDepartment:   "Assembly",
+        departmentEnteredAt: nowIso,
       };
     }));
     if (isSupabaseEnabled()) {
@@ -12816,6 +14138,8 @@ export default function App() {
           stage: "Assembly",
           status: "active",
           history: [...(m.history || []), { stage: "Assembly", date: dateStr, note: "Started production from rack" }],
+          currentDepartment:   "Assembly",
+          departmentEnteredAt: nowIso,
         })
       )).then((results) => {
         const failed = results.filter((r) => !r.success);
@@ -12926,6 +14250,377 @@ export default function App() {
         if (failed.length) console.warn("[App] notifyMachineComplete: Supabase failed", failed);
       });
     }
+  };
+
+  // ── Phase A — Department Workflow handlers ─────────────────────────────────
+  //
+  // Finish & Transfer creates a handover_events row with status='pending' and
+  // writes machine_log.pending_handover_id. The machine stays in its current
+  // stage until the receiving-dept operator Accepts (handleAcceptHandover).
+  //
+  // Narration gate is enforced at UI + DB (CHECK constraint). The actual stage
+  // promotion happens at accept time, mirroring handleUpdateMachineStage so
+  // all downstream reports (history, audit) stay consistent.
+  const handleFinishTransfer = async ({
+    machineId, fromDepartment, toDepartment,
+    expectedDurationMinutes, actualDurationMinutes, overrunNarration,
+    // Phase B — optional checklist attached at Finish time.
+    checklistTemplate, checklistAnswers,
+  }) => {
+    if (!currentUser?.id) return { success: false, error: "Not authenticated" };
+    const machine = machineLog.find((m) => m.id === machineId);
+    if (!machine) return { success: false, error: "Machine not found" };
+    if (machine.pendingHandoverId) return { success: false, error: "Handover already in progress for this machine." };
+
+    const workflow = readDeptWorkflowSettings(settings);
+    const payload = {
+      machineId,
+      bomKey:   machine.bomKey,
+      serialNo: machine.serialNo,
+      fromDepartment,
+      toDepartment,
+      sentBy:   currentUser.id,
+      expectedDurationMinutes,
+      actualDurationMinutes,
+      overrunNarration: overrunNarration || null,
+      acceptTimeoutMinutes: workflow.accept_timeout_minutes,
+      status: "pending",
+    };
+
+    const res = await handoverCreate(payload);
+    if (!res.success) return res;
+
+    // Attach pending_handover_id to the machine, append a history annotation.
+    const dateStr = fmtDate(new Date());
+    const historyNote = `Finished ${fromDepartment} → ${toDepartment} (awaiting accept)`;
+    setMachineLog((prev) => prev.map((m) =>
+      m.id === machineId
+        ? { ...m, pendingHandoverId: res.handover.id, history: [...(m.history || []), { stage: m.stage, date: dateStr, note: historyNote }] }
+        : m
+    ));
+    if (isSupabaseEnabled()) {
+      machineUpdate(machineId, {
+        pendingHandoverId: res.handover.id,
+        history: [...(machine.history || []), { stage: machine.stage, date: dateStr, note: historyNote }],
+      }).then((r) => { if (!r.success) console.warn("[App] handleFinishTransfer: machine update failed", r.error); });
+    }
+
+    // Refresh handovers list locally — realtime will catch up but immediate
+    // UI feedback matters more.
+    setHandovers((prev) => [res.handover, ...prev]);
+
+    logAudit({
+      type: "handover_sent", module: "Machine",
+      action: `Handover sent: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}  ${fromDepartment} → ${toDepartment}`,
+      ref: machine.bomKey, serialNo: machine.serialNo || "",
+      details: {
+        machineId, handoverId: res.handover.id, fromDepartment, toDepartment,
+        expectedDurationMinutes, actualDurationMinutes,
+        overrunMinutes: Math.max(0, actualDurationMinutes - expectedDurationMinutes),
+        narration_present: !!(overrunNarration && overrunNarration.trim()),
+      },
+    });
+    if (overrunNarration && overrunNarration.trim()) {
+      logAudit({
+        type: "handover_overrun_narrated", module: "Machine",
+        action: `Overrun narration recorded for handover ${res.handover.id}`,
+        ref: machine.bomKey, serialNo: machine.serialNo || "",
+        details: { handoverId: res.handover.id, narration: overrunNarration.trim() },
+      });
+    }
+
+    // Phase B — snapshot the checklist response (fire-and-forget mirror).
+    if (checklistTemplate && Array.isArray(checklistAnswers)) {
+      const snap = snapshotResponse({
+        machineId, handoverId: res.handover.id, department: fromDepartment,
+        template: checklistTemplate, answers: checklistAnswers,
+        submittedBy: currentUser.id,
+      });
+      const cr = await createResponse(snap);
+      if (cr.success) {
+        setChecklistResponses((prev) => [cr.response, ...prev]);
+        logAudit({
+          type: "checklist_submitted", module: "Machine",
+          action: `Checklist submitted: ${checklistTemplate.name || ""} for ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""} (${fromDepartment})`,
+          ref: machine.bomKey, serialNo: machine.serialNo || "",
+          details: { handoverId: res.handover.id, templateId: checklistTemplate.id, items: checklistAnswers.length, unchecked: checklistAnswers.filter((a) => !a.checked).length },
+        });
+      } else {
+        console.warn("[App] handleFinishTransfer: checklist save failed", cr.error);
+      }
+    }
+
+    return { success: true, handover: res.handover };
+  };
+
+  // Accept flow: verify password via secondary Supabase client (does NOT touch
+  // main session), attach the operator's signature, flip status to accepted,
+  // promote the machine to the new department. Password re-auth is required
+  // by design — a saved signature alone is not proof of authorization.
+  const handleAcceptHandover = async ({ handoverId, password, pendingItemsToRaise = [] }) => {
+    if (!currentUser?.id) return { success: false, error: "Not authenticated" };
+    const handover = handovers.find((h) => h.id === handoverId);
+    if (!handover) return { success: false, error: "Handover not found" };
+    if (handover.status !== "pending") return { success: false, error: "This handover is no longer pending." };
+
+    // Permission check (receiving dept role; auto-mapped from updateStage).
+    if (!canAcceptHandover(authCanDo, handover.toDepartment)) {
+      return { success: false, error: "You don't have permission to accept into this department." };
+    }
+
+    // Step 1: re-authenticate. Local mode has no Supabase auth; signaturesStore
+    // returns a clear error. Supabase mode: disposable client verifies without
+    // touching main session.
+    const authEmail = currentUser.email || `${currentUser.username}@users.shantaz.local`;
+    const reauth = await reauthenticateByPassword(authEmail, password);
+    if (!reauth.success) return reauth;
+
+    // Step 2: fetch (or require) a stored signature. If none, the UI should
+    // have opened the signature pad first and called handleRegisterSignature.
+    const sigRes = await getMySignature(currentUser.id);
+    if (!sigRes.success) return { success: false, error: sigRes.error };
+    if (!sigRes.signature) return { success: false, error: "Register your signature before accepting a handover." };
+
+    // Step 3: atomic UPDATE to status='accepted' (RLS: status='pending' guard).
+    const accRes = await handoverAccept(handoverId, {
+      acceptedBy: currentUser.id,
+      acceptedBySignatureId: sigRes.signature.id,
+    });
+    if (!accRes.success) return accRes;
+
+    // Step 4: promote the machine. Same body as handleUpdateMachineStage —
+    // kept inline so we can also clear pending_handover_id atomically.
+    const machine = machineLog.find((m) => m.id === handover.machineId);
+    const dateStr = fmtDate(new Date());
+    const nowIso  = new Date().toISOString();
+    const newStage = handover.toDepartment;
+    const isComplete = newStage === "Ready";
+    const historyEntry = { stage: newStage, date: dateStr, note: `Accepted into ${newStage}` };
+
+    setMachineLog((prev) => prev.map((m) =>
+      m.id === handover.machineId
+        ? {
+            ...m,
+            stage:               newStage,
+            status:              isComplete ? "completed" : "active",
+            completedDate:       isComplete ? dateStr : m.completedDate,
+            history:             [...(m.history || []), historyEntry],
+            currentDepartment:   newStage,
+            departmentEnteredAt: nowIso,
+            pendingHandoverId:   null,
+          }
+        : m
+    ));
+    if (isSupabaseEnabled() && machine) {
+      machineUpdate(handover.machineId, {
+        stage: newStage,
+        status: isComplete ? "completed" : "active",
+        completedDate: isComplete ? dateStr : machine.completedDate,
+        history: [...(machine.history || []), historyEntry],
+        currentDepartment:   newStage,
+        departmentEnteredAt: nowIso,
+        pendingHandoverId:   null,
+      }).then((r) => { if (!r.success) console.warn("[App] handleAcceptHandover: machine promote failed", r.error); });
+    }
+
+    // Refresh handovers list locally.
+    setHandovers((prev) => prev.map((h) => h.id === handoverId ? accRes.handover : h));
+
+    const timeToAcceptMin = Math.max(0, Math.floor((Date.parse(accRes.handover.acceptedAt) - Date.parse(accRes.handover.sentAt)) / 60000));
+    const wasOverdue = timeToAcceptMin > (accRes.handover.acceptTimeoutMinutes || 0);
+    logAudit({
+      type: isComplete ? "machine_completed" : "handover_accepted",
+      module: "Machine",
+      action: `Handover accepted: ${handover.bomKey}${handover.serialNo ? ` [${handover.serialNo}]` : ""}  ${handover.fromDepartment} → ${newStage}${wasOverdue ? " (OVERDUE)" : ""}`,
+      ref: handover.bomKey, serialNo: handover.serialNo || "",
+      details: {
+        handoverId, machineId: handover.machineId,
+        from: handover.fromDepartment, to: newStage,
+        timeToAcceptMin, wasOverdue, acceptTimeoutMinutes: accRes.handover.acceptTimeoutMinutes,
+      },
+    });
+
+    // Phase B — raise any pending items the receiver flagged.
+    for (const desc of (pendingItemsToRaise || []).filter((d) => d && d.trim())) {
+      const pi = await createPendingItem({
+        machineId: handover.machineId,
+        raisedInHandoverId: handoverId,
+        raisedInDepartment: handover.fromDepartment,
+        raisedBy: currentUser.id,
+        description: desc.trim(),
+      });
+      if (pi.success) {
+        setPendingHandoverItems((prev) => [pi.item, ...prev]);
+        logAudit({
+          type: "pending_item_raised", module: "Machine",
+          action: `Pending item raised: ${desc.trim()}  (${handover.bomKey}${handover.serialNo ? ` [${handover.serialNo}]` : ""})`,
+          ref: handover.bomKey, serialNo: handover.serialNo || "",
+          details: { handoverId, machineId: handover.machineId, raisedInDepartment: handover.fromDepartment },
+        });
+      } else {
+        console.warn("[App] handleAcceptHandover: pending-item save failed", pi.error);
+      }
+    }
+
+    // Phase B — compute + save a department rating snapshot for the sender's work.
+    const openPendingItemsCount =
+      (pendingHandoverItems.filter((p) => p.machineId === handover.machineId && p.status === "open").length)
+      + (pendingItemsToRaise || []).filter((d) => d && d.trim()).length;
+    const overrunMinutesForRating = Number(accRes.handover.overrunMinutes) || 0;
+    const heldMinutesForRating = wasOverdue
+      ? Math.max(0, timeToAcceptMin - (accRes.handover.acceptTimeoutMinutes || 0))
+      : 0;
+    const calc = computeDepartmentRating({
+      overrunMinutes:   overrunMinutesForRating,
+      heldMinutes:      heldMinutesForRating,
+      pendingItemsOpen: openPendingItemsCount,
+    });
+    const ratingRes = await createRating({
+      machineId:      handover.machineId,
+      department:     handover.fromDepartment,
+      handoverId,
+      rating:         calc.rating,
+      calculationLog: calc,
+    });
+    if (ratingRes.success) {
+      setDeptRatings((prev) => [ratingRes.rating, ...prev]);
+      logAudit({
+        type: "department_rated", module: "Machine",
+        action: `${handover.fromDepartment} rated ${calc.rating}★ for ${handover.bomKey}${handover.serialNo ? ` [${handover.serialNo}]` : ""}`,
+        ref: handover.bomKey, serialNo: handover.serialNo || "",
+        details: { department: handover.fromDepartment, rating: calc.rating, deductions: calc.deductions },
+      });
+    } else {
+      console.warn("[App] handleAcceptHandover: rating save failed", ratingRes.error);
+    }
+
+    return { success: true };
+  };
+
+  const handleRegisterSignature = async (signatureSvg) => {
+    if (!currentUser?.id) return { success: false, error: "Not authenticated" };
+    if (!signatureSvg || !signatureSvg.trim()) return { success: false, error: "Please draw your signature." };
+    const res = await saveMySignature(currentUser.id, signatureSvg);
+    if (!res.success) return res;
+    logAudit({
+      type: "signature_registered", module: "Users",
+      action: `Signature ${res.replacement ? "replaced" : "registered"} for ${currentUser.username || currentUser.email || "user"}`,
+      ref: String(currentUser.id),
+      details: { replacement: !!res.replacement, length: signatureSvg.length },
+    });
+    return { success: true, signature: res.signature, replacement: res.replacement };
+  };
+
+  // ── Phase B — Checklist template admin ─────────────────────────────────────
+  const handleCreateChecklistTemplate = async (t) => {
+    const res = await createTemplate(t);
+    if (!res.success) return res;
+    setChecklistTemplates((prev) => [res.template, ...prev]);
+    logAudit({
+      type: "checklist_template_created", module: "Settings",
+      action: `Checklist template created: ${t.name} (${t.department})`,
+      ref: t.department,
+      details: { templateId: res.template.id, items: (t.items || []).length },
+    });
+    return res;
+  };
+  const handleUpdateChecklistTemplate = async (id, patch) => {
+    const res = await updateTemplate(id, patch);
+    if (!res.success) return res;
+    setChecklistTemplates((prev) => prev.map((t) => t.id === id ? { ...t, ...patch, version: (t.version || 1) + 1 } : t));
+    logAudit({
+      type: "checklist_template_updated", module: "Settings",
+      action: `Checklist template updated: ${patch.name || id}`,
+      ref: String(id), details: { patchKeys: Object.keys(patch || {}) },
+    });
+    return res;
+  };
+  const handleDeleteChecklistTemplate = async (id) => {
+    const t = checklistTemplates.find((x) => x.id === id);
+    const res = await deleteTemplate(id);
+    if (!res.success) return res;
+    setChecklistTemplates((prev) => prev.filter((x) => x.id !== id));
+    logAudit({
+      type: "checklist_template_deleted", module: "Settings",
+      action: `Checklist template deleted: ${t?.name || id}`,
+      ref: String(id), details: { department: t?.department || "" },
+    });
+    return res;
+  };
+
+  // ── Phase B — Pending-item resolution ─────────────────────────────────────
+  const handleResolvePendingItem = async (id, { notes }) => {
+    const machine = (() => {
+      const p = pendingHandoverItems.find((x) => x.id === id);
+      if (!p) return null;
+      return machineLog.find((m) => m.id === p.machineId) || null;
+    })();
+    const res = await resolvePendingItem(id, {
+      resolvedBy: currentUser?.id,
+      resolvedInDepartment: machine?.currentDepartment || machine?.stage || "",
+      notes,
+    });
+    if (!res.success) return res;
+    setPendingHandoverItems((prev) => prev.map((p) => p.id === id
+      ? { ...p, status: "resolved", resolvedBy: currentUser?.id, resolvedAt: new Date().toISOString(), resolvedInDepartment: machine?.currentDepartment || machine?.stage || "", resolutionNotes: notes || "" }
+      : p));
+    logAudit({
+      type: "pending_item_resolved", module: "Machine",
+      action: `Pending item resolved${machine ? ` for ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}` : ""}`,
+      ref: machine?.bomKey || "", serialNo: machine?.serialNo || "",
+      details: { itemId: id, notes: notes || "" },
+    });
+    return res;
+  };
+
+  // ── Phase B — Attachments ─────────────────────────────────────────────────
+  const handleUploadAttachment = async ({ machineId, department, stage, file, caption, isCustomerVisible }) => {
+    if (!currentUser?.id) return { success: false, error: "Not authenticated" };
+    const res = await uploadAttachment({
+      machineId, department, stage, file, caption,
+      isCustomerVisible: !!isCustomerVisible,
+      uploadedBy: currentUser.id,
+    });
+    if (!res.success) return res;
+    setAttachments((prev) => [res.attachment, ...prev]);
+    const machine = machineLog.find((m) => m.id === machineId);
+    logAudit({
+      type: "attachment_uploaded", module: "Machine",
+      action: `Attachment uploaded (${res.attachment.kind}): ${res.attachment.fileName}`,
+      ref: machine?.bomKey || "", serialNo: machine?.serialNo || "",
+      details: { machineId, department, stage, size: res.attachment.fileSize, mime: res.attachment.mimeType, customerVisible: !!isCustomerVisible },
+    });
+    return res;
+  };
+  const handleDeleteAttachment = async (id) => {
+    const a = attachments.find((x) => x.id === id);
+    const res = await deleteAttachment(id);
+    if (!res.success) return res;
+    setAttachments((prev) => prev.filter((x) => x.id !== id));
+    const machine = a ? machineLog.find((m) => m.id === a.machineId) : null;
+    logAudit({
+      type: "attachment_deleted", module: "Machine",
+      action: `Attachment deleted: ${a?.fileName || id}`,
+      ref: machine?.bomKey || "", serialNo: machine?.serialNo || "",
+      details: { machineId: a?.machineId, department: a?.department },
+    });
+    return res;
+  };
+
+  // ── Phase B — Rating override (admin only) ────────────────────────────────
+  const handleOverrideRating = async (id, { rating, reason }) => {
+    if (!currentUser?.id) return { success: false, error: "Not authenticated" };
+    const res = await overrideRating(id, { rating, reason, overriddenBy: currentUser.id });
+    if (!res.success) return res;
+    setDeptRatings((prev) => prev.map((r) => r.id === id
+      ? { ...r, rating: Math.max(0, Math.min(5, Math.floor(Number(rating) || 0))), overriddenBy: currentUser.id, overrideReason: reason || "", overriddenAt: new Date().toISOString() }
+      : r));
+    logAudit({
+      type: "rating_overridden", module: "Machine",
+      action: `Rating overridden to ${rating}★`,
+      ref: String(id), details: { reason: reason || "" },
+    });
+    return res;
   };
 
   const handleFulfillPending = (entry, issuedQty) => {
@@ -13039,14 +14734,39 @@ export default function App() {
     machines:  <MachinePage   machineLog={machineLog} onUpdateStage={handleUpdateMachineStage} onNavigate={setActivePage} canDo={canDo}
                               bomDefs={bomDefs} onStartProduction={handleStartProduction}
                               onRemoveRackMachine={handleRemoveRackMachine}
-                              onUpdateBOM={handleUpdateBOM} />,
+                              onUpdateBOM={handleUpdateBOM}
+                              handovers={handovers} settings={settings}
+                              onFinishTransfer={handleFinishTransfer}
+                              onAcceptHandover={handleAcceptHandover}
+                              onRegisterSignature={handleRegisterSignature}
+                              currentUser={currentUser}
+                              /* Phase B props */
+                              checklistTemplates={checklistTemplates}
+                              pendingHandoverItems={pendingHandoverItems}
+                              attachments={attachments}
+                              deptRatings={deptRatings}
+                              onUploadAttachment={handleUploadAttachment}
+                              onDeleteAttachment={handleDeleteAttachment}
+                              onResolvePendingItem={handleResolvePendingItem} />,
     vendors:   <VendorsPage   vendorList={vendorList} pos={pos} items={items}
                               onAddVendor={handleAddVendor} onEditVendor={handleEditVendor}
                               onDeleteVendor={handleDeleteVendor} onBulkAddVendors={handleBulkAddVendors} canDo={canDo} />,
     analytics: <AnalyticsPage items={items} pos={pos} vendorList={vendorList} settings={settings} />,
     ai:        <AIPage items={items} pos={pos} vendorList={vendorList} bomDefs={bomDefs} machineLog={machineLog} pendingLog={pendingLog} settings={settings} />,
     history:   <HistoryPage auditLog={auditLog} pos={pos} inwardLog={inwardLog} outwardLog={outwardLog} pendingLog={pendingLog} machineLog={machineLog} items={items} vendorList={vendorList} bomDefs={bomDefs} />,
-    settings:  <SettingsPage settings={settings} onSave={handleSaveSettings} isSuperAdmin={currentUser?.role === "super_admin"} />,
+    reports:   <ReportCenterPage
+                              machineLog={machineLog} handovers={handovers}
+                              pendingHandoverItems={pendingHandoverItems}
+                              deptRatings={deptRatings} attachments={attachments}
+                              checklistResponses={checklistResponses}
+                              bomDefs={bomDefs} settings={settings}
+                              outwardLog={outwardLog} inwardLog={inwardLog} pos={pos} items={items}
+                              canDo={canDo} />,
+    settings:  <SettingsPage settings={settings} onSave={handleSaveSettings} isSuperAdmin={currentUser?.role === "super_admin"} canDo={canDo} onRegisterSignature={handleRegisterSignature} currentUser={currentUser}
+                              checklistTemplates={checklistTemplates}
+                              onCreateChecklistTemplate={handleCreateChecklistTemplate}
+                              onUpdateChecklistTemplate={handleUpdateChecklistTemplate}
+                              onDeleteChecklistTemplate={handleDeleteChecklistTemplate} />,
     users:     <UserManagementPage canDo={canDo} />,
     roles:     <RoleManagementPage canDo={canDo} />,
     audit:     <AuditHistoryPage />,

@@ -5,7 +5,7 @@ import { getSupabase } from "../supabase/client.js";
 const LOCAL_KEY = "erp_machines";
 
 function toRow(m) {
-  return {
+  const base = {
     issue_id:        m.issueId || null,
     bom_key:         m.bomKey,
     bom_label:       m.bomLabel || null,
@@ -16,6 +16,13 @@ function toRow(m) {
     completed_date:  m.completedDate ? toIsoDate(m.completedDate) : null,
     history:         m.history || [],
   };
+  // Migration 021 columns — only set when the caller provided them so the
+  // isMissingColumnError retry path (see updateMachine below) still works
+  // against pre-021 schemas.
+  if (m.currentDepartment     !== undefined) base.current_department    = m.currentDepartment    || null;
+  if (m.departmentEnteredAt   !== undefined) base.department_entered_at = m.departmentEnteredAt  || null;
+  if (m.pendingHandoverId     !== undefined) base.pending_handover_id   = m.pendingHandoverId    || null;
+  return base;
 }
 function fromRow(r) {
   return {
@@ -29,7 +36,21 @@ function fromRow(r) {
     createdDate:    r.created_date   || "",
     completedDate:  r.completed_date || null,
     history:        Array.isArray(r.history) ? r.history : [],
+    // Migration 021 — nullable before backfill runs; the UI falls back to
+    // stage / createdDate when these are blank (see utils/handoverLogic).
+    currentDepartment:   r.current_department   || null,
+    departmentEnteredAt: r.department_entered_at || null,
+    pendingHandoverId:   r.pending_handover_id   || null,
   };
+}
+
+// Detects "column does not exist" / schema-cache errors so updateMachine
+// can retry without the migration-021 columns if the operator hasn't run
+// the migration yet. Same pattern as posStore / itemsStore.
+function isMissingColumnError(err) {
+  if (!err) return false;
+  if (err.code === "42703" || err.code === "PGRST204") return true;
+  return /column .* does not exist|schema cache|could not find the .* column/i.test(err.message || err.details || err.hint || "");
 }
 function toIsoDate(s) {
   if (!s) return null;
@@ -58,7 +79,16 @@ export async function createMachine(m) {
   console.info("[machines:create] start", { bomKey: m.bomKey, serialNo: m.serialNo });
   if (!isSupabaseEnabled()) { setLocal([m, ...getLocal()]); return { success: true, machine: m }; }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
-  const { data, error } = await c.from("machine_log").insert(toRow(m)).select().single();
+  const fullRow = toRow(m);
+  let { data, error } = await c.from("machine_log").insert(fullRow).select().single();
+  if (error && isMissingColumnError(error)) {
+    console.warn("[machines:create] migration 021 columns missing — retrying without current_department/department_entered_at/pending_handover_id");
+    const slim = { ...fullRow };
+    delete slim.current_department;
+    delete slim.department_entered_at;
+    delete slim.pending_handover_id;
+    ({ data, error } = await c.from("machine_log").insert(slim).select().single());
+  }
   if (error) { console.error("[machines:create] failed", error); return { success: false, error: error.message }; }
   console.info("[machines:create] ok");
   return { success: true, machine: fromRow(data) };
@@ -82,11 +112,23 @@ export async function updateMachine(id, updates) {
   if (!isSupabaseEnabled()) { setLocal(getLocal().map((m) => m.id === id ? { ...m, ...updates } : m)); return { success: true }; }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
   const row = {};
-  if (updates.stage         != null) row.stage          = updates.stage;
-  if (updates.status        != null) row.status         = updates.status;
-  if (updates.completedDate != null) row.completed_date = toIsoDate(updates.completedDate);
-  if (updates.history       != null) row.history        = updates.history;
-  const { error } = await c.from("machine_log").update(row).eq("id", id);
+  if (updates.stage              != null) row.stage          = updates.stage;
+  if (updates.status             != null) row.status         = updates.status;
+  if (updates.completedDate      != null) row.completed_date = toIsoDate(updates.completedDate);
+  if (updates.history            != null) row.history        = updates.history;
+  // Migration 021 columns (optional)
+  if (updates.currentDepartment     !== undefined) row.current_department    = updates.currentDepartment    || null;
+  if (updates.departmentEnteredAt   !== undefined) row.department_entered_at = updates.departmentEnteredAt  || null;
+  if (updates.pendingHandoverId     !== undefined) row.pending_handover_id   = updates.pendingHandoverId;    // may be null to clear
+
+  let { error } = await c.from("machine_log").update(row).eq("id", id);
+  if (error && isMissingColumnError(error)) {
+    console.warn("[machines:update] migration 021 columns missing — retrying without current_department/department_entered_at/pending_handover_id");
+    delete row.current_department;
+    delete row.department_entered_at;
+    delete row.pending_handover_id;
+    ({ error } = await c.from("machine_log").update(row).eq("id", id));
+  }
   if (error) { console.error("[machines:update] failed", error); return { success: false, error: error.message }; }
   console.info("[machines:update] ok");
   return { success: true };

@@ -117,6 +117,19 @@ const APP_HANDLERS = [
   "handleSaveSettings",
   "handleConfirmOrder",
   "handleFollowUpDone",
+
+  // Phase A — Department Workflow
+  "handleFinishTransfer",
+  "handleAcceptHandover",
+  "handleRegisterSignature",
+  // Phase B — Checklists / Pending items / Attachments / Ratings
+  "handleCreateChecklistTemplate",
+  "handleUpdateChecklistTemplate",
+  "handleDeleteChecklistTemplate",
+  "handleResolvePendingItem",
+  "handleUploadAttachment",
+  "handleDeleteAttachment",
+  "handleOverrideRating",
 ];
 
 for (const name of APP_HANDLERS) {
@@ -150,6 +163,16 @@ const PAGE_COMPONENTS = [
   "ItemDetailModal",
   "POModal",
   "POSearchCenter",
+
+  // Phase A — Signature Pad component (module-scope). Protects against the
+  // Finish & Transfer / Accept modals losing their signature capture surface.
+  "SignaturePad",
+  // Phase B / Phase C
+  "AttachmentLink",
+  "ChecklistAdminPanel",
+  "ReportCenterPage",
+  "ReportKPI",
+  "ReportTable",
 ];
 
 for (const name of PAGE_COMPONENTS) {
@@ -193,6 +216,14 @@ const AUDIT_EVENT_TYPES = [
   // company settings changes now emit audit events too.
   "item_created", "item_updated", "item_deleted",
   "settings_updated",
+  // Phase A — Department Workflow handover events.
+  "handover_sent", "handover_accepted", "handover_overrun_narrated",
+  "signature_registered",
+  // Phase B — checklists / pending items / attachments / ratings
+  "checklist_submitted", "checklist_template_created", "checklist_template_updated", "checklist_template_deleted",
+  "pending_item_raised", "pending_item_resolved",
+  "attachment_uploaded", "attachment_deleted",
+  "department_rated", "rating_overridden",
 ];
 
 for (const type of AUDIT_EVENT_TYPES) {
@@ -228,6 +259,28 @@ const USER_FACING_STRINGS = [
 
   // Build marker (keeps post-deploy verification working)
   "APP_BUILD",
+
+  // Phase A — Department Workflow
+  "Finish & Transfer",
+  "Awaiting accept",
+  "Accept into",
+  "Department Workflow",
+  "Accept timeout",
+  "Explanation required",
+  // Phase B — Checklists / Pending items / Attachments / Ratings
+  "Department Checklists",
+  "Pending Handover Items",
+  "Attachments",
+  "Mark resolved",
+  "Customer Progress Report",
+  // Phase C — Report Center
+  "Report Center",
+  "Delay-wise",
+  "HOLD-wise",
+  "Pending-wise",
+  "Rating-wise",
+  "Factory",
+  "Save as PDF",
 ];
 
 for (const s of USER_FACING_STRINGS) {
@@ -260,6 +313,14 @@ const STORE_SURFACE = [
   { file: "followupsStore.js", exports: ["fetchFollowUps", "createFollowUp", "updateFollowUp", "deleteFollowUpsByPO"] },
   // settingsStore
   { file: "settingsStore.js", exports: ["loadSettings", "saveSettings"] },
+  // Phase A stores
+  { file: "handoverStore.js",   exports: ["fetchHandovers", "fetchPendingHandovers", "createHandover", "acceptHandover", "cancelHandover"] },
+  { file: "signaturesStore.js", exports: ["getMySignature", "saveMySignature", "reauthenticateByPassword"] },
+  // Phase B stores
+  { file: "checklistsStore.js",   exports: ["fetchTemplates", "createTemplate", "updateTemplate", "deleteTemplate", "fetchResponses", "createResponse"] },
+  { file: "pendingItemsStore.js", exports: ["fetchPendingItems", "createPendingItem", "resolvePendingItem"] },
+  { file: "attachmentsStore.js",  exports: ["fetchAllAttachments", "fetchAttachmentsForMachine", "uploadAttachment", "signedUrlFor", "deleteAttachment", "inferKind"] },
+  { file: "ratingsStore.js",      exports: ["fetchRatings", "createRating", "overrideRating"] },
 ];
 
 for (const { file, exports: names } of STORE_SURFACE) {

@@ -8,12 +8,14 @@ export const checkPassword = (pw, hash) => hashPassword(pw) === hash;
 export const DEFAULT_ROLES = {
   Admin: {
     label: "Admin", icon: "👑", color: "#6366f1", badge: "Full Access",
-    pages: ["dashboard","inventory","inward","outward","pending","pipeline","machines","vendors","analytics","ai","history","audit","settings","users","roles"],
+    pages: ["dashboard","inventory","inward","outward","pending","pipeline","machines","vendors","analytics","ai","history","reports","audit","settings","users","roles"],
     actions: {
       inventory: { add: true,  edit: true,  delete: true,  adjust: true  },
       pipeline:  { create: true,  approve: true,  reject: true,  ordered: true,  receive: true,  delete: true  },
       outward:   { bom: true,  manual: true,  editBOM: true  },
-      machines:  { updateStage: true  },
+      // Phase A: finishTransfer + accept + configDept are additive; existing
+      // updateStage callers continue to work.
+      machines:  { updateStage: true,  finishTransfer: true,  accept: true,  configDept: true },
       vendors:   { add: true,  edit: true,  delete: true  },
       inward:    { submit: true  },
       pending:   { fulfill: true,  clear: true  },
@@ -23,12 +25,12 @@ export const DEFAULT_ROLES = {
   },
   "Purchase Manager": {
     label: "Purchase Manager", icon: "🛒", color: "#3b82f6", badge: "Purchase",
-    pages: ["dashboard","inventory","inward","pipeline","vendors","history","analytics"],
+    pages: ["dashboard","inventory","inward","pipeline","vendors","history","reports","analytics"],
     actions: {
       inventory: { add: false, edit: false, delete: false, adjust: false },
       pipeline:  { create: true,  approve: true,  reject: true,  ordered: true,  receive: true,  delete: false },
       outward:   { bom: false, manual: false, editBOM: false },
-      machines:  { updateStage: false },
+      machines:  { updateStage: false, finishTransfer: false, accept: false, configDept: false },
       vendors:   { add: false, edit: false, delete: false },
       inward:    { submit: true  },
       pending:   { fulfill: false, clear: false },
@@ -38,12 +40,15 @@ export const DEFAULT_ROLES = {
   },
   "Store Manager": {
     label: "Store Manager", icon: "📦", color: "#22c55e", badge: "Store",
-    pages: ["dashboard","inventory","inward","outward","pending","machines","history"],
+    pages: ["dashboard","inventory","inward","outward","pending","machines","history","reports"],
     actions: {
       inventory: { add: false, edit: false, delete: false, adjust: true  },
       pipeline:  { create: false, approve: false, reject: false, ordered: false, receive: false, delete: false },
       outward:   { bom: true,  manual: true,  editBOM: false },
-      machines:  { updateStage: true  },
+      // Phase A auto-map (design doc §5.5 / §12.2): anyone who currently has
+      // updateStage keeps finishTransfer + accept so capability is preserved.
+      // configDept stays admin-only.
+      machines:  { updateStage: true,  finishTransfer: true,  accept: true,  configDept: false },
       vendors:   { add: false, edit: false, delete: false },
       inward:    { submit: true  },
       pending:   { fulfill: true,  clear: true  },
@@ -53,12 +58,12 @@ export const DEFAULT_ROLES = {
   },
   Production: {
     label: "Production", icon: "🔧", color: "#f59e0b", badge: "Production",
-    pages: ["dashboard","inventory","outward","pending","machines","history"],
+    pages: ["dashboard","inventory","outward","pending","machines","history","reports"],
     actions: {
       inventory: { add: false, edit: false, delete: false, adjust: false },
       pipeline:  { create: false, approve: false, reject: false, ordered: false, receive: false, delete: false },
       outward:   { bom: true,  manual: false, editBOM: false },
-      machines:  { updateStage: true  },
+      machines:  { updateStage: true,  finishTransfer: true,  accept: true,  configDept: false },
       vendors:   { add: false, edit: false, delete: false },
       inward:    { submit: false },
       pending:   { fulfill: true,  clear: false },
