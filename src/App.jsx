@@ -5859,7 +5859,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
     { id: "company",       label: "🏭 Company",        desc: "Multiple companies + active selection" },
     { id: "po",            label: "🧾 Purchase Order", desc: "Template, T&C, declaration" },
     { id: "inventory",     label: "📦 Inventory",      desc: "Currency + low-stock rules" },
-    { id: "department",    label: "🔧 Department Workflow", desc: "Per-dept duration + accept timeout" },
+    { id: "department",    label: "🔧 Department Workflow Settings", desc: "Per-dept time limits + accept timeout" },
     { id: "checklists",    label: "📋 Department Checklists", desc: "Admin-managed per-department checklists" },
     { id: "notifications", label: "🔔 Notifications",  desc: "WhatsApp / email alerts" },
     { id: "data",          label: "💾 Data & Backup",  desc: "Export + backup" },
@@ -5972,40 +5972,92 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
           const canConfig = canConfigureDept(canDo);
           const DEPTS = ["Assembly", "Mechanical", "Electrical", "Trial"];
           return (
-            <Section icon="🔧" title="Department Workflow">
+            <Section icon="🔧" title="Department Workflow Settings">
               {!canConfig && (
                 <div className="mb-4 px-3 py-2 rounded-lg text-[11px]"
                      style={{ background: "rgba(249,115,22,0.08)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.3)" }}>
                   You can view these settings but not change them. Admin role required.
                 </div>
               )}
-              <div className="space-y-5">
-                <div>
-                  <SLabel text="Accept timeout (minutes)" hint="A handover not accepted within this window shows as OVERDUE / HOLD in Machine Tracker and reports." />
-                  <input type="number" min="0" step="1"
-                         value={current.accept_timeout_minutes}
-                         disabled={!canConfig}
-                         onChange={(e) => commitWorkflow({ accept_timeout_minutes: parseInt(e.target.value, 10) || 0 })}
-                         className="w-40 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
-                  <div className="text-[10px] text-slate-500 mt-1">Default 120 min = 2 hours.</div>
+              {canConfig && isDirty && !saved && (
+                <div className="mb-4 px-3 py-2 rounded-lg text-[11px] font-semibold"
+                     style={{ background: "rgba(249,115,22,0.10)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.4)" }}>
+                  ● Unsaved changes — click <strong>💾 Save Changes</strong> at the top to apply.
                 </div>
+              )}
+              <div className="space-y-6">
+                {/* ── Acceptance timeout (separate from per-dept work duration) ── */}
+                <div className="rounded-lg p-3" style={{ background: "rgba(59,130,246,0.04)", border: "1px solid rgba(59,130,246,0.2)" }}>
+                  <SLabel text="Acceptance timeout (receiving dept)" hint="A handover not accepted within this window shows as OVERDUE / HOLD in Machine Tracker and reports. Separate from the department's work-duration limit." />
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input type="number" min="0" step="1"
+                           value={Math.floor(current.accept_timeout_minutes / 60)}
+                           disabled={!canConfig}
+                           onChange={(e) => {
+                             const h = Math.max(0, parseInt(e.target.value, 10) || 0);
+                             const rem = current.accept_timeout_minutes % 60;
+                             commitWorkflow({ accept_timeout_minutes: h * 60 + rem });
+                           }}
+                           className="w-20 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                    <span className="text-[11px] text-slate-400">hours</span>
+                    <input type="number" min="0" max="59" step="1"
+                           value={current.accept_timeout_minutes % 60}
+                           disabled={!canConfig}
+                           onChange={(e) => {
+                             const m = Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0));
+                             const h = Math.floor(current.accept_timeout_minutes / 60);
+                             commitWorkflow({ accept_timeout_minutes: h * 60 + m });
+                           }}
+                           className="w-20 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                    <span className="text-[11px] text-slate-400">minutes</span>
+                    <span className="text-[11px] text-slate-500 ml-2">= {current.accept_timeout_minutes} min total · default 2 hours</span>
+                  </div>
+                </div>
+
+                {/* ── Per-department work-duration limits (hours/days entry) ── */}
                 <div>
-                  <SLabel text="Per-department work duration (minutes)" hint="If a department exceeds its duration, the operator must enter an explanation on Finish & Transfer." />
-                  <div className="space-y-2 mt-2">
+                  <SLabel text="Per-department work time limits" hint="Admin-customizable duration for each department. If a department exceeds its limit, the operator must enter an explanation on Finish & Transfer." />
+                  <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <div className="grid grid-cols-5 gap-2 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-500" style={{ background: "rgba(255,255,255,0.03)" }}>
+                      <div>Department</div>
+                      <div>Days</div>
+                      <div>Hours</div>
+                      <div>Minutes</div>
+                      <div>Saved value</div>
+                    </div>
                     {DEPTS.map((d) => {
                       const mins = (current.dept_durations[d]?.minutes) ?? 0;
+                      const days = Math.floor(mins / (24 * 60));
+                      const hours = Math.floor((mins % (24 * 60)) / 60);
+                      const minutes = mins % 60;
+                      const setMinutes = (newMins) => commitWorkflow({ dept_durations: { [d]: { minutes: Math.max(0, newMins) } } });
                       return (
-                        <div key={d} className="flex items-center gap-3 flex-wrap">
-                          <div className="w-24 text-[12px] font-semibold text-slate-300">{d}</div>
-                          <input type="number" min="0" step="1" value={mins} disabled={!canConfig}
-                                 onChange={(e) => commitWorkflow({ dept_durations: { [d]: { minutes: parseInt(e.target.value, 10) || 0 } } })}
-                                 className="w-32 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
-                          <span className="text-[11px] text-slate-500">≈ {formatDuration(mins)}</span>
+                        <div key={d} className="grid grid-cols-5 gap-2 px-3 py-2 items-center border-t border-white/[0.05]">
+                          <div className="text-[12px] font-semibold text-slate-200">{d}</div>
+                          <input type="number" min="0" step="1" value={days} disabled={!canConfig}
+                                 onChange={(e) => {
+                                   const nd = Math.max(0, parseInt(e.target.value, 10) || 0);
+                                   setMinutes(nd * 24 * 60 + hours * 60 + minutes);
+                                 }}
+                                 className="w-20 bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                          <input type="number" min="0" max="23" step="1" value={hours} disabled={!canConfig}
+                                 onChange={(e) => {
+                                   const nh = Math.max(0, Math.min(23, parseInt(e.target.value, 10) || 0));
+                                   setMinutes(days * 24 * 60 + nh * 60 + minutes);
+                                 }}
+                                 className="w-20 bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                          <input type="number" min="0" max="59" step="1" value={minutes} disabled={!canConfig}
+                                 onChange={(e) => {
+                                   const nm = Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0));
+                                   setMinutes(days * 24 * 60 + hours * 60 + nm);
+                                 }}
+                                 className="w-20 bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                          <div className="text-[11px] text-slate-400 font-mono">{mins} min · {formatDuration(mins)}</div>
                         </div>
                       );
                     })}
                   </div>
-                  <div className="text-[10px] text-slate-500 mt-2">Durations are stored at the time of each handover, so changing them here does NOT retroactively re-flag past transfers.</div>
+                  <div className="text-[10px] text-slate-500 mt-2">Durations are stored at the time of each handover, so changing them here does NOT retroactively re-flag past transfers. Defaults: Assembly 2d · Mechanical 2d · Electrical 1d · Trial 8h.</div>
                 </div>
                 {onRegisterSignature && currentUser && (
                   <div className="pt-5 border-t border-white/[0.05]">
