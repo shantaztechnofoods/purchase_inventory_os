@@ -5632,6 +5632,14 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
   const addItem = () => setEditing((e) => e && ({ ...e, items: [...e.items, { id: `i${Date.now()}`, label: "", required: false }] }));
   const removeItem = (idx) => setEditing((e) => e && ({ ...e, items: e.items.filter((_, i) => i !== idx) }));
   const patchItem = (idx, patch) => setEditing((e) => e && ({ ...e, items: e.items.map((it, i) => i === idx ? { ...it, ...patch } : it) }));
+  const moveItem = (idx, dir) => setEditing((e) => {
+    if (!e) return e;
+    const items = [...e.items];
+    const target = idx + dir;
+    if (target < 0 || target >= items.length) return e;
+    [items[idx], items[target]] = [items[target], items[idx]];
+    return { ...e, items };
+  });
 
   const save = async () => {
     if (!editing) return;
@@ -5671,7 +5679,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
           <button onClick={() => start(null)}
                   className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg"
                   style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 10px rgba(37,99,235,0.3)" }}>
-            + New template
+            + Add Checklist
           </button>
         )}
       </div>
@@ -5719,24 +5727,36 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
           </div>
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <div className="text-[11px] font-semibold text-slate-300">Checklist items</div>
-              {canConfig && <button onClick={addItem} className="text-[10px] font-bold text-blue-300">+ Add item</button>}
+              <div className="text-[11px] font-semibold text-slate-300">Checklist Questions</div>
+              {canConfig && <button onClick={addItem} className="text-[10px] font-bold text-blue-300 hover:text-blue-200 px-2 py-0.5 rounded border border-blue-500/30 bg-blue-500/10">+ Add Question</button>}
             </div>
             <div className="space-y-2">
               {editing.items.length === 0 && (
-                <div className="text-[10px] text-slate-500 italic">No items yet.</div>
+                <div className="text-[10px] text-slate-500 italic">No questions yet. Click "+ Add Question" to start.</div>
               )}
               {editing.items.map((it, i) => (
                 <div key={it.id || i} className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-500 font-mono w-5 text-right">{i + 1}.</span>
                   <input type="text" value={it.label || ""}
                          onChange={(e) => patchItem(i, { label: e.target.value })}
-                         disabled={!canConfig} placeholder="Checklist item label"
+                         disabled={!canConfig} placeholder="Question text (e.g. Bolts torqued correctly)"
                          className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-[11px] text-white outline-none focus:border-blue-500/40" />
                   <label className="text-[10px] text-slate-400 flex items-center gap-1">
                     <input type="checkbox" checked={!!it.required} onChange={(e) => patchItem(i, { required: e.target.checked })} disabled={!canConfig} />
                     required
                   </label>
-                  {canConfig && <button onClick={() => removeItem(i)} className="text-[11px] text-slate-500 hover:text-red-400">×</button>}
+                  {canConfig && (
+                    <>
+                      <button type="button" onClick={() => moveItem(i, -1)} disabled={i === 0}
+                              title="Move up"
+                              className="text-[11px] text-slate-500 hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed px-1">↑</button>
+                      <button type="button" onClick={() => moveItem(i, +1)} disabled={i === editing.items.length - 1}
+                              title="Move down"
+                              className="text-[11px] text-slate-500 hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed px-1">↓</button>
+                      <button type="button" onClick={() => removeItem(i)} title="Remove question"
+                              className="text-[11px] text-slate-500 hover:text-red-400 px-1">×</button>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -5752,7 +5772,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
             </button>
             {canConfig && (
               <button onClick={save} disabled={busy} className="text-[11px] font-black text-white px-4 py-1.5 rounded-lg disabled:opacity-50" style={{ background: "linear-gradient(135deg,#16a34a,#15803d)" }}>
-                {busy ? "⏳ Saving…" : (editing.id ? "Save changes" : "Create template")}
+                {busy ? "⏳ Saving…" : "Save Checklist"}
               </button>
             )}
           </div>
@@ -9762,7 +9782,20 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   const started   = machineLog.filter((m) => m.stage !== "BOM Issued");
   const active    = started.filter((m) => m.status !== "completed");
   const completed = started.filter((m) => m.status === "completed");
-  const filtered  = filter === "active" ? active : filter === "completed" ? completed : started;
+  // Phase A/B status filters: Pending Acceptance (any machine with pending
+  // handover) and On HOLD (pending handover past the accept timeout). Both
+  // read from live state; recomputed with every minute tick (nowTick).
+  const machineHandover = (m) => (handovers || []).find((h) => h.id === m.pendingHandoverId && h.status === "pending");
+  const pendingAccept   = started.filter((m) => !!machineHandover(m));
+  const onHold          = started.filter((m) => {
+    const h = machineHandover(m);
+    return h && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
+  });
+  const filtered  = filter === "active" ? active
+                   : filter === "completed" ? completed
+                   : filter === "pendingAccept" ? pendingAccept
+                   : filter === "hold" ? onHold
+                   : started;
 
   const stageIdx = (s) => MACHINE_STAGES.indexOf(s);
 
@@ -9860,49 +9893,74 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
       <div className="p-6 space-y-5">
 
-        {/* ── Phase A — Pending Handovers banner (awaiting acceptance) ── */}
+        {/* ── Pending Acceptance section (prominent, top-of-page) ──
+            Factory staff see this before any other list. Shows machines
+            waiting to be accepted into the receiving department, with a
+            large "Accept Machine" button for authorized operators and
+            visible countdown to the 2-hour acceptance deadline. */}
         {pendingHandovers.length > 0 && (
-          <div className="rounded-xl p-4"
-               style={{ background: "rgba(249,115,22,0.06)", border: `1px solid ${overdueHandovers.length ? "rgba(239,68,68,0.4)" : "rgba(249,115,22,0.3)"}` }}>
-            <div className="flex items-center gap-3 mb-3 flex-wrap">
-              <div className="text-sm font-black text-orange-300">⏳ {pendingHandovers.length} handover{pendingHandovers.length === 1 ? "" : "s"} waiting for acceptance</div>
+          <div className="rounded-2xl p-5"
+               style={{ background: "linear-gradient(135deg,rgba(249,115,22,0.08),rgba(234,88,12,0.03))", border: `2px solid ${overdueHandovers.length ? "rgba(239,68,68,0.55)" : "rgba(249,115,22,0.45)"}`, boxShadow: overdueHandovers.length ? "0 0 24px rgba(239,68,68,0.15)" : "0 0 16px rgba(249,115,22,0.1)" }}>
+            <div className="flex items-center gap-4 mb-4 flex-wrap">
+              <div className="flex items-baseline gap-3">
+                <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-orange-400">Pending Acceptance</div>
+                <div className="text-4xl font-black" style={{ color: overdueHandovers.length ? "#f87171" : "#fb923c" }}>{pendingHandovers.length}</div>
+                <div className="text-[11px] text-slate-400">machine{pendingHandovers.length === 1 ? "" : "s"} waiting for the next department</div>
+              </div>
               {overdueHandovers.length > 0 && (
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full"
-                      style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.4)" }}>
-                  ⚠ {overdueHandovers.length} OVERDUE (HOLD)
+                <span className="text-[11px] font-black px-3 py-1 rounded-full"
+                      style={{ background: "rgba(239,68,68,0.2)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.5)" }}>
+                  🚦 {overdueHandovers.length} ON HOLD
                 </span>
               )}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {pendingHandovers.map((h) => {
                 const sentMin   = Math.max(0, Math.floor((nowTick - Date.parse(h.sentAt)) / 60000));
                 const overdue   = isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
                 const heldMin   = heldMinutes(h.sentAt, h.acceptTimeoutMinutes, nowTick);
+                const minsLeft  = (h.acceptTimeoutMinutes || 0) - sentMin;
+                const approaching = !overdue && minsLeft >= 0 && minsLeft <= 15;   // within 15 min of deadline
                 const canAccept = canAcceptHandover(canDo, h.toDepartment);
+                const statusLabel = overdue    ? { text: "🚦 ON HOLD",        color: "#f87171", bg: "rgba(239,68,68,0.18)",  bd: "rgba(239,68,68,0.5)"  }
+                                   : approaching ? { text: "⚠ Deadline Soon",  color: "#fcd34d", bg: "rgba(234,179,8,0.18)",  bd: "rgba(234,179,8,0.5)"  }
+                                   :              { text: "⏳ Awaiting Accept", color: "#fdba74", bg: "rgba(249,115,22,0.14)", bd: "rgba(249,115,22,0.4)" };
                 return (
                   <div key={h.id}
-                       className="flex items-center gap-3 flex-wrap rounded-lg px-3 py-2"
-                       style={{ background: overdue ? "rgba(239,68,68,0.07)" : "rgba(255,255,255,0.03)", border: `1px solid ${overdue ? "rgba(239,68,68,0.3)" : "rgba(255,255,255,0.08)"}` }}>
+                       className="flex items-center gap-4 flex-wrap rounded-xl px-4 py-3"
+                       style={{ background: overdue ? "rgba(239,68,68,0.08)" : "rgba(255,255,255,0.04)", border: `1px solid ${overdue ? "rgba(239,68,68,0.35)" : "rgba(255,255,255,0.1)"}` }}>
                     <div className="min-w-0 flex-1">
-                      <div className="text-[12px] font-bold text-white">
-                        {h.bomKey}{h.serialNo ? <span className="text-blue-300 font-mono"> · S/N {h.serialNo}</span> : null}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[14px] font-black text-white">{h.bomKey}</span>
+                        {h.serialNo && <span className="text-[12px] text-blue-300 font-mono">S/N {h.serialNo}</span>}
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full"
+                              style={{ background: statusLabel.bg, color: statusLabel.color, border: `1px solid ${statusLabel.bd}` }}>
+                          {statusLabel.text}
+                        </span>
                       </div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">
-                        {h.fromDepartment} → <span className="font-bold text-orange-300">{h.toDepartment}</span>
+                      <div className="text-[11px] text-slate-400 mt-1">
+                        <span className="font-semibold text-slate-300">{h.fromDepartment}</span>
+                        <span className="mx-1.5 text-slate-500">→</span>
+                        <span className="font-bold text-orange-300">{h.toDepartment}</span>
                         <span className="text-slate-500 ml-2">· sent {formatDuration(sentMin)} ago</span>
-                        {overdue && <span className="text-red-400 font-bold ml-2">· HOLD {formatDuration(heldMin)}</span>}
-                        {h.overrunMinutes > 0 && <span className="text-yellow-300 ml-2">· overrun {formatDuration(h.overrunMinutes)}</span>}
+                        {overdue && <span className="text-red-400 font-bold ml-2">· HOLD for {formatDuration(heldMin)}</span>}
+                        {approaching && <span className="text-yellow-300 font-bold ml-2">· {minsLeft} min to deadline</span>}
+                        {h.overrunMinutes > 0 && <span className="text-yellow-300 ml-2">· work overrun {formatDuration(h.overrunMinutes)}</span>}
                       </div>
                       {h.overrunNarration && (
-                        <div className="text-[10px] text-slate-300 mt-1 italic">"{h.overrunNarration}"</div>
+                        <div className="text-[11px] text-slate-300 mt-1.5 italic">"{h.overrunNarration}"</div>
                       )}
                     </div>
-                    {canAccept && onAcceptHandover && (
+                    {canAccept && onAcceptHandover ? (
                       <button onClick={() => openAcceptModal(h)}
-                              className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg"
-                              style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 10px rgba(34,197,94,0.25)" }}>
-                        Accept →
+                              className="text-[12px] font-black text-white px-5 py-2.5 rounded-xl transition-all hover:scale-105"
+                              style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 4px 14px rgba(34,197,94,0.35)", minWidth: 160 }}>
+                        ✓ Accept Machine
                       </button>
+                    ) : (
+                      <span className="text-[10px] text-slate-500 italic px-2 py-1">
+                        {!canAccept ? `Only ${h.toDepartment} role can accept` : "Accept action unavailable"}
+                      </span>
                     )}
                   </div>
                 );
@@ -10067,14 +10125,41 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           )}
         </div>
 
-        {/* ── Filter tabs ── */}
-        <div className="flex items-center gap-2">
-          {[["active","Active Builds"], ["completed","Completed"], ["all","All Machines"]].map(([key, label]) => (
-            <button key={key} onClick={() => setFilter(key)}
-                    className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${filter === key ? "bg-blue-500/15 text-blue-400 border-blue-500/30" : "text-slate-500 border-white/[0.08] hover:text-slate-300"}`}>
-              {label} ({key === "active" ? active.length : key === "completed" ? completed.length : started.length})
-            </button>
-          ))}
+        {/* ── Filter tabs — now include quick HOLD and Pending-Acceptance filters.
+            Pending Acceptance / HOLD counts come from the handovers state so
+            factory staff see at a glance how many machines need attention. */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {(() => {
+            const machinesPendingAccept = started.filter((m) => !!m.pendingHandoverId);
+            const machinesOnHold = started.filter((m) => {
+              if (!m.pendingHandoverId) return false;
+              const h = (handovers || []).find((x) => x.id === m.pendingHandoverId);
+              return h && h.status === "pending" && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
+            });
+            const tabs = [
+              { key: "active",    label: "Active Builds", count: active.length,   color: "orange" },
+              { key: "pendingAccept", label: "Pending Acceptance", count: machinesPendingAccept.length, color: "yellow" },
+              { key: "hold",      label: "On HOLD",       count: machinesOnHold.length,  color: "red" },
+              { key: "completed", label: "Completed",     count: completed.length, color: "green" },
+              { key: "all",       label: "All Machines",  count: started.length,   color: "blue" },
+            ];
+            return tabs.map((t) => {
+              const sel = filter === t.key;
+              const palette = {
+                orange: { sel: "bg-orange-500/15 text-orange-300 border-orange-500/40", count: "text-orange-400" },
+                yellow: { sel: "bg-yellow-500/15 text-yellow-300 border-yellow-500/40", count: "text-yellow-400" },
+                red:    { sel: "bg-red-500/15 text-red-300 border-red-500/40",       count: "text-red-400"    },
+                green:  { sel: "bg-green-500/15 text-green-300 border-green-500/40", count: "text-green-400"  },
+                blue:   { sel: "bg-blue-500/15 text-blue-300 border-blue-500/40",    count: "text-blue-400"   },
+              }[t.color];
+              return (
+                <button key={t.key} onClick={() => setFilter(t.key)}
+                        className={`text-[12px] font-bold px-3.5 py-2 rounded-lg border transition-all ${sel ? palette.sel : "text-slate-500 border-white/[0.08] hover:text-slate-300"}`}>
+                  {t.label} <span className={sel ? "font-black" : palette.count + " font-black"}>({t.count})</span>
+                </button>
+              );
+            });
+          })()}
         </div>
 
         {/* ── Empty state ── */}
@@ -10217,12 +10302,21 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           Finish & Transfer →
                         </button>
                       )}
-                      {machine.pendingHandoverId && (
-                        <span className="text-[10px] font-black px-2 py-1 rounded-lg"
-                              style={{ background: "rgba(249,115,22,0.12)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.35)" }}>
-                          ⏳ Awaiting accept
-                        </span>
-                      )}
+                      {machine.pendingHandoverId && (() => {
+                        const h = (handovers || []).find((x) => x.id === machine.pendingHandoverId && x.status === "pending");
+                        const machineOverdue = h && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
+                        return machineOverdue ? (
+                          <span className="text-[10px] font-black px-2 py-1 rounded-lg"
+                                style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.45)" }}>
+                            🚦 ON HOLD
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-black px-2 py-1 rounded-lg"
+                                style={{ background: "rgba(249,115,22,0.12)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.35)" }}>
+                            ⏳ Awaiting accept
+                          </span>
+                        );
+                      })()}
                       <button onClick={() => setExpanded(isExpanded ? null : machine.id)}
                               className="text-[10px] font-bold text-slate-500 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-white/[0.07] hover:border-white/20 transition-all">
                         {isExpanded ? "Hide" : "History"}

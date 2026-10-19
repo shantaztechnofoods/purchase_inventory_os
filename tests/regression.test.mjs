@@ -274,6 +274,15 @@ const USER_FACING_STRINGS = [
   "Attachments",
   "Mark resolved",
   "Customer Progress Report",
+  // Machine Tracker UX pass
+  "Pending Acceptance",
+  "Accept Machine",
+  "ON HOLD",
+  "On HOLD",
+  "Add Checklist",
+  "Add Question",
+  "Save Checklist",
+  "Checklist Questions",
   // Phase C — Report Center
   "Report Center",
   "Delay-wise",
