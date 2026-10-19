@@ -55,6 +55,22 @@ test("readDeptWorkflowSettings falls back to defaults when key is absent", () =>
   assert.deepEqual(r.dept_durations, DEFAULT_DEPT_DURATIONS);
 });
 
+test("readDeptWorkflowSettings: require_password_at_accept defaults to false (easier-ops UX)", () => {
+  const r = readDeptWorkflowSettings({});
+  assert.equal(r.require_password_at_accept, false);
+});
+
+test("readDeptWorkflowSettings: require_password_at_accept reflects explicit true", () => {
+  const r = readDeptWorkflowSettings({ department_workflow: { require_password_at_accept: true } });
+  assert.equal(r.require_password_at_accept, true);
+});
+
+test("readDeptWorkflowSettings: non-boolean require_password_at_accept falls back to default", () => {
+  const r = readDeptWorkflowSettings({ department_workflow: { require_password_at_accept: "yes" } });
+  // Only explicit boolean counts; strings / numbers / null → default (false)
+  assert.equal(r.require_password_at_accept, false);
+});
+
 test("readDeptWorkflowSettings merges partial overrides on top of defaults", () => {
   const r = readDeptWorkflowSettings({
     department_workflow: {

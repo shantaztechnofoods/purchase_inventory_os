@@ -22,6 +22,12 @@ export const DEFAULT_DEPT_DURATIONS = Object.freeze({
   "Trial":      { minutes: 8 * 60 },        // 8 hours
 });
 export const DEFAULT_ACCEPT_TIMEOUT_MINUTES = 120; // 2 hours
+// Password re-auth at Accept is OFF by default per 2026-10-19 UX pass:
+// routine machine acceptance should be a single-click confirmation for
+// non-technical operators. Authenticated session + role check + saved
+// signature + audit log remain the proof chain. Admins can re-enable
+// via the Department Workflow Settings toggle.
+export const DEFAULT_REQUIRE_PASSWORD_AT_ACCEPT = false;
 
 // Settings shape for the JSONB key. Merged against defaults on read so new
 // departments added in the future don't break historical rows.
@@ -31,7 +37,14 @@ export function readDeptWorkflowSettings(settings) {
   const timeout   = Number.isFinite(raw.accept_timeout_minutes) && raw.accept_timeout_minutes >= 0
     ? raw.accept_timeout_minutes
     : DEFAULT_ACCEPT_TIMEOUT_MINUTES;
-  return { dept_durations: durations, accept_timeout_minutes: timeout };
+  const requirePwd = typeof raw.require_password_at_accept === "boolean"
+    ? raw.require_password_at_accept
+    : DEFAULT_REQUIRE_PASSWORD_AT_ACCEPT;
+  return {
+    dept_durations: durations,
+    accept_timeout_minutes: timeout,
+    require_password_at_accept: requirePwd,
+  };
 }
 
 export function writeDeptWorkflowSettings(prev, next) {
@@ -42,9 +55,14 @@ export function writeDeptWorkflowSettings(prev, next) {
     dept_durations[dept] = { minutes: m };
   }
   const accept_timeout_minutes = Math.max(0, Math.floor(Number(next.accept_timeout_minutes) || 0));
+  const require_password_at_accept = next.require_password_at_accept === true;
   return {
     ...(prev || {}),
-    department_workflow: { dept_durations, accept_timeout_minutes },
+    department_workflow: {
+      dept_durations,
+      accept_timeout_minutes,
+      require_password_at_accept,
+    },
   };
 }
 

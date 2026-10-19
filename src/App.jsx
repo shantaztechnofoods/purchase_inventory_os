@@ -5627,6 +5627,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
   const [editing, setEditing] = useState(null); // { id?, department, name, items, active }
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [preview, setPreview] = useState(false);  // Preview-mode toggle for the editor
 
   const start = (tpl) => setEditing(tpl ? { ...tpl, items: Array.isArray(tpl.items) ? tpl.items : [] } : { department: "Assembly", name: "", items: [], active: true });
   const addItem = () => setEditing((e) => e && ({ ...e, items: [...e.items, { id: `i${Date.now()}`, label: "", required: false }] }));
@@ -5761,13 +5762,35 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
               ))}
             </div>
           </div>
+          {preview && (
+            <div className="rounded-lg p-3" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.3)" }}>
+              <div className="text-[10px] font-bold text-blue-300 uppercase tracking-wide mb-2">Preview — how operators will see this during Finish &amp; Transfer</div>
+              <div className="space-y-2">
+                {editing.items.length === 0 && <div className="text-[11px] text-slate-500 italic">Add at least one question to preview.</div>}
+                {editing.items.map((it, i) => (
+                  <div key={i} className="rounded-md px-2 py-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <label className="flex items-start gap-2">
+                      <input type="checkbox" disabled className="mt-0.5" />
+                      <span className="text-[12px] text-slate-200 flex-1">{it.label || <em className="text-slate-500">(empty question)</em>}{it.required && <span className="text-red-400 ml-0.5">*</span>}</span>
+                    </label>
+                    <input type="text" disabled placeholder="Remark (required when unchecked)"
+                           className="w-full mt-2 bg-white/[0.04] border border-orange-500/20 rounded px-2 py-1 text-[10px] text-slate-500" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-3 flex-wrap">
             <label className="text-[11px] text-slate-300 flex items-center gap-2">
               <input type="checkbox" checked={editing.active !== false} onChange={(e) => setEditing((p) => ({ ...p, active: e.target.checked }))} disabled={!canConfig} />
               Active (shown on Finish & Transfer)
             </label>
             <div className="flex-1" />
-            <button onClick={() => setEditing(null)} className="text-[11px] font-bold text-slate-400 px-3 py-1.5 rounded-lg border border-white/[0.1] bg-white/[0.04]">
+            <button onClick={() => setPreview((p) => !p)}
+                    className="text-[11px] font-bold text-blue-300 px-3 py-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20">
+              {preview ? "Hide Preview" : "Preview"}
+            </button>
+            <button onClick={() => { setEditing(null); setPreview(false); }} className="text-[11px] font-bold text-slate-400 px-3 py-1.5 rounded-lg border border-white/[0.1] bg-white/[0.04]">
               Cancel
             </button>
             {canConfig && (
@@ -6078,6 +6101,24 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                     })}
                   </div>
                   <div className="text-[10px] text-slate-500 mt-2">Durations are stored at the time of each handover, so changing them here does NOT retroactively re-flag past transfers. Defaults: Assembly 2d · Mechanical 2d · Electrical 1d · Trial 8h.</div>
+                </div>
+
+                {/* ── Transfer rules — password-at-accept toggle ── */}
+                <div className="rounded-lg p-3" style={{ background: "rgba(234,179,8,0.04)", border: "1px solid rgba(234,179,8,0.2)" }}>
+                  <SLabel text="Transfer rules" hint="Controls how a receiving-department operator confirms acceptance of a machine. Lower-friction default suits factory shop floors; stricter mode suits sensitive sites." />
+                  <label className={`flex items-start gap-3 cursor-pointer ${!canConfig ? "cursor-not-allowed" : ""}`}>
+                    <input type="checkbox" className="mt-0.5"
+                           checked={!!current.require_password_at_accept}
+                           disabled={!canConfig}
+                           onChange={(e) => commitWorkflow({ require_password_at_accept: e.target.checked })} />
+                    <div>
+                      <div className="text-[12px] font-semibold text-white">Require password re-entry at Accept Machine</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">
+                        OFF (recommended for factory use): receiving operator confirms with one click; their saved signature + authenticated session + role check + audit log are the proof chain.
+                        ON: receiving operator must retype their password every time (slower but matches a stricter security posture).
+                      </div>
+                    </div>
+                  </label>
                 </div>
                 {onRegisterSignature && currentUser && (
                   <div className="pt-5 border-t border-white/[0.05]">
@@ -9754,7 +9795,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       setAcceptModal((prev) => prev ? { ...prev, error: "Please register your signature first." } : prev);
       return;
     }
-    if (!password) {
+    // Password is only required when the admin has opted into
+    // require_password_at_accept. Default: single-click acceptance.
+    if (workflow.require_password_at_accept && !password) {
       setAcceptModal((prev) => prev ? { ...prev, error: "Please enter your password." } : prev);
       return;
     }
@@ -9782,18 +9825,28 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   const started   = machineLog.filter((m) => m.stage !== "BOM Issued");
   const active    = started.filter((m) => m.status !== "completed");
   const completed = started.filter((m) => m.status === "completed");
-  // Phase A/B status filters: Pending Acceptance (any machine with pending
-  // handover) and On HOLD (pending handover past the accept timeout). Both
-  // read from live state; recomputed with every minute tick (nowTick).
+  // Phase A/B status filters. Distinct categories per the 2026-10-19 UX pass:
+  //   Pending Acceptance = pending AND still within accept deadline
+  //   Overdue            = pending AND past accept deadline (deadline
+  //                        exceeded, no explicit hold placed)
+  //   On HOLD            = explicit workflow HOLD state (reserved for a
+  //                        future handover.status='held' value — not
+  //                        silently derived from Overdue)
+  // All computed from live state; recompute on every minute tick (nowTick).
   const machineHandover = (m) => (handovers || []).find((h) => h.id === m.pendingHandoverId && h.status === "pending");
-  const pendingAccept   = started.filter((m) => !!machineHandover(m));
-  const onHold          = started.filter((m) => {
+  const pendingAccept   = started.filter((m) => {
+    const h = machineHandover(m);
+    return h && !isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
+  });
+  const overdueMachines = started.filter((m) => {
     const h = machineHandover(m);
     return h && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
   });
+  const onHold          = [];   // no explicit HOLD state in the schema yet
   const filtered  = filter === "active" ? active
                    : filter === "completed" ? completed
                    : filter === "pendingAccept" ? pendingAccept
+                   : filter === "overdue" ? overdueMachines
                    : filter === "hold" ? onHold
                    : started;
 
@@ -9889,7 +9942,19 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         </div>
       )}
 
-      <Topbar title="Machine Tracker" subtitle="Production build tracking — BOM issue through completion" />
+      <Topbar title="Machine Tracker" subtitle="Production build tracking — BOM issue through completion">
+        {/* Admin-only quick jump to the Department Workflow Settings tab:
+            deadlines, HOLD rules, checklist templates, signature + password
+            policy. Hidden from non-admin operators. */}
+        {canConfigureDept(canDo) && (
+          <button onClick={() => onNavigate("settings")}
+                  title="Open Machine Tracker settings (deadlines, HOLD rules, checklists)"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all"
+                  style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.35)", color: "#93c5fd" }}>
+            ⚙️ Settings
+          </button>
+        )}
+      </Topbar>
 
       <div className="p-6 space-y-5">
 
@@ -9969,24 +10034,48 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           </div>
         )}
 
-        {/* ── Summary cards ── */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="p-5 rounded-xl" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.2)" }}>
-            <div className="text-[9px] font-bold text-blue-500 uppercase tracking-[0.08em] mb-1">Total Machines</div>
-            <div className="text-4xl font-black text-blue-400 mb-1">{started.length}</div>
-            <div className="text-[10px] text-slate-500">started from rack</div>
-          </div>
-          <div className="p-5 rounded-xl" style={{ background: "rgba(249,115,22,0.06)", border: "1px solid rgba(249,115,22,0.2)" }}>
-            <div className="text-[9px] font-bold text-orange-500 uppercase tracking-[0.08em] mb-1">Active Builds</div>
-            <div className="text-4xl font-black text-orange-400 mb-1">{active.length}</div>
-            <div className="text-[10px] text-slate-500">in production</div>
-          </div>
-          <div className="p-5 rounded-xl" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)" }}>
-            <div className="text-[9px] font-bold text-green-500 uppercase tracking-[0.08em] mb-1">Completed</div>
-            <div className="text-4xl font-black text-green-400 mb-1">{completed.length}</div>
-            <div className="text-[10px] text-slate-500">ready for delivery</div>
-          </div>
-        </div>
+        {/* ── Clickable summary cards (click any card to filter the list) ──
+            Five distinct categories matching the owner's spec:
+              Pending Acceptance = pending AND within accept deadline
+              Overdue            = pending AND past accept deadline
+              On HOLD            = explicit workflow HOLD state (reserved,
+                                   currently 0 — no silent conversion from
+                                   Overdue, future state would need its own
+                                   workflow)
+              Active Builds      = status != completed, stage != BOM Issued
+              Completed          = status == completed
+            Clicking a card sets the main-list filter; current filter card
+            is outlined. */}
+        {(() => {
+          const pendingNotOverdue = pendingHandovers.filter((h) => !isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick)).length;
+          const overdueCount = overdueHandovers.length;
+          // Phase B placeholder: no explicit HOLD state in the schema yet.
+          // When a future workflow adds a 'held' status, this count fills in.
+          const holdCount = 0;
+          const cards = [
+            { key: "pendingAccept", label: "Pending Acceptance", value: pendingNotOverdue, sub: "waiting for next dept", color: "#f97316", bg: "rgba(249,115,22,0.08)" },
+            { key: "overdue",       label: "Overdue",            value: overdueCount,       sub: "accept deadline passed", color: "#f87171", bg: "rgba(239,68,68,0.1)"  },
+            { key: "hold",          label: "On HOLD",            value: holdCount,          sub: "explicit hold state",     color: "#a78bfa", bg: "rgba(168,139,250,0.08)" },
+            { key: "active",        label: "Active Builds",      value: active.length,       sub: "in production",           color: "#fbbf24", bg: "rgba(251,191,36,0.08)" },
+            { key: "completed",     label: "Completed",          value: completed.length,    sub: "ready for delivery",      color: "#4ade80", bg: "rgba(34,197,94,0.08)" },
+          ];
+          return (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {cards.map((c) => {
+                const active = filter === c.key;
+                return (
+                  <button key={c.key} onClick={() => setFilter(c.key)}
+                          className="p-4 rounded-xl text-left transition-all hover:scale-[1.02]"
+                          style={{ background: c.bg, border: `${active ? "2px" : "1px"} solid ${c.color}${active ? "" : "55"}`, boxShadow: active ? `0 0 14px ${c.color}44` : "none" }}>
+                    <div className="text-[9px] font-bold uppercase tracking-[0.08em] mb-1" style={{ color: c.color }}>{c.label}</div>
+                    <div className="text-3xl font-black mb-1" style={{ color: c.color }}>{c.value}</div>
+                    <div className="text-[10px] text-slate-500">{c.sub}</div>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* ── Production Rack View ── */}
         <div>
@@ -10125,41 +10214,17 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           )}
         </div>
 
-        {/* ── Filter tabs — now include quick HOLD and Pending-Acceptance filters.
-            Pending Acceptance / HOLD counts come from the handovers state so
-            factory staff see at a glance how many machines need attention. */}
+        {/* "All Machines" quick toggle — kept as a small chip because the
+            summary cards above cover the five main categories but don't offer
+            a direct "show everything" option. */}
         <div className="flex items-center gap-2 flex-wrap">
-          {(() => {
-            const machinesPendingAccept = started.filter((m) => !!m.pendingHandoverId);
-            const machinesOnHold = started.filter((m) => {
-              if (!m.pendingHandoverId) return false;
-              const h = (handovers || []).find((x) => x.id === m.pendingHandoverId);
-              return h && h.status === "pending" && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
-            });
-            const tabs = [
-              { key: "active",    label: "Active Builds", count: active.length,   color: "orange" },
-              { key: "pendingAccept", label: "Pending Acceptance", count: machinesPendingAccept.length, color: "yellow" },
-              { key: "hold",      label: "On HOLD",       count: machinesOnHold.length,  color: "red" },
-              { key: "completed", label: "Completed",     count: completed.length, color: "green" },
-              { key: "all",       label: "All Machines",  count: started.length,   color: "blue" },
-            ];
-            return tabs.map((t) => {
-              const sel = filter === t.key;
-              const palette = {
-                orange: { sel: "bg-orange-500/15 text-orange-300 border-orange-500/40", count: "text-orange-400" },
-                yellow: { sel: "bg-yellow-500/15 text-yellow-300 border-yellow-500/40", count: "text-yellow-400" },
-                red:    { sel: "bg-red-500/15 text-red-300 border-red-500/40",       count: "text-red-400"    },
-                green:  { sel: "bg-green-500/15 text-green-300 border-green-500/40", count: "text-green-400"  },
-                blue:   { sel: "bg-blue-500/15 text-blue-300 border-blue-500/40",    count: "text-blue-400"   },
-              }[t.color];
-              return (
-                <button key={t.key} onClick={() => setFilter(t.key)}
-                        className={`text-[12px] font-bold px-3.5 py-2 rounded-lg border transition-all ${sel ? palette.sel : "text-slate-500 border-white/[0.08] hover:text-slate-300"}`}>
-                  {t.label} <span className={sel ? "font-black" : palette.count + " font-black"}>({t.count})</span>
-                </button>
-              );
-            });
-          })()}
+          <button onClick={() => setFilter("all")}
+                  className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${filter === "all" ? "bg-blue-500/15 text-blue-300 border-blue-500/40" : "text-slate-500 border-white/[0.08] hover:text-slate-300"}`}>
+            All Machines ({started.length})
+          </button>
+          {filter !== "all" && (
+            <span className="text-[10px] text-slate-500">· Filtered by one of the summary cards above. Click <strong className="text-slate-300">All Machines</strong> to clear.</span>
+          )}
         </div>
 
         {/* ── Empty state ── */}
@@ -10885,15 +10950,26 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 )}
                 {!needSig && (
                   <>
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-300 block mb-1.5">Confirm your password to sign this acceptance</label>
-                      <input type="password" value={password} autoFocus
-                             onChange={(e) => setField({ password: e.target.value, error: "" })}
-                             onKeyDown={(e) => { if (e.key === "Enter") submitAcceptHandover(); }}
-                             placeholder="Password"
-                             className="w-full bg-white/[0.04] border border-white/[0.1] rounded-lg px-3 py-2 text-[12px] text-white placeholder-slate-500 outline-none focus:border-green-500/60" />
-                      <div className="text-[10px] text-slate-500 mt-1">Your saved signature will be attached to this acceptance record.</div>
-                    </div>
+                    {workflow.require_password_at_accept ? (
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-300 block mb-1.5">Confirm your password to sign this acceptance</label>
+                        <input type="password" value={password} autoFocus
+                               onChange={(e) => setField({ password: e.target.value, error: "" })}
+                               onKeyDown={(e) => { if (e.key === "Enter") submitAcceptHandover(); }}
+                               placeholder="Password"
+                               className="w-full bg-white/[0.04] border border-white/[0.1] rounded-lg px-3 py-2 text-[12px] text-white placeholder-slate-500 outline-none focus:border-green-500/60" />
+                        <div className="text-[10px] text-slate-500 mt-1">Your saved signature will be attached to this acceptance record.</div>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(34,197,94,0.07)", border: "1px solid rgba(34,197,94,0.3)" }}>
+                        <div className="text-[11px] font-bold text-emerald-200">
+                          Accepting as <span className="text-white">{currentUser?.fullName || currentUser?.username || "you"}</span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          Your saved signature will be attached. No password required for routine acceptance.
+                        </div>
+                      </div>
+                    )}
                     {sigSvg && (
                       <div className="rounded-lg px-3 py-2" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.25)" }}>
                         <div className="text-[10px] font-bold text-emerald-300">✓ Signature ready</div>
@@ -10950,10 +11026,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   Cancel
                 </button>
                 {!needSig && (
-                  <button onClick={submitAcceptHandover} disabled={busy || !password}
-                          className="text-[11px] font-black text-white px-5 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                          style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 12px rgba(34,197,94,0.3)" }}>
-                    {busy ? "⏳ Verifying…" : "Verify & Accept"}
+                  <button onClick={submitAcceptHandover} disabled={busy || (workflow.require_password_at_accept && !password)}
+                          className="text-[12px] font-black text-white px-6 py-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 4px 14px rgba(34,197,94,0.35)" }}>
+                    {busy ? "⏳ Accepting…" : (workflow.require_password_at_accept ? "Verify & Accept" : "Confirm Acceptance")}
                   </button>
                 )}
               </div>
@@ -14514,12 +14590,18 @@ export default function App() {
       return { success: false, error: "You don't have permission to accept into this department." };
     }
 
-    // Step 1: re-authenticate. Local mode has no Supabase auth; signaturesStore
-    // returns a clear error. Supabase mode: disposable client verifies without
-    // touching main session.
-    const authEmail = currentUser.email || `${currentUser.username}@users.shantaz.local`;
-    const reauth = await reauthenticateByPassword(authEmail, password);
-    if (!reauth.success) return reauth;
+    // Step 1: re-authenticate — ONLY when the admin has opted into the
+    // require_password_at_accept setting. Default (2026-10-19 UX pass) is OFF:
+    // the authenticated session + canAcceptHandover + saved signature + audit
+    // log is sufficient proof chain for routine factory acceptance. Admins
+    // can re-enable password re-prompt via Settings → Department Workflow
+    // Settings for higher-security environments.
+    const workflow = readDeptWorkflowSettings(settings);
+    if (workflow.require_password_at_accept) {
+      const authEmail = currentUser.email || `${currentUser.username}@users.shantaz.local`;
+      const reauth = await reauthenticateByPassword(authEmail, password);
+      if (!reauth.success) return reauth;
+    }
 
     // Step 2: fetch (or require) a stored signature. If none, the UI should
     // have opened the signature pad first and called handleRegisterSignature.
