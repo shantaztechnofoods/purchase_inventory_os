@@ -283,6 +283,12 @@ const USER_FACING_STRINGS = [
   "Add Question",
   "Save Checklist",
   "Checklist Questions",
+  // Easier-ops UX pass (2026-10-19)
+  "Overdue",
+  "Confirm Acceptance",
+  "Transfer rules",
+  "Require password re-entry at Accept Machine",
+  "⚙️ Settings",
   // Phase C — Report Center
   "Report Center",
   "Delay-wise",
