@@ -297,6 +297,12 @@ const USER_FACING_STRINGS = [
   "Rating-wise",
   "Factory",
   "Save as PDF",
+  // Critical Item (migration 026)
+  "Critical Item",
+  "Outward Input Type",
+  "Checkbox Confirmation",
+  "Serial Number Entry",
+  "Critical Item Confirmation",
 ];
 
 for (const s of USER_FACING_STRINGS) {

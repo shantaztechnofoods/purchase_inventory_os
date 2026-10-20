@@ -78,6 +78,10 @@ function fromRow(r) {
     // Operator-set fallback rate (migration 020). PO line rate prefers
     // last_purchase_rate, then this, then 0.
     defaultPurchaseRate: r.default_purchase_rate != null ? Number(r.default_purchase_rate) : null,
+    // Critical-item flag (migration 026). Default false so legacy rows don't
+    // change behaviour. outwardInputType is only meaningful when isCritical.
+    isCritical:         !!r.is_critical,
+    outwardInputType:   r.outward_input_type || null,
   };
 }
 
@@ -177,15 +181,19 @@ export async function createItem(category, item) {
 
     const baseRow = toRow(item, category);
     // Optional columns from later migrations (016 = media, 018 = gst_rate,
-    // 020 = default_purchase_rate via toRow). Sent on the first attempt;
-    // stripped on retry when the columns don't exist yet so item creation
-    // never breaks before migrations are applied.
+    // 020 = default_purchase_rate via toRow, 026 = critical-item). Sent on
+    // the first attempt; stripped on retry when the columns don't exist yet
+    // so item creation never breaks before migrations are applied.
     const fullRow = {
       ...baseRow,
       photo:       item.photo       || null,
       design_file: item.designFile  || null,
       design_name: item.designName  || null,
       gst_rate:    item.gstRate != null ? Number(item.gstRate) : null,
+      is_critical:        !!item.isCritical,
+      outward_input_type: item.isCritical && (item.outwardInputType === "checkbox" || item.outwardInputType === "serial")
+        ? item.outwardInputType
+        : null,
     };
     // Strip 020 from baseRow for the retry path; if 020 column is missing the
     // first insert will fail with isMissingColumnError and retry without media,
@@ -321,15 +329,19 @@ export async function updateItem(originalCode, originalCategory, updatedItem, ne
   // index — omitting it removes one whole failure mode.
   if (codeChanged) baseRow.code = updatedItem.code;
 
-  // Optional media + GST columns (migrations 016 + 018). Retry without them on
-  // schema miss. baseRow stays the pre-016/018 shape so a single fallback works
-  // for either missing migration.
+  // Optional media + GST + critical columns (migrations 016 + 018 + 026). Retry
+  // without them on schema miss. baseRow stays the pre-016/018/026 shape so a
+  // single fallback works for any missing migration.
   const fullRow = {
     ...baseRow,
     photo:       updatedItem.photo       || null,
     design_file: updatedItem.designFile  || null,
     design_name: updatedItem.designName  || null,
     gst_rate:    updatedItem.gstRate != null ? Number(updatedItem.gstRate) : null,
+    is_critical:        !!updatedItem.isCritical,
+    outward_input_type: updatedItem.isCritical && (updatedItem.outwardInputType === "checkbox" || updatedItem.outwardInputType === "serial")
+      ? updatedItem.outwardInputType
+      : null,
   };
   // Track whether the schema-tolerant retry actually fired AND the user had supplied
   // media (so we can surface a visible warning — silent drop is what caused the
