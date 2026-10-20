@@ -303,6 +303,9 @@ const USER_FACING_STRINGS = [
   "Checkbox Confirmation",
   "Serial Number Entry",
   "Critical Item Confirmation",
+  // Dedicated BOM-Outward popup — modal footer + per-unit prompt
+  "Confirm Outward",
+  "Enter one unique serial number per unit",
 ];
 
 for (const s of USER_FACING_STRINGS) {

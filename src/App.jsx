@@ -60,7 +60,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-20-critical-item";
+const APP_BUILD = "2026-10-20-critical-item-popup";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -7810,8 +7810,12 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   // Migration 026 — per-line critical-item confirmation. Keyed by item code.
   // Checkbox items store { confirmed: bool }, serial items store { serials: string[] }
   // (length === issueQty when valid). Non-critical items never appear here.
-  const [criticalInputs, setCriticalInputs] = useState({});
-  const [criticalErr,    setCriticalErr]    = useState("");
+  // The confirmation UI lives in a dedicated modal that opens when the operator
+  // clicks "Issue Stock" — shown ONLY during BOM Outward, never during BOM
+  // create / edit. Non-critical outward keeps its existing inline confirm flow.
+  const [criticalInputs,    setCriticalInputs]    = useState({});
+  const [criticalErr,       setCriticalErr]       = useState("");
+  const [showCriticalModal, setShowCriticalModal] = useState(false);
 
   const allFlat  = Object.entries(items).flatMap(([cat, list]) => list.map((i) => ({ ...i, category: cat })));
   const findInv  = (code) => allFlat.find((i) => i.code === code);
@@ -8285,82 +8289,11 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
       {/* ── Sticky summary bar ── */}
       {!editMode && (
         <div className="flex-shrink-0" style={{ background: "linear-gradient(0deg,#0a0c14,#0c1018)", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-          {/* Migration 026 — Critical-item confirmation panel. Appears only
-              when the operator is issuing one or more items flagged as
-              Critical. Each line gets either a tick-to-confirm button or a
-              serial-per-unit input grid. The main Confirm button stays
-              disabled until every line is ready. */}
-          {criticalLines.length > 0 && (
-            <div className="mx-6 mt-3 rounded-xl"
-                 style={{ background: "rgba(249,115,22,0.05)", border: "1px solid rgba(249,115,22,0.3)" }}>
-              <div className="px-4 py-2.5 border-b" style={{ borderColor: "rgba(249,115,22,0.2)" }}>
-                <div className="text-[11px] font-black uppercase tracking-wider" style={{ color: "#fb923c" }}>
-                  🔒 Critical Item Confirmation
-                </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">
-                  Confirm each critical item before issue — ticks are logged against this machine for traceability.
-                </div>
-              </div>
-              <div className="p-3 space-y-2">
-                {criticalLines.map((line) => {
-                  const type   = line.inv.outwardInputType === "serial" ? "serial" : "checkbox";
-                  const state  = criticalInputs[line.code] || {};
-                  const ready  = isCriticalLineReady(line);
-                  const setLine = (patch) => setCriticalInputs((prev) => ({ ...prev, [line.code]: { ...(prev[line.code] || {}), ...patch } }));
-                  return (
-                    <div key={line.code}
-                         className="rounded-lg px-3 py-2.5"
-                         style={{ background: ready ? "rgba(34,197,94,0.06)" : "rgba(255,255,255,0.03)",
-                                  border: `1px solid ${ready ? "rgba(34,197,94,0.3)" : "rgba(255,255,255,0.08)"}` }}>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[11px] font-bold text-white">{line.name}</span>
-                        <span className="text-[9px] font-mono text-slate-500">{line.code}</span>
-                        <span className="text-[10px] font-bold" style={{ color: ready ? "#4ade80" : "#fb923c" }}>
-                          {line.issueQty} {line.unit}
-                        </span>
-                        <span className="ml-auto text-[9px] font-bold uppercase tracking-wider"
-                              style={{ color: ready ? "#4ade80" : "#fb923c" }}>
-                          {ready ? "✓ Confirmed" : "Awaiting confirmation"}
-                        </span>
-                      </div>
-                      {type === "checkbox" ? (
-                        <label className="mt-2 flex items-center gap-2 cursor-pointer">
-                          <input type="checkbox"
-                                 checked={!!state.confirmed}
-                                 onChange={(e) => { setCriticalErr(""); setLine({ confirmed: e.target.checked }); }}
-                                 className="accent-emerald-500 w-4 h-4" />
-                          <span className="text-[11px] text-slate-300">
-                            I confirm this critical item has been physically verified for all {line.issueQty} unit(s).
-                          </span>
-                        </label>
-                      ) : (
-                        <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                          {Array.from({ length: line.issueQty }).map((_, idx) => (
-                            <input key={idx}
-                                   value={(state.serials && state.serials[idx]) || ""}
-                                   onChange={(e) => {
-                                     setCriticalErr("");
-                                     const next = (state.serials || []).slice();
-                                     next[idx] = e.target.value;
-                                     setLine({ serials: next });
-                                   }}
-                                   placeholder={`Serial #${idx + 1}`}
-                                   className="bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1 text-[11px] text-white outline-none focus:border-blue-500/40 modal-input" />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                {criticalErr && (
-                  <div className="text-[10px] font-bold px-3 py-2 rounded-md"
-                       style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
-                    ⚠ {criticalErr}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {/* Migration 026 — critical items get a dedicated BOM-Outward popup
+              (rendered below, see "Critical Item Confirmation" modal). The
+              inline panel that used to live here was moved out so the
+              confirmation is impossible to miss and the summary bar stays
+              focused on quantities + the issue action. */}
           <div className="px-6 pt-3">
             <input value={issueNote} onChange={(e) => setIssueNote(e.target.value)}
                    placeholder="Issue reference / note (optional)..."
@@ -8403,7 +8336,18 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             </div>
             <button onClick={onClose} className="text-xs font-bold text-slate-500 px-4 py-2.5 rounded-xl border border-white/[0.08] hover:text-white hover:border-white/20 transition-all">Cancel</button>
             {!confirmIssue ? (
-              <button onClick={() => setConfirmIssue(true)} disabled={!canSubmit}
+              <button onClick={() => {
+                        // Critical items in this outward → open the dedicated
+                        // Critical Item Confirmation modal first. Non-critical
+                        // outward keeps the lightweight inline confirm.
+                        if (criticalLines.length > 0) {
+                          setCriticalErr("");
+                          setShowCriticalModal(true);
+                        } else {
+                          setConfirmIssue(true);
+                        }
+                      }}
+                      disabled={!canSubmit}
                       className="text-xs font-black text-white px-6 py-2.5 rounded-xl border transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                       style={{ background: canSubmit ? `linear-gradient(135deg,${bom.color}dd,${bom.color}99)` : "#1f2937", boxShadow: canSubmit ? `0 0 18px ${bom.color}35` : "none", borderColor: `${bom.color}55` }}>
                 📤 Issue Stock
@@ -8415,13 +8359,150 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                   : <span className="text-[10px] font-bold text-orange-400">Confirm issue?</span>
                 }
                 <button onClick={() => setConfirmIssue(false)} className="text-xs font-bold text-slate-500 px-3 py-2 rounded-lg border border-white/[0.08] hover:text-white transition-all">No</button>
-                <button onClick={() => doIssue()} disabled={issuing || !allCriticalReady}
+                <button onClick={() => doIssue()} disabled={issuing}
                         className="text-xs font-black text-white px-5 py-2 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{ background: !allCriticalReady ? "#1f2937" : hasOverIssue ? "linear-gradient(135deg,#d97706,#b45309)" : "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: !allCriticalReady ? "none" : hasOverIssue ? "0 0 14px rgba(217,119,6,0.4)" : "0 0 14px rgba(34,197,94,0.3)" }}>
-                  {issuing ? "⏳ Issuing…" : !allCriticalReady ? "🔒 Confirm Critical Items" : hasOverIssue ? "⚠ Confirm Over-Issue" : "✓ Confirm Issue"}
+                        style={{ background: hasOverIssue ? "linear-gradient(135deg,#d97706,#b45309)" : "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: hasOverIssue ? "0 0 14px rgba(217,119,6,0.4)" : "0 0 14px rgba(34,197,94,0.3)" }}>
+                  {issuing ? "⏳ Issuing…" : hasOverIssue ? "⚠ Confirm Over-Issue" : "✓ Confirm Issue"}
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Critical Item Confirmation popup (migration 026, 2026-10-20) ───
+          Shown ONLY during BOM Outward when at least one checked line is a
+          Critical Item. Lists just the critical lines, with per-line input
+          (Checkbox Confirmation or Serial Number Entry per unit). The main
+          "Confirm Outward" button stays disabled until every input is ready.
+          Non-critical items are not shown here and keep the existing flow —
+          they're issued alongside once the operator confirms this popup.
+          The modal never appears during BOM create / edit (editMode gates
+          the entire sticky summary bar + Issue button, so the trigger path
+          is unreachable in edit mode). */}
+      {!editMode && showCriticalModal && (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center p-4"
+             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
+             onClick={(e) => e.target === e.currentTarget && !issuing && setShowCriticalModal(false)}>
+          <div className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col"
+               style={{ maxHeight: "92vh", background: "#0d1018",
+                        border: "1px solid rgba(249,115,22,0.5)",
+                        boxShadow: "0 40px 100px rgba(0,0,0,0.92), 0 0 60px rgba(249,115,22,0.08)" }}>
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-white/[0.08] flex items-start justify-between flex-shrink-0"
+                 style={{ background: "linear-gradient(90deg,rgba(249,115,22,0.14),rgba(234,88,12,0.06))" }}>
+              <div>
+                <div className="text-sm font-black text-white flex items-center gap-2">
+                  🔒 Critical Item Confirmation
+                </div>
+                <div className="text-[11px] text-slate-400 mt-0.5">
+                  {bomKey}{serialNo ? ` · S/N ${serialNo}` : ""} · {criticalLines.length} critical item{criticalLines.length === 1 ? "" : "s"} in this outward
+                </div>
+              </div>
+              <button onClick={() => !issuing && setShowCriticalModal(false)} disabled={issuing}
+                      className="w-7 h-7 rounded-lg bg-white/[0.05] hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-xs font-bold disabled:opacity-40">
+                ✕
+              </button>
+            </div>
+
+            {/* Body — per-line inputs */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+              {criticalLines.map((line) => {
+                const type   = line.inv.outwardInputType === "serial" ? "serial" : "checkbox";
+                const state  = criticalInputs[line.code] || {};
+                const ready  = isCriticalLineReady(line);
+                const setLine = (patch) => setCriticalInputs((prev) => ({ ...prev, [line.code]: { ...(prev[line.code] || {}), ...patch } }));
+                return (
+                  <div key={line.code}
+                       className="rounded-xl px-4 py-3"
+                       style={{ background: ready ? "rgba(34,197,94,0.06)" : "rgba(249,115,22,0.04)",
+                                border: `1px solid ${ready ? "rgba(34,197,94,0.35)" : "rgba(249,115,22,0.28)"}` }}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[12px] font-bold text-white">{line.name}</span>
+                      <span className="text-[10px] font-mono text-slate-500">{line.code}</span>
+                      <span className="text-[10px] font-bold" style={{ color: ready ? "#4ade80" : "#fb923c" }}>
+                        {line.issueQty} {line.unit}
+                      </span>
+                      <span className="ml-auto text-[9px] font-black uppercase tracking-wider"
+                            style={{ color: ready ? "#4ade80" : "#fb923c" }}>
+                        {ready ? "✓ Confirmed" : type === "serial" ? "Serial Number Entry" : "Checkbox Confirmation"}
+                      </span>
+                    </div>
+                    {type === "checkbox" ? (
+                      <label className="mt-2.5 flex items-start gap-2 cursor-pointer">
+                        <input type="checkbox"
+                               checked={!!state.confirmed}
+                               onChange={(e) => { setCriticalErr(""); setLine({ confirmed: e.target.checked }); }}
+                               className="accent-emerald-500 w-4 h-4 mt-0.5" />
+                        <span className="text-[11px] text-slate-300 leading-relaxed">
+                          I confirm this critical item has been physically verified for all {line.issueQty} unit(s).
+                        </span>
+                      </label>
+                    ) : (
+                      <>
+                        <div className="text-[10px] text-slate-500 mt-2 mb-1.5">
+                          Enter one unique serial number per unit ({line.issueQty} required):
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                          {Array.from({ length: line.issueQty }).map((_, idx) => (
+                            <input key={idx}
+                                   value={(state.serials && state.serials[idx]) || ""}
+                                   onChange={(e) => {
+                                     setCriticalErr("");
+                                     const next = (state.serials || []).slice();
+                                     next[idx] = e.target.value;
+                                     setLine({ serials: next });
+                                   }}
+                                   placeholder={`Serial #${idx + 1}`}
+                                   autoFocus={idx === 0}
+                                   className="bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-blue-500/40 modal-input"
+                                   style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+              {criticalErr && (
+                <div className="text-[11px] font-bold px-3 py-2 rounded-md"
+                     style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                  ⚠ {criticalErr}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between flex-shrink-0"
+                 style={{ background: "rgba(0,0,0,0.35)" }}>
+              <div className="text-[10px] text-slate-500">
+                Non-critical items in this outward are issued automatically on confirm.
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => !issuing && setShowCriticalModal(false)} disabled={issuing}
+                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
+                  Cancel
+                </button>
+                <button onClick={() => {
+                          if (!allCriticalReady) {
+                            const missing = criticalLines.filter((l) => !isCriticalLineReady(l)).map((l) => l.name).join(", ");
+                            setCriticalErr(`Confirm each critical item: ${missing}`);
+                            return;
+                          }
+                          // Hand off to the existing issue engine. doIssue()
+                          // will fire the destination popup when needed and
+                          // finally commits the outward.
+                          setShowCriticalModal(false);
+                          doIssue();
+                        }}
+                        disabled={issuing || !allCriticalReady}
+                        className="text-xs font-black text-white px-4 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{ background: !allCriticalReady ? "#1f2937" : "linear-gradient(135deg,#16a34a,#15803d)",
+                                 boxShadow: !allCriticalReady ? "none" : "0 0 14px rgba(34,197,94,0.3)" }}>
+                  {issuing ? "⏳ Issuing…" : !allCriticalReady ? "🔒 Complete Confirmations" : "✓ Confirm Outward"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
