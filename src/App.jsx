@@ -60,7 +60,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-20-critical-item-popup";
+const APP_BUILD = "2026-10-20-pending-stock-critical";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -11306,6 +11306,20 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGroup, items, bomDefs, machineLog = [], handleUpdateStock, onNavigate = () => {}, canDo = () => true }) {
   const [viewBOM,  setViewBOM]  = useState(null);
   const [toast,    setToast]    = useState(null);
+  // Pending-fulfill confirmation modal (2026-10-20). All three issue actions
+  // — single row's "Give Material", a group's "Give All", and the global
+  // "Issue All Available" — now route through this modal:
+  //   { mode: "single" | "group" | "all",
+  //     entries: [{ code, name, qty (= canIssue), unit, inv, category, bomKey, serialNo, issueId, pendingQty }, ...],
+  //     title, criticalInputs: { [code]: {confirmed} | {serials[]} }, err }
+  // Non-critical pending items still work exactly like before — the operator
+  // just sees a one-click confirm. Critical items (migration 026, inv.isCritical)
+  // get their configured input (Checkbox Confirmation / Serial Number Entry)
+  // right in the same modal, and the main Confirm button stays disabled until
+  // every critical row is ready. Partial availability is already baked into
+  // each entry's `qty` (= min(pendingQty, liveStock)).
+  const [confirmFulfill, setConfirmFulfill] = useState(null);
+
   // 2b71bbc — duplicate-submit guard for Give Material / Give All / Fulfill All.
   // Rapid double-clicks previously double-deducted stock; a sync-set ref blocks
   // re-entrance before React schedules the next render.
@@ -11324,13 +11338,23 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
     setTimeout(() => setToast(null), 3200);
   };
 
-  // Enrich with live stock
+  // Enrich with live stock + propagate critical-item metadata from Item Master
+  // so the confirmation modal can render the right input per line without a
+  // second lookup. inv may be null for soft-deleted items — treat them as
+  // non-critical so the operator isn't blocked on a stale master-data row.
   const enriched = pendingLog.map((p) => {
     const inv       = findItem(p.code);
     const liveStock = inv?.stock ?? 0;
     const canIssue  = Math.min(p.pendingQty, liveStock);
     const avail     = canIssue >= p.pendingQty ? "full" : canIssue > 0 ? "partial" : "none";
-    return { ...p, liveStock, canIssue, avail, unit: p.unit || inv?.unit || "—", category: inv?.category || p.category || "Other" };
+    return {
+      ...p, liveStock, canIssue, avail,
+      unit: p.unit || inv?.unit || "—",
+      category: inv?.category || p.category || "Other",
+      inv,
+      isCritical:       !!(inv && inv.isCritical),
+      outwardInputType: inv?.outwardInputType || "checkbox",
+    };
   });
 
   // Group by issueId, carry serialNo from the entry
@@ -11362,48 +11386,120 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
     return "partial";
   };
 
-  const handleGiveMaterial = (entry) => guardedFulfill(() => {
+  // ─── Build the modal payload for each of the three issue actions ──────────
+  // Every action goes through the same confirmation modal; the only difference
+  // is what sits in `entries`. The modal does the critical-item gating; the
+  // underlying commit is a plain call to onFulfillPending / onFulfillGroup (so
+  // existing stock-movement, partial-qty, auto-complete, and audit paths are
+  // reused verbatim).
+  const openGiveMaterial = (entry) => {
     if (entry.canIssue <= 0) return;
-    handleUpdateStock(entry.category, entry.code, -entry.canIssue, `Fulfill: ${entry.bomKey}`);
-    onFulfillPending(entry, entry.canIssue);
-    const rem = entry.pendingQty - entry.canIssue;
-    showToast(
-      `Issued ${entry.canIssue} ${entry.unit} — ${entry.name}`,
-      rem > 0 ? `${rem} ${entry.unit} still pending` : "Fully fulfilled"
-    );
-  });
-
-  const handleGiveAllForGroup = (group) => guardedFulfill(() => {
+    setConfirmFulfill({
+      mode: "single",
+      entries: [entry],
+      title: `Issue ${entry.canIssue} ${entry.unit} — ${entry.name}`,
+      subtitle: `${entry.bomKey}${entry.serialNo ? ` · S/N ${entry.serialNo}` : ""}`,
+      criticalInputs: {},
+      err: "",
+    });
+  };
+  const openGiveAllForGroup = (group) => {
     const available = group.items.filter((e) => e.canIssue > 0);
     if (available.length === 0) return;
-    if (onFulfillGroup && group.issueId) {
-      onFulfillGroup(group.issueId, available);
-    } else {
-      available.forEach((e) => {
-        handleUpdateStock(e.category, e.code, -e.canIssue, `Fulfill: ${e.bomKey}`);
-        onFulfillPending(e, e.canIssue);
-      });
-    }
-    showToast(`Issued ${available.length} item${available.length > 1 ? "s" : ""} for ${group.bomKey}`,
-              group.serialNo ? `S/N: ${group.serialNo}` : group.bomLabel);
-  });
-
-  const handleFulfillAll = () => guardedFulfill(() => groups.forEach((g) => {
-    // Inline logic (not calling handleGiveAllForGroup, since that's also guarded
-    // and would short-circuit after the first group).
-    const available = g.items.filter((e) => e.canIssue > 0);
+    setConfirmFulfill({
+      mode: "group",
+      entries: available,
+      group,
+      title: `Issue ${available.length} item${available.length > 1 ? "s" : ""} for ${group.bomKey}`,
+      subtitle: group.serialNo ? `S/N ${group.serialNo} · ${group.bomLabel}` : group.bomLabel,
+      criticalInputs: {},
+      err: "",
+    });
+  };
+  const openFulfillAll = () => {
+    const available = enriched.filter((e) => e.canIssue > 0);
     if (available.length === 0) return;
-    if (onFulfillGroup && g.issueId) {
-      onFulfillGroup(g.issueId, available);
-    } else {
-      available.forEach((e) => {
-        handleUpdateStock(e.category, e.code, -e.canIssue, `Fulfill: ${e.bomKey}`);
-        onFulfillPending(e, e.canIssue);
-      });
+    setConfirmFulfill({
+      mode: "all",
+      entries: available,
+      title: `Issue All Available (${available.length})`,
+      subtitle: `${groups.length} machine${groups.length !== 1 ? "s" : ""} affected`,
+      criticalInputs: {},
+      err: "",
+    });
+  };
+
+  // Validate a single critical row in the modal.
+  const isCriticalRowReady = (entry, state) => {
+    const type = entry.outwardInputType === "serial" ? "serial" : "checkbox";
+    const s = state || {};
+    if (type === "checkbox") return !!s.confirmed;
+    const serials = (s.serials || []).map((x) => (x || "").trim()).filter(Boolean);
+    const unique  = new Set(serials.map((x) => x.toLowerCase()));
+    return serials.length === entry.canIssue && unique.size === serials.length;
+  };
+  const criticalRowsOf = (cf) => (cf?.entries || []).filter((e) => e.isCritical);
+  const allCriticalReady = (cf) => criticalRowsOf(cf).every((e) => isCriticalRowReady(e, (cf.criticalInputs || {})[e.code]));
+
+  // ─── Commit the fulfillment after modal confirm ───────────────────────────
+  // Reuses onFulfillPending / onFulfillGroup — the authoritative handlers that
+  // own stock movement, pending-row reduction (partial-safe), auto-complete,
+  // and audit emission. criticalInput travels along for the audit trail.
+  const commitConfirm = () => guardedFulfill(() => {
+    if (!confirmFulfill) return;
+    const { mode, entries, group, criticalInputs } = confirmFulfill;
+    if (!allCriticalReady(confirmFulfill)) {
+      const missing = criticalRowsOf(confirmFulfill)
+        .filter((e) => !isCriticalRowReady(e, (criticalInputs || {})[e.code]))
+        .map((e) => e.name).join(", ");
+      setConfirmFulfill((prev) => prev ? { ...prev, err: `Confirm each critical item: ${missing}` } : prev);
+      return;
     }
-    showToast(`Issued ${available.length} item${available.length > 1 ? "s" : ""} for ${g.bomKey}`,
-              g.serialNo ? `S/N: ${g.serialNo}` : g.bomLabel);
-  }));
+    const buildCriticalInput = (entry) => {
+      if (!entry.isCritical) return null;
+      const type  = entry.outwardInputType === "serial" ? "serial" : "checkbox";
+      const state = (criticalInputs || {})[entry.code] || {};
+      if (type === "checkbox") return { type, confirmed: !!state.confirmed };
+      const serials = (state.serials || []).map((x) => (x || "").trim()).filter(Boolean);
+      return { type, serials };
+    };
+
+    if (mode === "single") {
+      const e = entries[0];
+      onFulfillPending(e, e.canIssue, buildCriticalInput(e));
+      const rem = e.pendingQty - e.canIssue;
+      showToast(
+        `Issued ${e.canIssue} ${e.unit} — ${e.name}`,
+        rem > 0 ? `${rem} ${e.unit} still pending` : "Fully fulfilled"
+      );
+    } else if (mode === "group") {
+      // Attach criticalInput onto each entry so the group handler can forward it.
+      const enrichedEntries = entries.map((e) => ({ ...e, criticalInput: buildCriticalInput(e) }));
+      if (onFulfillGroup && group?.issueId) {
+        onFulfillGroup(group.issueId, enrichedEntries);
+      } else {
+        enrichedEntries.forEach((e) => onFulfillPending(e, e.canIssue, e.criticalInput));
+      }
+      showToast(
+        `Issued ${entries.length} item${entries.length > 1 ? "s" : ""} for ${group.bomKey}`,
+        group.serialNo ? `S/N: ${group.serialNo}` : group.bomLabel
+      );
+    } else { /* mode === "all" */
+      // Fan out per group so the group handler batches by issueId correctly.
+      const byIssue = {};
+      entries.forEach((e) => {
+        const key = String(e.issueId || `${e.bomKey}::${e.date}`);
+        if (!byIssue[key]) byIssue[key] = { issueId: e.issueId, bomKey: e.bomKey, items: [] };
+        byIssue[key].items.push({ ...e, criticalInput: buildCriticalInput(e) });
+      });
+      Object.values(byIssue).forEach((g) => {
+        if (onFulfillGroup && g.issueId) onFulfillGroup(g.issueId, g.items);
+        else g.items.forEach((e) => onFulfillPending(e, e.canIssue, e.criticalInput));
+      });
+      showToast(`Issued ${entries.length} item${entries.length > 1 ? "s" : ""} across ${Object.keys(byIssue).length} machine${Object.keys(byIssue).length !== 1 ? "s" : ""}`);
+    }
+    setConfirmFulfill(null);
+  });
 
   const AC = { full: "#22c55e", partial: "#f97316", none: "#ef4444" };
   const AL = { full: "Ready",   partial: "Partial Stock", none: "Waiting" };
@@ -11470,6 +11566,189 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
 
       {BOMModal}
 
+      {/* ── Pending Stock Confirmation popup (2026-10-20) ──────────────────
+          Confirms every issue action from Pending Stock. Non-critical rows
+          need just a click; critical rows (migration 026) require the
+          operator's configured Checkbox Confirmation or Serial Number Entry
+          per unit before the Confirm button enables. Partial-availability
+          is baked in: entry.canIssue == min(pendingQty, liveStock). Any
+          unissued qty remains in pendingLog (handled by onFulfillPending).
+          Reuses onFulfillPending / onFulfillGroup — the same engine used by
+          BOM Outward — so stock, item_history, audit, and auto-complete
+          all go through one proven code path. */}
+      {confirmFulfill && (() => {
+        const cf = confirmFulfill;
+        const criticalRows = criticalRowsOf(cf);
+        const nonCriticalRows = (cf.entries || []).filter((e) => !e.isCritical);
+        const ready = allCriticalReady(cf);
+        const setLine = (code, patch) => setConfirmFulfill((prev) => prev ? {
+          ...prev,
+          err: "",
+          criticalInputs: { ...(prev.criticalInputs || {}), [code]: { ...((prev.criticalInputs || {})[code] || {}), ...patch } },
+        } : prev);
+        return (
+          <div className="fixed inset-0 z-[85] flex items-center justify-center p-4"
+               style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
+               onClick={(e) => e.target === e.currentTarget && setConfirmFulfill(null)}>
+            <div className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col"
+                 style={{ maxHeight: "90vh", background: "#0d1018",
+                          border: `1px solid ${criticalRows.length ? "rgba(249,115,22,0.5)" : "rgba(34,197,94,0.4)"}`,
+                          boxShadow: "0 40px 100px rgba(0,0,0,0.92)" }}>
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-white/[0.08] flex items-start justify-between flex-shrink-0"
+                   style={{ background: criticalRows.length
+                     ? "linear-gradient(90deg,rgba(249,115,22,0.14),rgba(234,88,12,0.06))"
+                     : "linear-gradient(90deg,rgba(34,197,94,0.12),rgba(21,128,61,0.05))" }}>
+                <div>
+                  <div className="text-sm font-black text-white flex items-center gap-2">
+                    {criticalRows.length ? "🔒" : "✅"} Pending Stock Confirmation
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">
+                    {cf.title}{cf.subtitle ? ` · ${cf.subtitle}` : ""}
+                  </div>
+                </div>
+                <button onClick={() => setConfirmFulfill(null)}
+                        className="w-7 h-7 rounded-lg bg-white/[0.05] hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-xs font-bold">
+                  ✕
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {/* Critical items — require configured input */}
+                {criticalRows.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-[10px] font-black uppercase tracking-wider" style={{ color: "#fb923c" }}>
+                      Critical items — {criticalRows.length} line{criticalRows.length === 1 ? "" : "s"} need confirmation
+                    </div>
+                    {criticalRows.map((entry) => {
+                      const type   = entry.outwardInputType === "serial" ? "serial" : "checkbox";
+                      const state  = (cf.criticalInputs || {})[entry.code] || {};
+                      const rowReady = isCriticalRowReady(entry, state);
+                      return (
+                        <div key={`crit-${entry.issueId || entry.bomKey}-${entry.code}`}
+                             className="rounded-xl px-4 py-3"
+                             style={{ background: rowReady ? "rgba(34,197,94,0.06)" : "rgba(249,115,22,0.04)",
+                                      border: `1px solid ${rowReady ? "rgba(34,197,94,0.35)" : "rgba(249,115,22,0.28)"}` }}>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[12px] font-bold text-white">{entry.name}</span>
+                            <span className="text-[10px] font-mono text-slate-500">{entry.code}</span>
+                            <span className="text-[10px] font-bold" style={{ color: rowReady ? "#4ade80" : "#fb923c" }}>
+                              {entry.canIssue} {entry.unit}
+                            </span>
+                            {entry.canIssue < entry.pendingQty && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                    style={{ background: "rgba(249,115,22,0.12)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.3)" }}>
+                                partial · {entry.pendingQty - entry.canIssue} {entry.unit} will stay pending
+                              </span>
+                            )}
+                            <span className="ml-auto text-[9px] font-black uppercase tracking-wider"
+                                  style={{ color: rowReady ? "#4ade80" : "#fb923c" }}>
+                              {rowReady ? "✓ Confirmed" : type === "serial" ? "Serial Number Entry" : "Checkbox Confirmation"}
+                            </span>
+                          </div>
+                          {type === "checkbox" ? (
+                            <label className="mt-2.5 flex items-start gap-2 cursor-pointer">
+                              <input type="checkbox" checked={!!state.confirmed}
+                                     onChange={(e) => setLine(entry.code, { confirmed: e.target.checked })}
+                                     className="accent-emerald-500 w-4 h-4 mt-0.5" />
+                              <span className="text-[11px] text-slate-300 leading-relaxed">
+                                I confirm this critical item has been physically verified for all {entry.canIssue} unit(s).
+                              </span>
+                            </label>
+                          ) : (
+                            <>
+                              <div className="text-[10px] text-slate-500 mt-2 mb-1.5">
+                                Enter one unique serial number per unit ({entry.canIssue} required):
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                                {Array.from({ length: entry.canIssue }).map((_, idx) => (
+                                  <input key={idx}
+                                         value={(state.serials && state.serials[idx]) || ""}
+                                         onChange={(e) => {
+                                           const next = (state.serials || []).slice();
+                                           next[idx] = e.target.value;
+                                           setLine(entry.code, { serials: next });
+                                         }}
+                                         placeholder={`Serial #${idx + 1}`}
+                                         className="bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-blue-500/40 modal-input"
+                                         style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Non-critical items — plain confirmation list */}
+                {nonCriticalRows.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      {criticalRows.length ? "Also issuing" : "Items to issue"} — {nonCriticalRows.length} line{nonCriticalRows.length === 1 ? "" : "s"}
+                    </div>
+                    {nonCriticalRows.map((entry) => (
+                      <div key={`nc-${entry.issueId || entry.bomKey}-${entry.code}`}
+                           className="rounded-lg px-3 py-2 flex items-center gap-2 flex-wrap"
+                           style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                        <span className="text-[11px] font-semibold text-white">{entry.name}</span>
+                        <span className="text-[9px] font-mono text-slate-600">{entry.code}</span>
+                        {cf.mode === "all" && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                style={{ background: "rgba(59,130,246,0.1)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}>
+                            {entry.bomKey}{entry.serialNo ? ` · ${entry.serialNo}` : ""}
+                          </span>
+                        )}
+                        <span className="ml-auto text-[10px] font-bold font-mono text-green-400">
+                          {entry.canIssue} {entry.unit}
+                        </span>
+                        {entry.canIssue < entry.pendingQty && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                style={{ background: "rgba(249,115,22,0.1)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.3)" }}>
+                            partial
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {cf.err && (
+                  <div className="text-[11px] font-bold px-3 py-2 rounded-md"
+                       style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                    ⚠ {cf.err}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between flex-shrink-0"
+                   style={{ background: "rgba(0,0,0,0.35)" }}>
+                <div className="text-[10px] text-slate-500">
+                  {criticalRows.length
+                    ? "Non-critical items in this list are issued automatically on confirm."
+                    : "Stock, item history, and audit log update on confirm."}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setConfirmFulfill(null)}
+                          className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+                    Cancel
+                  </button>
+                  <button onClick={commitConfirm} disabled={!ready}
+                          className="text-xs font-black text-white px-4 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          style={{ background: !ready ? "#1f2937" : "linear-gradient(135deg,#16a34a,#15803d)",
+                                   boxShadow: !ready ? "none" : "0 0 14px rgba(34,197,94,0.3)" }}>
+                    {!ready ? "🔒 Complete Confirmations" : "✓ Confirm & Issue"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <Topbar title="Pending Stock" subtitle="BOM shortfall tracking — linked with Machine Tracker and Inventory" />
 
       <div className="p-6 space-y-5">
@@ -11508,7 +11787,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
               </div>
               <div className="flex items-center gap-2">
                 {availN > 0 && canDo("pending","fulfill") && (
-                  <button onClick={handleFulfillAll}
+                  <button onClick={openFulfillAll}
                           className="text-[11px] font-bold text-white px-4 py-1.5 rounded-lg transition-all"
                           style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.25)" }}>
                     ✓ Issue All Available ({availN})
@@ -11575,7 +11854,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                         {/* Actions */}
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {gCanN > 0 && canDo("pending","fulfill") && (
-                            <button onClick={() => handleGiveAllForGroup(group)}
+                            <button onClick={() => openGiveAllForGroup(group)}
                                     className="text-[10px] font-bold text-white px-3 py-1.5 rounded-lg border transition-all whitespace-nowrap"
                                     style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", borderColor: "rgba(34,197,94,0.3)" }}>
                               Give All ({gCanN})
@@ -11626,9 +11905,10 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                               </td>
                               <td className="px-4 py-3">
                                 {entry.avail !== "none" && canDo("pending","fulfill") ? (
-                                  <button onClick={() => handleGiveMaterial(entry)}
-                                          className="text-[10px] font-bold text-white px-3 py-1.5 rounded-lg border whitespace-nowrap transition-all"
+                                  <button onClick={() => openGiveMaterial(entry)}
+                                          className="text-[10px] font-bold text-white px-3 py-1.5 rounded-lg border whitespace-nowrap transition-all flex items-center gap-1"
                                           style={{ background: entry.avail === "full" ? "linear-gradient(135deg,#16a34a,#15803d)" : "linear-gradient(135deg,#d97706,#b45309)", borderColor: entry.avail === "full" ? "rgba(34,197,94,0.3)" : "rgba(217,119,6,0.3)", boxShadow: entry.avail === "full" ? "0 0 10px rgba(34,197,94,0.18)" : "0 0 10px rgba(217,119,6,0.15)" }}>
+                                    {entry.isCritical && <span title="Critical item — confirmation required">🔒</span>}
                                     {entry.avail === "full" ? "✓ Give Material" : `Issue ${entry.canIssue} ${entry.unit}`}
                                   </button>
                                 ) : entry.avail === "none" ? (
@@ -15128,7 +15408,20 @@ export default function App() {
     return res;
   };
 
-  const handleFulfillPending = (entry, issuedQty) => {
+  // handleFulfillPending is the single-row Pending-Stock fulfillment handler.
+  // Owns the full mutation: stock move → pending-row reduction → audit event.
+  // Matches handleFulfillGroup's contract so the two handlers are symmetric.
+  //
+  // criticalInput (migration 026) carries the operator's checkbox/serial
+  // confirmation when the item is flagged Critical — null for non-critical
+  // outward and for the system auto-fulfill paths (inward / receive-PO,
+  // which call their own reducer inline and never route through here).
+  const handleFulfillPending = (entry, issuedQty, criticalInput = null) => {
+    // Move stock first. record_stock_movement is atomic — a RPC failure here
+    // short-circuits before we touch pending_log, so a half-committed state
+    // is impossible.
+    handleUpdateStock(entry.category, entry.code, -issuedQty, `Fulfill: ${entry.bomKey}`);
+
     const matched = (p) => entry.issueId
       ? (p.issueId === entry.issueId && p.code === entry.code)
       : (p.code === entry.code && p.bomKey === entry.bomKey && p.date === entry.date);
@@ -15153,10 +15446,23 @@ export default function App() {
       }
     }
     notifyMachineComplete(entry.issueId, newLog);
-    logAudit({ type: "pending_fulfilled", module: "Pending", action: `Fulfilled: ${entry.name || entry.code} × ${issuedQty}`, ref: entry.issueId || entry.code, itemCode: entry.code, itemName: entry.name || entry.code, qty: issuedQty, serialNo: entry.serialNo || "", details: { bomKey: entry.bomKey } });
+    logAudit({
+      type: "pending_fulfilled", module: "Pending",
+      action: `Fulfilled: ${entry.name || entry.code} × ${issuedQty}`,
+      ref: entry.issueId || entry.code,
+      itemCode: entry.code, itemName: entry.name || entry.code,
+      qty: issuedQty, serialNo: entry.serialNo || "",
+      details: {
+        bomKey: entry.bomKey,
+        criticalInput: criticalInput || undefined,
+      },
+    });
   };
 
-  // Atomic batch fulfillment for "Give All" — avoids stale-closure issues
+  // Atomic batch fulfillment for "Give All" — avoids stale-closure issues.
+  // itemsToFulfill may carry a per-line `criticalInput` from the PendingPage
+  // confirmation modal (migration 026); it's forwarded into the audit payload
+  // so compliance queries can see which serials / checkboxes closed the row.
   const handleFulfillGroup = (issueId, itemsToFulfill) => {
     itemsToFulfill.forEach((e) =>
       handleUpdateStock(e.category, e.code, -e.canIssue, `Fulfill: ${e.bomKey}`)
@@ -15186,7 +15492,19 @@ export default function App() {
       });
     }
     notifyMachineComplete(issueId, newLog);
-    logAudit({ type: "pending_fulfilled", module: "Pending", action: `Batch Fulfilled: ${itemsToFulfill.length} items for Issue #${issueId}`, ref: String(issueId), qty: itemsToFulfill.reduce((s, e) => s + e.canIssue, 0), details: { items: itemsToFulfill.map((e) => `${e.code}×${e.canIssue}`) } });
+    const criticalConfirmations = itemsToFulfill
+      .filter((e) => e && e.criticalInput)
+      .map((e) => ({ code: e.code, name: e.name, qty: e.canIssue, input: e.criticalInput }));
+    logAudit({
+      type: "pending_fulfilled", module: "Pending",
+      action: `Batch Fulfilled: ${itemsToFulfill.length} items for Issue #${issueId}`,
+      ref: String(issueId),
+      qty: itemsToFulfill.reduce((s, e) => s + e.canIssue, 0),
+      details: {
+        items: itemsToFulfill.map((e) => `${e.code}×${e.canIssue}`),
+        criticalConfirmations: criticalConfirmations.length ? criticalConfirmations : undefined,
+      },
+    });
   };
 
   const canDo = authCanDo;

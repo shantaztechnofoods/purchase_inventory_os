@@ -306,6 +306,9 @@ const USER_FACING_STRINGS = [
   // Dedicated BOM-Outward popup — modal footer + per-unit prompt
   "Confirm Outward",
   "Enter one unique serial number per unit",
+  // Pending Stock Confirmation popup (2026-10-20)
+  "Pending Stock Confirmation",
+  "Confirm & Issue",
 ];
 
 for (const s of USER_FACING_STRINGS) {
