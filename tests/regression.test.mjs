@@ -309,6 +309,10 @@ const USER_FACING_STRINGS = [
   // Pending Stock Confirmation popup (2026-10-20)
   "Pending Stock Confirmation",
   "Confirm & Issue",
+  // Department Durations popup (migration 027, 2026-10-20)
+  "Department Durations",
+  "Save Durations & Continue",
+  "Locked after Outward",
 ];
 
 for (const s of USER_FACING_STRINGS) {
