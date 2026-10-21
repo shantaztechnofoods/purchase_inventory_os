@@ -7,26 +7,68 @@ import { getSupabase } from "../supabase/client.js";
 const T_LOCAL = "erp_checklist_templates";
 const R_LOCAL = "erp_checklist_responses";
 
-const tTo   = (t) => ({ department: t.department, name: t.name, items: t.items || [], active: t.active !== false, version: Number(t.version) || 1 });
-const tFrom = (r) => ({ id: r.id, department: r.department, name: r.name, items: Array.isArray(r.items) ? r.items : [], active: r.active !== false, version: Number(r.version) || 1, createdAt: r.created_at || null, updatedAt: r.updated_at || null });
-
-const rTo   = (r) => ({
-  machine_id:       r.machineId,
-  handover_id:      r.handoverId || null,
-  department:       r.department,
-  template_id:      r.templateId || null,
-  template_version: r.templateVersion ?? 1,
-  template_name:    r.templateName || null,
-  answers:          r.answers || [],
-  submitted_by:     r.submittedBy || null,
+// Migration 028 — bomKey / stage columns. Null is a valid "shared library" /
+// "legacy dept-only" value. The isMissingColumnError retry below strips the
+// two new columns when the DB hasn't been migrated yet, so the client ships
+// safely ahead of the schema.
+const tTo   = (t) => {
+  const row = {
+    department: t.department,
+    name:       t.name,
+    items:      t.items || [],
+    active:     t.active !== false,
+    version:    Number(t.version) || 1,
+  };
+  if (t.bomKey !== undefined) row.bom_key = t.bomKey || null;
+  if (t.stage  !== undefined) row.stage   = t.stage  || null;
+  return row;
+};
+const tFrom = (r) => ({
+  id:         r.id,
+  department: r.department,
+  name:       r.name,
+  items:      Array.isArray(r.items) ? r.items : [],
+  active:     r.active !== false,
+  version:    Number(r.version) || 1,
+  bomKey:     r.bom_key || null,
+  stage:      r.stage   || null,
+  createdAt:  r.created_at || null,
+  updatedAt:  r.updated_at || null,
 });
+
+const rTo   = (r) => {
+  const row = {
+    machine_id:       r.machineId,
+    handover_id:      r.handoverId || null,
+    department:       r.department,
+    template_id:      r.templateId || null,
+    template_version: r.templateVersion ?? 1,
+    template_name:    r.templateName || null,
+    answers:          r.answers || [],
+    submitted_by:     r.submittedBy || null,
+  };
+  if (r.stage  !== undefined) row.stage   = r.stage  || null;
+  if (r.bomKey !== undefined) row.bom_key = r.bomKey || null;
+  return row;
+};
 const rFrom = (row) => ({
   id: row.id, machineId: row.machine_id, handoverId: row.handover_id || null,
   department: row.department, templateId: row.template_id || null,
   templateVersion: row.template_version ?? 1, templateName: row.template_name || "",
   answers: Array.isArray(row.answers) ? row.answers : [],
+  stage:   row.stage   || null,
+  bomKey:  row.bom_key || null,
   submittedBy: row.submitted_by || null, submittedAt: row.submitted_at || null,
 });
+
+// Detects "column does not exist" / schema-cache errors so we can retry
+// without the new 028 columns when the migration hasn't been run. Same
+// pattern as itemsStore / machinesStore.
+function isMissingColumnError(err) {
+  if (!err) return false;
+  if (err.code === "42703" || err.code === "PGRST204") return true;
+  return /column .* does not exist|schema cache|could not find the .* column/i.test(err.message || err.details || err.hint || "");
+}
 
 const getLocalT  = () => { try { const s = localStorage.getItem(T_LOCAL); if (s) return JSON.parse(s); } catch {} return []; };
 const setLocalT  = (a) => { try { localStorage.setItem(T_LOCAL, JSON.stringify(a)); } catch {} };
@@ -50,7 +92,13 @@ export async function createTemplate(t) {
     return { success: true, template: row };
   }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
-  const { data, error } = await c.from("checklist_templates").insert(tTo(t)).select().single();
+  const fullRow = tTo(t);
+  let { data, error } = await c.from("checklist_templates").insert(fullRow).select().single();
+  if (error && isMissingColumnError(error)) {
+    console.warn("[checklists:create] migration 028 columns missing — retrying without bom_key/stage");
+    const slim = { ...fullRow }; delete slim.bom_key; delete slim.stage;
+    ({ data, error } = await c.from("checklist_templates").insert(slim).select().single());
+  }
   if (error) { console.error("[checklists:create] failed", error); return { success: false, error: error.message }; }
   return { success: true, template: tFrom(data) };
 }
@@ -68,10 +116,17 @@ export async function updateTemplate(id, patch) {
   if (patch.department !== undefined) row.department = patch.department;
   if (patch.items      !== undefined) row.items      = patch.items;
   if (patch.active     !== undefined) row.active     = !!patch.active;
+  if (patch.bomKey     !== undefined) row.bom_key    = patch.bomKey || null;
+  if (patch.stage      !== undefined) row.stage      = patch.stage  || null;
   // Fetch current version to bump
   const { data: cur } = await c.from("checklist_templates").select("version").eq("id", id).maybeSingle();
   row.version = (cur?.version || 1) + 1;
-  const { error } = await c.from("checklist_templates").update(row).eq("id", id);
+  let { error } = await c.from("checklist_templates").update(row).eq("id", id);
+  if (error && isMissingColumnError(error)) {
+    console.warn("[checklists:update] migration 028 columns missing — retrying without bom_key/stage");
+    const slim = { ...row }; delete slim.bom_key; delete slim.stage;
+    ({ error } = await c.from("checklist_templates").update(slim).eq("id", id));
+  }
   if (error) { console.error("[checklists:update] failed", error); return { success: false, error: error.message }; }
   return { success: true };
 }
@@ -104,7 +159,13 @@ export async function createResponse(r) {
     return { success: true, response: row };
   }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
-  const { data, error } = await c.from("checklist_responses").insert(rTo(r)).select().single();
+  const fullRow = rTo(r);
+  let { data, error } = await c.from("checklist_responses").insert(fullRow).select().single();
+  if (error && isMissingColumnError(error)) {
+    console.warn("[checklists:response] migration 028 columns missing — retrying without stage/bom_key");
+    const slim = { ...fullRow }; delete slim.stage; delete slim.bom_key;
+    ({ data, error } = await c.from("checklist_responses").insert(slim).select().single());
+  }
   if (error) { console.error("[checklists:response] failed", error); return { success: false, error: error.message }; }
   return { success: true, response: rFrom(data) };
 }
