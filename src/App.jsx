@@ -60,7 +60,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-20-pending-stock-critical";
+const APP_BUILD = "2026-10-20-machine-dept-durations";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -7780,7 +7780,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
 
 // ─── BOM DRAWER ───────────────────────────────────────────────────────────────
 
-function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock, onClose, onIssue, onUpdateBOM, onRenameBOM, allBomKeys = [], onAfterRename, serialNo = "", rackReady = 0 }) {
+function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock, onClose, onIssue, onUpdateBOM, onRenameBOM, allBomKeys = [], onAfterRename, serialNo = "", rackReady = 0, settings = {} }) {
   const [search,       setSearch]       = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [catCollapsed, setCatCollapsed] = useState({});
@@ -7816,6 +7816,29 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   const [criticalInputs,    setCriticalInputs]    = useState({});
   const [criticalErr,       setCriticalErr]       = useState("");
   const [showCriticalModal, setShowCriticalModal] = useState(false);
+  // Migration 027 — per-machine department duration popup. Fires AFTER the
+  // critical-item popup (or straight after Issue Stock when no critical lines
+  // exist) and BEFORE doIssue commits. Default values come from the live
+  // workflow settings so operators can accept-and-move for the common case;
+  // any machine-specific override they type here is baked onto the machine
+  // record once, at BOM Outward. We intentionally expose NO general edit UI
+  // afterwards — the spec requires a controlled process for later corrections.
+  const [showDurationModal, setShowDurationModal] = useState(false);
+  const [durationForm,      setDurationForm]      = useState(() => {
+    const wf = readDeptWorkflowSettings(settings);
+    const toDh = (mins) => {
+      const m = Math.max(0, Math.floor(Number(mins) || 0));
+      const hours = Math.floor(m / 60);
+      return { days: Math.floor(hours / 24), hours: hours % 24 };
+    };
+    return {
+      Assembly:   toDh(wf.dept_durations?.Assembly?.minutes   ?? DEFAULT_DEPT_DURATIONS.Assembly.minutes),
+      Mechanical: toDh(wf.dept_durations?.Mechanical?.minutes ?? DEFAULT_DEPT_DURATIONS.Mechanical.minutes),
+      Electrical: toDh(wf.dept_durations?.Electrical?.minutes ?? DEFAULT_DEPT_DURATIONS.Electrical.minutes),
+      Trial:      toDh(wf.dept_durations?.Trial?.minutes      ?? DEFAULT_DEPT_DURATIONS.Trial.minutes),
+    };
+  });
+  const [durationErr, setDurationErr] = useState("");
 
   const allFlat  = Object.entries(items).flatMap(([cat, list]) => list.map((i) => ({ ...i, category: cat })));
   const findInv  = (code) => allFlat.find((i) => i.code === code);
@@ -7976,7 +7999,31 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   // Single additional bypass: no serial (manual outward path) — there is no
   // machine to route.
   const rackTracked = Number(bom?.rackCapacity) > 0;
-  const doIssue = (chosenDest) => {
+  // Validate the duration-form state (migration 027). Each department must have
+  // non-negative integer days + hours (0 ≤ hours < 24). A fully-zero row is
+  // allowed — the operator may legitimately not track that department.
+  const normalizeDuration = (dh) => {
+    const d = Math.max(0, Math.floor(Number(dh?.days)  || 0));
+    const h = Math.max(0, Math.floor(Number(dh?.hours) || 0));
+    return { days: d, hours: h };
+  };
+  const validateDurationForm = () => {
+    for (const dept of ["Assembly", "Mechanical", "Electrical", "Trial"]) {
+      const { hours } = durationForm[dept] || {};
+      if (Number(hours) >= 24) return `${dept}: hours must be less than 24 — use days for anything 24h or longer.`;
+    }
+    return "";
+  };
+  const buildDeptDurations = () => {
+    const out = {};
+    for (const dept of ["Assembly", "Mechanical", "Electrical", "Trial"]) {
+      const n = normalizeDuration(durationForm[dept]);
+      out[dept] = { minutes: n.days * 24 * 60 + n.hours * 60 };
+    }
+    return out;
+  };
+
+  const doIssue = (chosenDest, { durationConfirmed = false } = {}) => {
     if (issuing) return;                    // duplicate production-issue guard
     // Critical-item gate (migration 026). Every critical line that is being
     // issued this round must have its confirmation ready (checkbox ticked, or
@@ -7986,12 +8033,22 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
       setCriticalErr(`Confirm critical items before issuing: ${missing}`);
       return;
     }
+    // Duration-config gate (migration 027). Appears only when this outward
+    // will create a machine (= has a serial number). Operator sees it right
+    // after the critical modal; it defaults to the live workflow settings so
+    // one click is enough for the common case. Non-serial manual outward
+    // skips this — there's no machine to attach the deadlines to.
+    if (serialNo && !durationConfirmed) {
+      setDurationErr("");
+      setShowDurationModal(true);
+      return;
+    }
     if (serialNo && !chosenDest) {
       if (!rackTracked) {
         // Capacity blank → auto-route. Skip the popup entirely and commit
         // straight to direct production so capacity-blank BOMs flow directly
         // into Active Builds without any rack detour.
-        return doIssue("direct");
+        return doIssue("direct", { durationConfirmed: true });
       }
       setDestError("");
       setShowDestChoice(true);
@@ -8035,7 +8092,11 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
       }
       if (item.pendingQty > 0) pending.push({ ...item });
     });
-    onIssue({ bomKey, label: bom.label, units, issued, pending, note: issueNote, date: fmtDate(new Date()), serialNo, destination: finalDest });
+    // Migration 027 — carry the per-machine duration overrides into the issue
+    // payload. Only emitted when a serial is present (= machine will be
+    // created). Non-serial manual outward sends nothing, matching legacy flow.
+    const deptDurations = serialNo ? buildDeptDurations() : null;
+    onIssue({ bomKey, label: bom.label, units, issued, pending, note: issueNote, date: fmtDate(new Date()), serialNo, destination: finalDest, deptDurations });
     onClose();
   };
 
@@ -8532,7 +8593,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               </div>
             )}
             <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button onClick={() => doIssue("rack")} disabled={issuing} autoFocus
+              <button onClick={() => doIssue("rack", { durationConfirmed: true })} disabled={issuing} autoFocus
                       className="text-left rounded-xl p-4 transition-all border disabled:opacity-50"
                       style={{ background: "rgba(34,197,94,0.08)", borderColor: "rgba(34,197,94,0.4)" }}>
                 <div className="text-2xl mb-1.5">📦</div>
@@ -8541,7 +8602,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                   Default flow. Sits on the rack until an operator starts production from the rack view.
                 </div>
               </button>
-              <button onClick={() => doIssue("direct")} disabled={issuing}
+              <button onClick={() => doIssue("direct", { durationConfirmed: true })} disabled={issuing}
                       className="text-left rounded-xl p-4 transition-all border disabled:opacity-50"
                       style={{ background: "rgba(139,92,246,0.08)", borderColor: "rgba(139,92,246,0.4)" }}>
                 <div className="text-2xl mb-1.5">▶</div>
@@ -8562,13 +8623,122 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
           </div>
         </div>
       )}
+
+      {/* ── Department Durations popup (migration 027, 2026-10-20) ──────────
+          Fires AFTER the critical-item popup and BEFORE the destination
+          popup / final commit. Captures per-machine deadlines for the four
+          departments in days + hours. Defaults come from the live workflow
+          settings (same source as the Settings → Department Workflow page),
+          so operators can accept-and-move for the common case. The chosen
+          values are saved onto the machine record at creation and are not
+          exposed to further routine editing — any later correction must go
+          through a controlled process (per spec, intentionally not built). */}
+      {!editMode && showDurationModal && (
+        <div className="fixed inset-0 z-[88] flex items-center justify-center p-4"
+             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
+             onClick={(e) => e.target === e.currentTarget && !issuing && setShowDurationModal(false)}>
+          <div className="w-full max-w-xl rounded-2xl overflow-hidden flex flex-col"
+               style={{ maxHeight: "92vh", background: "#0d1018",
+                        border: "1px solid rgba(59,130,246,0.5)",
+                        boxShadow: "0 40px 100px rgba(0,0,0,0.92), 0 0 60px rgba(59,130,246,0.08)" }}>
+            <div className="px-6 py-4 border-b border-white/[0.08] flex items-start justify-between flex-shrink-0"
+                 style={{ background: "linear-gradient(90deg,rgba(59,130,246,0.14),rgba(99,102,241,0.06))" }}>
+              <div>
+                <div className="text-sm font-black text-white flex items-center gap-2">
+                  ⏱️ Department Durations
+                </div>
+                <div className="text-[11px] text-slate-400 mt-0.5">
+                  {bomKey}{serialNo ? ` · S/N ${serialNo}` : ""} · lock-in deadlines for this machine
+                </div>
+              </div>
+              <button onClick={() => !issuing && setShowDurationModal(false)} disabled={issuing}
+                      className="w-7 h-7 rounded-lg bg-white/[0.05] hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-xs font-bold disabled:opacity-40">
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+              <div className="text-[11px] text-slate-400 mb-1">
+                These durations are saved against this specific machine and drive its
+                Machine Tracker deadlines. Pre-filled from settings — override as needed.
+                Once Outward is confirmed, these values are locked.
+              </div>
+              {["Assembly", "Mechanical", "Electrical", "Trial"].map((dept) => {
+                const row = durationForm[dept] || { days: 0, hours: 0 };
+                const setField = (k, v) => {
+                  const n = Math.max(0, Math.floor(Number(v) || 0));
+                  setDurationErr("");
+                  setDurationForm((prev) => ({ ...prev, [dept]: { ...prev[dept], [k]: n } }));
+                };
+                return (
+                  <div key={dept} className="rounded-xl px-4 py-3 flex items-center gap-3 flex-wrap"
+                       style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <div className="min-w-[110px]">
+                      <div className="text-[12px] font-bold text-white">{dept}</div>
+                      <div className="text-[9px] text-slate-500 uppercase tracking-wider">deadline</div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-1 justify-end">
+                      <div className="flex items-center gap-1.5">
+                        <input type="number" min="0" step="1" value={row.days}
+                               onChange={(e) => setField("days", e.target.value)}
+                               className="w-16 bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1 text-xs text-white outline-none text-right modal-input"
+                               style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
+                        <span className="text-[11px] text-slate-500">days</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <input type="number" min="0" max="23" step="1" value={row.hours}
+                               onChange={(e) => setField("hours", e.target.value)}
+                               className="w-16 bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1 text-xs text-white outline-none text-right modal-input"
+                               style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
+                        <span className="text-[11px] text-slate-500">hours</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {durationErr && (
+                <div className="text-[11px] font-bold px-3 py-2 rounded-md"
+                     style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                  ⚠ {durationErr}
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between flex-shrink-0"
+                 style={{ background: "rgba(0,0,0,0.35)" }}>
+              <div className="text-[10px] text-slate-500">
+                Locked after Outward — plan carefully.
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => !issuing && setShowDurationModal(false)} disabled={issuing}
+                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
+                  Back
+                </button>
+                <button onClick={() => {
+                          const vErr = validateDurationForm();
+                          if (vErr) { setDurationErr(vErr); return; }
+                          setShowDurationModal(false);
+                          // Hand off to the existing engine. doIssue will now
+                          // route to destination popup (serial + rack-tracked)
+                          // or commit directly (direct production).
+                          doIssue(undefined, { durationConfirmed: true });
+                        }}
+                        disabled={issuing}
+                        className="text-xs font-black text-white px-4 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{ background: "linear-gradient(135deg,#2563eb,#4f46e5)",
+                                 boxShadow: "0 0 14px rgba(79,70,229,0.3)" }}>
+                  ✓ Save Durations & Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── OUTWARD PAGE ─────────────────────────────────────────────────────────────
 
-function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateBOM, onRenameBOM, outwardLog, onAddOutward, pendingLog, onClearPending, onCreateMachine, machineLog = [], canDo = () => true, onRemoveRackMachine, onDuplicateBOM, onDeleteBOM, computeBOMDeletionInfo }) {
+function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateBOM, onRenameBOM, outwardLog, onAddOutward, pendingLog, onClearPending, onCreateMachine, machineLog = [], canDo = () => true, onRemoveRackMachine, onDuplicateBOM, onDeleteBOM, computeBOMDeletionInfo, settings = {} }) {
   // Feature 3: confirm + remove rack machine. The button only appears when a
   // remover prop is provided AND the operator has the permission. Stays in
   // local state so the confirmation persists across re-renders of the modal.
@@ -8658,7 +8828,10 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
     if (data.serialNo && onCreateMachine) {
       // Feature 1: forward the destination so the machine can skip the rack
       // stage when the operator picked Direct Production (R&D / one-off builds).
-      onCreateMachine(data.bomKey, data.label, data.serialNo, data.date, id, data.destination || "rack");
+      // Migration 027 — forward the per-machine duration overrides captured
+      // in the Department Durations popup. Null when the operator somehow
+      // skipped the popup (shouldn't happen for serial path, but defensive).
+      onCreateMachine(data.bomKey, data.label, data.serialNo, data.date, id, data.destination || "rack", data.deptDurations || null);
     }
     const destSuffix = data.destination === "direct" ? " · direct production" : "";
     showToast(`${data.bomKey} × ${data.units} issued${destSuffix}`, data.serialNo ? `S/N: ${data.serialNo}` : data.label);
@@ -8968,6 +9141,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
           onAfterRename={(newKey) => setOpenBOM(newKey)}
           serialNo={activeSerial}
           rackReady={rackReadyCount(openBOM)}
+          settings={settings}
         />
       )}
 
@@ -9994,7 +10168,11 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     if (!finishModal || transferBusy) return;
     const { machine, toDepartment, narration, template, answers } = finishModal;
     const fromDepartment = machine.currentDepartment || machine.stage;
-    const expectedCfg = workflow.dept_durations[fromDepartment];
+    // Migration 027 — prefer the per-machine override captured at Outward.
+    // Falls back to the live workflow setting for machines created before
+    // the duration popup existed (deptDurations=null).
+    const expectedCfg = (machine.deptDurations && machine.deptDurations[fromDepartment])
+      || workflow.dept_durations[fromDepartment];
     const expectedDurationMinutes = (expectedCfg && expectedCfg.minutes) || 0;
     const { actualMinutes, overrunMinutes, isOverrun } = computeOverrun(
       machine.departmentEnteredAt, expectedDurationMinutes, nowTick
@@ -11079,7 +11257,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       {finishModal && (() => {
         const { machine, toDepartment, narration } = finishModal;
         const fromDepartment = machine.currentDepartment || machine.stage;
-        const expectedCfg = workflow.dept_durations[fromDepartment];
+        // Migration 027 — per-machine override wins over global workflow setting.
+        const expectedCfg = (machine.deptDurations && machine.deptDurations[fromDepartment])
+          || workflow.dept_durations[fromDepartment];
         const expectedMin = (expectedCfg && expectedCfg.minutes) || 0;
         const { actualMinutes, overrunMinutes, isOverrun } = computeOverrun(machine.departmentEnteredAt, expectedMin, nowTick);
         return (
@@ -14817,7 +14997,7 @@ export default function App() {
   };
 
   // ── Machine Tracker handlers ──
-  const handleCreateMachine = (bomKey, bomLabel, serialNo, date, issueId, destination = "rack") => {
+  const handleCreateMachine = (bomKey, bomLabel, serialNo, date, issueId, destination = "rack", deptDurations = null) => {
     const dateStr = date || fmtDate(new Date());
     // Feature 1: direct production lands the machine in Assembly immediately,
     // skipping the BOM Issued / rack waiting stage. Used for R&D, prototypes,
@@ -14829,7 +15009,7 @@ export default function App() {
       type: "machine_created", module: "Machine",
       action: `Machine Created: ${bomKey}${directMode ? " (direct production)" : ""}`,
       ref: bomKey, serialNo: serialNo || "",
-      details: { bomLabel, issueId, destination, initialStage },
+      details: { bomLabel, issueId, destination, initialStage, deptDurations: deptDurations || undefined },
     });
     const history = [{ stage: initialStage, date: dateStr, note: initialNote }];
     // If we skipped the rack, also record the implicit BOM Issued → Assembly
@@ -14853,6 +15033,10 @@ export default function App() {
       currentDepartment:   initialStage,
       departmentEnteredAt: nowIso,
       pendingHandoverId:   null,
+      // Migration 027 — per-machine duration overrides captured at Outward.
+      // Null when the operator skipped the popup (should not happen for serial
+      // path, but allow it so legacy paths and tests don't break).
+      deptDurations:       deptDurations || null,
     };
     setMachineLog((prev) => [newMachine, ...prev]);
     if (isSupabaseEnabled()) machineCreate(newMachine).then((r) => { if (!r.success) console.warn("[App] Machine create Supabase failed:", r.error); });
@@ -15535,7 +15719,8 @@ export default function App() {
                               onRemoveRackMachine={handleRemoveRackMachine}
                               onDuplicateBOM={handleDuplicateBOM}
                               onDeleteBOM={handleDeleteBOM}
-                              computeBOMDeletionInfo={computeBOMDeletionInfo} />,
+                              computeBOMDeletionInfo={computeBOMDeletionInfo}
+                              settings={settings} />,
     pending:   <PendingPage   pendingLog={pendingLog} items={items} bomDefs={bomDefs}
                               machineLog={machineLog}
                               onFulfillPending={handleFulfillPending}

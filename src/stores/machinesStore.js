@@ -22,6 +22,9 @@ function toRow(m) {
   if (m.currentDepartment     !== undefined) base.current_department    = m.currentDepartment    || null;
   if (m.departmentEnteredAt   !== undefined) base.department_entered_at = m.departmentEnteredAt  || null;
   if (m.pendingHandoverId     !== undefined) base.pending_handover_id   = m.pendingHandoverId    || null;
+  // Migration 027 — per-machine department duration overrides. Captured once
+  // at BOM Outward. Stripped-on-retry if the schema hasn't been migrated yet.
+  if (m.deptDurations         !== undefined) base.dept_durations        = m.deptDurations        || null;
   return base;
 }
 function fromRow(r) {
@@ -41,6 +44,9 @@ function fromRow(r) {
     currentDepartment:   r.current_department   || null,
     departmentEnteredAt: r.department_entered_at || null,
     pendingHandoverId:   r.pending_handover_id   || null,
+    // Migration 027 — per-machine duration overrides. NULL for legacy rows;
+    // the Department Workflow falls back to settings.department_workflow.
+    deptDurations:       (r.dept_durations && typeof r.dept_durations === "object") ? r.dept_durations : null,
   };
 }
 
@@ -82,11 +88,12 @@ export async function createMachine(m) {
   const fullRow = toRow(m);
   let { data, error } = await c.from("machine_log").insert(fullRow).select().single();
   if (error && isMissingColumnError(error)) {
-    console.warn("[machines:create] migration 021 columns missing — retrying without current_department/department_entered_at/pending_handover_id");
+    console.warn("[machines:create] optional columns missing (migrations 021 / 027) — retrying stripped");
     const slim = { ...fullRow };
     delete slim.current_department;
     delete slim.department_entered_at;
     delete slim.pending_handover_id;
+    delete slim.dept_durations;
     ({ data, error } = await c.from("machine_log").insert(slim).select().single());
   }
   if (error) { console.error("[machines:create] failed", error); return { success: false, error: error.message }; }
