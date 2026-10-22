@@ -335,6 +335,10 @@ const USER_FACING_STRINGS = [
   "Workers from",
   "+ Add worker",
   "Workers per department",
+  // BOM Edit — Checklist + Critical Items review chips (2026-10-22)
+  "Critical Items in this BOM",
+  "Department Checklists for ",
+  "Open Inventory to edit",
 ];
 
 for (const s of USER_FACING_STRINGS) {
