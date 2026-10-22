@@ -37,7 +37,7 @@ import { fetchPendingItems, createPendingItem, resolvePendingItem } from "./stor
 import { fetchAllAttachments, fetchAttachmentsForMachine, uploadAttachment, signedUrlFor, deleteAttachment } from "./stores/attachmentsStore.js";
 import { fetchRatings, createRating, overrideRating } from "./stores/ratingsStore.js";
 import { computeDepartmentRating, formatRatingBadge, summarizeMachineRatings } from "./utils/ratingLogic.js";
-import { startChecklistResponse, toggleAnswer, setAnswerRemark, validateChecklistAnswers, snapshotResponse } from "./utils/checklistLogic.js";
+import { startChecklistResponse, toggleAnswer, setAnswerRemark, validateChecklistAnswers, snapshotResponse, pickTemplate, duplicateTemplateItems } from "./utils/checklistLogic.js";
 import { useRealtimeTables } from "./realtime/useRealtimeTables.js";
 import { fetchRecentMovements, MOVEMENT_META } from "./stores/stockMovementsStore.js";
 import { sendPOWhatsApp, openVendorWhatsApp, waErrorToast } from "./utils/whatsapp.js";
@@ -60,7 +60,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-20-machine-dept-durations";
+const APP_BUILD = "2026-10-21-bom-checklist-builder";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -7778,9 +7778,315 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
   );
 }
 
+// ─── BOM CHECKLIST BUILDER (migration 028) ──────────────────────────────────
+// Shared component used in both the BOM Create modal (bomKey=null, writes
+// buffered into pendingChecklists until BOM is saved) and the BOMDrawer Edit
+// mode (bomKey known, writes go straight to the store).
+//
+// Layout: 4 department rows × 3 stage pills per row = 12 slots.
+// Each pill is one of: "— Add —" / "N items" / "N items (required)".
+// Click opens an inline editor with:
+//   - Preset name (defaults to "<Dept> · <Stage>" — zero typing needed)
+//   - Item rows: label text + "Must do" checkbox
+//   - "+ Add Step" button
+//   - Reuse dropdown — copies items from any existing template with the same
+//     department (across BOMs AND the shared library). Copy, not link.
+// All strings are plain English for low-literacy operators.
+const CHECKLIST_STAGES = [
+  { key: "before_receive",  short: "Before Receive",   long: "Before Receiving / Accepting",
+    hint: "Checks done before accepting incoming material or machine work." },
+  { key: "during_work",     short: "During Work",      long: "During Work (optional)",
+    hint: "Checkpoints to verify while the department is working." },
+  { key: "before_dispatch", short: "Before Dispatch",  long: "Before Dispatch / Transfer",
+    hint: "Checks required before sending the machine to the next department." },
+];
+const CHECKLIST_DEPTS = ["Assembly", "Mechanical", "Electrical", "Trial"];
+
+function BomChecklistSlots({
+  bomKey = null,                 // null = BOM create (buffered); non-null = BOMDrawer edit (immediate writes)
+  allTemplates = [],             // every template in the system (for Reuse picker)
+  pending = [],                  // used only when bomKey is null (BOM create flow)
+  setPending = () => {},         // used only when bomKey is null
+  onSave,                        // async (template) => { success, template? }
+  onUpdate,                      // async (id, patch) => { success }
+  onDelete,                      // async (id)        => { success }
+  readOnly = false,
+}) {
+  // Resolve slot content:
+  // - bomKey known → look at allTemplates
+  // - bomKey null  → look at `pending` (buffered)
+  const slotFor = (dept, stage) => {
+    if (bomKey) {
+      return allTemplates
+        .filter((t) => t.bomKey === bomKey && t.department === dept && t.stage === stage && t.active !== false)
+        .sort((a, b) => (b.id || 0) - (a.id || 0))[0] || null;
+    }
+    return pending.find((p) => p.department === dept && p.stage === stage) || null;
+  };
+
+  // Inline editor state. One editor open at a time.
+  const [editing, setEditing] = useState(null); // { dept, stage, name, items[], _id?, _localId? }
+  const [editErr, setEditErr] = useState("");
+  const [busy,    setBusy]    = useState(false);
+  const [reuseOpen, setReuseOpen] = useState(false);
+
+  const openEditor = (dept, stage) => {
+    if (readOnly) return;
+    const existing = slotFor(dept, stage);
+    if (existing) {
+      setEditing({
+        dept, stage,
+        name: existing.name || `${dept} · ${CHECKLIST_STAGES.find((s) => s.key === stage).short}`,
+        items: Array.isArray(existing.items) && existing.items.length
+          ? existing.items.map((it) => ({ id: it.id || `i${Date.now()}-${Math.random().toString(36).slice(2,6)}`, label: it.label || "", required: !!it.required }))
+          : [{ id: `i${Date.now()}`, label: "", required: false }],
+        _id:      existing.id      || null,     // db id (edit mode only)
+        _localId: existing._localId || null,    // buffered id (create flow only)
+      });
+    } else {
+      setEditing({
+        dept, stage,
+        name: `${dept} · ${CHECKLIST_STAGES.find((s) => s.key === stage).short}`,
+        items: [{ id: `i${Date.now()}`, label: "", required: false }],
+      });
+    }
+    setEditErr("");
+    setReuseOpen(false);
+  };
+
+  const closeEditor = () => { setEditing(null); setEditErr(""); setReuseOpen(false); };
+
+  const addRow = () => setEditing((e) => e && { ...e, items: [...e.items, { id: `i${Date.now()}-${e.items.length}`, label: "", required: false }] });
+  const patchRow = (idx, patch) => setEditing((e) => e && { ...e, items: e.items.map((it, i) => i === idx ? { ...it, ...patch } : it) });
+  const removeRow = (idx) => setEditing((e) => e && { ...e, items: e.items.filter((_, i) => i !== idx) });
+  const moveRow  = (idx, dir) => setEditing((e) => {
+    if (!e) return e;
+    const items = [...e.items]; const t = idx + dir;
+    if (t < 0 || t >= items.length) return e;
+    [items[idx], items[t]] = [items[t], items[idx]];
+    return { ...e, items };
+  });
+
+  // Reuse: show templates from the same department (regardless of BOM). Includes
+  // the shared library (bomKey=null) and templates attached to OTHER BOMs.
+  const reuseCandidates = editing
+    ? allTemplates
+        .filter((t) => t && t.active !== false && t.department === editing.dept && Array.isArray(t.items) && t.items.length)
+        .filter((t) => !(bomKey && t.bomKey === bomKey && t.stage === editing.stage && t.id === editing._id))
+        .slice(0, 50)
+    : [];
+
+  const applyReuse = (src) => {
+    setEditing((e) => e && ({
+      ...e,
+      name: `${e.dept} · ${CHECKLIST_STAGES.find((s) => s.key === e.stage).short}`,
+      items: duplicateTemplateItems(src.items),
+    }));
+    setReuseOpen(false);
+  };
+
+  const saveSlot = async () => {
+    if (!editing) return;
+    const items = editing.items.filter((it) => (it.label || "").trim().length > 0);
+    if (!items.length) { setEditErr("Add at least one step before saving."); return; }
+    const payload = {
+      department: editing.dept,
+      stage:      editing.stage,
+      bomKey:     bomKey || null,          // null for buffered pre-save; filled in by caller after BOM create
+      name:       (editing.name || `${editing.dept} · ${CHECKLIST_STAGES.find((s) => s.key === editing.stage).short}`).trim(),
+      items:      items.map((it) => ({ id: it.id, label: (it.label || "").trim(), required: !!it.required })),
+      active:     true,
+    };
+    setBusy(true); setEditErr("");
+    try {
+      if (bomKey) {
+        // Immediate write path (BOM edit).
+        if (editing._id) {
+          const r = await onUpdate(editing._id, payload);
+          if (r && r.success === false) { setEditErr(r.error || "Save failed."); return; }
+        } else {
+          const r = await onSave(payload);
+          if (r && r.success === false) { setEditErr(r.error || "Save failed."); return; }
+        }
+      } else {
+        // Buffered path (BOM create). Replace or append.
+        setPending((prev) => {
+          const others = prev.filter((p) => !(p.department === editing.dept && p.stage === editing.stage));
+          const localId = editing._localId || `local-${Date.now()}`;
+          return [...others, { ...payload, _localId: localId }];
+        });
+      }
+      closeEditor();
+    } finally { setBusy(false); }
+  };
+
+  const removeSlot = async (dept, stage) => {
+    if (readOnly) return;
+    const s = slotFor(dept, stage);
+    if (!s) return;
+    if (bomKey) {
+      // Mark inactive so historical responses keep working.
+      await onDelete(s.id);
+    } else {
+      setPending((prev) => prev.filter((p) => !(p.department === dept && p.stage === stage)));
+    }
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  const DeptRow = ({ dept }) => (
+    <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
+      <div className="text-[11px] font-black text-white mb-2 uppercase tracking-wider">{dept}</div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {CHECKLIST_STAGES.map((s) => {
+          const slot = slotFor(dept, s.key);
+          const count = slot?.items?.length || 0;
+          const hasRequired = (slot?.items || []).some((it) => it && it.required);
+          return (
+            <button key={s.key}
+                    onClick={() => openEditor(dept, s.key)}
+                    disabled={readOnly}
+                    className={`text-left px-3 py-2 rounded-lg border transition-all ${readOnly ? "cursor-default opacity-70" : "hover:bg-white/[0.04] cursor-pointer"}`}
+                    style={{ background: slot ? "rgba(34,197,94,0.05)" : "rgba(255,255,255,0.02)",
+                             borderColor: slot ? "rgba(34,197,94,0.3)" : "rgba(255,255,255,0.08)" }}>
+              <div className="text-[9px] font-bold uppercase tracking-wider" style={{ color: slot ? "#4ade80" : "#64748b" }}>{s.short}</div>
+              <div className="text-[11px] font-bold text-white mt-0.5">
+                {slot
+                  ? `${count} step${count === 1 ? "" : "s"}${hasRequired ? " · must do" : ""}`
+                  : <span className="text-slate-500">— Add —</span>}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-2">
+      <div className="text-[10px] text-slate-500">
+        Add a checklist for any stage you want to control. Operators will see it automatically at Accept, during work, or at Finish &amp; Transfer. Leave a stage empty if no check is needed. Reusing a template copies the steps — editing one BOM never changes another.
+      </div>
+      {CHECKLIST_DEPTS.map((d) => <DeptRow key={d} dept={d} />)}
+
+      {/* ── Inline editor overlay ────────────────────────────────────────── */}
+      {editing && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center p-4"
+             style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(10px)" }}
+             onClick={(e) => e.target === e.currentTarget && !busy && closeEditor()}>
+          <div className="w-full max-w-xl rounded-2xl overflow-hidden flex flex-col"
+               style={{ maxHeight: "90vh", background: "#0d1018",
+                        border: "1px solid rgba(59,130,246,0.5)",
+                        boxShadow: "0 40px 100px rgba(0,0,0,0.92)" }}>
+            <div className="px-5 py-3 border-b border-white/[0.08] flex items-start justify-between flex-shrink-0"
+                 style={{ background: "linear-gradient(90deg,rgba(59,130,246,0.14),rgba(99,102,241,0.06))" }}>
+              <div>
+                <div className="text-sm font-black text-white">📋 Checklist · {editing.dept}</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">{CHECKLIST_STAGES.find((s) => s.key === editing.stage).long}</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">{CHECKLIST_STAGES.find((s) => s.key === editing.stage).hint}</div>
+              </div>
+              <button onClick={closeEditor} disabled={busy}
+                      className="w-7 h-7 rounded-lg bg-white/[0.05] hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-xs font-bold disabled:opacity-40">
+                ✕
+              </button>
+            </div>
+
+            {/* Reuse picker */}
+            <div className="px-5 py-2 border-b border-white/[0.05] flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Reuse:</span>
+              <div className="relative flex-1 min-w-[180px]">
+                <button onClick={() => setReuseOpen((v) => !v)} disabled={busy || reuseCandidates.length === 0}
+                        className="w-full text-left text-[11px] font-semibold px-3 py-1.5 rounded-lg border bg-white/[0.04] border-white/[0.08] text-slate-300 hover:bg-white/[0.07] transition-all disabled:opacity-40">
+                  {reuseCandidates.length === 0
+                    ? "No templates yet to copy from"
+                    : "Pick a template to copy its steps…"} ▾
+                </button>
+                {reuseOpen && reuseCandidates.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 z-10 rounded-lg overflow-hidden overflow-y-auto"
+                       style={{ background: "#0b0e17", border: "1px solid rgba(59,130,246,0.35)", maxHeight: 220 }}>
+                    {reuseCandidates.map((t) => (
+                      <button key={t.id}
+                              onMouseDown={(e) => { e.preventDefault(); applyReuse(t); }}
+                              className="w-full text-left px-3 py-2 hover:bg-white/[0.06] border-b border-white/[0.04] last:border-0">
+                        <div className="text-[11px] font-bold text-white truncate">{t.name}</div>
+                        <div className="text-[9px] text-slate-500">
+                          {t.bomKey ? `BOM ${t.bomKey}` : "Shared library"} · {t.stage ? CHECKLIST_STAGES.find((s) => s.key === t.stage)?.short || t.stage : "Legacy"} · {(t.items || []).length} step{(t.items || []).length === 1 ? "" : "s"}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-3 space-y-2">
+              {editing.items.map((it, idx) => (
+                <div key={it.id}
+                     className="rounded-lg px-3 py-2 flex items-center gap-2"
+                     style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <div className="text-[10px] font-mono text-slate-600 w-5 text-right">{idx + 1}.</div>
+                  <input value={it.label}
+                         onChange={(e) => patchRow(idx, { label: e.target.value })}
+                         placeholder="What should the operator check?"
+                         className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1.5 text-[12px] text-white outline-none focus:border-blue-500/40 modal-input" />
+                  <label className="flex items-center gap-1 cursor-pointer text-[10px] text-slate-400">
+                    <input type="checkbox" checked={!!it.required}
+                           onChange={(e) => patchRow(idx, { required: e.target.checked })}
+                           className="accent-emerald-500 w-3.5 h-3.5" />
+                    Must do
+                  </label>
+                  <button onClick={() => moveRow(idx, -1)} disabled={idx === 0 || busy}
+                          className="text-[10px] font-bold w-6 h-6 rounded border border-white/[0.08] bg-white/[0.03] text-slate-400 hover:text-white disabled:opacity-30">▲</button>
+                  <button onClick={() => moveRow(idx, 1)} disabled={idx === editing.items.length - 1 || busy}
+                          className="text-[10px] font-bold w-6 h-6 rounded border border-white/[0.08] bg-white/[0.03] text-slate-400 hover:text-white disabled:opacity-30">▼</button>
+                  <button onClick={() => removeRow(idx)} disabled={busy || editing.items.length === 1}
+                          className="text-[10px] font-bold w-6 h-6 rounded border border-red-500/20 bg-red-500/10 text-red-300 hover:bg-red-500/20 disabled:opacity-30">✕</button>
+                </div>
+              ))}
+              <button onClick={addRow} disabled={busy}
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg border border-dashed border-blue-500/30 bg-blue-500/[0.05] text-blue-300 hover:bg-blue-500/[0.1] transition-all">
+                + Add Step
+              </button>
+              {editErr && (
+                <div className="text-[11px] font-bold px-3 py-2 rounded-md"
+                     style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                  ⚠ {editErr}
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between flex-shrink-0"
+                 style={{ background: "rgba(0,0,0,0.35)" }}>
+              <div className="flex gap-2">
+                {(editing._id || editing._localId) && (
+                  <button onClick={async () => { await removeSlot(editing.dept, editing.stage); closeEditor(); }}
+                          disabled={busy}
+                          className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-red-300 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-all">
+                    Remove Checklist
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={closeEditor} disabled={busy}
+                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+                  Cancel
+                </button>
+                <button onClick={saveSlot} disabled={busy}
+                        className="text-xs font-black text-white px-4 py-1.5 rounded-lg transition-all disabled:opacity-50"
+                        style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.3)" }}>
+                  {busy ? "Saving…" : "✓ Save Checklist"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── BOM DRAWER ───────────────────────────────────────────────────────────────
 
-function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock, onClose, onIssue, onUpdateBOM, onRenameBOM, allBomKeys = [], onAfterRename, serialNo = "", rackReady = 0, settings = {} }) {
+function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock, onClose, onIssue, onUpdateBOM, onRenameBOM, allBomKeys = [], onAfterRename, serialNo = "", rackReady = 0, settings = {}, checklistTemplates = [], onCreateChecklistTemplate, onUpdateChecklistTemplate, onDeleteChecklistTemplate, canConfigChecklist = false }) {
   const [search,       setSearch]       = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [catCollapsed, setCatCollapsed] = useState({});
@@ -8315,6 +8621,26 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               {addErr && <div className="text-[10px] text-red-400 mt-2">⚠ {addErr}</div>}
             </div>
 
+            {/* Migration 028 — Department Checklists for THIS BOM. Writes are
+                immediate (template rows get bomKey set) because the BOM
+                already exists. Hidden when the user lacks machines.configDept. */}
+            {canConfigChecklist && (
+              <div className="rounded-xl p-4" style={{ background: "rgba(139,92,246,0.04)", border: "1px solid rgba(139,92,246,0.22)" }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-base">📋</span>
+                  <div className="text-[11px] font-bold text-white">Department Checklists (optional)</div>
+                  <span className="text-[9px] text-purple-300 px-1.5 py-0.5 rounded-full" style={{ background: "rgba(139,92,246,0.15)" }}>Saved per BOM</span>
+                </div>
+                <BomChecklistSlots
+                  bomKey={bomKey}
+                  allTemplates={checklistTemplates}
+                  onSave={onCreateChecklistTemplate}
+                  onUpdate={onUpdateChecklistTemplate}
+                  onDelete={onDeleteChecklistTemplate}
+                />
+              </div>
+            )}
+
             <div className="flex gap-3 pt-2">
               <button onClick={() => { setEditMode(false); resetEditState(); }}
                       className="text-xs font-bold text-slate-400 px-5 py-2.5 rounded-xl border border-white/[0.08] hover:text-white hover:border-white/20 transition-all">Discard Changes</button>
@@ -8738,7 +9064,8 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
 // ─── OUTWARD PAGE ─────────────────────────────────────────────────────────────
 
-function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateBOM, onRenameBOM, outwardLog, onAddOutward, pendingLog, onClearPending, onCreateMachine, machineLog = [], canDo = () => true, onRemoveRackMachine, onDuplicateBOM, onDeleteBOM, computeBOMDeletionInfo, settings = {} }) {
+function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateBOM, onRenameBOM, outwardLog, onAddOutward, pendingLog, onClearPending, onCreateMachine, machineLog = [], canDo = () => true, onRemoveRackMachine, onDuplicateBOM, onDeleteBOM, computeBOMDeletionInfo, settings = {},
+  checklistTemplates = [], onCreateChecklistTemplate, onUpdateChecklistTemplate, onDeleteChecklistTemplate }) {
   // Feature 3: confirm + remove rack machine. The button only appears when a
   // remover prop is provided AND the operator has the permission. Stays in
   // local state so the confirmation persists across re-renders of the modal.
@@ -8775,6 +9102,11 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
   const [createAddCode, setCreateAddCode] = useState("");
   const [createAddQty,  setCreateAddQty]  = useState("1");
   const [createErr,     setCreateErr]     = useState("");
+  // Migration 028 — buffered checklist slots during BOM Create (bomKey not known
+  // yet). Flushed into checklist_templates after the BOM row is created, so
+  // every row lands with the real bomKey set.
+  const [createChecklists, setCreateChecklists] = useState([]); // [{ department, stage, name, items, _localId }]
+  const canConfigChecklist = canDo("machines","configDept");
 
   const allFlat  = Object.entries(items).flatMap(([cat, list]) => list.map((i) => ({ ...i, category: cat })));
   const findItem = (code) => allFlat.find((i) => i.code === code);
@@ -8872,6 +9204,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
     setCreateAddCode("");
     setCreateAddQty("1");
     setCreateErr("");
+    setCreateChecklists([]);
     setShowCreate(true);
   };
   const addCreateItem = () => {
@@ -8883,17 +9216,32 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
     setCreateAddCode(""); setCreateAddQty("1"); setCreateErr("");
   };
   const removeCreateItem = (code) => setCreateItems((p) => p.filter((i) => i.code !== code));
-  const submitCreateBOM = () => {
+  const submitCreateBOM = async () => {
     if (!createForm.key.trim()) { setCreateErr("BOM Key is required"); return; }
     if (!createForm.label.trim()) { setCreateErr("Machine Model Name is required"); return; }
     if (createItems.length === 0) { setCreateErr("Add at least one component"); return; }
-    const res = onCreateBOM(createForm.key.trim().toUpperCase().replace(/\s+/g, "-"), {
+    const bomKey = createForm.key.trim().toUpperCase().replace(/\s+/g, "-");
+    const res = onCreateBOM(bomKey, {
       label: createForm.label,
       items: createItems,
       rackCapacity: createForm.rackCapacity,
     });
     if (res?.success === false) { setCreateErr(res.error); return; }
-    showToast(`BOM Created: ${createForm.key.trim().toUpperCase()}`, createForm.label);
+    // Migration 028 — flush buffered checklists after BOM row exists. Each
+    // slot gets the real bomKey set. We fire sequentially so an unexpected
+    // failure stops at the first and surfaces the error inline. Non-fatal
+    // for the BOM itself — the BOM is already saved; this just populates
+    // its optional checklists.
+    if (onCreateChecklistTemplate && createChecklists.length > 0) {
+      for (const slot of createChecklists) {
+        try {
+          await onCreateChecklistTemplate({ ...slot, bomKey });
+        } catch (e) {
+          console.warn("[OutwardPage] checklist flush failed", slot, e);
+        }
+      }
+    }
+    showToast(`BOM Created: ${bomKey}`, createForm.label);
     setShowCreate(false);
   };
 
@@ -9142,6 +9490,11 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
           serialNo={activeSerial}
           rackReady={rackReadyCount(openBOM)}
           settings={settings}
+          checklistTemplates={checklistTemplates}
+          onCreateChecklistTemplate={onCreateChecklistTemplate}
+          onUpdateChecklistTemplate={onUpdateChecklistTemplate}
+          onDeleteChecklistTemplate={onDeleteChecklistTemplate}
+          canConfigChecklist={canConfigChecklist}
         />
       )}
 
@@ -9237,6 +9590,26 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                     style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)" }}>+ Add</button>
                 </div>
               </div>
+
+              {/* Migration 028 — Department Checklists section (optional).
+                  Buffered into `createChecklists` and flushed by submitCreateBOM
+                  once the BOM row exists so each template lands with the real
+                  bomKey. Hidden when the user lacks machines.configDept. */}
+              {canConfigChecklist && (
+                <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">
+                      Department Checklists (optional) {createChecklists.length ? `· ${createChecklists.length} set` : ""}
+                    </div>
+                  </div>
+                  <BomChecklistSlots
+                    bomKey={null}
+                    allTemplates={checklistTemplates}
+                    pending={createChecklists}
+                    setPending={setCreateChecklists}
+                  />
+                </div>
+              )}
 
               {createErr && (
                 <div className="px-3 py-2 rounded-lg text-[11px] text-red-300"
@@ -10099,7 +10472,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   handovers = [], settings = {}, onFinishTransfer, onAcceptHandover, onRegisterSignature, currentUser = null,
   // Phase B props (optional — fall back to [] when migrations not applied)
   checklistTemplates = [], pendingHandoverItems = [], attachments = [], deptRatings = [],
-  onUploadAttachment, onDeleteAttachment, onResolvePendingItem }) {
+  onUploadAttachment, onDeleteAttachment, onResolvePendingItem,
+  // Migration 028 — During-Work checklist handler. Optional; button hides when
+  // no template is configured for the machine's current department.
+  onSubmitDuringWorkChecklist }) {
   const [filter,   setFilter]   = useState("active");
   const [expanded, setExpanded] = useState(null);
   const [stageMap, setStageMap] = useState({});
@@ -10141,6 +10517,8 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     return () => clearInterval(id);
   }, []);
   const [finishModal, setFinishModal] = useState(null); // { machine, toDepartment, narration }
+  // Migration 028 — During-Work checklist runtime modal.
+  const [duringWorkModal, setDuringWorkModal] = useState(null); // { machine, template, answers, busy, error }
   const [acceptModal, setAcceptModal] = useState(null); // { handover, password, needSig, sigSvg, busy, error }
   const [transferBusy, setTransferBusy] = useState(false);
 
@@ -10158,10 +10536,39 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       return;
     }
     const fromDepartment = machine.currentDepartment || machine.stage;
-    // Phase B — pick an active checklist template for this dept (newest first).
-    const template = (checklistTemplates || []).find((t) => t && t.active !== false && t.department === fromDepartment) || null;
+    // Migration 028 — BOM-scoped checklist lookup, with legacy dept-only
+    // fallback for machines whose BOM hasn't configured its own before_dispatch
+    // slot yet. See src/utils/checklistLogic.js:pickTemplate for the cascade.
+    const template = pickTemplate(checklistTemplates, machine.bomKey, fromDepartment, "before_dispatch");
     const answers  = template ? startChecklistResponse(template) : [];
     setFinishModal({ machine, toDepartment, narration: "", template, answers });
+  };
+
+  // Migration 028 — During-Work runtime. Opens the modal only when a template
+  // exists for this machine's current department. Non-blocking: operator can
+  // submit anytime between Accept and Finish & Transfer.
+  const openDuringWorkModal = (machine) => {
+    const dept = machine.currentDepartment || machine.stage;
+    const template = pickTemplate(checklistTemplates, machine.bomKey, dept, "during_work");
+    if (!template) return;
+    setDuringWorkModal({ machine, template, answers: startChecklistResponse(template), busy: false, error: "" });
+  };
+  const submitDuringWork = async () => {
+    if (!duringWorkModal || duringWorkModal.busy) return;
+    const { machine, template, answers } = duringWorkModal;
+    const chk = validateChecklistAnswers(answers);
+    if (!chk.ok) {
+      setDuringWorkModal((prev) => prev ? { ...prev, error: `Add a short note for ${chk.missing.length} unticked item${chk.missing.length === 1 ? "" : "s"}.` } : prev);
+      return;
+    }
+    setDuringWorkModal((prev) => prev ? { ...prev, busy: true, error: "" } : prev);
+    const r = await onSubmitDuringWorkChecklist?.({ machine, template, answers });
+    if (r && r.success === false) {
+      setDuringWorkModal((prev) => prev ? { ...prev, busy: false, error: r.error || "Save failed" } : prev);
+      return;
+    }
+    setDuringWorkModal(null);
+    showToast("During-Work checks saved", `${machine.bomKey}${machine.serialNo ? ` · S/N ${machine.serialNo}` : ""} · ${machine.currentDepartment || machine.stage}`);
   };
 
   const submitFinishTransfer = async () => {
@@ -10214,7 +10621,17 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   };
 
   const openAcceptModal = async (handover) => {
-    setAcceptModal({ handover, password: "", needSig: false, sigSvg: null, busy: false, error: "", pendingItemsToRaise: [""], newPendingText: "" });
+    // Migration 028 — Before Receive checklist. Pick a template scoped to
+    // this BOM + receiving department; if none, operator sees no checklist.
+    const machine = (machineLog || []).find((m) => m.id === handover.machineId) || null;
+    const bomKey  = handover.bomKey || machine?.bomKey || null;
+    const toDept  = handover.toDepartment;
+    const checklistTemplate = pickTemplate(checklistTemplates, bomKey, toDept, "before_receive");
+    const checklistAnswers  = checklistTemplate ? startChecklistResponse(checklistTemplate) : [];
+
+    setAcceptModal({ handover, password: "", needSig: false, sigSvg: null, busy: false, error: "",
+                     pendingItemsToRaise: [""], newPendingText: "",
+                     checklistTemplate, checklistAnswers });
     // Pre-check: does the current user have a stored signature? If not, we
     // show the pad before password re-auth. The actual signature creation
     // still happens through onRegisterSignature.
@@ -10228,7 +10645,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
   const submitAcceptHandover = async () => {
     if (!acceptModal || acceptModal.busy) return;
-    const { handover, password, needSig, sigSvg } = acceptModal;
+    const { handover, password, needSig, sigSvg, checklistTemplate, checklistAnswers } = acceptModal;
     if (needSig && !sigSvg) {
       setAcceptModal((prev) => prev ? { ...prev, error: "Please register your signature first." } : prev);
       return;
@@ -10239,6 +10656,16 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       setAcceptModal((prev) => prev ? { ...prev, error: "Please enter your password." } : prev);
       return;
     }
+    // Migration 028 — Before-Receive checklist gate. Same validation shape
+    // as Finish & Transfer: every unchecked item must carry a non-empty
+    // remark. Required items that are unchecked without remark block Accept.
+    if (checklistTemplate && Array.isArray(checklistAnswers) && checklistAnswers.length) {
+      const chk = validateChecklistAnswers(checklistAnswers);
+      if (!chk.ok) {
+        setAcceptModal((prev) => prev ? { ...prev, error: `Checklist incomplete — add a remark for ${chk.missing.length} unchecked item${chk.missing.length === 1 ? "" : "s"}.` } : prev);
+        return;
+      }
+    }
     setAcceptModal((prev) => prev ? { ...prev, busy: true, error: "" } : prev);
     if (needSig && sigSvg) {
       const sr = await onRegisterSignature(sigSvg);
@@ -10248,7 +10675,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       }
     }
     const pendingItemsToRaise = (acceptModal.pendingItemsToRaise || []).filter((s) => s && s.trim());
-    const res = await onAcceptHandover({ handoverId: handover.id, password, pendingItemsToRaise });
+    const res = await onAcceptHandover({ handoverId: handover.id, password, pendingItemsToRaise,
+                                         // Pass through so the handler can snapshot the Before-Receive response.
+                                         checklistTemplate, checklistAnswers,
+                                         stage: "before_receive", department: handover.toDepartment });
     if (!res || res.success === false) {
       setAcceptModal((prev) => prev ? { ...prev, busy: false, error: res?.error || "Accept failed." } : prev);
       return;
@@ -10797,6 +11227,20 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           (d) the user has the permission, and (e) the parent passed
                           the handler. Lives next to Update Stage so operators can
                           pick either flow during the Phase A rollout. */}
+                      {/* Migration 028 — During-Work checks button. Visible
+                          only when THIS machine's current department has a
+                          configured during_work template. Non-blocking —
+                          operator can submit anytime between Accept and
+                          Finish & Transfer. */}
+                      {!isComplete && !machine.pendingHandoverId && onSubmitDuringWorkChecklist
+                        && pickTemplate(checklistTemplates, machine.bomKey, machine.currentDepartment || machine.stage, "during_work") && (
+                        <button onClick={() => openDuringWorkModal(machine)}
+                                className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
+                                style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 10px rgba(37,99,235,0.3)" }}
+                                title="During-Work Checks">
+                          📋 During-Work Checks
+                        </button>
+                      )}
                       {!isComplete && nextDepartment(machine.currentDepartment || machine.stage) && !machine.pendingHandoverId && canFinishTransfer(canDo) && onFinishTransfer && (
                         <button onClick={() => openFinishModal(machine)}
                                 className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
@@ -11427,6 +11871,44 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         <div className="text-[10px] text-slate-500 mt-1.5">These items appear in your checklist until resolved. Resolve them from the machine card's History panel after you accept.</div>
                       </div>
                     )}
+                    {/* Migration 028 — Before-Receive checklist. Appears only
+                        when this BOM has a configured template for the dept
+                        the machine is being accepted into. Required items
+                        follow the same "unchecked needs remark" rule as
+                        Finish & Transfer. */}
+                    {acceptModal.checklistTemplate && (acceptModal.checklistAnswers || []).length > 0 && (
+                      <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.3)" }}>
+                        <div className="text-[10px] font-bold text-blue-200 uppercase tracking-wider mb-1">
+                          📋 {acceptModal.checklistTemplate.name || "Before-Receive Checklist"}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mb-2">
+                          Tick each step after you check it. Any step you can't tick needs a short reason.
+                        </div>
+                        <div className="space-y-1.5">
+                          {acceptModal.checklistAnswers.map((a, i) => (
+                            <div key={a.id || i} className="rounded-md px-2 py-1.5"
+                                 style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${a.checked ? "rgba(34,197,94,0.3)" : "rgba(255,255,255,0.08)"}` }}>
+                              <label className="flex items-start gap-2 cursor-pointer">
+                                <input type="checkbox" checked={!!a.checked}
+                                       onChange={(e) => setField({ checklistAnswers: toggleAnswer(acceptModal.checklistAnswers, i, e.target.checked), error: "" })}
+                                       className="accent-emerald-500 w-4 h-4 mt-0.5" />
+                                <span className="flex-1 text-[11px] text-slate-200 leading-relaxed">
+                                  {a.label}
+                                  {a.required && <span className="ml-1 text-[9px] font-bold text-orange-300">• Must do</span>}
+                                </span>
+                              </label>
+                              {!a.checked && (
+                                <input type="text" value={a.remark || ""}
+                                       onChange={(e) => setField({ checklistAnswers: setAnswerRemark(acceptModal.checklistAnswers, i, e.target.value), error: "" })}
+                                       placeholder="Why not? (short note)"
+                                       className="mt-1 w-full bg-white/[0.03] border border-white/[0.1] rounded px-2 py-1 text-[11px] text-white placeholder-slate-500 outline-none focus:border-blue-500/60" />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Phase B — raise new pending items at this transfer */}
                     <div className="rounded-lg px-3 py-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
                       <div className="text-[10px] font-bold text-slate-300 uppercase tracking-wide mb-1.5">Any work from {handover.fromDepartment} still pending? (optional)</div>
@@ -11472,6 +11954,70 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                     {busy ? "⏳ Accepting…" : (workflow.require_password_at_accept ? "Verify & Accept" : "Confirm Acceptance")}
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Migration 028 — During-Work checklist modal ─────────────────── */}
+      {duringWorkModal && (() => {
+        const { machine, template, answers, busy, error } = duringWorkModal;
+        const setField = (patch) => setDuringWorkModal((prev) => prev ? { ...prev, ...patch } : prev);
+        return (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+               style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(10px)" }}
+               onClick={(e) => e.target === e.currentTarget && !busy && setDuringWorkModal(null)}>
+            <div className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col"
+                 style={{ background: "#0d1018", border: "1px solid rgba(59,130,246,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)", maxHeight: "90vh" }}>
+              <div className="px-6 py-4 border-b border-white/[0.08] flex-shrink-0"
+                   style={{ background: "linear-gradient(90deg,rgba(59,130,246,0.12),rgba(99,102,241,0.05))" }}>
+                <div className="text-sm font-black text-white">📋 During-Work Checks</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">{machine.bomKey}{machine.serialNo ? ` · S/N ${machine.serialNo}` : ""} · {machine.currentDepartment || machine.stage}</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">{template?.name || "Checks"}</div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5 space-y-2">
+                <div className="text-[10px] text-slate-400 mb-1">
+                  Tick each step after you check it. Any step you can't tick needs a short reason.
+                </div>
+                {answers.map((a, i) => (
+                  <div key={a.id || i} className="rounded-md px-2 py-1.5"
+                       style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${a.checked ? "rgba(34,197,94,0.3)" : "rgba(255,255,255,0.08)"}` }}>
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input type="checkbox" checked={!!a.checked}
+                             onChange={(e) => setField({ answers: toggleAnswer(answers, i, e.target.checked), error: "" })}
+                             className="accent-emerald-500 w-4 h-4 mt-0.5" />
+                      <span className="flex-1 text-[11px] text-slate-200 leading-relaxed">
+                        {a.label}
+                        {a.required && <span className="ml-1 text-[9px] font-bold text-orange-300">• Must do</span>}
+                      </span>
+                    </label>
+                    {!a.checked && (
+                      <input type="text" value={a.remark || ""}
+                             onChange={(e) => setField({ answers: setAnswerRemark(answers, i, e.target.value), error: "" })}
+                             placeholder="Why not? (short note)"
+                             className="mt-1 w-full bg-white/[0.03] border border-white/[0.1] rounded px-2 py-1 text-[11px] text-white placeholder-slate-500 outline-none focus:border-blue-500/60" />
+                    )}
+                  </div>
+                ))}
+                {error && (
+                  <div className="rounded-lg px-3 py-2 text-[11px] font-semibold"
+                       style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                    ⚠ {error}
+                  </div>
+                )}
+              </div>
+              <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between flex-shrink-0"
+                   style={{ background: "rgba(0,0,0,0.35)" }}>
+                <button onClick={() => !busy && setDuringWorkModal(null)} disabled={busy}
+                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
+                  Cancel
+                </button>
+                <button onClick={submitDuringWork} disabled={busy}
+                        className="text-xs font-black text-white px-4 py-1.5 rounded-lg transition-all disabled:opacity-50"
+                        style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 14px rgba(37,99,235,0.3)" }}>
+                  {busy ? "Saving…" : "✓ Save Checks"}
+                </button>
               </div>
             </div>
           </div>
@@ -15292,10 +15838,13 @@ export default function App() {
       });
     }
 
-    // Phase B — snapshot the checklist response (fire-and-forget mirror).
+    // Phase B / migration 028 — snapshot the Before-Dispatch checklist
+    // response (fire-and-forget mirror). stage+bomKey land on the row for
+    // Reports to filter without joining machine_log.
     if (checklistTemplate && Array.isArray(checklistAnswers)) {
       const snap = snapshotResponse({
         machineId, handoverId: res.handover.id, department: fromDepartment,
+        stage: "before_dispatch", bomKey: machine.bomKey,
         template: checklistTemplate, answers: checklistAnswers,
         submittedBy: currentUser.id,
       });
@@ -15303,10 +15852,10 @@ export default function App() {
       if (cr.success) {
         setChecklistResponses((prev) => [cr.response, ...prev]);
         logAudit({
-          type: "checklist_submitted", module: "Machine",
-          action: `Checklist submitted: ${checklistTemplate.name || ""} for ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""} (${fromDepartment})`,
+          type: "checklist_submitted_finish", module: "Machine",
+          action: `Checklist submitted (Before Dispatch): ${checklistTemplate.name || ""} for ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""} (${fromDepartment})`,
           ref: machine.bomKey, serialNo: machine.serialNo || "",
-          details: { handoverId: res.handover.id, templateId: checklistTemplate.id, items: checklistAnswers.length, unchecked: checklistAnswers.filter((a) => !a.checked).length },
+          details: { handoverId: res.handover.id, templateId: checklistTemplate.id, items: checklistAnswers.length, unchecked: checklistAnswers.filter((a) => !a.checked).length, stage: "before_dispatch" },
         });
       } else {
         console.warn("[App] handleFinishTransfer: checklist save failed", cr.error);
@@ -15320,7 +15869,7 @@ export default function App() {
   // main session), attach the operator's signature, flip status to accepted,
   // promote the machine to the new department. Password re-auth is required
   // by design — a saved signature alone is not proof of authorization.
-  const handleAcceptHandover = async ({ handoverId, password, pendingItemsToRaise = [] }) => {
+  const handleAcceptHandover = async ({ handoverId, password, pendingItemsToRaise = [], checklistTemplate = null, checklistAnswers = null, stage = null, department = null }) => {
     if (!currentUser?.id) return { success: false, error: "Not authenticated" };
     const handover = handovers.find((h) => h.id === handoverId);
     if (!handover) return { success: false, error: "Handover not found" };
@@ -15431,6 +15980,31 @@ export default function App() {
       }
     }
 
+    // Migration 028 — snapshot the Before-Receive checklist response (if
+    // the receiving dept has one configured for this BOM). Fire-and-forget.
+    if (checklistTemplate && Array.isArray(checklistAnswers) && checklistAnswers.length) {
+      const snap = snapshotResponse({
+        machineId: handover.machineId, handoverId,
+        department: department || handover.toDepartment,
+        stage: stage || "before_receive",
+        bomKey: handover.bomKey || machine?.bomKey || null,
+        template: checklistTemplate, answers: checklistAnswers,
+        submittedBy: currentUser.id,
+      });
+      const cr = await createResponse(snap);
+      if (cr.success) {
+        setChecklistResponses((prev) => [cr.response, ...prev]);
+        logAudit({
+          type: "checklist_submitted_accept", module: "Machine",
+          action: `Checklist submitted (Before Receive): ${checklistTemplate.name || ""} for ${handover.bomKey}${handover.serialNo ? ` [${handover.serialNo}]` : ""} (${department || handover.toDepartment})`,
+          ref: handover.bomKey, serialNo: handover.serialNo || "",
+          details: { handoverId, templateId: checklistTemplate.id, items: checklistAnswers.length, unchecked: checklistAnswers.filter((a) => !a.checked).length, stage: "before_receive" },
+        });
+      } else {
+        console.warn("[App] handleAcceptHandover: before-receive checklist save failed", cr.error);
+      }
+    }
+
     // Phase B — compute + save a department rating snapshot for the sender's work.
     const openPendingItemsCount =
       (pendingHandoverItems.filter((p) => p.machineId === handover.machineId && p.status === "open").length)
@@ -15515,6 +16089,31 @@ export default function App() {
       ref: String(id), details: { department: t?.department || "" },
     });
     return res;
+  };
+
+  // Migration 028 — During-Work checklist submission. Optional; no stage
+  // transition, no machine state change. Pure snapshot + audit.
+  const handleSubmitDuringWorkChecklist = async ({ machine, template, answers }) => {
+    if (!currentUser?.id) return { success: false, error: "Not authenticated" };
+    if (!machine || !template) return { success: false, error: "Missing machine or template" };
+    const snap = snapshotResponse({
+      machineId: machine.id, handoverId: null,
+      department: machine.currentDepartment || machine.stage,
+      stage: "during_work",
+      bomKey: machine.bomKey || null,
+      template, answers,
+      submittedBy: currentUser.id,
+    });
+    const cr = await createResponse(snap);
+    if (!cr.success) return cr;
+    setChecklistResponses((prev) => [cr.response, ...prev]);
+    logAudit({
+      type: "checklist_submitted_during_work", module: "Machine",
+      action: `Checklist submitted (During Work): ${template.name || ""} for ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""} (${machine.currentDepartment || machine.stage})`,
+      ref: machine.bomKey, serialNo: machine.serialNo || "",
+      details: { templateId: template.id, items: answers.length, unchecked: answers.filter((a) => !a.checked).length, stage: "during_work" },
+    });
+    return { success: true };
   };
 
   // ── Phase B — Pending-item resolution ─────────────────────────────────────
@@ -15720,7 +16319,11 @@ export default function App() {
                               onDuplicateBOM={handleDuplicateBOM}
                               onDeleteBOM={handleDeleteBOM}
                               computeBOMDeletionInfo={computeBOMDeletionInfo}
-                              settings={settings} />,
+                              settings={settings}
+                              checklistTemplates={checklistTemplates}
+                              onCreateChecklistTemplate={handleCreateChecklistTemplate}
+                              onUpdateChecklistTemplate={handleUpdateChecklistTemplate}
+                              onDeleteChecklistTemplate={handleDeleteChecklistTemplate} />,
     pending:   <PendingPage   pendingLog={pendingLog} items={items} bomDefs={bomDefs}
                               machineLog={machineLog}
                               onFulfillPending={handleFulfillPending}
@@ -15755,7 +16358,9 @@ export default function App() {
                               deptRatings={deptRatings}
                               onUploadAttachment={handleUploadAttachment}
                               onDeleteAttachment={handleDeleteAttachment}
-                              onResolvePendingItem={handleResolvePendingItem} />,
+                              onResolvePendingItem={handleResolvePendingItem}
+                              /* Migration 028 */
+                              onSubmitDuringWorkChecklist={handleSubmitDuringWorkChecklist} />,
     vendors:   <VendorsPage   vendorList={vendorList} pos={pos} items={items}
                               onAddVendor={handleAddVendor} onEditVendor={handleEditVendor}
                               onDeleteVendor={handleDeleteVendor} onBulkAddVendors={handleBulkAddVendors} canDo={canDo} />,

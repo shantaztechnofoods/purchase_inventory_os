@@ -220,10 +220,14 @@ const AUDIT_EVENT_TYPES = [
   "handover_sent", "handover_accepted", "handover_overrun_narrated",
   "signature_registered",
   // Phase B — checklists / pending items / attachments / ratings
-  "checklist_submitted", "checklist_template_created", "checklist_template_updated", "checklist_template_deleted",
+  "checklist_template_created", "checklist_template_updated", "checklist_template_deleted",
   "pending_item_raised", "pending_item_resolved",
   "attachment_uploaded", "attachment_deleted",
   "department_rated", "rating_overridden",
+  // Migration 028 — BOM-wise reusable checklist submission audit split by stage.
+  // Replaces the generic "checklist_submitted" string with three stage-specific
+  // event types so Reports can filter the Checklist History tab precisely.
+  "checklist_submitted_finish", "checklist_submitted_accept", "checklist_submitted_during_work",
 ];
 
 for (const type of AUDIT_EVENT_TYPES) {
@@ -313,6 +317,15 @@ const USER_FACING_STRINGS = [
   "Department Durations",
   "Save Durations & Continue",
   "Locked after Outward",
+  // BOM Checklist Builder (migration 028, 2026-10-21)
+  "Department Checklists (optional)",
+  "Before Receive",
+  "During Work",
+  "Before Dispatch",
+  "During-Work Checks",
+  "Save Checklist",
+  "+ Add Step",
+  "Must do",
 ];
 
 for (const s of USER_FACING_STRINGS) {
