@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { useAuth } from "./auth/AuthContext.jsx";
+// Migration 029 — list employees + save their department assignments.
+import { fetchAllUsers, updateUserDepartments } from "./auth/authStore.js";
 import LoginPage from "./pages/LoginPage.jsx";
 import UserManagementPage from "./pages/UserManagementPage.jsx";
 import RoleManagementPage from "./pages/RoleManagementPage.jsx";
@@ -60,7 +62,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-21-bom-checklist-builder";
+const APP_BUILD = "2026-10-22-dept-employees-main-signature";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -5849,9 +5851,91 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
   );
 }
 
+// ─── Migration 029 — Department-employee assignment row ────────────────────
+// One row per department (Assembly / Mechanical / Electrical / Trial) inside
+// Settings → Department Workflow. Shows assigned users as chips with a one-tap
+// remove; "Add worker" dropdown lists everyone NOT yet assigned to this dept.
+// Simple labels for low-literacy operators: "Add worker", "Remove", "Save".
+function DeptEmployeesRow({ dept, assigned, notAssigned, canConfig, onSaveUserDepartments }) {
+  const [pickValue, setPickValue] = useState("");
+  const [busy,      setBusy]      = useState(false);
+  const [err,       setErr]       = useState("");
+
+  const addWorker = async () => {
+    if (!pickValue || !canConfig) return;
+    const u = notAssigned.find((x) => x.id === pickValue);
+    if (!u) return;
+    setBusy(true); setErr("");
+    try {
+      const nextDepts = Array.isArray(u.departments) ? [...u.departments, dept] : [dept];
+      const res = await onSaveUserDepartments(u.id, nextDepts);
+      if (res && res.success === false) { setErr(res.error || "Save failed"); return; }
+      setPickValue("");
+    } finally { setBusy(false); }
+  };
+  const removeWorker = async (u) => {
+    if (!canConfig) return;
+    setBusy(true); setErr("");
+    try {
+      const nextDepts = (u.departments || []).filter((d) => d !== dept);
+      const res = await onSaveUserDepartments(u.id, nextDepts);
+      if (res && res.success === false) setErr(res.error || "Save failed");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="rounded-lg p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="text-[12px] font-black text-white">{dept}</span>
+        <span className="text-[10px] text-slate-500">· {assigned.length} assigned</span>
+      </div>
+      {assigned.length === 0 ? (
+        <div className="text-[11px] italic text-slate-500 mb-2">No workers assigned yet.</div>
+      ) : (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {assigned.map((u) => (
+            <span key={u.id}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full"
+                  style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.3)", color: "#86efac" }}>
+              {u.fullName || u.username}
+              {canConfig && (
+                <button onClick={() => removeWorker(u)} disabled={busy}
+                        title="Remove from this department"
+                        className="ml-0.5 text-slate-400 hover:text-red-300 disabled:opacity-40">×</button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+      {canConfig && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <select value={pickValue} onChange={(e) => setPickValue(e.target.value)} disabled={busy || notAssigned.length === 0}
+                  className="flex-1 min-w-[180px] bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-blue-500/40 disabled:opacity-50"
+                  style={{ background: "#0b0e17", color: "#f0f6ff" }}>
+            <option value="">
+              {notAssigned.length === 0 ? "— All active users already assigned —" : "+ Add worker from existing users…"}
+            </option>
+            {notAssigned.map((u) => (
+              <option key={u.id} value={u.id}>{u.fullName || u.username}{u.username && u.fullName ? ` (${u.username})` : ""}</option>
+            ))}
+          </select>
+          <button onClick={addWorker} disabled={!pickValue || busy}
+                  className="text-[11px] font-black text-white px-3 py-1.5 rounded-md transition-all disabled:opacity-40"
+                  style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 10px rgba(34,197,94,0.25)" }}>
+            Add
+          </button>
+        </div>
+      )}
+      {err && <div className="text-[10px] text-red-400 mt-1">⚠ {err}</div>}
+    </div>
+  );
+}
+
 function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, isSuperAdmin = false, canDo = () => true, onRegisterSignature, currentUser = null,
   // Phase B — checklist admin props (optional)
-  checklistTemplates = [], onCreateChecklistTemplate, onUpdateChecklistTemplate, onDeleteChecklistTemplate }) {
+  checklistTemplates = [], onCreateChecklistTemplate, onUpdateChecklistTemplate, onDeleteChecklistTemplate,
+  // Migration 029 — department-wise employee assignment (optional)
+  allUsers = [], onSaveUserDepartments }) {
   // Snapshot of the last KNOWN-PERSISTED settings — used for the dirty-state pill
   // ("Unsaved changes") so operators see they need to click Save. Updated only after
   // a save round-trips successfully.
@@ -6163,6 +6247,34 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                     </div>
                   </label>
                 </div>
+                {/* ── Migration 029 — Department-wise employee assignment ── */}
+                {onSaveUserDepartments && (
+                  <div className="pt-5 border-t border-white/[0.05]">
+                    <SLabel text="Department Employees"
+                            hint="Assign existing users to one or more departments. During Finish & Transfer, only this list shows up in the Workers / Main Employee pickers for that department. Reuses the existing user records — no new login or role is created." />
+                    <div className="space-y-2">
+                      {["Assembly", "Mechanical", "Electrical", "Trial"].map((dept) => {
+                        const active     = (allUsers || []).filter((u) => u && u.status !== "disabled");
+                        const assigned   = active.filter((u) => Array.isArray(u.departments) && u.departments.includes(dept));
+                        const notAssigned = active.filter((u) => !(Array.isArray(u.departments) && u.departments.includes(dept)));
+                        return (
+                          <DeptEmployeesRow
+                            key={dept}
+                            dept={dept}
+                            assigned={assigned}
+                            notAssigned={notAssigned}
+                            canConfig={canConfig}
+                            onSaveUserDepartments={onSaveUserDepartments}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-2">
+                      Changing an assignment affects only future Finish &amp; Transfer pickers. Historical machine records keep the people they were saved against — later changes never alter past work logs.
+                    </div>
+                  </div>
+                )}
+
                 {onRegisterSignature && currentUser && (
                   <div className="pt-5 border-t border-white/[0.05]">
                     <SLabel text="My digital signature" hint="A one-time signature used when you accept a department handover. The acceptance also re-verifies your password." />
@@ -10123,6 +10235,19 @@ function ReportCenterPage({
     const m = (machineLog || []).find((mm) => mm.id === h.machineId);
     const rating = (filteredRatings || []).find((r) => r.handoverId === h.id);
     const relatedPending = (filteredPending || []).filter((p) => p.raisedInHandoverId === h.id);
+    // Migration 029 — workers + Main Employee attribution. Snapshot wins so
+    // historical names survive renames / deactivations.
+    const nameOf = (uid) => {
+      if (!uid) return "";
+      if (Array.isArray(h.workedBySnapshot)) {
+        const s = h.workedBySnapshot.find((x) => x && x.id === uid);
+        if (s && (s.fullName || s.username)) return s.fullName || s.username;
+      }
+      return uid;
+    };
+    const workerNames = Array.isArray(h.workedBy)
+      ? h.workedBy.map(nameOf).filter(Boolean).join("; ")
+      : "";
     return {
       Machine: h.bomKey, Serial: h.serialNo || "",
       BOMLabel: m?.bomLabel || "",
@@ -10133,6 +10258,9 @@ function ReportCenterPage({
       Narration: h.overrunNarration || "",
       SentAt: h.sentAt || "", AcceptedAt: h.acceptedAt || "",
       SentBy: h.sentBy || "", AcceptedBy: h.acceptedBy || "",
+      Workers: workerNames,
+      MainEmployee: nameOf(h.mainEmployeeId),
+      MainSigned: h.mainEmployeeSignatureSvg || h.mainEmployeeSignatureId ? "Y" : "",
       Status: h.status, AcceptTimeoutMin: h.acceptTimeoutMinutes || 0,
       Rating: rating?.rating ?? "", RatingOverrideReason: rating?.overrideReason || "",
       PendingRaised: relatedPending.length,
@@ -10475,7 +10603,11 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   onUploadAttachment, onDeleteAttachment, onResolvePendingItem,
   // Migration 028 — During-Work checklist handler. Optional; button hides when
   // no template is configured for the machine's current department.
-  onSubmitDuringWorkChecklist }) {
+  onSubmitDuringWorkChecklist,
+  // Migration 029 — list of all users (for the Finish-modal worker + Main
+  // Employee pickers). Empty array when Supabase isn't enabled or the list
+  // hasn't loaded yet; UI falls back to a text hint in that case.
+  allUsers = [] }) {
   const [filter,   setFilter]   = useState("active");
   const [expanded, setExpanded] = useState(null);
   const [stageMap, setStageMap] = useState({});
@@ -10541,7 +10673,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     // slot yet. See src/utils/checklistLogic.js:pickTemplate for the cascade.
     const template = pickTemplate(checklistTemplates, machine.bomKey, fromDepartment, "before_dispatch");
     const answers  = template ? startChecklistResponse(template) : [];
-    setFinishModal({ machine, toDepartment, narration: "", template, answers });
+    // Migration 029 — multi-worker + Main Employee picker init. Operator just
+    // clicked Finish & Transfer; nothing selected yet.
+    setFinishModal({ machine, toDepartment, narration: "", template, answers,
+                     workedBy: [], mainEmployeeId: null, mainSigSvg: null, mainSigNeeded: false });
   };
 
   // Migration 028 — During-Work runtime. Opens the modal only when a template
@@ -10573,7 +10708,8 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
   const submitFinishTransfer = async () => {
     if (!finishModal || transferBusy) return;
-    const { machine, toDepartment, narration, template, answers } = finishModal;
+    const { machine, toDepartment, narration, template, answers,
+            workedBy = [], mainEmployeeId = null, mainSigSvg = null } = finishModal;
     const fromDepartment = machine.currentDepartment || machine.stage;
     // Migration 027 — prefer the per-machine override captured at Outward.
     // Falls back to the live workflow setting for machines created before
@@ -10596,6 +10732,19 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         return;
       }
     }
+    // Migration 029 — validate workers + Main Employee + signature.
+    if (!Array.isArray(workedBy) || workedBy.length === 0) {
+      showToast("Workers required", `Pick at least one worker from ${fromDepartment}.`);
+      return;
+    }
+    if (!mainEmployeeId || !workedBy.includes(mainEmployeeId)) {
+      showToast("Main Employee required", "Pick the Main / Responsible Employee from the selected workers.");
+      return;
+    }
+    if (!mainSigSvg || !String(mainSigSvg).trim()) {
+      showToast("Signature required", "The Main Employee must sign to confirm this department's work.");
+      return;
+    }
     setTransferBusy(true);
     try {
       const res = await onFinishTransfer({
@@ -10607,6 +10756,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         overrunNarration: narration.trim() || null,
         checklistTemplate: template || null,
         checklistAnswers:  Array.isArray(answers) ? answers : [],
+        workedBy,
+        mainEmployeeId,
+        mainEmployeeSignatureSvg: mainSigSvg,
       });
       if (res && res.success === false) {
         showToast("Transfer failed", res.error || "Unknown error");
@@ -11307,6 +11459,53 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
                       {/* Phase B — Ratings + Pending items + Attachments */}
                       <div className="space-y-4">
+                        {/* Migration 029 — Workers + Main Employee per dept.
+                            Reads from accepted handovers so you see the full
+                            attribution chain once a department has signed off.
+                            Historical snapshot is in `workedBySnapshot` so
+                            renames / deactivations don't break the display. */}
+                        {(() => {
+                          const machineHandovers = (handovers || []).filter((h) =>
+                            String(h.machineId) === String(machine.id)
+                            && Array.isArray(h.workedBy) && h.workedBy.length > 0);
+                          if (!machineHandovers.length) return null;
+                          const nameOf = (uid, snapshot) => {
+                            if (Array.isArray(snapshot)) {
+                              const s = snapshot.find((x) => x && x.id === uid);
+                              if (s && s.fullName) return s.fullName;
+                              if (s && s.username) return s.username;
+                            }
+                            const u = (allUsers || []).find((x) => x.id === uid);
+                            return u ? (u.fullName || u.username || uid) : uid;
+                          };
+                          return (
+                            <div>
+                              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">Workers per department</div>
+                              <div className="space-y-1.5">
+                                {machineHandovers.map((h) => (
+                                  <div key={h.id} className="rounded px-2 py-1.5"
+                                       style={{ background: "rgba(16,185,129,0.05)", border: "1px solid rgba(16,185,129,0.25)" }}>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-[10px] font-black text-emerald-200">{h.fromDepartment}</span>
+                                      <span className="text-[9px] text-slate-500">· {h.sentAt ? new Date(h.sentAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : ""}</span>
+                                      {h.mainEmployeeSignatureSvg && <span title="Main Employee signed" className="text-[9px] font-bold text-yellow-300">✍ Signed</span>}
+                                    </div>
+                                    <div className="text-[10px] text-slate-300 mt-0.5">
+                                      {h.workedBy.map((uid, idx) => (
+                                        <span key={uid}>
+                                          {idx > 0 && ", "}
+                                          {uid === h.mainEmployeeId && <span className="text-yellow-300">⭐ </span>}
+                                          {nameOf(uid, h.workedBySnapshot)}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
                         {/* Rating summary */}
                         {ratingSummary.count > 0 && (
                           <div>
@@ -11753,6 +11952,138 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                     <div className="text-[10px] text-slate-500 mt-1">This explanation is saved to the handover audit record and shown on reports.</div>
                   </div>
                 )}
+
+                {/* ── Migration 029 — Workers + Main Employee picker ──────── */}
+                {(() => {
+                  const deptUsers = (allUsers || []).filter((u) => u && u.status !== "disabled"
+                    && Array.isArray(u.departments) && u.departments.includes(fromDepartment));
+                  const workedBy  = Array.isArray(finishModal.workedBy) ? finishModal.workedBy : [];
+                  const mainId    = finishModal.mainEmployeeId || null;
+                  const unassigned = deptUsers.filter((u) => !workedBy.includes(u.id));
+                  const addWorker = (id) => {
+                    setFinishModal((prev) => {
+                      if (!prev) return prev;
+                      if (!id || prev.workedBy.includes(id)) return prev;
+                      const nextList = [...prev.workedBy, id];
+                      // Auto-pick Main Employee when it's the first worker — one less click.
+                      const nextMain = prev.mainEmployeeId || (nextList.length === 1 ? id : null);
+                      return { ...prev, workedBy: nextList, mainEmployeeId: nextMain };
+                    });
+                  };
+                  const removeWorker = (id) => {
+                    setFinishModal((prev) => {
+                      if (!prev) return prev;
+                      const nextList = prev.workedBy.filter((x) => x !== id);
+                      const nextMain = prev.mainEmployeeId === id ? (nextList[0] || null) : prev.mainEmployeeId;
+                      return { ...prev, workedBy: nextList, mainEmployeeId: nextMain, mainSigSvg: null, mainSigNeeded: false };
+                    });
+                  };
+                  const setMain = (id) => setFinishModal((prev) => prev ? { ...prev, mainEmployeeId: id, mainSigSvg: null, mainSigNeeded: false } : prev);
+                  const chipName = (u) => u.fullName || u.username || u.id;
+                  return (
+                    <div className="rounded-lg px-3 py-3" style={{ background: "rgba(16,185,129,0.04)", border: "1px solid rgba(16,185,129,0.3)" }}>
+                      <div className="text-[11px] font-black text-emerald-200 mb-1">
+                        Workers from {fromDepartment} <span className="text-red-400 ml-0.5">*</span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 mb-2">
+                        Pick everyone who actually worked on this machine. One of them must be the Main / Responsible Employee — their signature is captured below.
+                      </div>
+                      {deptUsers.length === 0 ? (
+                        <div className="rounded px-2 py-2 text-[11px] font-semibold"
+                             style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                          ⚠ No employees are assigned to {fromDepartment} yet. Ask an admin to assign workers in Settings → Department Workflow → Department Employees.
+                        </div>
+                      ) : (
+                        <>
+                          {workedBy.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                              {workedBy.map((id) => {
+                                const u = deptUsers.find((x) => x.id === id) || (allUsers || []).find((x) => x.id === id);
+                                if (!u) return null;
+                                const isMain = mainId === id;
+                                return (
+                                  <span key={id}
+                                        className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full"
+                                        style={{ background: isMain ? "rgba(234,179,8,0.12)" : "rgba(34,197,94,0.08)",
+                                                 border: `1px solid ${isMain ? "rgba(234,179,8,0.5)" : "rgba(34,197,94,0.35)"}`,
+                                                 color: isMain ? "#fde68a" : "#86efac" }}>
+                                    {isMain ? "⭐" : ""}
+                                    {chipName(u)}
+                                    <button onClick={() => removeWorker(id)}
+                                            title="Remove worker"
+                                            className="ml-0.5 text-slate-400 hover:text-red-300">×</button>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <select value="" onChange={(e) => { if (e.target.value) addWorker(e.target.value); }}
+                                    disabled={unassigned.length === 0}
+                                    className="flex-1 min-w-[180px] bg-white/[0.04] border border-white/[0.1] rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-emerald-500/60 disabled:opacity-50"
+                                    style={{ background: "#0b0e17", color: "#f0f6ff" }}>
+                              <option value="">
+                                {unassigned.length === 0 ? "— All dept employees added —" : "+ Add worker…"}
+                              </option>
+                              {unassigned.map((u) => (
+                                <option key={u.id} value={u.id}>{chipName(u)}{u.username && u.fullName ? ` (${u.username})` : ""}</option>
+                              ))}
+                            </select>
+                          </div>
+                          {workedBy.length > 1 && (
+                            <div className="mt-2">
+                              <div className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Main / Responsible Employee</div>
+                              <select value={mainId || ""} onChange={(e) => setMain(e.target.value)}
+                                      className="w-full bg-white/[0.04] border border-yellow-500/40 rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-yellow-500/70"
+                                      style={{ background: "#0b0e17", color: "#f0f6ff" }}>
+                                <option value="">— Pick the main employee —</option>
+                                {workedBy.map((id) => {
+                                  const u = (allUsers || []).find((x) => x.id === id);
+                                  return <option key={id} value={id}>{u ? chipName(u) : id}</option>;
+                                })}
+                              </select>
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {/* Main Employee signature capture. Only the main
+                          employee signs this department's work. If their
+                          saved signature is missing, pad shows up inline. */}
+                      {mainId && (() => {
+                        const mainUser = (allUsers || []).find((u) => u.id === mainId);
+                        const isCurrentUser = currentUser && mainId === currentUser.id;
+                        const haveSig = !!finishModal.mainSigSvg;
+                        return (
+                          <div className="mt-3 pt-3 border-t border-emerald-500/20">
+                            <div className="text-[10px] font-bold text-emerald-200 uppercase tracking-wider mb-1">
+                              Main Employee signature <span className="text-red-400 ml-0.5">*</span>
+                            </div>
+                            <div className="text-[10px] text-slate-400 mb-2">
+                              <span className="font-bold text-white">{mainUser ? chipName(mainUser) : "Main Employee"}</span> must sign to confirm this department's work.
+                              {!isCurrentUser && " (Hand the device to them to sign now.)"}
+                            </div>
+                            {haveSig ? (
+                              <div className="rounded-lg px-3 py-2 flex items-center gap-2"
+                                   style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.3)" }}>
+                                <span className="text-[11px] font-bold text-emerald-300">✓ Signature captured</span>
+                                <button onClick={() => setFinishModal((prev) => prev ? { ...prev, mainSigSvg: null, mainSigNeeded: false } : prev)}
+                                        className="ml-auto text-[10px] text-slate-400 hover:text-red-300 underline">
+                                  Re-sign
+                                </button>
+                              </div>
+                            ) : (
+                              <SignaturePad
+                                onSave={(svg) => setFinishModal((prev) => prev ? { ...prev, mainSigSvg: svg } : prev)}
+                              />
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  );
+                })()}
+
                 {/* Phase B — Department checklist (if a template exists for this dept) */}
                 {finishModal.template && Array.isArray(finishModal.answers) && finishModal.answers.length > 0 && (
                   <div className="rounded-lg px-3 py-3" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.3)" }}>
@@ -14164,6 +14495,21 @@ export default function App() {
   const [deptRatings, setDeptRatings] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_dept_ratings"); if (s) return JSON.parse(s); } catch {} return []; });
   const [auditLog,   setAuditLog]   = useState(() => getAuditLog());
   const [settings,   setSettings]   = useState(() => { try { const s = localStorage.getItem("erp_settings"); if (s) return { ...SETTINGS_DEFAULTS, ...JSON.parse(s) }; } catch {} return { ...SETTINGS_DEFAULTS }; });
+  // Migration 029 — list of all users (for the Settings dept-employee picker +
+  // the Finish & Transfer worker/main-employee picker). Fetched once on mount
+  // when Supabase is enabled; falls back silently to [] if the schema isn't
+  // migrated yet or the fetch fails. Non-sensitive data (id, username,
+  // full_name, departments) — safe to hold in client memory.
+  const [allUsers,  setAllUsers]  = useState([]);
+  useEffect(() => {
+    if (!SUPA) return;
+    let cancelled = false;
+    (async () => {
+      const list = await fetchAllUsers();
+      if (!cancelled && Array.isArray(list)) setAllUsers(list);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Save settings + propagate to all pages (now async — Supabase upsert when enabled).
   // Returns the save result so the UI can SURFACE failures (the previous console.warn
@@ -15775,6 +16121,8 @@ export default function App() {
     expectedDurationMinutes, actualDurationMinutes, overrunNarration,
     // Phase B — optional checklist attached at Finish time.
     checklistTemplate, checklistAnswers,
+    // Migration 029 — department-wise employees + Main Employee signature.
+    workedBy = [], mainEmployeeId = null, mainEmployeeSignatureSvg = null,
   }) => {
     if (!currentUser?.id) return { success: false, error: "Not authenticated" };
     const machine = machineLog.find((m) => m.id === machineId);
@@ -15782,6 +16130,29 @@ export default function App() {
     if (machine.pendingHandoverId) return { success: false, error: "Handover already in progress for this machine." };
 
     const workflow = readDeptWorkflowSettings(settings);
+
+    // Migration 029 — snapshot the workers + Main Employee so future user
+    // renames / deactivations never corrupt historical reads.
+    const safeWorkedBy = Array.isArray(workedBy) ? workedBy.filter(Boolean) : [];
+    const workedBySnapshot = safeWorkedBy.length
+      ? safeWorkedBy.map((uid) => {
+          const u = (allUsers || []).find((x) => x.id === uid) || null;
+          return { id: uid, fullName: u?.fullName || null, username: u?.username || null };
+        })
+      : null;
+
+    // When the Main Employee IS the current user, their signature is also
+    // persisted to employee_signatures (keeps the user's stored sig fresh);
+    // otherwise we rely on the inline SVG snapshot. Both are stored on the
+    // handover row either way (one of _id / _svg is enough; usually both).
+    let mainSigId = null;
+    if (mainEmployeeId && mainEmployeeId === currentUser.id && mainEmployeeSignatureSvg) {
+      try {
+        const sr = await saveMySignature(currentUser.id, mainEmployeeSignatureSvg);
+        if (sr && sr.success && sr.signature) mainSigId = sr.signature.id || null;
+      } catch (e) { console.warn("[App] saveMySignature (main=current) failed", e); }
+    }
+
     const payload = {
       machineId,
       bomKey:   machine.bomKey,
@@ -15794,6 +16165,12 @@ export default function App() {
       overrunNarration: overrunNarration || null,
       acceptTimeoutMinutes: workflow.accept_timeout_minutes,
       status: "pending",
+      // Migration 029 fields — snapshot + attribution.
+      workedBy:                 safeWorkedBy,
+      workedBySnapshot,
+      mainEmployeeId:           mainEmployeeId || null,
+      mainEmployeeSignatureId:  mainSigId,
+      mainEmployeeSignatureSvg: mainEmployeeSignatureSvg || null,
     };
 
     const res = await handoverCreate(payload);
@@ -15827,6 +16204,11 @@ export default function App() {
         expectedDurationMinutes, actualDurationMinutes,
         overrunMinutes: Math.max(0, actualDurationMinutes - expectedDurationMinutes),
         narration_present: !!(overrunNarration && overrunNarration.trim()),
+        // Migration 029 — attribution snapshot.
+        workedByCount: safeWorkedBy.length || undefined,
+        workedBySnapshot: workedBySnapshot || undefined,
+        mainEmployeeId: mainEmployeeId || undefined,
+        mainEmployeeSigned: !!mainEmployeeSignatureSvg,
       },
     });
     if (overrunNarration && overrunNarration.trim()) {
@@ -16089,6 +16471,23 @@ export default function App() {
       ref: String(id), details: { department: t?.department || "" },
     });
     return res;
+  };
+
+  // Migration 029 — save a user's department assignments (admin action).
+  // Updates both Supabase and the in-memory allUsers list so Settings UI
+  // and the Finish & Transfer picker see the change immediately.
+  const handleSaveUserDepartments = async (userId, departments) => {
+    const res = await updateUserDepartments(userId, departments);
+    if (!res.success) return res;
+    setAllUsers((prev) => prev.map((u) => u.id === userId ? { ...u, departments: Array.isArray(departments) ? [...departments] : [] } : u));
+    const u = allUsers.find((x) => x.id === userId);
+    logAudit({
+      type: "user_departments_updated", module: "Settings",
+      action: `Departments updated: ${u?.fullName || u?.username || userId} → ${(departments || []).join(", ") || "none"}`,
+      ref: userId,
+      details: { departments: Array.isArray(departments) ? departments : [] },
+    });
+    return { success: true };
   };
 
   // Migration 028 — During-Work checklist submission. Optional; no stage
@@ -16360,7 +16759,9 @@ export default function App() {
                               onDeleteAttachment={handleDeleteAttachment}
                               onResolvePendingItem={handleResolvePendingItem}
                               /* Migration 028 */
-                              onSubmitDuringWorkChecklist={handleSubmitDuringWorkChecklist} />,
+                              onSubmitDuringWorkChecklist={handleSubmitDuringWorkChecklist}
+                              /* Migration 029 */
+                              allUsers={allUsers} />,
     vendors:   <VendorsPage   vendorList={vendorList} pos={pos} items={items}
                               onAddVendor={handleAddVendor} onEditVendor={handleEditVendor}
                               onDeleteVendor={handleDeleteVendor} onBulkAddVendors={handleBulkAddVendors} canDo={canDo} />,
@@ -16379,7 +16780,9 @@ export default function App() {
                               checklistTemplates={checklistTemplates}
                               onCreateChecklistTemplate={handleCreateChecklistTemplate}
                               onUpdateChecklistTemplate={handleUpdateChecklistTemplate}
-                              onDeleteChecklistTemplate={handleDeleteChecklistTemplate} />,
+                              onDeleteChecklistTemplate={handleDeleteChecklistTemplate}
+                              allUsers={allUsers}
+                              onSaveUserDepartments={handleSaveUserDepartments} />,
     users:     <UserManagementPage canDo={canDo} />,
     roles:     <RoleManagementPage canDo={canDo} />,
     audit:     <AuditHistoryPage />,

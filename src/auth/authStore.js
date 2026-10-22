@@ -197,6 +197,10 @@ export function mapSupabaseUser(row) {
     status:    row.status,
     overrides: row.overrides || null,
     lastLogin: row.last_login || null,
+    // Migration 029 — list of factory departments this user is assigned to
+    // (Assembly / Mechanical / Electrical / Trial). Default [] when the
+    // column is missing (pre-migration) so legacy flows don't crash.
+    departments: Array.isArray(row.departments) ? row.departments : [],
   };
 }
 
@@ -261,4 +265,30 @@ export async function touchLastLogin(id) {
   const c = getSupabase();
   if (!c) return;
   await c.from("users").update({ last_login: new Date().toISOString() }).eq("id", id);
+}
+
+// Migration 029 — update the departments array for a single user. Pure
+// text[] mutation; no FK, no checks. Returns { success, error? }. Falls back
+// to the pre-029 schema with a column-missing retry so the client ships
+// safely ahead of the migration.
+export async function updateUserDepartments(userId, departments) {
+  if (!isSupabaseEnabled() || !userId) return { success: false, error: "Supabase disabled or missing id" };
+  const c = getSupabase();
+  if (!c) return { success: false, error: "Supabase client not initialized" };
+  const payload = {
+    departments: Array.isArray(departments)
+      ? departments.filter((d) => typeof d === "string" && d.trim()).map((d) => d.trim())
+      : [],
+  };
+  const { error } = await c.from("users").update(payload).eq("id", userId);
+  if (error) {
+    if (error.code === "42703" || error.code === "PGRST204" ||
+        /column .*departments.* does not exist|schema cache/i.test(error.message || "")) {
+      console.warn("[auth:updateUserDepartments] migration 029 not applied yet — write skipped");
+      return { success: false, error: "Database not migrated yet. Run migration 029.", notMigrated: true };
+    }
+    console.warn("[auth:updateUserDepartments] failed", error);
+    return { success: false, error: error.message };
+  }
+  return { success: true };
 }
