@@ -65,7 +65,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-22-dept-roster-visibility";
+const APP_BUILD = "2026-10-22-bom-edit-options";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -8218,7 +8218,11 @@ function BomChecklistSlots({
 
 // ─── BOM DRAWER ───────────────────────────────────────────────────────────────
 
-function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock, onClose, onIssue, onUpdateBOM, onRenameBOM, allBomKeys = [], onAfterRename, serialNo = "", rackReady = 0, settings = {}, checklistTemplates = [], onCreateChecklistTemplate, onUpdateChecklistTemplate, onDeleteChecklistTemplate, canConfigChecklist = false }) {
+function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock, onClose, onIssue, onUpdateBOM, onRenameBOM, allBomKeys = [], onAfterRename, serialNo = "", rackReady = 0, settings = {}, checklistTemplates = [], onCreateChecklistTemplate, onUpdateChecklistTemplate, onDeleteChecklistTemplate, canConfigChecklist = false,
+  // 2026-10-22 — navigate to another page (e.g. Inventory from the Critical
+  // Items review). Optional; falls back to a no-op so BOMDrawer still works
+  // when the host page doesn't wire it in.
+  onNavigate = () => {} }) {
   const [search,       setSearch]       = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [catCollapsed, setCatCollapsed] = useState({});
@@ -8229,6 +8233,12 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   const [editRackCap,  setEditRackCap]  = useState(() => bom.rackCapacity ?? 0);
   const [editKey,      setEditKey]      = useState(bomKey);
   const [editLabel,    setEditLabel]    = useState(bom.label || "");
+  // 2026-10-22 — the two "clearly visible options" at the top of BOM Edit
+  // for existing BOMs: Checklist panel + Critical Items list. Both are
+  // collapsed by default so the common edit (components + rack) stays
+  // uncluttered; a prominent chip at the top of Edit opens either panel.
+  const [showChecklistPanel, setShowChecklistPanel] = useState(false);
+  const [showCriticalPanel,  setShowCriticalPanel]  = useState(false);
   const [renameErr,    setRenameErr]    = useState("");
   const [issuing,      setIssuing]      = useState(false);
   const [addCode,      setAddCode]      = useState("");
@@ -8648,6 +8658,133 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               ✏️ Edit Mode — Modify items, quantities, then Save BOM to apply changes permanently.
             </div>
 
+            {/* ── 2026-10-22: Clear "options" chips so operators spot both
+                   the Checklist and Critical Items reviews immediately when
+                   they open Edit on an existing BOM. Clicking opens the
+                   matching panel further down the page (expand-in-place —
+                   nothing scrolls so operators keep their context). The
+                   chips also act as a status badge: "4 configured" / etc. */}
+            {(() => {
+              const scopedTemplates = (checklistTemplates || []).filter(
+                (t) => t && t.active !== false && t.bomKey === bomKey
+              );
+              const checklistCount = scopedTemplates.length;
+              const criticalItemsInBom = (editItems || [])
+                .map(({ code, qty }) => ({ code, qty, inv: findInv(code) }))
+                .filter((r) => r.inv && r.inv.isCritical);
+              const criticalCount = criticalItemsInBom.length;
+              return (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setShowChecklistPanel((v) => !v)}
+                    className="flex items-center gap-2 text-[12px] font-bold px-4 py-2 rounded-xl border transition-all"
+                    style={{
+                      background: showChecklistPanel ? "rgba(139,92,246,0.14)" : "rgba(139,92,246,0.05)",
+                      borderColor: showChecklistPanel ? "rgba(139,92,246,0.55)" : "rgba(139,92,246,0.25)",
+                      color: "#c4b5fd",
+                    }}
+                  >
+                    <span className="text-base">📋</span>
+                    <span>Checklist</span>
+                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
+                          style={{ background: "rgba(139,92,246,0.2)", color: "#ddd6fe" }}>
+                      {checklistCount} {checklistCount === 1 ? "set" : "sets"}
+                    </span>
+                    <span className="text-[11px] text-slate-400">{showChecklistPanel ? "▲ Hide" : "▼ Manage"}</span>
+                  </button>
+                  <button
+                    onClick={() => setShowCriticalPanel((v) => !v)}
+                    className="flex items-center gap-2 text-[12px] font-bold px-4 py-2 rounded-xl border transition-all"
+                    style={{
+                      background: showCriticalPanel ? "rgba(249,115,22,0.14)" : "rgba(249,115,22,0.05)",
+                      borderColor: showCriticalPanel ? "rgba(249,115,22,0.55)" : "rgba(249,115,22,0.25)",
+                      color: "#fdba74",
+                    }}
+                  >
+                    <span className="text-base">🔒</span>
+                    <span>Critical Items</span>
+                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
+                          style={{ background: "rgba(249,115,22,0.2)", color: "#fed7aa" }}>
+                      {criticalCount} in BOM
+                    </span>
+                    <span className="text-[11px] text-slate-400">{showCriticalPanel ? "▲ Hide" : "▼ View"}</span>
+                  </button>
+                </div>
+              );
+            })()}
+
+            {/* ── Critical Items in this BOM (2026-10-22) ────────────────
+                   Read-only summary of components whose Item Master row is
+                   flagged Critical (migration 026, items.is_critical).
+                   Shows name, code, and Outward Input Type (Checkbox /
+                   Serial). "Edit in Inventory" navigates the operator to
+                   the authoritative Item Master editor — critical-item
+                   configuration lives on items, not on BOMs, so there is
+                   no duplicate critical-item store or screen. */}
+            {showCriticalPanel && (() => {
+              const criticalItemsInBom = (editItems || [])
+                .map(({ code, qty }) => ({ code, qty, inv: findInv(code) }))
+                .filter((r) => r.inv && r.inv.isCritical);
+              return (
+                <div className="rounded-xl p-4" style={{ background: "rgba(249,115,22,0.05)", border: "1px solid rgba(249,115,22,0.3)" }}>
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <span className="text-base">🔒</span>
+                    <div className="text-[11px] font-bold text-white">Critical Items in this BOM</div>
+                    <span className="text-[9px] text-orange-300 px-1.5 py-0.5 rounded-full" style={{ background: "rgba(249,115,22,0.15)" }}>
+                      Configured on items — not duplicated here
+                    </span>
+                  </div>
+                  {criticalItemsInBom.length === 0 ? (
+                    <div className="rounded-lg px-3 py-2.5 text-[11px]"
+                         style={{ background: "rgba(255,255,255,0.02)", color: "#94a3b8", border: "1px dashed rgba(255,255,255,0.08)" }}>
+                      No components in this BOM are flagged <strong>Critical</strong>. To mark one, open <strong>Inventory → Edit Item</strong> and set <em>Critical Item = Yes</em>.
+                    </div>
+                  ) : (
+                    <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+                      <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-500"
+                           style={{ background: "rgba(255,255,255,0.03)" }}>
+                        <div className="col-span-3">Code</div>
+                        <div className="col-span-5">Name</div>
+                        <div className="col-span-2 text-right">Qty / Unit</div>
+                        <div className="col-span-2 text-right">Input Type</div>
+                      </div>
+                      {criticalItemsInBom.map(({ code, qty, inv }) => {
+                        const type = inv.outwardInputType === "serial" ? "Serial Number" : "Checkbox";
+                        return (
+                          <div key={code} className="grid grid-cols-12 gap-2 items-center px-3 py-2 border-t border-white/[0.04]">
+                            <div className="col-span-3 text-[10px] font-mono text-blue-300">{code}</div>
+                            <div className="col-span-5">
+                              <div className="text-[11px] font-semibold text-white truncate">{inv.name}</div>
+                              <div className="text-[9px] text-slate-500">{inv.category || "—"}</div>
+                            </div>
+                            <div className="col-span-2 text-right text-[11px] font-mono text-slate-300">
+                              {qty} <span className="text-slate-600">{inv.unit || ""}</span>
+                            </div>
+                            <div className="col-span-2 text-right">
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                    style={{ background: "rgba(249,115,22,0.15)", color: "#fed7aa", border: "1px solid rgba(249,115,22,0.3)" }}>
+                                {type}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
+                    <div className="text-[10px] text-slate-500">
+                      Critical Items are configured per item in the Inventory module (Items master). This panel is a view-only summary scoped to <strong>{bomKey}</strong>.
+                    </div>
+                    <button onClick={() => onNavigate("inventory")}
+                            className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
+                            style={{ background: "linear-gradient(135deg,#ea580c,#c2410c)", boxShadow: "0 0 12px rgba(249,115,22,0.3)" }}>
+                      → Open Inventory to edit
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Rename — BOM Key + Machine Model Name */}
             <div className="rounded-xl p-4" style={{ background: "rgba(139,92,246,0.05)", border: "1px solid rgba(139,92,246,0.22)" }}>
               <div className="flex items-center gap-2 mb-3">
@@ -8755,13 +8892,17 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
             {/* Migration 028 — Department Checklists for THIS BOM. Writes are
                 immediate (template rows get bomKey set) because the BOM
-                already exists. Hidden when the user lacks machines.configDept. */}
-            {canConfigChecklist && (
+                already exists. Hidden when the user lacks machines.configDept.
+                2026-10-22: panel is now toggled from the top "Checklist" chip
+                so Edit mode stays visually clean until the operator asks for
+                it. BomChecklistSlots renders the Before Receive / During
+                Work / Before Dispatch grid for each department unchanged. */}
+            {canConfigChecklist && showChecklistPanel && (
               <div className="rounded-xl p-4" style={{ background: "rgba(139,92,246,0.04)", border: "1px solid rgba(139,92,246,0.22)" }}>
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-base">📋</span>
-                  <div className="text-[11px] font-bold text-white">Department Checklists (optional)</div>
-                  <span className="text-[9px] text-purple-300 px-1.5 py-0.5 rounded-full" style={{ background: "rgba(139,92,246,0.15)" }}>Saved per BOM</span>
+                  <div className="text-[11px] font-bold text-white">Department Checklists for {bomKey}</div>
+                  <span className="text-[9px] text-purple-300 px-1.5 py-0.5 rounded-full" style={{ background: "rgba(139,92,246,0.15)" }}>Saved per BOM · past responses untouched</span>
                 </div>
                 <BomChecklistSlots
                   bomKey={bomKey}
@@ -8770,6 +8911,12 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                   onUpdate={onUpdateChecklistTemplate}
                   onDelete={onDeleteChecklistTemplate}
                 />
+              </div>
+            )}
+            {!canConfigChecklist && showChecklistPanel && (
+              <div className="rounded-xl p-4 text-[11px] text-slate-400"
+                   style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)" }}>
+                You don't have permission to view or change checklists. Ask an admin with <code>machines.configDept</code>.
               </div>
             )}
 
@@ -9197,7 +9344,10 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 // ─── OUTWARD PAGE ─────────────────────────────────────────────────────────────
 
 function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateBOM, onRenameBOM, outwardLog, onAddOutward, pendingLog, onClearPending, onCreateMachine, machineLog = [], canDo = () => true, onRemoveRackMachine, onDuplicateBOM, onDeleteBOM, computeBOMDeletionInfo, settings = {},
-  checklistTemplates = [], onCreateChecklistTemplate, onUpdateChecklistTemplate, onDeleteChecklistTemplate }) {
+  checklistTemplates = [], onCreateChecklistTemplate, onUpdateChecklistTemplate, onDeleteChecklistTemplate,
+  // 2026-10-22 — navigate out of Outward (used by BOM Edit → Critical Items
+  // "→ Open Inventory" button). Optional; falls back to no-op.
+  onNavigate = () => {} }) {
   // Feature 3: confirm + remove rack machine. The button only appears when a
   // remover prop is provided AND the operator has the permission. Stays in
   // local state so the confirmation persists across re-renders of the modal.
@@ -9627,6 +9777,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
           onUpdateChecklistTemplate={onUpdateChecklistTemplate}
           onDeleteChecklistTemplate={onDeleteChecklistTemplate}
           canConfigChecklist={canConfigChecklist}
+          onNavigate={onNavigate}
         />
       )}
 
@@ -16744,7 +16895,8 @@ export default function App() {
                               checklistTemplates={checklistTemplates}
                               onCreateChecklistTemplate={handleCreateChecklistTemplate}
                               onUpdateChecklistTemplate={handleUpdateChecklistTemplate}
-                              onDeleteChecklistTemplate={handleDeleteChecklistTemplate} />,
+                              onDeleteChecklistTemplate={handleDeleteChecklistTemplate}
+                              onNavigate={setActivePage} />,
     pending:   <PendingPage   pendingLog={pendingLog} items={items} bomDefs={bomDefs}
                               machineLog={machineLog}
                               onFulfillPending={handleFulfillPending}
