@@ -228,6 +228,8 @@ const AUDIT_EVENT_TYPES = [
   // Replaces the generic "checklist_submitted" string with three stage-specific
   // event types so Reports can filter the Checklist History tab precisely.
   "checklist_submitted_finish", "checklist_submitted_accept", "checklist_submitted_during_work",
+  // Migration 029 — department-employees admin audit.
+  "user_departments_updated",
 ];
 
 for (const type of AUDIT_EVENT_TYPES) {
@@ -326,6 +328,13 @@ const USER_FACING_STRINGS = [
   "Save Checklist",
   "+ Add Step",
   "Must do",
+  // Department-Employees + Main Employee signature (migration 029, 2026-10-22)
+  "Department Employees",
+  "Main / Responsible Employee",
+  "Main Employee signature",
+  "Workers from",
+  "+ Add worker",
+  "Workers per department",
 ];
 
 for (const s of USER_FACING_STRINGS) {

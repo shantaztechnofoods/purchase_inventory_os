@@ -13,7 +13,7 @@ import { getSupabase } from "../supabase/client.js";
 const LOCAL_KEY = "erp_handovers";
 
 function toRow(h) {
-  return {
+  const row = {
     machine_id:                h.machineId,
     bom_key:                   h.bomKey,
     serial_no:                 h.serialNo || null,
@@ -27,6 +27,15 @@ function toRow(h) {
     accept_timeout_minutes:    Math.max(0, Math.floor(Number(h.acceptTimeoutMinutes)    || 0)),
     status:                    h.status || "pending",
   };
+  // Migration 029 — department-wise employees + Main Employee signature.
+  // Only attach when the caller supplied them so the isMissingColumnError
+  // retry in createHandover can strip them for pre-029 schemas.
+  if (h.workedBy                  !== undefined) row.worked_by                   = Array.isArray(h.workedBy) ? h.workedBy : null;
+  if (h.workedBySnapshot          !== undefined) row.worked_by_snapshot          = h.workedBySnapshot || null;
+  if (h.mainEmployeeId            !== undefined) row.main_employee_id            = h.mainEmployeeId || null;
+  if (h.mainEmployeeSignatureId   !== undefined) row.main_employee_signature_id  = h.mainEmployeeSignatureId || null;
+  if (h.mainEmployeeSignatureSvg  !== undefined) row.main_employee_signature_svg = h.mainEmployeeSignatureSvg || null;
+  return row;
 }
 function fromRow(r) {
   return {
@@ -51,7 +60,23 @@ function fromRow(r) {
     cancellationReason:        r.cancellation_reason || "",
     acceptTimeoutMinutes:      Number(r.accept_timeout_minutes) || 0,
     createdAt:                 r.created_at || null,
+    // Migration 029 — department-wise employees + Main Employee signature.
+    // Nullable for legacy rows (pre-029 handovers have none of these).
+    workedBy:                  Array.isArray(r.worked_by) ? r.worked_by : null,
+    workedBySnapshot:          Array.isArray(r.worked_by_snapshot) ? r.worked_by_snapshot : null,
+    mainEmployeeId:            r.main_employee_id || null,
+    mainEmployeeSignatureId:   r.main_employee_signature_id || null,
+    mainEmployeeSignatureSvg:  r.main_employee_signature_svg || null,
   };
+}
+
+// Detects "column does not exist" / schema-cache errors so createHandover
+// can retry without the migration-029 columns if the schema isn't migrated
+// yet. Same pattern as itemsStore / machinesStore / checklistsStore.
+function isMissingColumnError(err) {
+  if (!err) return false;
+  if (err.code === "42703" || err.code === "PGRST204") return true;
+  return /column .* does not exist|schema cache|could not find the .* column/i.test(err.message || err.details || err.hint || "");
 }
 
 function getLocal() { try { const s = localStorage.getItem(LOCAL_KEY); if (s) return JSON.parse(s); } catch {} return []; }
@@ -96,11 +121,24 @@ export async function createHandover(h) {
     return { success: true, handover: fromRow(row) };
   }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
-  const { data, error } = await c
+  const fullRow = toRow(h);
+  let { data, error } = await c
     .from("handover_events")
-    .insert(toRow(h))
+    .insert(fullRow)
     .select()
     .single();
+  // Migration 029 — retry without the new columns when the schema hasn't
+  // been migrated yet. Keeps the create path working against pre-029 DBs.
+  if (error && isMissingColumnError(error)) {
+    console.warn("[handovers:create] migration 029 columns missing — retrying without worked_by/main_employee");
+    const slim = { ...fullRow };
+    delete slim.worked_by;
+    delete slim.worked_by_snapshot;
+    delete slim.main_employee_id;
+    delete slim.main_employee_signature_id;
+    delete slim.main_employee_signature_svg;
+    ({ data, error } = await c.from("handover_events").insert(slim).select().single());
+  }
   if (error) {
     console.error("[handovers:create] failed", error);
     // Specific CHECK-constraint hints
@@ -110,6 +148,9 @@ export async function createHandover(h) {
     }
     if (/handover_dept_different/i.test(msg)) {
       return { success: false, error: "From and To departments must differ." };
+    }
+    if (/handover_main_in_worked/i.test(msg)) {
+      return { success: false, error: "Main Employee must be one of the selected workers." };
     }
     return { success: false, error: error.message };
   }
