@@ -246,6 +246,51 @@ export async function fetchAllUsers() {
   return (data || []).map(mapSupabaseUser);
 }
 
+// Migration 030 — minimal roster for the Finish & Transfer worker picker
+// (and the Settings → Department Employees admin UI). Reads from the
+// public.v_dept_roster view which bypasses the restrictive public.users RLS
+// — the view only exposes id, username, full_name, status, departments, no
+// sensitive columns. Returns [{ id, username, fullName, status, departments }].
+// Falls back to fetchAllUsers() when the view doesn't exist yet (pre-030).
+export async function fetchDeptRoster() {
+  if (!isSupabaseEnabled()) return [];
+  const c = getSupabase();
+  if (!c) return [];
+  const { data, error } = await c
+    .from("v_dept_roster")
+    .select("id, username, full_name, status, departments")
+    .order("full_name", { ascending: true });
+  if (error) {
+    // 42P01 = relation does not exist; PGRST116/205 = schema cache miss.
+    // In those cases the migration isn't live yet — fall back to the broader
+    // users table (super_admin will still see everyone, others will see just
+    // themselves — same as pre-030 behaviour).
+    const isMissing =
+      error.code === "42P01" || error.code === "PGRST116" || error.code === "PGRST205" ||
+      /relation .* does not exist|v_dept_roster.*not found|could not find the table/i.test(error.message || "");
+    if (isMissing) {
+      if (typeof console !== "undefined") console.warn("[auth] v_dept_roster missing — falling back to fetchAllUsers()");
+      const list = await fetchAllUsers();
+      return Array.isArray(list) ? list : [];
+    }
+    if (typeof console !== "undefined") console.warn("[auth] fetchDeptRoster failed:", error.message);
+    return [];
+  }
+  return (data || []).map((r) => ({
+    id:          r.id,
+    username:    r.username,
+    fullName:    r.full_name,
+    status:      r.status,
+    departments: Array.isArray(r.departments) ? r.departments : [],
+    // The Finish-modal picker + Settings UI only use id / fullName / username
+    // / status / departments; everything else defaults safely to empty.
+    role:        null,
+    mobile:      "",
+    overrides:   null,
+    lastLogin:   null,
+  }));
+}
+
 // Fetch all roles (for permission resolution + Role Management page).
 export async function fetchAllRoles() {
   if (!isSupabaseEnabled()) return null;

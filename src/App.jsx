@@ -2,7 +2,10 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { useAuth } from "./auth/AuthContext.jsx";
 // Migration 029 — list employees + save their department assignments.
-import { fetchAllUsers, updateUserDepartments } from "./auth/authStore.js";
+// Migration 030 — fetchDeptRoster reads a minimal view that bypasses the
+// restrictive public.users RLS, so non-super-admin operators actually see
+// the dept roster in the Finish & Transfer worker picker.
+import { fetchDeptRoster, updateUserDepartments } from "./auth/authStore.js";
 import LoginPage from "./pages/LoginPage.jsx";
 import UserManagementPage from "./pages/UserManagementPage.jsx";
 import RoleManagementPage from "./pages/RoleManagementPage.jsx";
@@ -62,7 +65,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-22-dept-employees-main-signature";
+const APP_BUILD = "2026-10-22-dept-roster-visibility";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -6248,13 +6251,29 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                   </label>
                 </div>
                 {/* ── Migration 029 — Department-wise employee assignment ── */}
-                {onSaveUserDepartments && (
+                {onSaveUserDepartments && (() => {
+                  const active       = (allUsers || []).filter((u) => u && u.status !== "disabled");
+                  const totalAssigned = active.reduce((n, u) => n + (Array.isArray(u.departments) && u.departments.length ? 1 : 0), 0);
+                  return (
                   <div className="pt-5 border-t border-white/[0.05]">
-                    <SLabel text="Department Employees"
+                    <SLabel text="👥 Department Employees"
                             hint="Assign existing users to one or more departments. During Finish & Transfer, only this list shows up in the Workers / Main Employee pickers for that department. Reuses the existing user records — no new login or role is created." />
+                    {/* Prominent empty-state banner so admins immediately know
+                        this is where to set up the Finish & Transfer picker. */}
+                    {canConfig && totalAssigned === 0 && (
+                      <div className="mb-3 px-3 py-2.5 rounded-lg text-[11px] font-semibold"
+                           style={{ background: "rgba(249,115,22,0.1)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.4)" }}>
+                        ⚠ No one is assigned to any department yet. Add workers below so operators see them on <strong>Machine Tracker → Finish &amp; Transfer</strong>.
+                      </div>
+                    )}
+                    {active.length === 0 && (
+                      <div className="mb-3 px-3 py-2.5 rounded-lg text-[11px] font-semibold"
+                           style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                        ⚠ Could not load the user roster. If you don't see users here, apply migration <code>030_dept_roster_view.sql</code> or ask a super-admin to assign departments on your behalf.
+                      </div>
+                    )}
                     <div className="space-y-2">
                       {["Assembly", "Mechanical", "Electrical", "Trial"].map((dept) => {
-                        const active     = (allUsers || []).filter((u) => u && u.status !== "disabled");
                         const assigned   = active.filter((u) => Array.isArray(u.departments) && u.departments.includes(dept));
                         const notAssigned = active.filter((u) => !(Array.isArray(u.departments) && u.departments.includes(dept)));
                         return (
@@ -6273,7 +6292,8 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                       Changing an assignment affects only future Finish &amp; Transfer pickers. Historical machine records keep the people they were saved against — later changes never alter past work logs.
                     </div>
                   </div>
-                )}
+                  );
+                })()}
 
                 {onRegisterSignature && currentUser && (
                   <div className="pt-5 border-t border-white/[0.05]">
@@ -14505,7 +14525,9 @@ export default function App() {
     if (!SUPA) return;
     let cancelled = false;
     (async () => {
-      const list = await fetchAllUsers();
+      // Migration 030 — roster view bypasses the users RLS so non-admin
+      // operators actually see other users in the Finish & Transfer picker.
+      const list = await fetchDeptRoster();
       if (!cancelled && Array.isArray(list)) setAllUsers(list);
     })();
     return () => { cancelled = true; };
