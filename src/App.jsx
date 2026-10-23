@@ -65,7 +65,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-22-bom-edit-options";
+const APP_BUILD = "2026-10-23-two-stage-checklist";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -7924,11 +7924,15 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
 //   - Reuse dropdown — copies items from any existing template with the same
 //     department (across BOMs AND the shared library). Copy, not link.
 // All strings are plain English for low-literacy operators.
+// 2026-10-23 — policy decision: BOM Checklist Builder shows only two stages.
+// `during_work` has been removed from the Create/Edit UI; the DB column +
+// CHECK constraint still allow 'during_work' as a legal value so any legacy
+// templates / responses stay valid and continue to drive the Machine Tracker
+// During-Work button when they exist. New BOMs cannot configure a during_work
+// slot — operators see only Before Receive + Before Dispatch.
 const CHECKLIST_STAGES = [
   { key: "before_receive",  short: "Before Receive",   long: "Before Receiving / Accepting",
     hint: "Checks done before accepting incoming material or machine work." },
-  { key: "during_work",     short: "During Work",      long: "During Work (optional)",
-    hint: "Checkpoints to verify while the department is working." },
   { key: "before_dispatch", short: "Before Dispatch",  long: "Before Dispatch / Transfer",
     hint: "Checks required before sending the machine to the next department." },
 ];
