@@ -129,7 +129,7 @@ export default function POSettings({ value, onChange, onPersist, isSuperAdmin = 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <div className={lbl}>Active Template (used on every PO)</div>
-            <select value={po.template} onChange={(e) => setTemplate(e.target.value)} className={inp} style={{ background: "#1A1C21" }}>
+            <select value={po.template} onChange={(e) => setTemplate(e.target.value)} className={inp} style={{ background: "#FFFFFF" }}>
               {PO_TEMPLATE_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
           </div>
@@ -150,7 +150,7 @@ export default function POSettings({ value, onChange, onPersist, isSuperAdmin = 
               return (
                 <button key={key} onClick={() => setShow(key, !on)}
                         className="text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all"
-                        style={{ color: on ? "#4ade80" : "#64748b", background: on ? "rgba(34,197,94,0.1)" : "transparent", borderColor: on ? "rgba(34,197,94,0.35)" : "rgba(255,255,255,0.1)" }}>
+                        style={{ color: on ? "#4ade80" : "#64748b", background: on ? "rgba(34,197,94,0.1)" : "transparent", borderColor: on ? "rgba(34,197,94,0.35)" : "rgba(26,31,46,0.1)" }}>
                   {on ? "✓ " : "○ "}{label}
                 </button>
               );
@@ -185,7 +185,7 @@ export default function POSettings({ value, onChange, onPersist, isSuperAdmin = 
             </span>
             <span className="text-[10px] text-slate-600">· active company: <span className="text-slate-400 font-semibold">{active.name || "(unnamed)"}</span></span>
           </div>
-          <div className="rounded-xl overflow-hidden bg-white" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
+          <div className="rounded-xl overflow-hidden bg-white" style={{ border: "1px solid rgba(26,31,46,0.1)" }}>
             <iframe title="PO preview" srcDoc={previewHtml} className="w-full" style={{ height: 560, border: "0", background: "#fff" }} />
           </div>
           <div className="text-[10px] text-slate-600 mt-1.5">Click <span className="text-slate-400 font-semibold">Save Changes</span> in the topbar to store these settings in Supabase.</div>
@@ -211,8 +211,8 @@ export default function POSettings({ value, onChange, onPersist, isSuperAdmin = 
               <button key={c.id} onClick={() => setEditId(c.id)}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all"
                       style={{
-                        background: sel ? "rgba(232,85,61,0.10)" : "rgba(255,255,255,0.03)",
-                        border:     `1px solid ${sel ? "rgba(232,85,61,0.40)" : "rgba(255,255,255,0.07)"}`,
+                        background: sel ? "rgba(232,85,61,0.10)" : "rgba(26,31,46,0.04)",
+                        border:     `1px solid ${sel ? "rgba(232,85,61,0.40)" : "rgba(26,31,46,0.07)"}`,
                       }}>
                 {c.logo
                   ? <img src={c.logo} alt="" className="w-9 h-9 rounded object-contain bg-white/5 flex-shrink-0" />
@@ -236,7 +236,7 @@ export default function POSettings({ value, onChange, onPersist, isSuperAdmin = 
 
         {/* Header strip with name + Active toggle */}
         <div className="flex items-center justify-between gap-3 p-3 rounded-xl"
-             style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
+             style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.07)" }}>
           <div className="min-w-0">
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.08em]">Editing</div>
             <div className="text-[13px] font-black text-white truncate">{active.name || "(unnamed)"}</div>
@@ -273,9 +273,9 @@ export default function POSettings({ value, onChange, onPersist, isSuperAdmin = 
         <div className="grid grid-cols-2 gap-3">
           {[["logo", "Company Logo", logoRef, "🏭"], ["signature", "Signature Image", signRef, "✍️"]].map(([key, label, ref, fallback]) => (
             <div key={key} className="flex items-center gap-3 p-3 rounded-xl"
-                 style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                 style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.06)" }}>
               <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
-                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                   style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
                 {active[key] ? <img src={active[key]} alt={key} className="w-full h-full object-contain" /> : <span className="text-xl">{fallback}</span>}
               </div>
               <div className="min-w-0 flex-1">

@@ -157,12 +157,12 @@ export default function RoleManagementPage({ canDo }) {
   };
 
   const inputCls = "w-full px-3 py-2 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all";
-  const inputStyle = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" };
+  const inputStyle = { background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid rgba(26,31,46,0.06)" }}>
         <div>
           <div className="text-base font-bold text-white">Role Management</div>
           <div className="text-xs text-slate-500 mt-0.5">{Object.keys(roles).length} role{Object.keys(roles).length !== 1 ? "s" : ""} configured</div>
@@ -171,7 +171,7 @@ export default function RoleManagementPage({ canDo }) {
           {isSuperAdmin && (
             <button onClick={handleReset}
               className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition-all"
-              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
+              style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
               Reset to Defaults
             </button>
           )}
@@ -217,7 +217,7 @@ export default function RoleManagementPage({ canDo }) {
                   {canEdit && (
                     <button onClick={() => openEdit(key, role)}
                       className="px-2.5 py-1 rounded-lg text-[10px] font-medium text-slate-300 hover:text-white transition-all"
-                      style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                      style={{ background: "rgba(26,31,46,0.06)", border: "1px solid rgba(26,31,46,0.1)" }}>
                       Edit
                     </button>
                   )}
@@ -234,7 +234,7 @@ export default function RoleManagementPage({ canDo }) {
                 <div className="text-[10px] text-slate-500 mb-1.5 font-medium">Pages ({(role.pages || []).length})</div>
                 <div className="flex flex-wrap gap-1">
                   {(role.pages || []).map((p) => (
-                    <span key={p} className="px-1.5 py-0.5 rounded text-[9px] text-slate-300" style={{ background: "rgba(255,255,255,0.07)" }}>{PAGE_LABELS[p] || p}</span>
+                    <span key={p} className="px-1.5 py-0.5 rounded text-[9px] text-slate-300" style={{ background: "rgba(26,31,46,0.07)" }}>{PAGE_LABELS[p] || p}</span>
                   ))}
                 </div>
               </div>
@@ -246,9 +246,9 @@ export default function RoleManagementPage({ canDo }) {
       {/* Edit/Add Modal */}
       {showModal && editForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
-          <div className="w-full max-w-2xl rounded-2xl flex flex-col mx-4" style={{ background: "#0e1118", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)", maxHeight: "90vh" }}>
+          <div className="w-full max-w-2xl rounded-2xl flex flex-col mx-4" style={{ background: "#0e1118", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)", maxHeight: "90vh" }}>
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: "1px solid rgba(26,31,46,0.07)" }}>
               <h3 className="font-bold text-white text-sm">{isNew ? "New Role" : `Edit: ${editForm.label}`}</h3>
               <button onClick={() => setShowModal(false)} className="text-slate-500 hover:text-white transition-colors text-lg leading-none">✕</button>
             </div>
@@ -280,7 +280,7 @@ export default function RoleManagementPage({ canDo }) {
                     {ICONS.map((ic) => (
                       <button key={ic} onClick={() => setEditForm((f) => ({ ...f, icon: ic }))}
                         className="w-8 h-8 rounded-lg flex items-center justify-center text-base transition-all"
-                        style={{ background: editForm.icon === ic ? "rgba(204,74,51,0.3)" : "rgba(255,255,255,0.05)", border: editForm.icon === ic ? "1px solid rgba(204,74,51,0.6)" : "1px solid rgba(255,255,255,0.08)" }}>
+                        style={{ background: editForm.icon === ic ? "rgba(204,74,51,0.3)" : "rgba(26,31,46,0.05)", border: editForm.icon === ic ? "1px solid rgba(204,74,51,0.6)" : "1px solid rgba(26,31,46,0.08)" }}>
                         {ic}
                       </button>
                     ))}
@@ -299,11 +299,11 @@ export default function RoleManagementPage({ canDo }) {
               </div>
 
               {/* Tabs */}
-              <div className="flex gap-1 mb-4 p-1 rounded-lg" style={{ background: "rgba(255,255,255,0.04)" }}>
+              <div className="flex gap-1 mb-4 p-1 rounded-lg" style={{ background: "rgba(26,31,46,0.05)" }}>
                 {["pages", "actions"].map((tab) => (
                   <button key={tab} onClick={() => setActiveTab(tab)}
                     className="flex-1 py-1.5 rounded-md text-xs font-semibold transition-all capitalize"
-                    style={{ background: activeTab === tab ? "rgba(255,255,255,0.1)" : "transparent", color: activeTab === tab ? "#fff" : "#64748b" }}>
+                    style={{ background: activeTab === tab ? "rgba(26,31,46,0.1)" : "transparent", color: activeTab === tab ? "#fff" : "#64748b" }}>
                     {tab === "pages" ? "Page Access" : "Action Permissions"}
                   </button>
                 ))}
@@ -313,7 +313,7 @@ export default function RoleManagementPage({ canDo }) {
                 <div className="grid grid-cols-2 gap-2">
                   {ALL_PAGES.map((page) => (
                     <label key={page} className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all"
-                           style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                           style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.07)" }}>
                       <input type="checkbox" checked={(editForm.pages || []).includes(page)} onChange={() => togglePage(page)}
                         className="rounded" style={{ accentColor: editForm.color }} />
                       <span className="text-xs text-slate-300">{PAGE_LABELS[page] || page}</span>
@@ -325,14 +325,14 @@ export default function RoleManagementPage({ canDo }) {
               {activeTab === "actions" && (
                 <div className="space-y-4">
                   {ALL_MODULES.map((mod) => (
-                    <div key={mod.key} className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div key={mod.key} className="rounded-xl p-4" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.06)" }}>
                       <div className="text-xs font-semibold text-white mb-3">{mod.label}</div>
                       <div className="flex flex-wrap gap-2">
                         {mod.actions.map((action) => {
                           const checked = editForm.actions?.[mod.key]?.[action] ?? false;
                           return (
                             <label key={action} className="flex items-center gap-1.5 cursor-pointer px-2.5 py-1.5 rounded-lg transition-all"
-                                   style={{ background: checked ? `${editForm.color}15` : "rgba(255,255,255,0.04)", border: `1px solid ${checked ? editForm.color + "40" : "rgba(255,255,255,0.08)"}` }}>
+                                   style={{ background: checked ? `${editForm.color}15` : "rgba(26,31,46,0.05)", border: `1px solid ${checked ? editForm.color + "40" : "rgba(26,31,46,0.08)"}` }}>
                               <input type="checkbox" checked={checked} onChange={() => toggleAction(mod.key, action)}
                                 className="rounded" style={{ accentColor: editForm.color }} />
                               <span className="text-[11px] text-slate-300 capitalize">{action}</span>
@@ -347,10 +347,10 @@ export default function RoleManagementPage({ canDo }) {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex gap-2.5 px-6 py-4 flex-shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="flex gap-2.5 px-6 py-4 flex-shrink-0" style={{ borderTop: "1px solid rgba(26,31,46,0.07)" }}>
               <button onClick={() => setShowModal(false)}
                 className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
                 Cancel
               </button>
               <button onClick={handleSave} disabled={!editForm.label.trim() || (isNew && !newRoleKey.trim())}
@@ -375,7 +375,7 @@ export default function RoleManagementPage({ canDo }) {
             <div className="flex gap-2.5 mt-6">
               <button onClick={() => setDeleteConfirm(null)}
                 className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
                 Cancel
               </button>
               <button onClick={() => handleDelete(deleteConfirm)}

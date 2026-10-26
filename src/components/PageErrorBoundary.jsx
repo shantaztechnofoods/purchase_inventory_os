@@ -63,10 +63,10 @@ export default class PageErrorBoundary extends Component {
     const onReload = () => { try { window.location.reload(); } catch {} };
 
     return (
-      <div className="flex-1 overflow-y-auto" style={{ background: "#16181C" }}>
+      <div className="flex-1 overflow-y-auto" style={{ background: "#F7F3EB" }}>
         <div className="max-w-2xl mx-auto py-16 px-6">
           <div className="rounded-2xl p-6"
-               style={{ background: "#1B1D22", border: "1px solid rgba(239,68,68,0.35)", boxShadow: "0 24px 60px rgba(0,0,0,0.7)" }}>
+               style={{ background: "#FFFFFF", border: "1px solid rgba(239,68,68,0.35)", boxShadow: "0 24px 60px rgba(0,0,0,0.7)" }}>
             <div className="flex items-center gap-3 mb-3">
               <div className="text-3xl">⚠️</div>
               <div>

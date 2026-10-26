@@ -240,7 +240,7 @@ export default function UserManagementPage({ canDo }) {
   };
 
   const inputCls = "w-full px-3 py-2 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all";
-  const inputStyle = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" };
+  const inputStyle = { background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -259,7 +259,7 @@ export default function UserManagementPage({ canDo }) {
       )}
 
       {/* Header */}
-      <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid rgba(26,31,46,0.06)" }}>
         <div>
           <div className="text-base font-bold text-white">User Management</div>
           <div className="text-xs text-slate-500 mt-0.5">{users.length} user{users.length !== 1 ? "s" : ""} in the system</div>
@@ -280,10 +280,10 @@ export default function UserManagementPage({ canDo }) {
 
       {/* Table */}
       <div className="flex-1 overflow-y-auto px-6 py-4">
-        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(26,31,46,0.07)" }}>
           <table className="w-full text-xs">
             <thead>
-              <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+              <tr style={{ background: "rgba(26,31,46,0.04)", borderBottom: "1px solid rgba(26,31,46,0.07)" }}>
                 <th className="px-4 py-3 text-left font-semibold text-slate-400">Username</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-400">Mobile</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-400">Role</th>
@@ -299,8 +299,8 @@ export default function UserManagementPage({ canDo }) {
                 const isSelf = user.id === currentUser?.id;
                 const isSA   = user.role === "super_admin";
                 return (
-                  <tr key={user.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.02)"}
+                  <tr key={user.id} style={{ borderBottom: "1px solid rgba(26,31,46,0.05)" }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(26,31,46,0.04)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = ""}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
@@ -327,7 +327,7 @@ export default function UserManagementPage({ canDo }) {
                         {(isSuperAdmin || canDo?.("users", "edit")) && (
                           <button onClick={() => openEdit(user)}
                             className="px-2.5 py-1 rounded-lg text-[10px] font-medium text-slate-300 hover:text-white transition-all"
-                            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                            style={{ background: "rgba(26,31,46,0.06)", border: "1px solid rgba(26,31,46,0.1)" }}>
                             Edit
                           </button>
                         )}
@@ -376,7 +376,7 @@ export default function UserManagementPage({ canDo }) {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
              onClick={(e) => e.target === e.currentTarget && setShowModal(false)}>
-          <div className="w-full max-w-md rounded-2xl p-6 mx-4" style={{ background: "#0e1118", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}>
+          <div className="w-full max-w-md rounded-2xl p-6 mx-4" style={{ background: "#0e1118", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}>
             <div className="flex items-center justify-between mb-5">
               <h3 className="font-bold text-white text-sm">{editUser ? "Edit User" : "Add New User"}</h3>
               <button onClick={() => setShowModal(false)} className="text-slate-500 hover:text-white transition-colors text-lg leading-none">✕</button>
@@ -426,7 +426,7 @@ export default function UserManagementPage({ canDo }) {
               <div className="flex gap-2.5 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} disabled={submitting}
                   className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all"
-                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
                   Cancel
                 </button>
                 <button type="submit" disabled={submitting}
@@ -448,7 +448,7 @@ export default function UserManagementPage({ canDo }) {
       {showResetModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
              onClick={(e) => { if (!resetSubmitting && e.target === e.currentTarget) setShowResetModal(false); }}>
-          <div className="w-full max-w-sm rounded-2xl p-6 mx-4" style={{ background: "#0e1118", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}>
+          <div className="w-full max-w-sm rounded-2xl p-6 mx-4" style={{ background: "#0e1118", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}>
             <div className="flex items-center justify-between mb-5">
               <h3 className="font-bold text-white text-sm">Reset Password</h3>
               <button onClick={() => !resetSubmitting && setShowResetModal(false)} className="text-slate-500 hover:text-white transition-colors text-lg leading-none">✕</button>
@@ -474,7 +474,7 @@ export default function UserManagementPage({ canDo }) {
               <div className="flex gap-2.5 pt-2">
                 <button type="button" onClick={() => !resetSubmitting && setShowResetModal(false)} disabled={resetSubmitting}
                   className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all"
-                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", opacity: resetSubmitting ? 0.5 : 1 }}>
+                  style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)", opacity: resetSubmitting ? 0.5 : 1 }}>
                   Cancel
                 </button>
                 <button
@@ -524,7 +524,7 @@ export default function UserManagementPage({ canDo }) {
                 onClick={() => { if (!deleteSubmitting) setDeleteConfirm(null); }}
                 disabled={deleteSubmitting}
                 className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", opacity: deleteSubmitting ? 0.5 : 1 }}
+                style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)", opacity: deleteSubmitting ? 0.5 : 1 }}
               >
                 Cancel
               </button>

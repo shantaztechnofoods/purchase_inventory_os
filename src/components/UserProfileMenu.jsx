@@ -123,13 +123,13 @@ export default function UserProfileMenu({ collapsed = false }) {
               width:  collapsed ? 260 : "auto",
               minWidth: 240,
               background: "#0d1119",
-              border: "1px solid rgba(255,255,255,0.1)",
+              border: "1px solid rgba(26,31,46,0.1)",
               boxShadow: "0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.4)",
               transformOrigin: collapsed ? "bottom left" : "bottom center",
             }}
           >
             {/* User Info Header */}
-            <div className="p-4" style={{ background: `linear-gradient(135deg,${roleColor}15,${roleColor}05)`, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="p-4" style={{ background: `linear-gradient(135deg,${roleColor}15,${roleColor}05)`, borderBottom: "1px solid rgba(26,31,46,0.07)" }}>
               <div className="flex items-center gap-3 mb-3">
                 <div
                   className="w-11 h-11 rounded-full flex items-center justify-center text-white text-sm font-black flex-shrink-0"
@@ -186,7 +186,7 @@ export default function UserProfileMenu({ collapsed = false }) {
                 desc="Update your password"
                 onClick={() => { setIsOpen(false); setShowPasswordModal(true); }}
               />
-              <div className="my-1 mx-3" style={{ height: 1, background: "rgba(255,255,255,0.06)" }} />
+              <div className="my-1 mx-3" style={{ height: 1, background: "rgba(26,31,46,0.06)" }} />
               <MenuItem
                 icon="⏻"
                 label="Sign Out"
@@ -268,13 +268,13 @@ function MenuItem({ icon, label, desc, onClick, danger = false }) {
     <button
       onClick={onClick}
       className="w-full flex items-center gap-3 px-3 py-2 transition-colors group"
-      onMouseEnter={(e) => e.currentTarget.style.background = danger ? "rgba(239,68,68,0.08)" : "rgba(255,255,255,0.05)"}
+      onMouseEnter={(e) => e.currentTarget.style.background = danger ? "rgba(239,68,68,0.08)" : "rgba(26,31,46,0.05)"}
       onMouseLeave={(e) => e.currentTarget.style.background = ""}
     >
       <span
         className="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
         style={{
-          background: danger ? "rgba(239,68,68,0.1)" : "rgba(255,255,255,0.04)",
+          background: danger ? "rgba(239,68,68,0.1)" : "rgba(26,31,46,0.05)",
           color: danger ? "#ef4444" : "#94a3b8",
         }}
       >
@@ -300,7 +300,7 @@ function ProfileModal({ user, roleLabel, roleColor, onClose, onSave }) {
   const [errors,   setErrors]   = useState({});
 
   const inputCls   = "w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all";
-  const inputStyle = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" };
+  const inputStyle = { background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" };
   const initials = (fullName || user.username || "U").split(" ").map((s) => s[0]).join("").slice(0, 2).toUpperCase() || "U";
 
   const handleSave = () => {
@@ -313,9 +313,9 @@ function ProfileModal({ user, roleLabel, roleColor, onClose, onSave }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
       <div className="w-full max-w-md rounded-2xl overflow-hidden user-menu-anim"
-           style={{ background: "#0e1118", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}>
+           style={{ background: "#0e1118", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}>
         {/* Header */}
-        <div className="p-5" style={{ background: `linear-gradient(135deg,${roleColor}18,${roleColor}05)`, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="p-5" style={{ background: `linear-gradient(135deg,${roleColor}18,${roleColor}05)`, borderBottom: "1px solid rgba(26,31,46,0.07)" }}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-white text-sm">My Profile</h3>
             <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors text-lg leading-none">✕</button>
@@ -360,10 +360,10 @@ function ProfileModal({ user, roleLabel, roleColor, onClose, onSave }) {
         </div>
 
         {/* Footer */}
-        <div className="flex gap-2.5 p-5" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="flex gap-2.5 p-5" style={{ borderTop: "1px solid rgba(26,31,46,0.07)" }}>
           <button onClick={onClose}
             className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
+            style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
             Cancel
           </button>
           <button onClick={handleSave}
@@ -407,7 +407,7 @@ function ChangePasswordModal({ user, onClose, onLocalSave, onSupabaseSaved }) {
   const [showNew,   setShowNew]   = useState(false);
 
   const inputCls   = "w-full px-3 py-2.5 pr-12 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all";
-  const inputStyle = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" };
+  const inputStyle = { background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" };
 
   const strength = (() => {
     if (!newPw) return { score: 0, label: "", color: "#64748b" };
@@ -464,8 +464,8 @@ function ChangePasswordModal({ user, onClose, onLocalSave, onSupabaseSaved }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
       <div className="w-full max-w-sm rounded-2xl overflow-hidden user-menu-anim"
-           style={{ background: "#0e1118", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}>
-        <div className="p-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+           style={{ background: "#0e1118", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}>
+        <div className="p-5" style={{ borderBottom: "1px solid rgba(26,31,46,0.07)" }}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base"
@@ -513,7 +513,7 @@ function ChangePasswordModal({ user, onClose, onLocalSave, onSupabaseSaved }) {
                 </div>
                 {newPw && (
                   <div className="mt-2 flex items-center gap-2">
-                    <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                    <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "rgba(26,31,46,0.06)" }}>
                       <div className="h-full transition-all duration-300"
                            style={{ width: `${(strength.score / 3) * 100}%`, background: strength.color }} />
                     </div>
@@ -539,10 +539,10 @@ function ChangePasswordModal({ user, onClose, onLocalSave, onSupabaseSaved }) {
               )}
             </div>
 
-            <div className="flex gap-2.5 p-5" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="flex gap-2.5 p-5" style={{ borderTop: "1px solid rgba(26,31,46,0.07)" }}>
               <button onClick={onClose} disabled={saving}
                 className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", opacity: saving ? 0.5 : 1 }}>
+                style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)", opacity: saving ? 0.5 : 1 }}>
                 Cancel
               </button>
               <button onClick={handleSave}

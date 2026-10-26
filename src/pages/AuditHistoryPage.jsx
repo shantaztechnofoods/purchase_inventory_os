@@ -238,7 +238,7 @@ export default function AuditHistoryPage() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid rgba(26,31,46,0.06)" }}>
         <div>
           <div className="text-base font-bold text-white">Audit Trail</div>
           <div className="text-xs text-slate-500 mt-0.5">
@@ -249,7 +249,7 @@ export default function AuditHistoryPage() {
         <div className="flex items-center gap-2">
           <button onClick={() => exportCSV(sorted)}
             className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white transition-all"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
+            style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
             📥 CSV
           </button>
           <button onClick={() => exportExcel(sorted)}
@@ -261,7 +261,7 @@ export default function AuditHistoryPage() {
       </div>
 
       {/* Filters */}
-      <div className="px-6 py-3 flex flex-wrap items-center gap-2" style={{ background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+      <div className="px-6 py-3 flex flex-wrap items-center gap-2" style={{ background: "rgba(26,31,46,0.04)", borderBottom: "1px solid rgba(26,31,46,0.05)" }}>
         <div className="relative">
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs">🔍</span>
           <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }}
@@ -315,7 +315,7 @@ export default function AuditHistoryPage() {
       <div className="flex-1 overflow-y-auto">
         <table className="w-full text-xs">
           <thead className="sticky top-0 z-10" style={{ background: "#0a0d14" }}>
-            <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+            <tr style={{ borderBottom: "1px solid rgba(26,31,46,0.07)" }}>
               <Th col="ts"     w={150}>Timestamp</Th>
               <Th col="user"   w={140}>User</Th>
               <Th col="module" w={120}>Module</Th>
@@ -334,8 +334,8 @@ export default function AuditHistoryPage() {
               const isExpanded = expanded === r.id;
               return (
                 <React.Fragment key={r.id}>
-                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.02)"}
+                  <tr style={{ borderBottom: "1px solid rgba(26,31,46,0.05)" }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(26,31,46,0.04)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = ""}>
                     <td className="px-3 py-2.5 text-slate-400 font-mono text-[10.5px]">{fmtTs(r.ts)}</td>
                     <td className="px-3 py-2.5">
@@ -382,7 +382,7 @@ export default function AuditHistoryPage() {
                             <div className="col-span-2">
                               <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Details</div>
                               <pre className="text-[10px] text-slate-400 p-2 rounded-lg overflow-x-auto whitespace-pre-wrap"
-                                   style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                                   style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(26,31,46,0.07)" }}>
                                 {JSON.stringify(r.details, null, 2)}
                               </pre>
                             </div>
@@ -408,7 +408,7 @@ export default function AuditHistoryPage() {
       </div>
 
       {/* Pagination */}
-      <div className="px-6 py-3 flex items-center justify-between flex-shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)" }}>
+      <div className="px-6 py-3 flex items-center justify-between flex-shrink-0" style={{ borderTop: "1px solid rgba(26,31,46,0.06)", background: "rgba(26,31,46,0.04)" }}>
         <div className="flex items-center gap-3 text-[11px] text-slate-500">
           <span>Rows per page:</span>
           <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}
@@ -421,17 +421,17 @@ export default function AuditHistoryPage() {
         <div className="flex items-center gap-1.5">
           <button onClick={() => setPage(0)} disabled={safePage === 0}
             className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-            style={{ background: "rgba(255,255,255,0.05)" }}>⏮</button>
+            style={{ background: "rgba(26,31,46,0.05)" }}>⏮</button>
           <button onClick={() => setPage(Math.max(0, safePage - 1))} disabled={safePage === 0}
             className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-            style={{ background: "rgba(255,255,255,0.05)" }}>◀</button>
+            style={{ background: "rgba(26,31,46,0.05)" }}>◀</button>
           <span className="px-3 py-1 text-xs text-slate-400">Page {safePage + 1} / {totalPages}</span>
           <button onClick={() => setPage(Math.min(totalPages - 1, safePage + 1))} disabled={safePage >= totalPages - 1}
             className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-            style={{ background: "rgba(255,255,255,0.05)" }}>▶</button>
+            style={{ background: "rgba(26,31,46,0.05)" }}>▶</button>
           <button onClick={() => setPage(totalPages - 1)} disabled={safePage >= totalPages - 1}
             className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-            style={{ background: "rgba(255,255,255,0.05)" }}>⏭</button>
+            style={{ background: "rgba(26,31,46,0.05)" }}>⏭</button>
         </div>
       </div>
     </div>
