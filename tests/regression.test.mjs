@@ -339,6 +339,12 @@ const USER_FACING_STRINGS = [
   "Critical Items in this BOM",
   "Department Checklists for ",
   "Open Inventory to edit",
+  // A-to-Z Machine Report (2026-10-23)
+  "A-to-Z Machine Report",
+  "A-to-Z Machine Report",
+  "Department Timeline",
+  "Materials Issued",
+  "Stage History",
 ];
 
 for (const s of USER_FACING_STRINGS) {
