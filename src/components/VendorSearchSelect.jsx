@@ -9,7 +9,7 @@ function highlight(text, query) {
   return (
     <>
       {text.slice(0, idx)}
-      <mark style={{ background: "rgba(99,102,241,0.45)", color: "#fff", padding: "0 1px", borderRadius: 2 }}>
+      <mark style={{ background: "rgba(204,74,51,0.45)", color: "#fff", padding: "0 1px", borderRadius: 2 }}>
         {text.slice(idx, idx + query.length)}
       </mark>
       {text.slice(idx + query.length)}
@@ -148,7 +148,7 @@ export default function VendorSearchSelect({
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => pick(v)}
                     className="w-full text-left px-3 py-2 transition-colors flex items-center gap-2"
-                    style={{ background: active ? "rgba(99,102,241,0.18)" : "transparent", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                    style={{ background: active ? "rgba(204,74,51,0.18)" : "transparent", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
                     {v.category && (
                       <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide flex-shrink-0"
                             style={{ background: "rgba(255,255,255,0.06)", color: "#94a3b8" }}>{v.category}</span>

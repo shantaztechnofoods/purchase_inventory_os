@@ -368,7 +368,7 @@ function ProfileModal({ user, roleLabel, roleColor, onClose, onSave }) {
           </button>
           <button onClick={handleSave}
             className="flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-all"
-            style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", boxShadow: "0 4px 12px rgba(99,102,241,0.35)" }}>
+            style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 12px rgba(204,74,51,0.35)" }}>
             Save Changes
           </button>
         </div>
@@ -469,7 +469,7 @@ function ChangePasswordModal({ user, onClose, onLocalSave, onSupabaseSaved }) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base"
-                   style={{ background: "rgba(99,102,241,0.15)", color: "#818cf8" }}>🔐</div>
+                   style={{ background: "rgba(204,74,51,0.15)", color: "#CC4A33" }}>🔐</div>
               <div>
                 <h3 className="font-bold text-white text-sm">Change Password</h3>
                 <p className="text-[10px] text-slate-500 mt-0.5">Update your account password</p>
@@ -549,8 +549,8 @@ function ChangePasswordModal({ user, onClose, onLocalSave, onSupabaseSaved }) {
                 disabled={!currentPw || !newPw || !confirmPw || saving}
                 className="flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-all"
                 style={{
-                  background: "linear-gradient(135deg,#3b82f6,#6366f1)",
-                  boxShadow: "0 4px 12px rgba(99,102,241,0.35)",
+                  background: "linear-gradient(135deg,#E8553D,#CC4A33)",
+                  boxShadow: "0 4px 12px rgba(204,74,51,0.35)",
                   opacity: (!currentPw || !newPw || !confirmPw || saving) ? 0.4 : 1,
                   cursor: saving ? "wait" : (!currentPw || !newPw || !confirmPw) ? "not-allowed" : "pointer",
                 }}>

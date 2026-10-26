@@ -271,7 +271,7 @@ export default function UserManagementPage({ canDo }) {
           {(isSuperAdmin || canDo?.("users", "create")) && (
             <button onClick={openAdd}
               className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-all"
-              style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", boxShadow: "0 4px 12px rgba(99,102,241,0.35)" }}>
+              style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 12px rgba(204,74,51,0.35)" }}>
               + Add User
             </button>
           )}
@@ -334,7 +334,7 @@ export default function UserManagementPage({ canDo }) {
                         {(isSuperAdmin || canDo?.("users", "edit")) && (
                           <button onClick={() => openReset(user)}
                             className="px-2.5 py-1 rounded-lg text-[10px] font-medium text-blue-400 hover:text-blue-300 transition-all"
-                            style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.2)" }}>
+                            style={{ background: "rgba(232,85,61,0.08)", border: "1px solid rgba(232,85,61,0.2)" }}>
                             Reset PW
                           </button>
                         )}
@@ -432,8 +432,8 @@ export default function UserManagementPage({ canDo }) {
                 <button type="submit" disabled={submitting}
                   className="flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-all"
                   style={{
-                    background: submitting ? "rgba(99,102,241,0.4)" : "linear-gradient(135deg,#3b82f6,#6366f1)",
-                    boxShadow: submitting ? "none" : "0 4px 12px rgba(99,102,241,0.35)",
+                    background: submitting ? "rgba(204,74,51,0.4)" : "linear-gradient(135deg,#E8553D,#CC4A33)",
+                    boxShadow: submitting ? "none" : "0 4px 12px rgba(204,74,51,0.35)",
                     cursor: submitting ? "wait" : "pointer",
                   }}>
                   {submitting ? "Saving…" : (editUser ? "Save Changes" : "Create User")}
@@ -492,7 +492,7 @@ export default function UserManagementPage({ canDo }) {
                   }}
                   className="flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-all flex items-center justify-center gap-2"
                   style={{
-                    background: "linear-gradient(135deg,#3b82f6,#6366f1)",
+                    background: "linear-gradient(135deg,#E8553D,#CC4A33)",
                     opacity: (resetSubmitting || !resetPw.pw || resetPw.pw !== resetPw.confirm) ? 0.5 : 1,
                     cursor: resetSubmitting ? "wait" : (!resetPw.pw || resetPw.pw !== resetPw.confirm) ? "not-allowed" : "pointer",
                   }}

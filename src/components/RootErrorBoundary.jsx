@@ -62,7 +62,7 @@ export default class RootErrorBoundary extends Component {
       <div
         style={{
           minHeight: "100vh",
-          background: "#080a0f",
+          background: "#16181C",
           color: "#e5e7eb",
           fontFamily: "Inter, system-ui, -apple-system, sans-serif",
           padding: "48px 16px",
@@ -75,7 +75,7 @@ export default class RootErrorBoundary extends Component {
           style={{
             width: "100%",
             maxWidth: 640,
-            background: "#0d1018",
+            background: "#1B1D22",
             border: "1px solid rgba(239,68,68,0.4)",
             borderRadius: 16,
             padding: 24,
@@ -128,7 +128,7 @@ export default class RootErrorBoundary extends Component {
                 padding: "6px 12px",
                 borderRadius: 8,
                 color: "#fff",
-                background: "linear-gradient(135deg,#2563eb,#1d4ed8)",
+                background: "linear-gradient(135deg,#E8553D,#CC4A33)",
                 border: "1px solid rgba(99,130,255,0.5)",
                 cursor: "pointer",
               }}

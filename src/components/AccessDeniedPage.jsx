@@ -12,7 +12,7 @@ export default function AccessDeniedPage({ onNavigateHome }) {
       {onNavigateHome && (
         <button onClick={onNavigateHome}
           className="px-4 py-2 rounded-xl text-xs font-semibold text-white transition-all"
-          style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", boxShadow: "0 4px 12px rgba(99,102,241,0.35)" }}>
+          style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 12px rgba(204,74,51,0.35)" }}>
           Go to Dashboard
         </button>
       )}
