@@ -65,7 +65,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-23-two-stage-checklist";
+const APP_BUILD = "2026-10-23-a-to-z-machine-report";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -10248,6 +10248,454 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
 // The Customer Progress Report deliberately strips HOLD reasons, employee
 // names, ratings, narration, and private remarks (customer-safe output).
 
+// ─── A-TO-Z MACHINE REPORT ─────────────────────────────────────────────────
+// One printable report that stitches together every piece of data the ERP
+// already stores about a single machine's manufacturing journey:
+//   - Core identity: BOM key, model, serial no, status, start / complete dates
+//   - BOM components with Critical-Item flag (code, name, qty, input type)
+//   - Materials actually issued (BOM Outward entries) + per-line critical
+//     item confirmations (checkbox tick or serials captured at Issue time)
+//   - Department-by-department timeline:
+//       · Dept name + stage + Finish/Accept timestamps
+//       · Actual vs. expected duration (overrun badge if applicable)
+//       · Workers list with ⭐ Main / Responsible Employee marker (snapshot)
+//       · Main Employee's digital signature preview (inline SVG, if saved)
+//       · Before-Receive checklist response (what the receiving dept ticked)
+//       · Before-Dispatch checklist response (what the sending dept ticked)
+//       · Pending-handover items raised at this dept + their resolutions
+//       · Rating assigned to the SENDING dept when this handover accepted
+//   - Final status: current stage, completion date, average rating
+//   - Attachments list (links deferred — Reports is static output; the
+//     authoritative viewer is the Machine Tracker card)
+//
+// Purely assembled from already-stored data — no new DB column, no new
+// endpoint, no new store. Historical rows render exactly the same way after
+// template / user / BOM edits because every row we read either has a
+// denormalized snapshot (checklist_responses, handover_events.worked_by_snapshot)
+// or an immutable append-only history (audit_log).
+function AtoZMachineReport({
+  machineId,
+  machineLog = [], bomDefs = {}, handovers = [], pendingHandoverItems = [],
+  deptRatings = [], checklistResponses = [], outwardLog = [], items = {},
+  attachments = [], settings = {},
+}) {
+  const machine = (machineLog || []).find((m) => String(m.id) === String(machineId)) || null;
+  if (!machine) {
+    return (
+      <div className="rounded-xl p-6 text-[11px] text-slate-400"
+           style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)" }}>
+        Pick a machine above to see its full A-to-Z report.
+      </div>
+    );
+  }
+  const bom = bomDefs[machine.bomKey] || {};
+  const workflow = readDeptWorkflowSettings(settings);
+  const machineHandovers = (handovers || [])
+    .filter((h) => String(h.machineId) === String(machine.id))
+    .slice()
+    .sort((a, b) => Date.parse(a.sentAt || 0) - Date.parse(b.sentAt || 0));
+  const machinePending   = (pendingHandoverItems || []).filter((p) => String(p.machineId) === String(machine.id));
+  const machineRatings   = (deptRatings || []).filter((r) => String(r.machineId) === String(machine.id));
+  const machineResponses = (checklistResponses || []).filter((cr) => String(cr.machineId) === String(machine.id));
+  const machineOutward   = (outwardLog || [])
+    .filter((e) => (machine.issueId && String(e.id) === String(machine.issueId))
+                 || (e.ref === machine.bomKey && e.serialNo === machine.serialNo));
+  const machineAttach    = (attachments || []).filter((a) => String(a.machineId) === String(machine.id));
+  const allFlatItems     = Object.entries(items || {})
+    .flatMap(([cat, list]) => Array.isArray(list) ? list.map((i) => ({ ...i, category: cat })) : []);
+  const findInv = (code) => allFlatItems.find((i) => i.code === code);
+
+  // Workers / Main Employee name resolution — snapshot first (survives rename
+  // or deactivation), uuid fallback for pre-029 rows.
+  const nameFromSnap = (uid, snapshot) => {
+    if (!uid) return "";
+    if (Array.isArray(snapshot)) {
+      const s = snapshot.find((x) => x && x.id === uid);
+      if (s && (s.fullName || s.username)) return s.fullName || s.username;
+    }
+    return uid;
+  };
+
+  // Rating lookup (sender dept gets rated when the receiver accepts).
+  const sum = summarizeMachineRatings(machineRatings);
+
+  // ── Section 1: Header KPIs ────────────────────────────────────────────
+  const Hdr = () => (
+    <div className="rounded-xl p-5 mb-5"
+         style={{ background: "linear-gradient(135deg,rgba(59,130,246,0.08),rgba(99,102,241,0.03))",
+                  border: "1px solid rgba(59,130,246,0.35)" }}>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <div className="text-[9px] font-black text-blue-400 uppercase tracking-[0.14em]">A-to-Z Machine Report</div>
+          <div className="text-xl font-black text-white mt-1 tracking-tight">
+            {machine.bomKey}
+            {machine.serialNo ? <span className="text-slate-400 font-normal"> · S/N {machine.serialNo}</span> : null}
+          </div>
+          <div className="text-[11px] text-slate-400 mt-0.5">{machine.bomLabel || bom.label || machine.bomKey}</div>
+        </div>
+        <div className="flex items-center gap-4 flex-wrap text-right">
+          <div>
+            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Current Stage</div>
+            <div className="text-[13px] font-black mt-0.5" style={{ color: STAGE_COLORS[machine.stage] || "#3b82f6" }}>{machine.stage}</div>
+          </div>
+          <div>
+            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Status</div>
+            <div className="text-[13px] font-black mt-0.5" style={{ color: machine.status === "completed" ? "#4ade80" : "#fdba74" }}>
+              {machine.status === "completed" ? "Ready ✓" : "In Progress"}
+            </div>
+          </div>
+          {sum.average !== null && (
+            <div>
+              <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Avg Rating</div>
+              <div className="text-[13px] font-black text-yellow-300 mt-0.5" style={{ letterSpacing: "0.08em" }}>{formatRatingBadge(sum.average)}</div>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
+        <div>
+          <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Started</div>
+          <div className="text-slate-200 mt-0.5">{machine.createdDate || "—"}</div>
+        </div>
+        <div>
+          <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Completed</div>
+          <div className="text-slate-200 mt-0.5">{machine.completedDate || "—"}</div>
+        </div>
+        <div>
+          <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Rack Capacity</div>
+          <div className="text-slate-200 mt-0.5">{Number(bom.rackCapacity) > 0 ? `${bom.rackCapacity} slots` : "No rack"}</div>
+        </div>
+        <div>
+          <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Issue ID</div>
+          <div className="text-slate-300 mt-0.5 font-mono">{machine.issueId || "—"}</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Section 2: BOM components ─────────────────────────────────────────
+  const Components = () => (
+    <div className="rounded-xl p-4 mb-5"
+         style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+      <div className="text-[11px] font-black uppercase tracking-wider text-slate-300 mb-3">📋 BOM Components ({(bom.items || []).length})</div>
+      <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500"
+             style={{ background: "rgba(255,255,255,0.03)" }}>
+          <div className="col-span-3">Code</div>
+          <div className="col-span-5">Name</div>
+          <div className="col-span-2 text-right">Qty / Unit</div>
+          <div className="col-span-2 text-right">Critical?</div>
+        </div>
+        {(bom.items || []).map(({ code, qty }) => {
+          const inv = findInv(code);
+          const isCrit = !!(inv && inv.isCritical);
+          const type = inv?.outwardInputType === "serial" ? "Serial" : "Checkbox";
+          return (
+            <div key={code} className="grid grid-cols-12 gap-2 items-center px-3 py-1.5 text-[11px] border-t border-white/[0.04]">
+              <div className="col-span-3 font-mono text-blue-300">{code}</div>
+              <div className="col-span-5">
+                <div className="text-white font-semibold truncate">{inv?.name || code}</div>
+                <div className="text-[9px] text-slate-500">{inv?.category || "—"}</div>
+              </div>
+              <div className="col-span-2 text-right font-mono text-slate-200">{qty} <span className="text-slate-500">{inv?.unit || ""}</span></div>
+              <div className="col-span-2 text-right">
+                {isCrit ? (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                        style={{ background: "rgba(249,115,22,0.15)", color: "#fed7aa", border: "1px solid rgba(249,115,22,0.3)" }}>
+                    🔒 {type}
+                  </span>
+                ) : (
+                  <span className="text-[9px] text-slate-600">—</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  // ── Section 3: Materials issued (actual outward entries) ──────────────
+  const MaterialsIssued = () => {
+    const rows = machineOutward.flatMap((entry) => (entry.items || []).map((it) => ({ ...it, _entryDate: entry.date, _entryRef: entry.ref })));
+    return (
+      <div className="rounded-xl p-4 mb-5"
+           style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="text-[11px] font-black uppercase tracking-wider text-slate-300 mb-3">📤 Materials Issued ({rows.length})</div>
+        {rows.length === 0 ? (
+          <div className="text-[11px] text-slate-500 italic">No BOM Outward entries linked to this machine.</div>
+        ) : (
+          <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500"
+                 style={{ background: "rgba(255,255,255,0.03)" }}>
+              <div className="col-span-3">Code</div>
+              <div className="col-span-4">Name</div>
+              <div className="col-span-2 text-right">Issued</div>
+              <div className="col-span-3">Critical Confirmation</div>
+            </div>
+            {rows.map((it, idx) => {
+              const ci = it.criticalInput;
+              return (
+                <div key={`${it.code}-${idx}`} className="grid grid-cols-12 gap-2 items-start px-3 py-2 text-[11px] border-t border-white/[0.04]">
+                  <div className="col-span-3 font-mono text-blue-300">{it.code}</div>
+                  <div className="col-span-4 text-white font-semibold truncate">{it.name}</div>
+                  <div className="col-span-2 text-right font-mono text-slate-200">{it.issueQty} <span className="text-slate-500">{it.unit || ""}</span></div>
+                  <div className="col-span-3 text-[10px]">
+                    {!ci ? (
+                      <span className="text-slate-600">—</span>
+                    ) : ci.type === "serial" ? (
+                      <div>
+                        <div className="font-bold text-orange-200">🔒 Serials</div>
+                        <div className="font-mono text-slate-300 break-words">{(ci.serials || []).join(", ") || "—"}</div>
+                      </div>
+                    ) : (
+                      <span className="font-bold" style={{ color: ci.confirmed ? "#4ade80" : "#fca5a5" }}>
+                        {ci.confirmed ? "✓ Checkbox confirmed" : "✗ Unconfirmed"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ── Section 4: Department-by-department timeline ──────────────────────
+  const Timeline = () => (
+    <div className="rounded-xl p-4 mb-5"
+         style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+      <div className="text-[11px] font-black uppercase tracking-wider text-slate-300 mb-3">
+        🏭 Department Timeline ({machineHandovers.length} handover{machineHandovers.length === 1 ? "" : "s"})
+      </div>
+      {machineHandovers.length === 0 ? (
+        <div className="text-[11px] text-slate-500 italic">No handovers recorded yet. Machine is still at <strong>{machine.stage}</strong>.</div>
+      ) : (
+        <div className="space-y-3">
+          {machineHandovers.map((h) => {
+            const brReceive  = machineResponses.find((cr) => String(cr.handoverId) === String(h.id) && cr.stage === "before_receive");
+            const bdDispatch = machineResponses.find((cr) => String(cr.handoverId) === String(h.id) && cr.stage === "before_dispatch");
+            const rating     = machineRatings.find((r) => String(r.handoverId) === String(h.id));
+            const relatedPending = machinePending.filter((p) => String(p.raisedInHandoverId) === String(h.id));
+            const workers = Array.isArray(h.workedBy) ? h.workedBy : [];
+            return (
+              <div key={h.id} className="rounded-lg p-3"
+                   style={{ background: "rgba(16,185,129,0.04)", border: "1px solid rgba(16,185,129,0.25)" }}>
+                <div className="flex items-center gap-2 flex-wrap mb-2">
+                  <span className="text-[12px] font-black text-white">{h.fromDepartment}</span>
+                  <span className="text-slate-500">→</span>
+                  <span className="text-[12px] font-black" style={{ color: STAGE_COLORS[h.toDepartment] || "#60a5fa" }}>{h.toDepartment}</span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                        style={{ background: h.status === "accepted" ? "rgba(34,197,94,0.1)" : "rgba(249,115,22,0.1)",
+                                 color:      h.status === "accepted" ? "#86efac"              : "#fdba74",
+                                 border: `1px solid ${h.status === "accepted" ? "rgba(34,197,94,0.3)" : "rgba(249,115,22,0.3)"}` }}>
+                    {h.status === "accepted" ? "✓ Accepted" : h.status === "pending" ? "⏳ Pending" : h.status}
+                  </span>
+                  {(h.overrunMinutes || 0) > 0 && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                          style={{ background: "rgba(239,68,68,0.1)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                      ⏰ Overrun {formatDuration(h.overrunMinutes || 0)}
+                    </span>
+                  )}
+                  {rating && (
+                    <span className="text-[10px] font-bold text-yellow-300 ml-1" style={{ letterSpacing: "0.08em" }}>{formatRatingBadge(rating.rating)}</span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-[11px] mb-2">
+                  <div>
+                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Finish &amp; Transfer</div>
+                    <div className="text-slate-200 mt-0.5">
+                      {h.sentAt ? new Date(h.sentAt).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
+                    </div>
+                    <div className="text-[9px] text-slate-500">
+                      Expected: {formatDuration(h.expectedDurationMinutes || 0)} · Actual: {formatDuration(h.actualDurationMinutes || 0)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Accepted</div>
+                    <div className="text-slate-200 mt-0.5">
+                      {h.acceptedAt ? new Date(h.acceptedAt).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : (h.status === "pending" ? "Waiting…" : "—")}
+                    </div>
+                    <div className="text-[9px] text-slate-500">
+                      Accept timeout: {formatDuration(h.acceptTimeoutMinutes || 0)}
+                    </div>
+                  </div>
+                </div>
+
+                {workers.length > 0 && (
+                  <div className="mb-2">
+                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">Workers · {workers.length}</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {workers.map((uid) => (
+                        <span key={uid} className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                              style={{ background: uid === h.mainEmployeeId ? "rgba(234,179,8,0.14)" : "rgba(16,185,129,0.08)",
+                                       border: `1px solid ${uid === h.mainEmployeeId ? "rgba(234,179,8,0.4)" : "rgba(16,185,129,0.3)"}`,
+                                       color: uid === h.mainEmployeeId ? "#fde68a" : "#86efac" }}>
+                          {uid === h.mainEmployeeId ? "⭐ " : ""}{nameFromSnap(uid, h.workedBySnapshot)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {h.mainEmployeeSignatureSvg && (
+                  <div className="mb-2">
+                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                      Main Employee signature · {nameFromSnap(h.mainEmployeeId, h.workedBySnapshot)}
+                    </div>
+                    <div className="rounded px-2 py-1 inline-block"
+                         style={{ background: "#fff", border: "1px solid rgba(255,255,255,0.1)" }}
+                         dangerouslySetInnerHTML={{ __html: h.mainEmployeeSignatureSvg }} />
+                  </div>
+                )}
+
+                {h.overrunNarration && (
+                  <div className="mb-2 rounded px-2 py-1.5 text-[10px]"
+                       style={{ background: "rgba(234,179,8,0.08)", color: "#fde68a", border: "1px solid rgba(234,179,8,0.3)" }}>
+                    <strong>Overrun note:</strong> {h.overrunNarration}
+                  </div>
+                )}
+
+                {bdDispatch && (
+                  <div className="mb-2">
+                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                      Before-Dispatch checklist · {bdDispatch.templateName || "—"} (v{bdDispatch.templateVersion || 1})
+                    </div>
+                    <div className="rounded-lg px-3 py-2 text-[10px] space-y-0.5"
+                         style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.2)" }}>
+                      {(bdDispatch.answers || []).map((a, i) => (
+                        <div key={i} className="flex items-start gap-2">
+                          <span className="text-[11px]">{a.checked ? "✓" : "✗"}</span>
+                          <div className="flex-1">
+                            <span className="text-slate-200">{a.label}</span>
+                            {a.required && <span className="text-orange-300 ml-1 text-[9px]">• must-do</span>}
+                            {!a.checked && a.remark && <div className="text-slate-400 italic mt-0.5">Remark: {a.remark}</div>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {brReceive && (
+                  <div className="mb-2">
+                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                      Before-Receive checklist · {brReceive.templateName || "—"} (v{brReceive.templateVersion || 1})
+                    </div>
+                    <div className="rounded-lg px-3 py-2 text-[10px] space-y-0.5"
+                         style={{ background: "rgba(34,197,94,0.05)", border: "1px solid rgba(34,197,94,0.2)" }}>
+                      {(brReceive.answers || []).map((a, i) => (
+                        <div key={i} className="flex items-start gap-2">
+                          <span className="text-[11px]">{a.checked ? "✓" : "✗"}</span>
+                          <div className="flex-1">
+                            <span className="text-slate-200">{a.label}</span>
+                            {a.required && <span className="text-orange-300 ml-1 text-[9px]">• must-do</span>}
+                            {!a.checked && a.remark && <div className="text-slate-400 italic mt-0.5">Remark: {a.remark}</div>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {relatedPending.length > 0 && (
+                  <div>
+                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">Pending items raised ({relatedPending.length})</div>
+                    <div className="space-y-1">
+                      {relatedPending.map((p) => (
+                        <div key={p.id} className="rounded px-2 py-1.5 text-[10px]"
+                             style={{ background: p.status === "resolved" ? "rgba(34,197,94,0.05)" : "rgba(249,115,22,0.07)",
+                                      border: `1px solid ${p.status === "resolved" ? "rgba(34,197,94,0.25)" : "rgba(249,115,22,0.3)"}` }}>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={p.status === "resolved" ? "text-emerald-300 font-bold" : "text-orange-300 font-bold"}>
+                              {p.status === "resolved" ? "✓" : "⏳"}
+                            </span>
+                            <span className="text-slate-200 flex-1">{p.description}</span>
+                            <span className="text-[9px] text-slate-500">raised in {p.raisedInDepartment}</span>
+                          </div>
+                          {p.resolutionNotes && <div className="text-slate-400 italic mt-0.5">Resolution: {p.resolutionNotes}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  // ── Section 5: Stage history (fallback / audit) ───────────────────────
+  const StageHistory = () => (
+    <div className="rounded-xl p-4 mb-5"
+         style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+      <div className="text-[11px] font-black uppercase tracking-wider text-slate-300 mb-3">
+        🧾 Stage History ({(machine.history || []).length})
+      </div>
+      <div className="relative pl-5">
+        <div className="absolute left-2 top-0 bottom-0 w-px" style={{ background: "rgba(255,255,255,0.06)" }} />
+        {(machine.history || []).map((h, i) => {
+          const sc = STAGE_COLORS[h.stage] || "#3b82f6";
+          return (
+            <div key={i} className="relative mb-2 last:mb-0">
+              <div className="absolute -left-[13px] top-1 w-2.5 h-2.5 rounded-full"
+                   style={{ background: sc + "22", border: `1.5px solid ${sc}` }} />
+              <div className="flex items-center gap-3 flex-wrap text-[11px]">
+                <span className="font-bold text-white">{h.stage}</span>
+                <span className="text-slate-500">·</span>
+                <span className="text-slate-500 font-mono">{h.date}</span>
+                {h.note && <span className="text-slate-400 italic">— {h.note}</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  // ── Section 6: Attachments ────────────────────────────────────────────
+  const AttachmentsList = () => {
+    if (!machineAttach.length) return null;
+    return (
+      <div className="rounded-xl p-4 mb-5"
+           style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="text-[11px] font-black uppercase tracking-wider text-slate-300 mb-3">📎 Attachments ({machineAttach.length})</div>
+        <ul className="text-[11px] text-slate-200 list-disc list-inside space-y-0.5">
+          {machineAttach.map((a) => (
+            <li key={a.id}>
+              <span className="font-semibold">{a.name || a.kind || "attachment"}</span>
+              <span className="text-slate-500"> · {a.department || "—"}</span>
+              <span className="text-[9px] text-slate-600 ml-1">{a.createdAt ? new Date(a.createdAt).toLocaleDateString("en-IN") : ""}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="text-[9px] text-slate-500 mt-2">
+          Attachments are previewed in Machine Tracker's expanded card view (not inlined here to keep print output compact).
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-0">
+      <Hdr />
+      <Components />
+      <MaterialsIssued />
+      <Timeline />
+      <StageHistory />
+      <AttachmentsList />
+      <div className="text-[9px] text-slate-600 mt-2 text-center">
+        Report generated {new Date().toLocaleString("en-IN")} · all data assembled from existing records · nothing new was written to produce this view.
+      </div>
+    </div>
+  );
+}
+
 function ReportCenterPage({
   machineLog = [], handovers = [], pendingHandoverItems = [], deptRatings = [],
   attachments = [], checklistResponses = [], bomDefs = {}, settings = {},
@@ -10258,6 +10706,9 @@ function ReportCenterPage({
   const [dateTo,      setDateTo]      = useState("");
   const [machineFilter,  setMachineFilter]  = useState("");
   const [deptFilter,     setDeptFilter]     = useState("");
+  // 2026-10-23 — A-to-Z report: which machine to render (machineLog.id).
+  // Defaults to the first filtered machine so the picker is useful on load.
+  const [atozMachineId,  setAtozMachineId]  = useState("");
 
   const workflow = readDeptWorkflowSettings(settings);
 
@@ -10268,6 +10719,7 @@ function ReportCenterPage({
     { id: "pending",    label: "⏳ Pending-wise"           },
     { id: "rating",     label: "⭐ Rating-wise"            },
     { id: "machineHistory", label: "🔧 Machine Full History" },
+    { id: "atoz",       label: "📄 A-to-Z Machine Report"  },
     { id: "factory",    label: "🏭 Factory / Internal"     },
     { id: "customer",   label: "👥 Customer Progress"      },
   ];
@@ -10578,6 +11030,58 @@ function ReportCenterPage({
         {tab === "pending" && <ReportTable title="Pending handover items" rows={pendingRows} />}
         {tab === "rating" && <ReportTable title="Department ratings" rows={ratingRows} />}
         {tab === "machineHistory" && <ReportTable title="Machine-wise full history" rows={machineHistoryRows} />}
+
+        {tab === "atoz" && (() => {
+          // Picker candidates: honour the shared Machine / dept / date filters
+          // (filteredMachines already applies them). Operator picks one.
+          const options = filteredMachines.slice().sort((a, b) => {
+            // Sort active first, then by started date desc.
+            if ((a.status !== "completed") !== (b.status !== "completed")) {
+              return a.status !== "completed" ? -1 : 1;
+            }
+            return (b.createdDate || "").localeCompare(a.createdDate || "");
+          });
+          const pickedId = atozMachineId || (options[0] && String(options[0].id)) || "";
+          return (
+            <div>
+              <div className="rounded-xl p-4 mb-4 no-print flex items-center gap-3 flex-wrap"
+                   style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.25)" }}>
+                <div className="text-[10px] font-black uppercase tracking-wider text-blue-200">A-to-Z Machine Report</div>
+                <select value={pickedId}
+                        onChange={(e) => setAtozMachineId(e.target.value)}
+                        className="flex-1 min-w-[220px] rounded-lg px-3 py-1.5 text-[12px] text-white outline-none focus:border-blue-500/60"
+                        style={{ background: "#0b0e17", border: "1px solid rgba(255,255,255,0.1)", color: "#f0f6ff" }}>
+                  {options.length === 0 && <option value="">— no machines match the current filters —</option>}
+                  {options.map((m) => (
+                    <option key={m.id} value={String(m.id)}>
+                      {m.bomKey}{m.serialNo ? ` · S/N ${m.serialNo}` : ""} — {m.bomLabel || "—"} · {m.stage}
+                      {m.status === "completed" ? " · ✓ Ready" : ""}
+                    </option>
+                  ))}
+                </select>
+                <button onClick={printReport} disabled={!pickedId}
+                        className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all disabled:opacity-40"
+                        style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 10px rgba(37,99,235,0.3)" }}>
+                  🖨 Print / Save as PDF
+                </button>
+              </div>
+              <AtoZMachineReport
+                machineId={pickedId}
+                machineLog={machineLog}
+                bomDefs={bomDefs}
+                handovers={handovers}
+                pendingHandoverItems={pendingHandoverItems}
+                deptRatings={deptRatings}
+                checklistResponses={checklistResponses}
+                outwardLog={outwardLog}
+                items={items}
+                attachments={attachments}
+                settings={settings}
+              />
+            </div>
+          );
+        })()}
+
         {tab === "factory" && <ReportTable title="Factory / Internal — full operational detail per handover" rows={factoryRows} />}
         {tab === "customer" && (
           <>
