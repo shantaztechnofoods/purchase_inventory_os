@@ -63,10 +63,10 @@ export default class PageErrorBoundary extends Component {
     const onReload = () => { try { window.location.reload(); } catch {} };
 
     return (
-      <div className="flex-1 overflow-y-auto" style={{ background: "#080a0f" }}>
+      <div className="flex-1 overflow-y-auto" style={{ background: "#16181C" }}>
         <div className="max-w-2xl mx-auto py-16 px-6">
           <div className="rounded-2xl p-6"
-               style={{ background: "#0d1018", border: "1px solid rgba(239,68,68,0.35)", boxShadow: "0 24px 60px rgba(0,0,0,0.7)" }}>
+               style={{ background: "#1B1D22", border: "1px solid rgba(239,68,68,0.35)", boxShadow: "0 24px 60px rgba(0,0,0,0.7)" }}>
             <div className="flex items-center gap-3 mb-3">
               <div className="text-3xl">⚠️</div>
               <div>
@@ -91,7 +91,7 @@ export default class PageErrorBoundary extends Component {
             <div className="flex flex-wrap gap-2">
               <button onClick={onRetry}
                       className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-white border transition-all"
-                      style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", borderColor: "rgba(99,130,255,0.5)" }}>
+                      style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", borderColor: "rgba(99,130,255,0.5)" }}>
                 ↻ Try again
               </button>
               {onHome && (

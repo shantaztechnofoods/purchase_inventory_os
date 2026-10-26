@@ -32,21 +32,21 @@ export default function LoginPage() {
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-5"
-             style={{ background: "radial-gradient(circle,#3b82f6,transparent)", filter: "blur(60px)" }} />
+             style={{ background: "radial-gradient(circle,#E8553D,transparent)", filter: "blur(60px)" }} />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full opacity-5"
-             style={{ background: "radial-gradient(circle,#6366f1,transparent)", filter: "blur(60px)" }} />
+             style={{ background: "radial-gradient(circle,#CC4A33,transparent)", filter: "blur(60px)" }} />
       </div>
 
       <div className="relative z-10 w-full max-w-sm px-4">
         {/* Logo + Company */}
         <div className="text-center mb-8">
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white text-2xl font-black"
-               style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", boxShadow: "0 8px 32px rgba(59,130,246,0.4)" }}>
+               style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 8px 32px rgba(232,85,61,0.4)" }}>
             S
           </div>
           <div className="text-xl font-bold text-white tracking-wider">SHANTAZ</div>
           <div className="text-xs font-semibold tracking-widest mt-0.5"
-               style={{ background: "linear-gradient(90deg,#60a5fa,#818cf8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+               style={{ background: "linear-gradient(90deg,#F18A75,#CC4A33)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
             TECHNOFOODS ERP
           </div>
         </div>
@@ -74,7 +74,7 @@ export default function LoginPage() {
                   background: "rgba(255,255,255,0.05)",
                   border: "1px solid rgba(255,255,255,0.1)",
                 }}
-                onFocus={(e) => { e.target.style.borderColor = "rgba(99,102,241,0.5)"; e.target.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.12)"; }}
+                onFocus={(e) => { e.target.style.borderColor = "rgba(204,74,51,0.5)"; e.target.style.boxShadow = "0 0 0 3px rgba(204,74,51,0.12)"; }}
                 onBlur={(e)  => { e.target.style.borderColor = "rgba(255,255,255,0.1)"; e.target.style.boxShadow = "none"; }}
               />
             </div>
@@ -95,7 +95,7 @@ export default function LoginPage() {
                     background: "rgba(255,255,255,0.05)",
                     border: "1px solid rgba(255,255,255,0.1)",
                   }}
-                  onFocus={(e) => { e.target.style.borderColor = "rgba(99,102,241,0.5)"; e.target.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.12)"; }}
+                  onFocus={(e) => { e.target.style.borderColor = "rgba(204,74,51,0.5)"; e.target.style.boxShadow = "0 0 0 3px rgba(204,74,51,0.12)"; }}
                   onBlur={(e)  => { e.target.style.borderColor = "rgba(255,255,255,0.1)"; e.target.style.boxShadow = "none"; }}
                 />
                 <button
@@ -120,8 +120,8 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all mt-2"
               style={{
-                background: loading ? "rgba(99,102,241,0.4)" : "linear-gradient(135deg,#3b82f6,#6366f1)",
-                boxShadow: loading ? "none" : "0 4px 16px rgba(99,102,241,0.4)",
+                background: loading ? "rgba(204,74,51,0.4)" : "linear-gradient(135deg,#E8553D,#CC4A33)",
+                boxShadow: loading ? "none" : "0 4px 16px rgba(204,74,51,0.4)",
                 cursor: loading ? "not-allowed" : "pointer",
               }}
             >

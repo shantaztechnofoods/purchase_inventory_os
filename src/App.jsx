@@ -65,7 +65,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-23-a-to-z-machine-report";
+const APP_BUILD = "2026-10-26-glassmorphism-v2";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -100,7 +100,7 @@ const inventoryData = {
 const bomDefinitions = {
   "KM-10": {
     label: "Kneading Machine 10L",
-    color: "#3b82f6",
+    color: "#E8553D",
     items: [
       { code: "OIL-046",  qty: 2 },
       { code: "BRG-001",  qty: 2 },
@@ -110,7 +110,7 @@ const bomDefinitions = {
   },
   "KM-15": {
     label: "Kneading Machine 15L",
-    color: "#6366f1",
+    color: "#CC4A33",
     items: [
       { code: "OIL-046",  qty: 3 },
       { code: "BRG-001",  qty: 2 },
@@ -309,13 +309,13 @@ const monthlyPOData = [
 ];
 
 const stockDistribution = [
-  { name: "Safe", value: 1147, color: "#3b82f6" },
+  { name: "Safe", value: 1147, color: "#E8553D" },
   { name: "Warning", value: 67, color: "#f97316" },
   { name: "Critical", value: 34, color: "#ef4444" },
 ];
 
 const spendByCategory = [
-  { name: "Lubricants", value: 38, color: "#3b82f6" },
+  { name: "Lubricants", value: 38, color: "#E8553D" },
   { name: "Bearings", value: 24, color: "#a78bfa" },
   { name: "Electrical", value: 18, color: "#f97316" },
   { name: "Belts", value: 12, color: "#22c55e" },
@@ -495,7 +495,7 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
       style={{ background: "linear-gradient(180deg, #0a0d15 0%, #080b11 100%)", borderRight: "1px solid rgba(255,255,255,0.05)" }}
     >
       <div className="absolute right-0 top-24 bottom-24 w-px pointer-events-none"
-           style={{ background: "linear-gradient(180deg, transparent, rgba(59,130,246,0.18), transparent)" }} />
+           style={{ background: "linear-gradient(180deg, transparent, rgba(232,85,61,0.18), transparent)" }} />
 
       {/* ── Logo + Search/Notif ── */}
       <div className="px-3 py-4 border-b border-white/[0.05] flex-shrink-0">
@@ -510,14 +510,14 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
               return (
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-white text-[13px] font-black overflow-hidden"
-                       style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", boxShadow: "0 4px 14px rgba(59,130,246,0.4)" }}>
+                       style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 14px rgba(232,85,61,0.4)" }}>
                     {settings.logo ? <img src={settings.logo} alt="logo" className="w-full h-full object-contain" /> : initial}
                   </div>
                   <div className="min-w-0">
                     <div className="text-[13px] font-bold text-white leading-none tracking-wider truncate">{line1}</div>
                     {line2 && (
                       <div className="text-[10px] font-semibold leading-none tracking-wider mt-1.5 truncate"
-                           style={{ background: "linear-gradient(90deg,#60a5fa,#818cf8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                           style={{ background: "linear-gradient(90deg,#F18A75,#CC4A33)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
                         {line2}
                       </div>
                     )}
@@ -548,7 +548,7 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
         ) : (
           <div className="flex flex-col items-center gap-2">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-[13px] font-black overflow-hidden"
-                 style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", boxShadow: "0 4px 14px rgba(59,130,246,0.4)" }}>
+                 style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 14px rgba(232,85,61,0.4)" }}>
               {settings.logo ? <img src={settings.logo} alt="logo" className="w-full h-full object-contain" /> : (settings.companyName?.[0]?.toUpperCase() || "S")}
             </div>
             <button onClick={onNotifsOpen} className="relative w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-white transition-all"
@@ -578,10 +578,10 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
               )}
               <button onClick={() => setActivePage(item.id)}
                 className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl transition-all duration-200 relative group ${isActive ? "text-white" : "text-slate-500 hover:text-slate-300"}`}
-                style={isActive ? { background: "linear-gradient(90deg,rgba(59,130,246,0.15),rgba(59,130,246,0.04))", boxShadow: "inset 0 0 0 1px rgba(59,130,246,0.22)" } : {}}>
-                {isActive && <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full" style={{ background: "linear-gradient(180deg,#60a5fa,#818cf8)" }} />}
+                style={isActive ? { background: "linear-gradient(90deg,rgba(232,85,61,0.15),rgba(232,85,61,0.04))", boxShadow: "inset 0 0 0 1px rgba(232,85,61,0.22)" } : {}}>
+                {isActive && <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full" style={{ background: "linear-gradient(180deg,#F18A75,#CC4A33)" }} />}
                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0 transition-all duration-200 ${!isActive ? "group-hover:bg-white/[0.06]" : ""}`}
-                     style={isActive ? { background: "rgba(59,130,246,0.22)", border: "1px solid rgba(99,102,241,0.35)" } : {}}>
+                     style={isActive ? { background: "rgba(232,85,61,0.22)", border: "1px solid rgba(204,74,51,0.35)" } : {}}>
                   {item.icon}
                 </div>
                 {!collapsed && (
@@ -590,8 +590,8 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
                     {(() => { const b = badges[item.id] ?? item.badge; return b > 0 ? (
                       <span className="text-[9px] font-black text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight"
                             style={{
-                              background: item.id==="pending" ? "linear-gradient(135deg,#f97316,#ea580c)" : item.id==="pipeline" ? "linear-gradient(135deg,#7c3aed,#6d28d9)" : item.id==="machines" ? "linear-gradient(135deg,#2563eb,#1d4ed8)" : "linear-gradient(135deg,#ef4444,#dc2626)",
-                              boxShadow:  item.id==="pending" ? "0 2px 6px rgba(249,115,22,0.4)" : item.id==="pipeline" ? "0 2px 6px rgba(124,58,237,0.4)" : item.id==="machines" ? "0 2px 6px rgba(37,99,235,0.4)" : "0 2px 6px rgba(239,68,68,0.4)",
+                              background: item.id==="pending" ? "linear-gradient(135deg,#f97316,#ea580c)" : item.id==="pipeline" ? "linear-gradient(135deg,#7c3aed,#6d28d9)" : item.id==="machines" ? "linear-gradient(135deg,#E8553D,#CC4A33)" : "linear-gradient(135deg,#ef4444,#dc2626)",
+                              boxShadow:  item.id==="pending" ? "0 2px 6px rgba(249,115,22,0.4)" : item.id==="pipeline" ? "0 2px 6px rgba(124,58,237,0.4)" : item.id==="machines" ? "0 2px 6px rgba(232,85,61,0.4)" : "0 2px 6px rgba(239,68,68,0.4)",
                             }}>{b}</span>
                     ) : null; })()}
                   </>
@@ -646,7 +646,7 @@ const Btn = ({ variant = "ghost", size = "sm", onClick, children, className = ""
   const base = "inline-flex items-center gap-1.5 font-medium rounded-lg cursor-pointer border transition-all duration-150 active:scale-[0.96] select-none whitespace-nowrap";
   const sizes = { xs: "text-[11px] px-2.5 py-1 leading-none", sm: "text-[12px] px-3 py-1.5", md: "text-[13px] px-4 py-2" };
   const variants = {
-    primary: "bg-blue-600 text-white border-blue-500/70 hover:bg-blue-500 hover:border-blue-400 hover:shadow-[0_0_18px_rgba(59,130,246,0.45)]",
+    primary: "bg-blue-600 text-white border-blue-500/70 hover:bg-blue-500 hover:border-blue-400 hover:shadow-[0_0_18px_rgba(232,85,61,0.45)]",
     ghost:   "bg-white/[0.04] text-slate-400 border-white/[0.09] hover:text-white hover:bg-white/[0.08] hover:border-white/[0.18]",
     green:   "bg-green-500/10 text-green-400 border-green-500/30 hover:bg-green-500/[0.18] hover:border-green-500/50 hover:shadow-[0_0_12px_rgba(34,197,94,0.2)]",
     red:     "bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/[0.18] hover:border-red-500/50",
@@ -662,10 +662,10 @@ const Btn = ({ variant = "ghost", size = "sm", onClick, children, className = ""
 // ─── METRIC CARD ─────────────────────────────────────────────────────────────
 
 function MetricCard({ label, value, delta, deltaUp, icon, barPct, barColor, valueColor, delay = 0 }) {
-  const color = barColor || "#3b82f6";
+  const color = barColor || "#E8553D";
   return (
     <div
-      className="bg-[#0c1018] border border-white/[0.07] rounded-2xl p-5 relative overflow-hidden card-hover"
+      className="bg-[#191B20] border border-white/[0.07] rounded-2xl p-5 relative overflow-hidden card-hover"
       style={{ animation: `slideUp 0.45s cubic-bezier(0.22,1,0.36,1) ${delay}ms both` }}
     >
       {/* Top accent line */}
@@ -763,14 +763,14 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
   const activeMachines = machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").slice(0, 4);
 
   const kpis = [
-    { label: "Total SKUs",        value: totalSKUs,                                              icon: "📦", color: "#3b82f6", nav: "inventory",  sub: `${safeItems.length} safe` },
+    { label: "Total SKUs",        value: totalSKUs,                                              icon: "📦", color: "#E8553D", nav: "inventory",  sub: `${safeItems.length} safe` },
     { label: "Critical Stock",    value: criticalN,                                              icon: "🔴", color: "#ef4444", nav: "inventory",  sub: `${warningItems.length} warning`,  alert: criticalN > 0 },
     { label: "Pending POs",       value: pendingPOs.length,                                      icon: "⚠️", color: "#f97316", nav: "pipeline",   sub: "awaiting approval",               alert: pendingPOs.length > 0 },
     { label: "Open PO Value",     value: fmtVal(openPOValue),                                    icon: "💰", color: "#22c55e", nav: "pipeline",   sub: `${pos.filter(p=>p.status!=="received").length} open` },
-    { label: "In Production",     value: machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").length, icon: "⚙️", color: "#6366f1", nav: "machines",   sub: "machines active" },
+    { label: "In Production",     value: machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").length, icon: "⚙️", color: "#CC4A33", nav: "machines",   sub: "machines active" },
     { label: "Machines Ready",    value: machineLog.filter((m) => m.status === "completed").length, icon: "🏆", color: "#22c55e", nav: "machines", sub: "completed" },
     { label: "Pending Materials", value: pendingLog.length,                                      icon: "⏳", color: "#f97316", nav: "pending",    sub: "items pending",                   alert: pendingLog.length > 0 },
-    { label: "Pending Approvals", value: pos.filter((p) => p.status === "pending").length,       icon: "📋", color: "#3b82f6", nav: "pipeline",   sub: "awaiting review",                 alert: pos.filter((p) => p.status === "pending").length > 0 },
+    { label: "Pending Approvals", value: pos.filter((p) => p.status === "pending").length,       icon: "📋", color: "#E8553D", nav: "pipeline",   sub: "awaiting review",                 alert: pos.filter((p) => p.status === "pending").length > 0 },
     { label: "In Follow Up",      value: followUps.length,                                       icon: "📞", color: "#8b5cf6", nav: "pipeline",   sub: "orders tracked" },
   ];
 
@@ -812,7 +812,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
           {/* 1. Critical Stock Requiring Immediate Purchase */}
-          <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-[12px] font-semibold text-white">🔴 Critical Stock — Order Now</span>
@@ -860,7 +860,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
           </div>
 
           {/* 2. Pending PO Approvals */}
-          <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-[12px] font-semibold text-white">📋 Pending PO Approvals</span>
@@ -904,7 +904,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
           </div>
 
           {/* 3. Pending Materials Blocking Production */}
-          <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-[12px] font-semibold text-white">⏳ Materials Blocking Production</span>
@@ -951,12 +951,12 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
           </div>
 
           {/* 4. Machines Ready for Next Stage */}
-          <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-[12px] font-semibold text-white">⚙️ Machines — Next Stage</span>
                 {activeMachines.length > 0 && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#6366f122", color: "#818cf8", border: "1px solid #6366f144" }}>{activeMachines.length}</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#CC4A3322", color: "#CC4A33", border: "1px solid #CC4A3344" }}>{activeMachines.length}</span>
                 )}
               </div>
               <button onClick={() => onNavigate?.("machines")} className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors">View Tracker →</button>
@@ -1000,12 +1000,12 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
         </div>
 
         {/* ── Recent Stock Movements (live ledger feed) ── */}
-        <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-5">
+        <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-semibold text-white">🔄 Recent Stock Movements</span>
               {recentMoves.length > 0 && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#3b82f622", color: "#60a5fa", border: "1px solid #3b82f644" }}>{recentMoves.length}</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#E8553D22", color: "#F18A75", border: "1px solid #E8553D44" }}>{recentMoves.length}</span>
               )}
             </div>
             <button onClick={() => onNavigate?.("history")} className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors">Full Ledger →</button>
@@ -1088,7 +1088,7 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-xs flex flex-col rounded-2xl overflow-hidden"
            style={{
-             background: "linear-gradient(180deg,#0d1018,#090c14)",
+             background: "linear-gradient(180deg,#1B1D22,#090c14)",
              border: `1px solid ${accentBorder}`,
              boxShadow: `0 32px 80px rgba(0,0,0,0.92), 0 0 60px ${accentGlow}, 0 0 0 1px rgba(255,255,255,0.03)`,
              animation: "slideUp 0.2s ease both",
@@ -1126,7 +1126,7 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
           {/* Quantity input */}
           <div>
             <div className="text-[11px] font-medium tracking-tight mb-1.5"
-                 style={{ color: "#93c5fd" }}>
+                 style={{ color: "#F7A992" }}>
               Quantity
             </div>
             <input ref={inputRef} type="number" min="1" value={qty}
@@ -1141,13 +1141,13 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
           {previewStatus && (
             <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all"
                  style={{
-                   background: previewStatus === "critical" ? "rgba(239,68,68,0.06)" : previewStatus === "warning" ? "rgba(249,115,22,0.06)" : "rgba(59,130,246,0.06)",
-                   border: `1px solid ${previewStatus === "critical" ? "rgba(239,68,68,0.3)" : previewStatus === "warning" ? "rgba(249,115,22,0.3)" : "rgba(59,130,246,0.3)"}`,
+                   background: previewStatus === "critical" ? "rgba(239,68,68,0.06)" : previewStatus === "warning" ? "rgba(249,115,22,0.06)" : "rgba(232,85,61,0.06)",
+                   border: `1px solid ${previewStatus === "critical" ? "rgba(239,68,68,0.3)" : previewStatus === "warning" ? "rgba(249,115,22,0.3)" : "rgba(232,85,61,0.3)"}`,
                  }}>
               <div>
                 <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.06em] mb-0.5">New Stock</div>
                 <div className="text-sm font-black font-mono"
-                     style={{ color: previewStatus === "critical" ? "#ef4444" : previewStatus === "warning" ? "#f97316" : "#60a5fa", fontFamily: "'Inter',system-ui,sans-serif", fontVariantNumeric: "tabular-nums" }}>
+                     style={{ color: previewStatus === "critical" ? "#ef4444" : previewStatus === "warning" ? "#f97316" : "#F18A75", fontFamily: "'Inter',system-ui,sans-serif", fontVariantNumeric: "tabular-nums" }}>
                   {newStock} <span className="text-xs font-semibold text-slate-500">{item.unit}</span>
                 </div>
               </div>
@@ -1210,7 +1210,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
       <div className="w-full max-w-lg flex flex-col rounded-2xl overflow-hidden"
            style={{
              maxHeight: "90vh",
-             background: "linear-gradient(180deg,#0d1018 0%,#090c14 100%)",
+             background: "linear-gradient(180deg,#1B1D22 0%,#090c14 100%)",
              border: `1px solid ${glowColor}`,
              boxShadow: `0 40px 100px rgba(0,0,0,0.92), 0 0 0 1px rgba(255,255,255,0.04), 0 0 60px ${glowColor}`,
              animation: "slideUp 0.25s ease both",
@@ -1218,7 +1218,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
 
         {/* Header */}
         <div className="px-6 py-5 border-b border-white/[0.08] flex items-start justify-between flex-shrink-0"
-             style={{ background: "linear-gradient(90deg,rgba(59,130,246,0.1),rgba(99,102,241,0.05))" }}>
+             style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.1),rgba(204,74,51,0.05))" }}>
           <div className="flex-1 min-w-0 pr-3 flex items-start gap-3">
             {/* Optional item photo (Phase 1 item media) */}
             {item.photo && (
@@ -1382,7 +1382,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
 
           {/* Stock adjustment panel */}
           {adjustMode && (
-            <div className="p-4 rounded-xl" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.3)" }}>
+            <div className="p-4 rounded-xl" style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.3)" }}>
               <div className="text-[9px] font-black text-blue-400 uppercase tracking-[0.08em] mb-3">
                 {adjustMode === "add" ? "Add Stock" : "Remove Stock"}
               </div>
@@ -1395,7 +1395,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                        style={{ fontVariantNumeric: "tabular-nums" }} />
                 <button onClick={handleAdjust}
                         className="px-4 py-2 rounded-xl text-xs font-bold text-white transition-all duration-200"
-                        style={{ background: "linear-gradient(135deg,#2563eb,#4f46e5)", border: "1px solid rgba(99,130,255,0.5)", boxShadow: "0 0 12px rgba(59,130,246,0.35)" }}>
+                        style={{ background: "linear-gradient(135deg,#E8553D,#A33E2A)", border: "1px solid rgba(99,130,255,0.5)", boxShadow: "0 0 12px rgba(232,85,61,0.35)" }}>
                   Confirm
                 </button>
                 <button onClick={() => { setAdjustMode(null); setAdjustQty(""); }}
@@ -1515,7 +1515,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                   {[
                     ["Total Consumed",    `${totalConsumed} ${item.unit}`,    "#f97316"],
                     ["Last Used",         lastConsDate || "—",                "#8b5cf6"],
-                    ["BOMs Using Item",   Object.keys(byBOM).length || "—",   "#3b82f6"],
+                    ["BOMs Using Item",   Object.keys(byBOM).length || "—",   "#E8553D"],
                     ["Machines Used In",  Object.keys(byMachine).length || "—","#22c55e"],
                   ].map(([lbl, val, col]) => (
                     <div key={lbl} className="px-3.5 py-3 rounded-xl"
@@ -1714,7 +1714,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
             // Type badge config
             const txnCfg = (t) => {
               if (t === "Purchase Receipt") return { color: "#22c55e",  bg: "rgba(34,197,94,0.12)",   brd: "rgba(34,197,94,0.3)",   icon: "📥" };
-              if (t === "BOM Issue")        return { color: "#3b82f6",  bg: "rgba(59,130,246,0.12)",  brd: "rgba(59,130,246,0.3)",  icon: "🔧" };
+              if (t === "BOM Issue")        return { color: "#E8553D",  bg: "rgba(232,85,61,0.12)",  brd: "rgba(232,85,61,0.3)",  icon: "🔧" };
               if (t === "Manual Outward")   return { color: "#f97316",  bg: "rgba(249,115,22,0.12)",  brd: "rgba(249,115,22,0.3)",  icon: "📤" };
               if (t === "Stock In")         return { color: "#4ade80",  bg: "rgba(74,222,128,0.10)",  brd: "rgba(74,222,128,0.25)", icon: "⬆️" };
               if (t === "Stock Out")        return { color: "#ef4444",  bg: "rgba(239,68,68,0.10)",   brd: "rgba(239,68,68,0.25)",  icon: "⬇️" };
@@ -1743,9 +1743,9 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                     <button key={key} onClick={() => setMvFilter(key)}
                             className="text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all"
                             style={{
-                              color:       mvFilter === key ? "#3b82f6" : "#64748b",
-                              background:  mvFilter === key ? "rgba(59,130,246,0.12)" : "transparent",
-                              borderColor: mvFilter === key ? "rgba(59,130,246,0.35)" : "rgba(255,255,255,0.08)",
+                              color:       mvFilter === key ? "#E8553D" : "#64748b",
+                              background:  mvFilter === key ? "rgba(232,85,61,0.12)" : "transparent",
+                              borderColor: mvFilter === key ? "rgba(232,85,61,0.35)" : "rgba(255,255,255,0.08)",
                             }}>
                       {label}
                     </button>
@@ -2038,14 +2038,14 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
   })();
 
   const Label = ({ text, req }) => (
-    <div className="text-[11px] font-medium tracking-tight mb-1.5" style={{ color: "#93c5fd" }}>
+    <div className="text-[11px] font-medium tracking-tight mb-1.5" style={{ color: "#F7A992" }}>
       {text}{req && <span className="text-red-400 ml-0.5">*</span>}
     </div>
   );
 
   const roleColor = (r) => r === "Preferred" ? "#fbbf24" : r === "Approved" ? "#34d399" : "#94a3b8";
   const roleIcon  = (r) => r === "Preferred" ? "⭐" : r === "Approved" ? "✅" : "🔘";
-  const selectStyle = { background: "#0b0e17", color: "#f0f6ff" };
+  const selectStyle = { background: "#1A1C21", color: "#f0f6ff" };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -2054,14 +2054,14 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
       <div className="w-full max-w-2xl flex flex-col rounded-2xl overflow-hidden"
            style={{
              maxHeight: "92vh",
-             background: "linear-gradient(180deg,#0d1018 0%,#090c14 100%)",
-             border: "1px solid rgba(59,130,246,0.32)",
-             boxShadow: "0 40px 100px rgba(0,0,0,0.92), 0 0 0 1px rgba(255,255,255,0.04), 0 0 80px rgba(59,130,246,0.1)",
+             background: "linear-gradient(180deg,#1B1D22 0%,#090c14 100%)",
+             border: "1px solid rgba(232,85,61,0.32)",
+             boxShadow: "0 40px 100px rgba(0,0,0,0.92), 0 0 0 1px rgba(255,255,255,0.04), 0 0 80px rgba(232,85,61,0.1)",
            }}>
 
         {/* Header */}
         <div className="px-6 py-5 border-b border-white/[0.08] flex items-center justify-between flex-shrink-0"
-             style={{ background: "linear-gradient(90deg,rgba(59,130,246,0.11),rgba(99,102,241,0.06))" }}>
+             style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.11),rgba(204,74,51,0.06))" }}>
           <div>
             <div className="text-[15px] font-semibold text-white tracking-tight">{isEdit ? "Edit Inventory Item" : "Add Inventory Item"}</div>
             <div className="text-[11px] text-slate-400 mt-0.5">Status auto-calculates from stock vs minimum level</div>
@@ -2196,9 +2196,9 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
           {computedStatus && (
             <div className="flex items-center justify-between px-4 py-3 rounded-xl"
                  style={{
-                   background: computedStatus === "critical" ? "rgba(239,68,68,0.04)" : computedStatus === "warning" ? "rgba(249,115,22,0.04)" : "rgba(59,130,246,0.04)",
-                   border: `1px solid ${computedStatus === "critical" ? "rgba(239,68,68,0.3)" : computedStatus === "warning" ? "rgba(249,115,22,0.3)" : "rgba(59,130,246,0.3)"}`,
-                   boxShadow: computedStatus === "critical" ? "0 0 16px rgba(239,68,68,0.06)" : computedStatus === "warning" ? "0 0 16px rgba(249,115,22,0.06)" : "0 0 16px rgba(59,130,246,0.06)",
+                   background: computedStatus === "critical" ? "rgba(239,68,68,0.04)" : computedStatus === "warning" ? "rgba(249,115,22,0.04)" : "rgba(232,85,61,0.04)",
+                   border: `1px solid ${computedStatus === "critical" ? "rgba(239,68,68,0.3)" : computedStatus === "warning" ? "rgba(249,115,22,0.3)" : "rgba(232,85,61,0.3)"}`,
+                   boxShadow: computedStatus === "critical" ? "0 0 16px rgba(239,68,68,0.06)" : computedStatus === "warning" ? "0 0 16px rgba(249,115,22,0.06)" : "0 0 16px rgba(232,85,61,0.06)",
                  }}>
               <div>
                 <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.08em]">Auto-detected status</div>
@@ -2221,8 +2221,8 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
               <div
                 className="min-h-[44px] w-full bg-white/[0.04] border rounded-xl px-3 py-2 flex flex-wrap gap-1.5 items-center cursor-text transition-all"
                 style={{
-                  borderColor: dropOpen ? "rgba(59,130,246,0.55)" : "rgba(255,255,255,0.08)",
-                  boxShadow:   dropOpen ? "0 0 0 2px rgba(59,130,246,0.12)" : "none",
+                  borderColor: dropOpen ? "rgba(232,85,61,0.55)" : "rgba(255,255,255,0.08)",
+                  boxShadow:   dropOpen ? "0 0 0 2px rgba(232,85,61,0.12)" : "none",
                 }}
                 onClick={() => { setDropOpen(true); setTimeout(() => vendorSearchRef.current?.focus(), 0); }}
               >
@@ -2266,7 +2266,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
               {/* Dropdown */}
               {dropOpen && (
                 <div className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl overflow-hidden overflow-y-auto"
-                     style={{ background: "#0b0e17", border: "1px solid rgba(59,130,246,0.4)", boxShadow: "0 20px 50px rgba(0,0,0,0.8)", maxHeight: 224 }}>
+                     style={{ background: "#1A1C21", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 20px 50px rgba(0,0,0,0.8)", maxHeight: 224 }}>
                   {vendorList.length === 0 ? (
                     <div className="px-4 py-5 text-center">
                       <div className="text-[11px] text-slate-500 mb-1">No vendors in Vendor Master yet.</div>
@@ -2455,18 +2455,18 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
             <button onClick={handleSave}
                     className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all duration-200"
                     style={{
-                      background: "linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)",
+                      background: "linear-gradient(135deg, #E8553D 0%, #A33E2A 100%)",
                       borderColor: "rgba(99,130,255,0.5)",
-                      boxShadow: "0 0 12px rgba(59,130,246,0.45), 0 2px 8px rgba(0,0,0,0.4)",
+                      boxShadow: "0 0 12px rgba(232,85,61,0.45), 0 2px 8px rgba(0,0,0,0.4)",
                     }}
                     onMouseEnter={e => {
-                      e.currentTarget.style.background = "linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)";
-                      e.currentTarget.style.boxShadow = "0 0 22px rgba(99,130,255,0.7), 0 0 6px rgba(59,130,246,0.4), 0 2px 8px rgba(0,0,0,0.4)";
+                      e.currentTarget.style.background = "linear-gradient(135deg, #E8553D 0%, #CC4A33 100%)";
+                      e.currentTarget.style.boxShadow = "0 0 22px rgba(99,130,255,0.7), 0 0 6px rgba(232,85,61,0.4), 0 2px 8px rgba(0,0,0,0.4)";
                       e.currentTarget.style.borderColor = "rgba(139,160,255,0.7)";
                     }}
                     onMouseLeave={e => {
-                      e.currentTarget.style.background = "linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)";
-                      e.currentTarget.style.boxShadow = "0 0 12px rgba(59,130,246,0.45), 0 2px 8px rgba(0,0,0,0.4)";
+                      e.currentTarget.style.background = "linear-gradient(135deg, #E8553D 0%, #A33E2A 100%)";
+                      e.currentTarget.style.boxShadow = "0 0 12px rgba(232,85,61,0.45), 0 2px 8px rgba(0,0,0,0.4)";
                       e.currentTarget.style.borderColor = "rgba(99,130,255,0.5)";
                     }}>
               {isEdit ? "💾 Save Changes" : "💾 Save Item"}
@@ -2547,7 +2547,7 @@ function ItemImportModal({ items, onImport, onClose }) {
          style={{ background: "rgba(4,6,12,0.88)", backdropFilter: "blur(14px)" }}
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl overflow-hidden"
-           style={{ background: "linear-gradient(180deg,#0d1018,#090c14)", border: "1px solid rgba(59,130,246,0.35)", boxShadow: "0 32px 80px rgba(0,0,0,0.92)", animation: "slideUp 0.2s ease both" }}>
+           style={{ background: "linear-gradient(180deg,#1B1D22,#090c14)", border: "1px solid rgba(232,85,61,0.35)", boxShadow: "0 32px 80px rgba(0,0,0,0.92)", animation: "slideUp 0.2s ease both" }}>
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-white/[0.07] flex items-center justify-between flex-shrink-0">
@@ -2560,7 +2560,7 @@ function ItemImportModal({ items, onImport, onClose }) {
 
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* Column guide — operator's actual 2-column sheet. Other columns ignored. */}
-          <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)" }}>
+          <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(232,85,61,0.06)", border: "1px solid rgba(232,85,61,0.15)" }}>
             <div>
               <div className="text-[11px] font-semibold text-blue-300 mb-1.5">Supported columns — only these two are read</div>
               <div className="grid grid-cols-2 gap-1.5">
@@ -2570,11 +2570,11 @@ function ItemImportModal({ items, onImport, onClose }) {
                 ].map(({ label, req, hint }) => (
                   <div key={label} className="flex items-center gap-2">
                     <span className="text-[10px] font-mono font-semibold"
-                          style={{ color: req ? "#93c5fd" : "#64748b" }}>{label}</span>
+                          style={{ color: req ? "#F7A992" : "#64748b" }}>{label}</span>
                     <span className="text-[9px] px-1.5 py-0.5 rounded-full"
-                          style={{ background: req ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.04)",
-                                   color: req ? "#93c5fd" : "#475569",
-                                   border: req ? "1px solid rgba(59,130,246,0.3)" : "1px solid rgba(255,255,255,0.06)" }}>
+                          style={{ background: req ? "rgba(232,85,61,0.15)" : "rgba(255,255,255,0.04)",
+                                   color: req ? "#F7A992" : "#475569",
+                                   border: req ? "1px solid rgba(232,85,61,0.3)" : "1px solid rgba(255,255,255,0.06)" }}>
                       {hint}
                     </span>
                   </div>
@@ -2596,7 +2596,7 @@ function ItemImportModal({ items, onImport, onClose }) {
                onClick={() => fileRef.current?.click()}
                className="rounded-xl border-2 border-dashed cursor-pointer flex flex-col items-center justify-center py-10 transition-all"
                style={{ borderColor: "rgba(255,255,255,0.1)" }}
-               onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(59,130,246,0.4)"}
+               onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(232,85,61,0.4)"}
                onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"}>
             <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
                    onChange={(e) => { const f = e.target.files[0]; if (f) parseFile(f); e.target.value = ""; }} />
@@ -2666,7 +2666,7 @@ function ItemImportModal({ items, onImport, onClose }) {
             <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
             <button onClick={handleImport} disabled={!rows || (readyCount + updateCount) === 0}
                     className="text-xs font-black px-5 py-2 rounded-xl text-white transition-opacity"
-                    style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 20px rgba(37,99,235,0.4)",
+                    style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 20px rgba(232,85,61,0.4)",
                              opacity: (!rows || (readyCount + updateCount) === 0) ? 0.4 : 1,
                              cursor: (!rows || (readyCount + updateCount) === 0) ? "not-allowed" : "pointer" }}>
               {(() => { const total = readyCount + updateCount; return `Import${total > 0 ? ` ${total} Item${total !== 1 ? "s" : ""}` : ""}`; })()}
@@ -2827,7 +2827,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
   const filtersActive = search || statusFilter !== "all" || catFilter !== "all";
   const clearFilters  = () => { setSearch(""); setStatusFilter("all"); setCatFilter("all"); };
 
-  const catColors = { Electrical: "#f97316", Mechanical: "#3b82f6", "R&D": "#a78bfa", Other: "#6b7280" };
+  const catColors = { Electrical: "#f97316", Mechanical: "#E8553D", "R&D": "#a78bfa", Other: "#6b7280" };
 
   const SortIcon = ({ col }) =>
     sortCol !== col
@@ -2978,7 +2978,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={e => e.target === e.currentTarget && setDeleteModal(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-               style={{ background: "#0d1018", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)", animation: "slideUp 0.25s ease both" }}>
+               style={{ background: "#1B1D22", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)", animation: "slideUp 0.25s ease both" }}>
 
             {/* Header */}
             <div className="px-5 py-4 border-b border-white/[0.08]" style={{ background: "rgba(239,68,68,0.06)" }}>
@@ -3025,7 +3025,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
 
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#0d1018,#0a0c14)", border: `1px solid ${toast.status === "critical" ? "rgba(239,68,68,0.45)" : toast.status === "warning" ? "rgba(249,115,22,0.45)" : "rgba(34,197,94,0.45)"}`, boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "linear-gradient(135deg,#1B1D22,#17191E)", border: `1px solid ${toast.status === "critical" ? "rgba(239,68,68,0.45)" : toast.status === "warning" ? "rgba(249,115,22,0.45)" : "rgba(34,197,94,0.45)"}`, boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">{toast.status === "critical" ? "🔴" : toast.status === "warning" ? "🟠" : "✅"}</span>
           <div>
             <div className="text-xs font-black text-white">{toast.name} added</div>
@@ -3050,7 +3050,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
       <div className="p-6 space-y-4">
         {/* Metric cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard label="Total SKUs"    value={totalSKUs.toLocaleString("en-IN")} barPct={totalSKUs ? Math.round((safeCount / totalSKUs) * 100) : 0} barColor="#3b82f6" icon="📦" />
+          <MetricCard label="Total SKUs"    value={totalSKUs.toLocaleString("en-IN")} barPct={totalSKUs ? Math.round((safeCount / totalSKUs) * 100) : 0} barColor="#E8553D" icon="📦" />
           <MetricCard label="Critical"      value={String(criticalCount)} valueColor="text-red-400" icon="🚨"
                       barPct={totalSKUs ? Math.round((criticalCount / totalSKUs) * 100) : 0} barColor="#ef4444" />
           <MetricCard label="Low Stock"     value={String(warningCount)}  valueColor="text-orange-400" icon="⚠️"
@@ -3163,7 +3163,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
         </div>
 
         {/* Master table */}
-        <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl overflow-hidden">
+        <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -3490,9 +3490,9 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
   };
 
   const inpCls = `bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
-  const selStyle = { background: "#0b0e17", color: "#f0f6ff" };
+  const selStyle = { background: "#1A1C21", color: "#f0f6ff" };
   const PLabel = ({ text, req }) => (
-    <div className="text-[11px] font-medium tracking-tight mb-1.5" style={{ color: "#93c5fd" }}>
+    <div className="text-[11px] font-medium tracking-tight mb-1.5" style={{ color: "#F7A992" }}>
       {text}{req && <span className="text-red-400 ml-0.5">*</span>}
     </div>
   );
@@ -3502,9 +3502,9 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
          style={{ background: "rgba(4,6,12,0.9)", backdropFilter: "blur(16px)" }}
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-2xl flex flex-col rounded-2xl overflow-hidden"
-           style={{ maxHeight: "92vh", background: "linear-gradient(180deg,#0d1018,#090c14)", border: "1px solid rgba(59,130,246,0.32)", boxShadow: "0 40px 100px rgba(0,0,0,0.92),0 0 80px rgba(59,130,246,0.1)", animation: "slideUp 0.25s ease both" }}>
+           style={{ maxHeight: "92vh", background: "linear-gradient(180deg,#1B1D22,#090c14)", border: "1px solid rgba(232,85,61,0.32)", boxShadow: "0 40px 100px rgba(0,0,0,0.92),0 0 80px rgba(232,85,61,0.1)", animation: "slideUp 0.25s ease both" }}>
         <div className="px-6 py-5 border-b border-white/[0.08] flex items-center justify-between flex-shrink-0"
-             style={{ background: "linear-gradient(90deg,rgba(59,130,246,0.11),rgba(99,102,241,0.06))" }}>
+             style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.11),rgba(204,74,51,0.06))" }}>
           <div>
             <div className="text-[15px] font-semibold text-white">{isEdit ? "Edit Purchase Order" : "Create Purchase Order"}</div>
             <div className="text-[11px] text-slate-400 mt-0.5">Select vendor · Add items · Review totals</div>
@@ -3562,9 +3562,9 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                               className="flex-shrink-0 text-left rounded-xl border transition-all duration-150"
                               style={{
                                 minWidth: 148, padding: "10px 12px",
-                                background: isSelected ? "rgba(59,130,246,0.10)" : "rgba(255,255,255,0.025)",
-                                borderColor: isSelected ? "rgba(59,130,246,0.55)" : "rgba(255,255,255,0.08)",
-                                boxShadow: isSelected ? "0 0 14px rgba(59,130,246,0.18)" : "none",
+                                background: isSelected ? "rgba(232,85,61,0.10)" : "rgba(255,255,255,0.025)",
+                                borderColor: isSelected ? "rgba(232,85,61,0.55)" : "rgba(255,255,255,0.08)",
+                                boxShadow: isSelected ? "0 0 14px rgba(232,85,61,0.18)" : "none",
                               }}>
                         <div className="flex items-center gap-1 mb-1.5">
                           <span className="text-[10px]">{pIcon}</span>
@@ -3607,12 +3607,12 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
               <div className="col-span-2">
                 {/* Label row — shows item-filter badge when active */}
                 <div className="flex items-center gap-2 mb-1.5">
-                  <div className="text-[11px] font-medium tracking-tight" style={{ color: "#93c5fd" }}>
+                  <div className="text-[11px] font-medium tracking-tight" style={{ color: "#F7A992" }}>
                     Vendor<span className="text-red-400 ml-0.5">*</span>
                   </div>
                   {addCode && itemLinkedVendors.length > 0 && (
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                          style={{ background: "rgba(99,102,241,0.12)", color: "#a5b4fc", border: "1px solid rgba(99,102,241,0.22)" }}>
+                          style={{ background: "rgba(204,74,51,0.12)", color: "#a5b4fc", border: "1px solid rgba(204,74,51,0.22)" }}>
                       {itemLinkedVendors.length} linked · {addCodeItem?.name}
                     </span>
                   )}
@@ -3785,7 +3785,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                      onKeyDown={(e) => e.key === "Enter" && addLine()} />
               <button onClick={addLine}
                       className="px-3 py-2 rounded-xl text-xs font-bold text-white"
-                      style={{ background: "linear-gradient(135deg,#2563eb,#4f46e5)", border: "1px solid rgba(99,130,255,0.5)", boxShadow: "0 0 10px rgba(59,130,246,0.3)" }}>
+                      style={{ background: "linear-gradient(135deg,#E8553D,#A33E2A)", border: "1px solid rgba(99,130,255,0.5)", boxShadow: "0 0 10px rgba(232,85,61,0.3)" }}>
                 + Add
               </button>
             </div>
@@ -3934,7 +3934,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
             </button>
             <button onClick={() => handleSave("pending")}
                     className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
-                    style={{ background: "linear-gradient(135deg,#2563eb,#4f46e5)", borderColor: "rgba(99,130,255,0.5)", boxShadow: "0 0 12px rgba(59,130,246,0.45)" }}>
+                    style={{ background: "linear-gradient(135deg,#E8553D,#A33E2A)", borderColor: "rgba(99,130,255,0.5)", boxShadow: "0 0 12px rgba(232,85,61,0.45)" }}>
               📤 Submit for Approval
             </button>
           </div>
@@ -3965,10 +3965,10 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
          style={{ background: "rgba(4,6,12,0.9)", backdropFilter: "blur(16px)" }}
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-lg flex flex-col rounded-2xl overflow-hidden"
-           style={{ maxHeight: "90vh", background: "linear-gradient(180deg,#0d1018,#090c14)", border: "1px solid rgba(59,130,246,0.32)", boxShadow: "0 40px 100px rgba(0,0,0,0.92)", animation: "slideUp 0.25s ease both" }}>
+           style={{ maxHeight: "90vh", background: "linear-gradient(180deg,#1B1D22,#090c14)", border: "1px solid rgba(232,85,61,0.32)", boxShadow: "0 40px 100px rgba(0,0,0,0.92)", animation: "slideUp 0.25s ease both" }}>
 
         <div className="px-6 py-5 border-b border-white/[0.08] flex items-start justify-between flex-shrink-0"
-             style={{ background: "linear-gradient(90deg,rgba(59,130,246,0.1),rgba(99,102,241,0.05))" }}>
+             style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.1),rgba(204,74,51,0.05))" }}>
           <div>
             <div className="text-[15px] font-semibold text-white">{po.id}</div>
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
@@ -4151,7 +4151,7 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
     <div className="flex-1 overflow-y-auto">
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#0d1018,#0a0c14)", border: "1px solid rgba(59,130,246,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "linear-gradient(135deg,#1B1D22,#17191E)", border: "1px solid rgba(232,85,61,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">🧾</span>
           <div>
             <div className="text-xs font-black text-white">{toast.msg}</div>
@@ -4205,7 +4205,7 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
 
       <div className="p-6 space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard label="Total POs"  value={String(pos.length)} barPct={100} barColor="#3b82f6" />
+          <MetricCard label="Total POs"  value={String(pos.length)} barPct={100} barColor="#E8553D" />
           <MetricCard label="Open Value" value={`₹${(totalAmt / 100000).toFixed(1)}L`} valueColor="text-orange-400"
                       barPct={pos.length ? Math.round((pendingN / pos.length) * 100) : 0} barColor="#f97316" />
           <MetricCard label="Received"   value={String(receivedN)} valueColor="text-green-400"
@@ -4214,7 +4214,7 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
                       barPct={pos.length ? Math.round((overdueN / pos.length) * 100) : 0} barColor="#ef4444" />
         </div>
 
-        <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl overflow-hidden">
+        <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl overflow-hidden">
           <div className="p-4 border-b border-white/[0.07] flex flex-wrap items-center gap-3">
             <div className="text-sm font-bold text-white">Purchase Order Register</div>
             <div className="flex gap-1 flex-wrap ml-2">
@@ -4350,7 +4350,7 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
          style={{ background: "rgba(4,6,12,0.88)", backdropFilter: "blur(14px)" }}
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl overflow-hidden"
-           style={{ background: "linear-gradient(180deg,#0d1018,#090c14)", border: "1px solid rgba(59,130,246,0.35)", boxShadow: "0 32px 80px rgba(0,0,0,0.92)", animation: "slideUp 0.2s ease both" }}>
+           style={{ background: "linear-gradient(180deg,#1B1D22,#090c14)", border: "1px solid rgba(232,85,61,0.35)", boxShadow: "0 32px 80px rgba(0,0,0,0.92)", animation: "slideUp 0.2s ease both" }}>
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-white/[0.07] flex items-center justify-between flex-shrink-0">
@@ -4364,7 +4364,7 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
 
           {/* Column guide */}
-          <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)" }}>
+          <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(232,85,61,0.06)", border: "1px solid rgba(232,85,61,0.15)" }}>
             <div>
               <div className="text-[11px] font-semibold text-blue-300 mb-1.5">Supported columns — use these exact header names in your sheet</div>
               <div className="grid grid-cols-2 gap-1.5">
@@ -4380,11 +4380,11 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
                 ].map(({ label, req, hint }) => (
                   <div key={label} className="flex items-center gap-2">
                     <span className="text-[10px] font-mono font-semibold"
-                          style={{ color: req ? "#93c5fd" : "#64748b" }}>{label}</span>
+                          style={{ color: req ? "#F7A992" : "#64748b" }}>{label}</span>
                     <span className="text-[9px] px-1.5 py-0.5 rounded-full"
-                          style={{ background: req ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.04)",
-                                   color: req ? "#93c5fd" : "#475569",
-                                   border: req ? "1px solid rgba(59,130,246,0.3)" : "1px solid rgba(255,255,255,0.06)" }}>
+                          style={{ background: req ? "rgba(232,85,61,0.15)" : "rgba(255,255,255,0.04)",
+                                   color: req ? "#F7A992" : "#475569",
+                                   border: req ? "1px solid rgba(232,85,61,0.3)" : "1px solid rgba(255,255,255,0.06)" }}>
                       {hint}
                     </span>
                   </div>
@@ -4402,7 +4402,7 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
                onClick={() => fileRef.current?.click()}
                className="rounded-xl border-2 border-dashed cursor-pointer flex flex-col items-center justify-center py-10 transition-all"
                style={{ borderColor: "rgba(255,255,255,0.1)" }}
-               onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(59,130,246,0.4)"}
+               onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(232,85,61,0.4)"}
                onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"}>
             <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
                    onChange={(e) => { const f = e.target.files[0]; if (f) parseFile(f); e.target.value = ""; }} />
@@ -4475,7 +4475,7 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
             <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
             <button onClick={handleImport} disabled={!rows || (readyCount + updateCount) === 0}
                     className="text-xs font-black px-5 py-2 rounded-xl text-white transition-opacity"
-                    style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 20px rgba(37,99,235,0.4)",
+                    style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 20px rgba(232,85,61,0.4)",
                              opacity: (!rows || (readyCount + updateCount) === 0) ? 0.4 : 1,
                              cursor: (!rows || (readyCount + updateCount) === 0) ? "not-allowed" : "pointer" }}>
               {(() => {
@@ -4520,20 +4520,20 @@ function VendorModal({ initialVendor, onSave, onClose }) {
 
   const ILabel = ({ text, req }) => (
     <div className="text-[11px] font-medium tracking-tight mb-1.5"
-         style={{ color: "#93c5fd" }}>
+         style={{ color: "#F7A992" }}>
       {text}{req && <span className="text-red-400 ml-0.5">*</span>}
     </div>
   );
   const inpCls = (err) =>
     `w-full bg-white/[0.04] border ${err ? "border-red-500/60" : "border-white/[0.08]"} rounded-xl px-4 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
-  const selStyle = { background: "#0b0e17", color: "#f0f6ff" };
+  const selStyle = { background: "#1A1C21", color: "#f0f6ff" };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
          style={{ background: "rgba(4,6,12,0.88)", backdropFilter: "blur(14px)" }}
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl overflow-hidden"
-           style={{ background: "linear-gradient(180deg,#0d1018,#090c14)", border: "1px solid rgba(59,130,246,0.35)", boxShadow: "0 32px 80px rgba(0,0,0,0.92), 0 0 60px rgba(59,130,246,0.08)", animation: "slideUp 0.2s ease both" }}>
+           style={{ background: "linear-gradient(180deg,#1B1D22,#090c14)", border: "1px solid rgba(232,85,61,0.35)", boxShadow: "0 32px 80px rgba(0,0,0,0.92), 0 0 60px rgba(232,85,61,0.08)", animation: "slideUp 0.2s ease both" }}>
 
         <div className="px-6 py-4 border-b border-white/[0.07] flex items-center justify-between flex-shrink-0">
           <div>
@@ -4622,7 +4622,7 @@ function VendorModal({ initialVendor, onSave, onClose }) {
           <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
           <button onClick={handleSave}
                   className="text-xs font-black px-5 py-2 rounded-xl text-white"
-                  style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 20px rgba(37,99,235,0.4)" }}>
+                  style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 20px rgba(232,85,61,0.4)" }}>
             {isEdit ? "Save Changes" : "Add Vendor"}
           </button>
         </div>
@@ -4694,13 +4694,13 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
         || (v.location || "").toLowerCase().includes(q);
   });
 
-  const perfColor = (p) => p > 85 ? "#22c55e" : p > 65 ? "#3b82f6" : p > 50 ? "#f97316" : "#ef4444";
+  const perfColor = (p) => p > 85 ? "#22c55e" : p > 65 ? "#E8553D" : p > 50 ? "#f97316" : "#ef4444";
 
   return (
     <div className="flex-1 overflow-y-auto">
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#0d1018,#0a0c14)", border: "1px solid rgba(59,130,246,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "linear-gradient(135deg,#1B1D22,#17191E)", border: "1px solid rgba(232,85,61,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">🏭</span>
           <div className="text-xs font-black text-white">{toast}</div>
           <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-300 text-xs">✕</button>
@@ -4746,7 +4746,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
                style={{ background: "rgba(4,6,12,0.88)", backdropFilter: "blur(14px)" }}
                onClick={(e) => e.target === e.currentTarget && setConfirmDelete(null)}>
-            <div className="w-96 rounded-2xl p-6" style={{ background: "#0d1018", border: `1px solid ${use.anyRefs ? "rgba(234,179,8,0.4)" : "rgba(239,68,68,0.35)"}` }}>
+            <div className="w-96 rounded-2xl p-6" style={{ background: "#1B1D22", border: `1px solid ${use.anyRefs ? "rgba(234,179,8,0.4)" : "rgba(239,68,68,0.35)"}` }}>
               <div className="text-sm font-black text-white mb-2">
                 {use.anyRefs ? "Archive Vendor?" : "Delete Vendor?"}
               </div>
@@ -4817,7 +4817,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
       <div className="p-6 space-y-6">
         {/* Stats — driven by active (non-archived) vendors */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <MetricCard label="Total Vendors"  value={activeVendors.length.toString()} icon="🏭" barPct={100} barColor="#3b82f6" />
+          <MetricCard label="Total Vendors"  value={activeVendors.length.toString()} icon="🏭" barPct={100} barColor="#E8553D" />
           <MetricCard label="Preferred"      value={activeVendors.filter((v) => v.status === "preferred").length.toString()} icon="⭐" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "preferred").length / activeVendors.length) * 100) : 0} barColor="#22c55e" valueColor="text-green-400" />
           <MetricCard label="Under Review"   value={activeVendors.filter((v) => v.status === "review").length.toString()} icon="🔍" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "review").length / activeVendors.length) * 100) : 0} barColor="#f97316" valueColor="text-orange-400" />
           <MetricCard label="Poor"           value={activeVendors.filter((v) => v.status === "poor").length.toString()} icon="⚠️" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "poor").length / activeVendors.length) * 100) : 0} barColor="#ef4444" valueColor="text-red-400" />
@@ -4828,7 +4828,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
           <div className={`${profileVendor ? "xl:col-span-2" : ""} grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 content-start`}>
             {filtered.map((v) => (
               <div key={v.id}
-                   className={`bg-[#0e1117] border rounded-xl p-4 cursor-pointer card-hover ${profileVendor?.id === v.id ? "border-blue-500/40 shadow-[0_0_20px_rgba(59,130,246,0.07)]" : "border-white/[0.07]"}`}
+                   className={`bg-[#1A1C21] border rounded-xl p-4 cursor-pointer card-hover ${profileVendor?.id === v.id ? "border-blue-500/40 shadow-[0_0_20px_rgba(232,85,61,0.07)]" : "border-white/[0.07]"}`}
                    onClick={() => setProfileVendor(profileVendor?.id === v.id ? null : v)}>
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 min-w-0 mr-2">
@@ -4921,7 +4921,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
             const roleColor  = (r) => r === "Preferred" ? "#fbbf24" : r === "Approved" ? "#34d399" : r === "Backup" ? "#94a3b8" : "#64748b";
 
             return (
-              <div className="bg-[#0e1117] border border-blue-500/20 rounded-xl p-5 space-y-5 self-start sticky top-4 overflow-y-auto max-h-[calc(100vh-120px)]">
+              <div className="bg-[#1A1C21] border border-blue-500/20 rounded-xl p-5 space-y-5 self-start sticky top-4 overflow-y-auto max-h-[calc(100vh-120px)]">
 
                 {/* Header */}
                 <div className="flex items-start justify-between">
@@ -4937,7 +4937,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                   <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-2">Purchase History</div>
                   <div className="grid grid-cols-2 gap-2">
                     {[
-                      ["Total POs",    vendorPOs.length,                                            "#3b82f6"],
+                      ["Total POs",    vendorPOs.length,                                            "#E8553D"],
                       ["Total Value",  `₹${totalValue.toLocaleString("en-IN")}`,                    "#22c55e"],
                       ["Pending",      pendingPOs.length,                                           "#f97316"],
                       ["Received",     receivedPOs.length,                                          "#8b5cf6"],
@@ -5054,7 +5054,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-slate-600 outline-none focus:border-blue-500/40" />
                       <select value={vendorPOStatus} onChange={(e) => setVendorPOStatus(e.target.value)}
                               className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-[11px] text-white outline-none"
-                              style={{ background: "#0b0e17" }}>
+                              style={{ background: "#1A1C21" }}>
                         <option value="all">All statuses</option>
                         {["draft","pending","approved","ordered","received","overdue","rejected","review"].map((s) => <option key={s} value={s}>{s}</option>)}
                       </select>
@@ -5158,7 +5158,7 @@ function ApprovalsPage({ pos, onUpdatePO }) {
           <MetricCard label="Total POs"          value={pos.length.toString()}           valueColor="text-blue-400" />
         </div>
 
-        <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-5">
+        <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-5">
           <SectionHeader>📋 Pending Approvals</SectionHeader>
           {displayList.length === 0 ? (
             <div className="py-14 text-center">
@@ -5207,7 +5207,7 @@ function ApprovalsPage({ pos, onUpdatePO }) {
           )}
         </div>
 
-        <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-5">
+        <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-5">
           <SectionHeader>⚙️ Approval Rules</SectionHeader>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -5278,7 +5278,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
     catSpend[cat] = (catSpend[cat] || 0) + (li.amount || 0);
   }));
   const catSpendTotal = Object.values(catSpend).reduce((s, v) => s + v, 0) || 1;
-  const catColors = { Electrical: "#f97316", Mechanical: "#3b82f6", "R&D": "#a78bfa", Other: "#6b7280" };
+  const catColors = { Electrical: "#f97316", Mechanical: "#E8553D", "R&D": "#a78bfa", Other: "#6b7280" };
   const spendByCat = Object.entries(catSpend)
     .map(([name, val]) => ({ name, value: Math.round((val / catSpendTotal) * 100), color: catColors[name] || "#6b7280" }))
     .sort((a, b) => b.value - a.value);
@@ -5316,7 +5316,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-5">
             <SectionHeader>📊 PO Value by Month (₹K)</SectionHeader>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={monthlyPOTrend.length > 0 ? monthlyPOTrend : monthlyPOData} barSize={28}>
@@ -5324,12 +5324,12 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
                 <XAxis dataKey="month" tick={{ fill: "#475569", fontSize: 11 }} />
                 <YAxis tick={{ fill: "#475569", fontSize: 11 }} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="value" name="PO Value (₹K)" fill="#3b82f620" stroke="#3b82f6" strokeWidth={1.5} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="value" name="PO Value (₹K)" fill="#E8553D20" stroke="#E8553D" strokeWidth={1.5} radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-5">
             <SectionHeader>📈 Inventory Turnover Rate</SectionHeader>
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={turnoverData}>
@@ -5350,7 +5350,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-5">
             <SectionHeader>🥧 Spend by Category</SectionHeader>
             {spendByCat.length > 0 ? (
               <>
@@ -5376,7 +5376,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
             )}
           </div>
 
-          <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-5">
             <SectionHeader>🏭 Vendor-wise PO Count</SectionHeader>
             {vendorPOData.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
@@ -5393,7 +5393,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
             )}
           </div>
 
-          <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-5">
             <SectionHeader>📉 Stock Status</SectionHeader>
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
@@ -5503,8 +5503,8 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
 
   const aiStats = [
     { label: "Reorder Accuracy", pct: 94, color: "#22c55e" },
-    { label: "Demand Forecast",  pct: 87, color: "#3b82f6" },
-    { label: "Vendor Scoring",   pct: 91, color: "#3b82f6" },
+    { label: "Demand Forecast",  pct: 87, color: "#E8553D" },
+    { label: "Vendor Scoring",   pct: 91, color: "#E8553D" },
     { label: "Price Prediction", pct: 78, color: "#f97316" },
   ];
 
@@ -5517,11 +5517,11 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
 
       <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chat */}
-        <div className="lg:col-span-2 bg-[#0e1117] border border-purple-500/20 rounded-xl overflow-hidden flex flex-col" style={{ height: "600px" }}>
+        <div className="lg:col-span-2 bg-[#1A1C21] border border-purple-500/20 rounded-xl overflow-hidden flex flex-col" style={{ height: "600px" }}>
           <div className="bg-purple-500/10 border-b border-purple-500/20 p-4 flex items-center gap-3">
             <div className="relative">
               <div className="w-8 h-8 rounded-full bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-sm">🤖</div>
-              <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 rounded-full border border-[#0e1117] animate-pulse" />
+              <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 rounded-full border border-[#1A1C21] animate-pulse" />
             </div>
             <div>
               <div className="text-sm font-bold text-purple-400">Inventory AI</div>
@@ -5569,7 +5569,7 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
 
         {/* Sidebar */}
         <div className="space-y-4">
-          <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-5">
             <SectionHeader>🎯 AI Confidence Scores</SectionHeader>
             <div className="space-y-3">
               {aiStats.map((s) => (
@@ -5586,11 +5586,11 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
             </div>
           </div>
 
-          <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-5">
             <SectionHeader>📊 Live Inventory Stats</SectionHeader>
             <div className="space-y-3">
               {[
-                { label: "Total SKUs",    value: allItems.length,    color: "#3b82f6" },
+                { label: "Total SKUs",    value: allItems.length,    color: "#E8553D" },
                 { label: "Critical",      value: critItems.length,   color: "#ef4444" },
                 { label: "Warning",       value: warnItems.length,   color: "#f97316" },
                 { label: "Pending POs",   value: pendingPOs.length,  color: "#a78bfa" },
@@ -5604,7 +5604,7 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
             </div>
           </div>
 
-          <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-5">
             <SectionHeader>⚡ Quick Actions</SectionHeader>
             <div className="space-y-2">
               <Btn variant="primary" size="sm" className="w-full justify-center">📦 Auto-create all POs</Btn>
@@ -5638,7 +5638,7 @@ const Toggle = ({ checked, onChange, label, desc }) => (
     </div>
     <button onClick={() => onChange(!checked)}
             className="relative flex-shrink-0 w-11 h-6 rounded-full transition-all duration-200"
-            style={{ background: checked ? "#2563eb" : "rgba(255,255,255,0.08)", border: `1px solid ${checked ? "rgba(59,130,246,0.6)" : "rgba(255,255,255,0.1)"}` }}>
+            style={{ background: checked ? "#E8553D" : "rgba(255,255,255,0.08)", border: `1px solid ${checked ? "rgba(232,85,61,0.6)" : "rgba(255,255,255,0.1)"}` }}>
       <div className="absolute top-0.5 h-5 w-5 rounded-full transition-all duration-200 shadow"
            style={{ background: "#fff", left: checked ? "calc(100% - 22px)" : "2px" }} />
     </button>
@@ -5646,7 +5646,7 @@ const Toggle = ({ checked, onChange, label, desc }) => (
 );
 
 const Section = ({ icon, title, children }) => (
-  <div className="bg-[#0e1117] border border-white/[0.07] rounded-2xl overflow-hidden">
+  <div className="bg-[#1A1C21] border border-white/[0.07] rounded-2xl overflow-hidden">
     <div className="flex items-center gap-3 px-6 py-4 border-b border-white/[0.06]"
          style={{ background: "rgba(255,255,255,0.015)" }}>
       <span className="text-base">{icon}</span>
@@ -5727,7 +5727,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
         {canConfig && !editing && (
           <button onClick={() => start(null)}
                   className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg"
-                  style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 10px rgba(37,99,235,0.3)" }}>
+                  style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 10px rgba(232,85,61,0.3)" }}>
             + Add Checklist
           </button>
         )}
@@ -5740,7 +5740,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
           )}
           {templates.map((t) => (
             <div key={t.id} className="rounded-lg px-3 py-2 flex items-center gap-3 flex-wrap"
-                 style={{ background: t.active === false ? "rgba(255,255,255,0.02)" : "rgba(59,130,246,0.05)", border: `1px solid ${t.active === false ? "rgba(255,255,255,0.06)" : "rgba(59,130,246,0.25)"}` }}>
+                 style={{ background: t.active === false ? "rgba(255,255,255,0.02)" : "rgba(232,85,61,0.05)", border: `1px solid ${t.active === false ? "rgba(255,255,255,0.06)" : "rgba(232,85,61,0.25)"}` }}>
               <span className="text-[11px] font-black text-blue-300 w-28">{t.department}</span>
               <span className="text-[12px] font-bold text-white flex-1">{t.name}</span>
               <span className="text-[10px] text-slate-500">{(t.items || []).length} item{(t.items || []).length === 1 ? "" : "s"} · v{t.version || 1}</span>
@@ -5757,7 +5757,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
       )}
 
       {editing && (
-        <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.3)" }}>
+        <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.3)" }}>
           <div className="text-[11px] font-black text-blue-300">{editing.id ? "Edit template" : "New template"}</div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
@@ -5811,7 +5811,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
             </div>
           </div>
           {preview && (
-            <div className="rounded-lg p-3" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.3)" }}>
+            <div className="rounded-lg p-3" style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.3)" }}>
               <div className="text-[10px] font-bold text-blue-300 uppercase tracking-wide mb-2">Preview — how operators will see this during Finish &amp; Transfer</div>
               <div className="space-y-2">
                 {editing.items.length === 0 && <div className="text-[11px] text-slate-500 italic">Add at least one question to preview.</div>}
@@ -5914,7 +5914,7 @@ function DeptEmployeesRow({ dept, assigned, notAssigned, canConfig, onSaveUserDe
         <div className="flex items-center gap-2 flex-wrap">
           <select value={pickValue} onChange={(e) => setPickValue(e.target.value)} disabled={busy || notAssigned.length === 0}
                   className="flex-1 min-w-[180px] bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-blue-500/40 disabled:opacity-50"
-                  style={{ background: "#0b0e17", color: "#f0f6ff" }}>
+                  style={{ background: "#1A1C21", color: "#f0f6ff" }}>
             <option value="">
               {notAssigned.length === 0 ? "— All active users already assigned —" : "+ Add worker from existing users…"}
             </option>
@@ -6050,7 +6050,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
         )}
         <button onClick={() => handleSave()}
                 className="inline-flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl transition-all duration-200"
-                style={{ background: saved ? "rgba(34,197,94,0.18)" : "linear-gradient(135deg,#2563eb,#4f46e5)", color: saved ? "#4ade80" : "#fff", border: saved ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(99,130,255,0.5)", boxShadow: saved ? "none" : "0 0 12px rgba(59,130,246,0.3)" }}>
+                style={{ background: saved ? "rgba(34,197,94,0.18)" : "linear-gradient(135deg,#E8553D,#A33E2A)", color: saved ? "#4ade80" : "#fff", border: saved ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(99,130,255,0.5)", boxShadow: saved ? "none" : "0 0 12px rgba(232,85,61,0.3)" }}>
           {saved ? "✅ Saved!" : "💾 Save Changes"}
         </button>
       </Topbar>
@@ -6078,8 +6078,8 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                       className="text-[12px] font-bold px-3.5 py-2.5 -mb-px transition-all whitespace-nowrap"
                       style={{
                         color:       sel ? "#fff" : "#94a3b8",
-                        background:  sel ? "rgba(59,130,246,0.10)" : "transparent",
-                        borderBottom: `2px solid ${sel ? "#3b82f6" : "transparent"}`,
+                        background:  sel ? "rgba(232,85,61,0.10)" : "transparent",
+                        borderBottom: `2px solid ${sel ? "#E8553D" : "transparent"}`,
                       }}>
                 {t.label}
               </button>
@@ -6119,12 +6119,12 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
           <Section icon="📦" title="Inventory">
             <SLabel text="Currency" hint="Shown throughout the ERP" />
             <select value={settings.currency} onChange={(e) => upd("currency", e.target.value)}
-                    className={inpCls} style={{ background: "#0b0e17", color: "#f0f6ff" }}>
+                    className={inpCls} style={{ background: "#1A1C21", color: "#f0f6ff" }}>
               {["INR (₹)", "USD ($)", "EUR (€)", "GBP (£)", "AED (د.إ)"].map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
-            <div className="mt-3 px-3.5 py-3 rounded-xl" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.18)" }}>
+            <div className="mt-3 px-3.5 py-3 rounded-xl" style={{ background: "rgba(232,85,61,0.06)", border: "1px solid rgba(232,85,61,0.18)" }}>
               <div className="text-[11px] text-blue-300 font-semibold">ℹ️ Low Stock Alerts</div>
               <div className="text-[11px] text-slate-400 mt-1">
                 Low stock thresholds are set per item in <span className="text-white font-semibold">Item Master → Minimum Stock</span>.
@@ -6160,7 +6160,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
               )}
               <div className="space-y-6">
                 {/* ── Acceptance timeout (separate from per-dept work duration) ── */}
-                <div className="rounded-lg p-3" style={{ background: "rgba(59,130,246,0.04)", border: "1px solid rgba(59,130,246,0.2)" }}>
+                <div className="rounded-lg p-3" style={{ background: "rgba(232,85,61,0.04)", border: "1px solid rgba(232,85,61,0.2)" }}>
                   <SLabel text="Acceptance timeout (receiving dept)" hint="A handover not accepted within this window shows as OVERDUE / HOLD in Machine Tracker and reports. Separate from the department's work-duration limit." />
                   <div className="flex items-center gap-2 flex-wrap">
                     <input type="number" min="0" step="1"
@@ -6355,7 +6355,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                 </div>
                 <button onClick={handleBackup}
                         className="flex-shrink-0 text-[12px] font-bold px-4 py-2 rounded-xl border transition-all"
-                        style={{ color: backupOk ? "#4ade80" : "#93c5fd", background: backupOk ? "rgba(34,197,94,0.1)" : "rgba(59,130,246,0.08)", borderColor: backupOk ? "rgba(34,197,94,0.3)" : "rgba(59,130,246,0.25)" }}>
+                        style={{ color: backupOk ? "#4ade80" : "#F7A992", background: backupOk ? "rgba(34,197,94,0.1)" : "rgba(232,85,61,0.08)", borderColor: backupOk ? "rgba(34,197,94,0.3)" : "rgba(232,85,61,0.25)" }}>
                   {backupOk ? "✅ Downloaded" : "⬇ Backup Now"}
                 </button>
               </div>
@@ -6453,7 +6453,7 @@ function POSearchCenter({
   };
 
   const statusColor = (s) => ({
-    draft:    "#94a3b8", pending:  "#f59e0b", approved: "#3b82f6",
+    draft:    "#94a3b8", pending:  "#f59e0b", approved: "#E8553D",
     ordered:  "#8b5cf6", received: "#22c55e", overdue:  "#ef4444",
     rejected: "#ef4444", review:   "#f97316",
   }[s] || "#94a3b8");
@@ -6473,7 +6473,7 @@ function POSearchCenter({
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Status</div>
             <select value={searchStatus} onChange={(e) => { setSearchStatus(e.target.value); setPage(0); }}
                     className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none"
-                    style={{ background: "#0b0e17" }}>
+                    style={{ background: "#1A1C21" }}>
               <option value="all">All</option>
               {["draft","pending","approved","ordered","received","overdue","rejected","review"].map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -6482,7 +6482,7 @@ function POSearchCenter({
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Purchase Type</div>
             <select value={searchPurchaseType} onChange={(e) => { setSearchPurchaseType(e.target.value); setPage(0); }}
                     className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none"
-                    style={{ background: "#0b0e17" }}>
+                    style={{ background: "#1A1C21" }}>
               <option value="all">All</option>
               {PURCHASE_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
             </select>
@@ -6513,7 +6513,7 @@ function POSearchCenter({
       </div>
 
       {/* Results table */}
-      <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl overflow-hidden">
+      <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -6794,7 +6794,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
     <div className="flex-1 overflow-hidden flex flex-col">
       {receiveToast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#0d1018,#0a0c14)", border: "1px solid rgba(34,197,94,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "linear-gradient(135deg,#1B1D22,#17191E)", border: "1px solid rgba(34,197,94,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">📦</span>
           <div>
             <div className="text-xs font-black text-white">Received — {receiveToast}</div>
@@ -6839,7 +6839,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         {canDo("pipeline","create") && (
           <button onClick={() => { setCreatePrefill(null); setShowCreatePO(true); }}
                   className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
-                  style={{ background: "linear-gradient(135deg,#2563eb,#4f46e5)", borderColor: "rgba(99,130,255,0.5)" }}>
+                  style={{ background: "linear-gradient(135deg,#E8553D,#A33E2A)", borderColor: "rgba(99,130,255,0.5)" }}>
             + New PO
           </button>
         )}
@@ -6880,7 +6880,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                 return (
                   <div key={item.code}
                        className={`${card} ${item.status === "critical" ? "border-red-500/30" : "border-orange-500/20"}`}
-                       style={{ background: "#0e1117" }}>
+                       style={{ background: "#1A1C21" }}>
                     <div className="flex items-start justify-between gap-2 mb-2.5">
                       <div className="flex-1 min-w-0">
                         <div className="text-[11px] font-semibold text-white truncate">{item.name}</div>
@@ -6902,7 +6902,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                         <div className="text-[8px] text-orange-700 uppercase tracking-wide mb-0.5">Shortage</div>
                         <div className="text-[11px] font-bold text-orange-400">{shortage} {item.unit}</div>
                       </div>
-                      <div className="px-2 py-1.5 rounded-lg" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.15)" }}>
+                      <div className="px-2 py-1.5 rounded-lg" style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.15)" }}>
                         <div className="text-[8px] text-blue-700 uppercase tracking-wide mb-0.5">Recommended</div>
                         <div className="text-[11px] font-bold text-blue-400">{recommendedQty} {item.unit}</div>
                       </div>
@@ -6967,7 +6967,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
             <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 pb-2">
               {approvalPOs.length === 0 && <div className="text-center py-10 text-[11px] text-slate-600"><div className="text-3xl mb-2">✅</div>No POs awaiting approval</div>}
               {approvalPOs.map(po => (
-                <div key={po.id} className={`${card} border-orange-500/20`} style={{ background: "#0e1117" }}>
+                <div key={po.id} className={`${card} border-orange-500/20`} style={{ background: "#1A1C21" }}>
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <span className="text-[10px] font-mono font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded">{po.id}</span>
                     <StatusBadge status={po.status} />
@@ -6995,13 +6995,13 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
 
           {/* ─ Col 3: Make Order ─ */}
           <div className="flex-1 flex flex-col min-w-[210px] max-w-[270px]">
-            <ColHdr icon="📦" title="Make Order" count={makeOrderPOs.length} color="#3b82f6" />
+            <ColHdr icon="📦" title="Make Order" count={makeOrderPOs.length} color="#E8553D" />
             <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 pb-2">
               {makeOrderPOs.length === 0 && <div className="text-center py-10 text-[11px] text-slate-600"><div className="text-3xl mb-2">📋</div>No approved POs to order</div>}
               {makeOrderPOs.map(po => {
                 const v = vendorList.find(x => x.name === po.vendor);
                 return (
-                  <div key={po.id} className={`${card} border-blue-500/20`} style={{ background: "#0e1117" }}>
+                  <div key={po.id} className={`${card} border-blue-500/20`} style={{ background: "#1A1C21" }}>
                     <div className="flex items-center justify-between gap-2 mb-1.5">
                       <span className="text-[10px] font-mono font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded">{po.id}</span>
                       <StatusBadge status={po.status} />
@@ -7036,7 +7036,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                 const v  = vendorList.find(x => x.name === f.vendor);
                 return (
                   <div key={f.id} className={`${card} ${f.fstat==="fu-overdue"?"border-red-500/30":f.fstat==="fu-due"?"border-yellow-500/30":"border-purple-500/20"}`}
-                       style={{ background: "#0e1117" }}>
+                       style={{ background: "#1A1C21" }}>
                     <div className="flex items-center justify-between gap-2 mb-1.5">
                       <span className="text-[10px] font-mono font-bold text-purple-400 bg-purple-500/10 border border-purple-500/20 px-1.5 py-0.5 rounded">{f.poId}</span>
                       <FuBadge fstat={f.fstat} />
@@ -7098,7 +7098,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                 <div className="text-center py-10 text-[11px] text-slate-600"><div className="text-3xl mb-2">📭</div>No received orders yet</div>
               )}
               {receivedPOs.slice(0, 12).map(po => (
-                <div key={po.id} className={`${card} border-green-500/20`} style={{ background: "#0e1117" }}>
+                <div key={po.id} className={`${card} border-green-500/20`} style={{ background: "#1A1C21" }}>
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <span className="text-[10px] font-mono font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded">{po.id}</span>
                     <StatusBadge status="received" />
@@ -7160,7 +7160,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && cancelVendorWizard()}>
           <div className="w-full max-w-md rounded-2xl p-6 space-y-4"
-               style={{ background: "#0d1018", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
+               style={{ background: "#1B1D22", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base"
                    style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.35)" }}>📦</div>
@@ -7225,10 +7225,10 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={e => e.target === e.currentTarget && setViewPO(null)}>
           <div className="w-full max-w-2xl flex flex-col rounded-2xl overflow-hidden"
-               style={{ maxHeight:"92vh", background:"linear-gradient(180deg,#0d1018,#090c14)", border:"1px solid rgba(59,130,246,0.32)", boxShadow:"0 40px 100px rgba(0,0,0,0.92)", animation:"slideUp 0.25s ease both" }}>
+               style={{ maxHeight:"92vh", background:"linear-gradient(180deg,#1B1D22,#090c14)", border:"1px solid rgba(232,85,61,0.32)", boxShadow:"0 40px 100px rgba(0,0,0,0.92)", animation:"slideUp 0.25s ease both" }}>
             {/* ── Header ── */}
             <div className="px-5 py-4 border-b border-white/[0.08] flex-shrink-0"
-                 style={{ background:"linear-gradient(90deg,rgba(59,130,246,0.09),rgba(99,102,241,0.05))" }}>
+                 style={{ background:"linear-gradient(90deg,rgba(232,85,61,0.09),rgba(204,74,51,0.05))" }}>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -7366,7 +7366,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               {/* Activity History */}
               {viewPO.activityLog?.length > 0 && (() => {
                 const iconCfg = {
-                  "Created PO":     { icon: "📄", color: "#3b82f6" },
+                  "Created PO":     { icon: "📄", color: "#E8553D" },
                   "Approved":       { icon: "✅", color: "#22c55e" },
                   "Rejected":       { icon: "❌", color: "#ef4444" },
                   "Order Placed":   { icon: "📋", color: "#8b5cf6" },
@@ -7410,7 +7410,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               {viewPO.status === "approved" && canDo("pipeline","ordered") && (
                 <button onClick={() => { setMoModal(viewPO); setViewPO(null); setEta(""); setEtaCustom(""); }}
                         className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
-                        style={{ background:"linear-gradient(135deg,#2563eb,#4f46e5)", borderColor:"rgba(99,130,255,0.5)" }}>
+                        style={{ background:"linear-gradient(135deg,#E8553D,#A33E2A)", borderColor:"rgba(99,130,255,0.5)" }}>
                   📋 Confirm Order + ETA
                 </button>
               )}
@@ -7458,7 +7458,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         <div className="fixed inset-0 z-[55] flex items-center justify-center p-4"
              style={{ background:"rgba(4,6,12,0.92)", backdropFilter:"blur(12px)" }}
              onClick={e => e.target===e.currentTarget && (setReverseModal(null), setReverseReason(""), setReverseErr(""))}>
-          <div className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ background:"#0d1018", border:"1px solid rgba(245,158,11,0.4)", boxShadow:"0 40px 80px rgba(0,0,0,0.9)" }}>
+          <div className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ background:"#1B1D22", border:"1px solid rgba(245,158,11,0.4)", boxShadow:"0 40px 80px rgba(0,0,0,0.9)" }}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background:"rgba(245,158,11,0.15)" }}>↩</div>
               <div>
@@ -7499,7 +7499,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         <div className="fixed inset-0 z-[55] flex items-center justify-center p-4"
              style={{ background:"rgba(4,6,12,0.92)", backdropFilter:"blur(12px)" }}
              onClick={e => e.target===e.currentTarget && (setRejectModal(null),setRejectReason(""),setRejectErr(false))}>
-          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"#0d1018", border:"1px solid rgba(239,68,68,0.4)", boxShadow:"0 40px 80px rgba(0,0,0,0.9)", animation:"slideUp 0.25s ease both" }}>
+          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"#1B1D22", border:"1px solid rgba(239,68,68,0.4)", boxShadow:"0 40px 80px rgba(0,0,0,0.9)", animation:"slideUp 0.25s ease both" }}>
             <div className="text-sm font-black text-white">❌ Reject PO</div>
             <div>
               <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-1.5">Rejection Reason <span className="text-red-400">*</span></div>
@@ -7521,7 +7521,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         <div className="fixed inset-0 z-[55] flex items-center justify-center p-4"
              style={{ background:"rgba(4,6,12,0.92)", backdropFilter:"blur(12px)" }}
              onClick={e=>e.target===e.currentTarget&&(setMoModal(null),setEta(""),setEtaCustom(""))}>
-          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"#0d1018", border:"1px solid rgba(59,130,246,0.4)", boxShadow:"0 40px 80px rgba(0,0,0,0.9)", animation:"slideUp 0.25s ease both" }}>
+          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"#1B1D22", border:"1px solid rgba(232,85,61,0.4)", boxShadow:"0 40px 80px rgba(0,0,0,0.9)", animation:"slideUp 0.25s ease both" }}>
             <div>
               <div className="text-sm font-black text-white">📋 Confirm Order</div>
               <div className="text-[10px] text-slate-500 mt-1">{moModal.id} · {moModal.vendor} · ₹{(moModal.amount||0).toLocaleString("en-IN")}</div>
@@ -7545,7 +7545,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               <Btn variant="ghost" size="sm" onClick={()=>{setMoModal(null);setEta("");setEtaCustom("");}}>Cancel</Btn>
               <button onClick={handleConfirm} disabled={!eta||(eta==="custom"&&!etaCustom)}
                       className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-4 py-1.5 text-white border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                      style={{ background:"linear-gradient(135deg,#2563eb,#4f46e5)", borderColor:"rgba(99,130,255,0.5)" }}>
+                      style={{ background:"linear-gradient(135deg,#E8553D,#A33E2A)", borderColor:"rgba(99,130,255,0.5)" }}>
                 ✅ Confirm & Start Follow-Up
               </button>
             </div>
@@ -7558,7 +7558,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         <div className="fixed inset-0 z-[55] flex items-center justify-center p-4"
              style={{ background:"rgba(4,6,12,0.92)", backdropFilter:"blur(12px)" }}
              onClick={e=>e.target===e.currentTarget&&setFuModal(null)}>
-          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"#0d1018", border:"1px solid rgba(167,139,250,0.4)", boxShadow:"0 40px 80px rgba(0,0,0,0.9)", animation:"slideUp 0.25s ease both" }}>
+          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"#1B1D22", border:"1px solid rgba(167,139,250,0.4)", boxShadow:"0 40px 80px rgba(0,0,0,0.9)", animation:"slideUp 0.25s ease both" }}>
             <div>
               <div className="text-sm font-black text-white">✓ Mark Follow-Up Done</div>
               <div className="text-[10px] text-slate-500 mt-1">{fuModal.poId} · {fuModal.vendor}</div>
@@ -7601,7 +7601,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
                onClick={e => e.target === e.currentTarget && setQtyModal(null)}>
             <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-                 style={{ background: "#0d1018", border: "1px solid rgba(99,130,246,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)", animation: "slideUp 0.25s ease both" }}>
+                 style={{ background: "#1B1D22", border: "1px solid rgba(99,130,246,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)", animation: "slideUp 0.25s ease both" }}>
               {/* Header */}
               <div className="px-5 py-4 border-b border-white/[0.08]" style={{ background: "rgba(99,130,246,0.06)" }}>
                 <div className="text-sm font-black text-white">🛒 Create Purchase Order</div>
@@ -7613,7 +7613,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                   { label: "Current Stock", value: `${item.stock} ${item.unit}`, color: item.status === "critical" ? "#ef4444" : "#f97316" },
                   { label: "Min Stock",     value: `${item.min} ${item.unit}`,   color: "#94a3b8" },
                   { label: "Shortage",      value: `${shortage} ${item.unit}`,   color: "#f97316" },
-                  { label: "Recommended",   value: `${recommendedQty} ${item.unit}`, color: "#3b82f6" },
+                  { label: "Recommended",   value: `${recommendedQty} ${item.unit}`, color: "#E8553D" },
                 ].map(s => (
                   <div key={s.label} className="px-3 py-2.5 rounded-xl" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
                     <div className="text-[9px] font-black text-slate-600 uppercase tracking-wider mb-1">{s.label}</div>
@@ -7649,7 +7649,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                   disabled={parsedQty < 1}
                   onClick={() => { openCreatePO(item, parsedQty); setQtyModal(null); }}
                   className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all disabled:opacity-40"
-                  style={{ background: "linear-gradient(135deg,#2563eb,#4f46e5)", borderColor: "rgba(99,130,255,0.5)" }}>
+                  style={{ background: "linear-gradient(135deg,#E8553D,#A33E2A)", borderColor: "rgba(99,130,255,0.5)" }}>
                   📋 Create PO →
                 </button>
               </div>
@@ -7681,11 +7681,11 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
 
   const inpCls = (err) =>
     `w-full bg-white/[0.04] border ${err ? "border-red-500/60" : "border-white/[0.08]"} rounded-xl px-4 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
-  const selStyle = { background: "#0b0e17", color: "#f0f6ff" };
+  const selStyle = { background: "#1A1C21", color: "#f0f6ff" };
 
   const ILabel = ({ text, req }) => (
     <div className="text-[11px] font-medium tracking-tight mb-1.5"
-         style={{ color: "#93c5fd" }}>
+         style={{ color: "#F7A992" }}>
       {text}{req && <span className="text-red-400 ml-0.5">*</span>}
     </div>
   );
@@ -7722,7 +7722,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
     <div className="flex-1 overflow-y-auto">
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#0d1018,#0a0c14)", border: "1px solid rgba(34,197,94,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "linear-gradient(135deg,#1B1D22,#17191E)", border: "1px solid rgba(34,197,94,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">📥</span>
           <div>
             <div className="text-xs font-black text-white">+{toast.qty} {toast.unit} — {toast.item}</div>
@@ -7738,7 +7738,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
 
       <div className="p-6 space-y-6">
         {/* ── Entry Form ── */}
-        <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-6" style={{ animation: "slideUp 0.4s ease both" }}>
+        <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-6" style={{ animation: "slideUp 0.4s ease both" }}>
           <div className="flex items-center gap-2 mb-5">
             <h2 className="text-sm font-extrabold text-white">📥 New Inward Entry</h2>
             <span className="text-[10px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded-full">GRN</span>
@@ -7824,7 +7824,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
                       {selectedItem.stock} <span className="text-xs text-slate-500">{selectedItem.unit}</span>
                     </div>
                     <div className="mt-2 h-1 bg-white/[0.05] rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${fillPctNow}%`, background: statusConfig[selectedItem.status].dot || "#3b82f6" }} />
+                      <div className="h-full rounded-full" style={{ width: `${fillPctNow}%`, background: statusConfig[selectedItem.status].dot || "#E8553D" }} />
                     </div>
                     <div className="text-[9px] text-slate-600 mt-1">Min: {selectedItem.min} {selectedItem.unit}</div>
                   </div>
@@ -7842,7 +7842,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
                       {newS} <span className="text-xs text-slate-500">{selectedItem.unit}</span>
                     </div>
                     <div className="mt-2 h-1 bg-white/[0.05] rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${fillPctNew}%`, background: newCfg.dot || "#3b82f6" }} />
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${fillPctNew}%`, background: newCfg.dot || "#E8553D" }} />
                     </div>
                     <div className="text-[9px] text-slate-600 mt-1">{fillPctNew}% of min level</div>
                   </div>
@@ -7867,7 +7867,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
         {appInwardLog.length > 0 && (() => {
           const combined = [...appInwardLog].sort((a, b) => b.id - a.id);
           return (
-            <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-5" style={{ animation: "slideUp 0.4s ease both" }}>
+            <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-5" style={{ animation: "slideUp 0.4s ease both" }}>
               <div className="flex items-center gap-2 mb-4">
                 <SectionHeader>📋 Inward Log</SectionHeader>
                 {combined.filter(e => e.fromPO).length > 0 && (
@@ -8110,11 +8110,11 @@ function BomChecklistSlots({
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(10px)" }}
              onClick={(e) => e.target === e.currentTarget && !busy && closeEditor()}>
           <div className="w-full max-w-xl rounded-2xl overflow-hidden flex flex-col"
-               style={{ maxHeight: "90vh", background: "#0d1018",
-                        border: "1px solid rgba(59,130,246,0.5)",
+               style={{ maxHeight: "90vh", background: "#1B1D22",
+                        border: "1px solid rgba(232,85,61,0.5)",
                         boxShadow: "0 40px 100px rgba(0,0,0,0.92)" }}>
             <div className="px-5 py-3 border-b border-white/[0.08] flex items-start justify-between flex-shrink-0"
-                 style={{ background: "linear-gradient(90deg,rgba(59,130,246,0.14),rgba(99,102,241,0.06))" }}>
+                 style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.14),rgba(204,74,51,0.06))" }}>
               <div>
                 <div className="text-sm font-black text-white">📋 Checklist · {editing.dept}</div>
                 <div className="text-[11px] text-slate-400 mt-0.5">{CHECKLIST_STAGES.find((s) => s.key === editing.stage).long}</div>
@@ -8138,7 +8138,7 @@ function BomChecklistSlots({
                 </button>
                 {reuseOpen && reuseCandidates.length > 0 && (
                   <div className="absolute left-0 right-0 top-full mt-1 z-10 rounded-lg overflow-hidden overflow-y-auto"
-                       style={{ background: "#0b0e17", border: "1px solid rgba(59,130,246,0.35)", maxHeight: 220 }}>
+                       style={{ background: "#1A1C21", border: "1px solid rgba(232,85,61,0.35)", maxHeight: 220 }}>
                     {reuseCandidates.map((t) => (
                       <button key={t.id}
                               onMouseDown={(e) => { e.preventDefault(); applyReuse(t); }}
@@ -8294,7 +8294,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
   const allFlat  = Object.entries(items).flatMap(([cat, list]) => list.map((i) => ({ ...i, category: cat })));
   const findInv  = (code) => allFlat.find((i) => i.code === code);
-  const selStyle = { background: "#0b0e17", color: "#f0f6ff" };
+  const selStyle = { background: "#1A1C21", color: "#f0f6ff" };
 
   const sourceItems = editMode ? editItems : bom.items;
 
@@ -8597,7 +8597,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     <div className="fixed inset-0 z-[70] flex flex-col" style={{ background: "#07090e" }}>
 
       {/* ── Header ── */}
-      <div className="flex-shrink-0" style={{ background: "linear-gradient(180deg,#0c1018,#090c14)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+      <div className="flex-shrink-0" style={{ background: "linear-gradient(180deg,#191B20,#090c14)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
         <div className="flex items-center gap-4 px-6 py-4">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black text-white flex-shrink-0"
                style={{ background: bom.color + "22", border: `1px solid ${bom.color}55` }}>{bomKey}</div>
@@ -8605,7 +8605,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             <div className="text-sm font-black text-white">{bomKey} — {bom.label}</div>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               {serialNo && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:"rgba(59,130,246,0.12)", color:"#93c5fd", border:"1px solid rgba(59,130,246,0.25)" }}>S/N: {serialNo}</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:"rgba(232,85,61,0.12)", color:"#F7A992", border:"1px solid rgba(232,85,61,0.25)" }}>S/N: {serialNo}</span>
               )}
               <span className="text-[10px] text-slate-500">{enriched.length} components</span>
               {readyN > 0   && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(34,197,94,0.12)",  color: "#4ade80",  border: "1px solid rgba(34,197,94,0.22)"  }}>{readyN} ready</span>}
@@ -8641,7 +8641,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               <button key={f} onClick={() => setFilterStatus(f)}
                       className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg border transition-all"
                       style={ filterStatus === f
-                        ? { background: f === "all" ? "rgba(59,130,246,0.15)" : SB[f], borderColor: f === "all" ? "rgba(59,130,246,0.4)" : SC[f] + "55", color: f === "all" ? "#60a5fa" : SC[f] }
+                        ? { background: f === "all" ? "rgba(232,85,61,0.15)" : SB[f], borderColor: f === "all" ? "rgba(232,85,61,0.4)" : SC[f] + "55", color: f === "all" ? "#F18A75" : SC[f] }
                         : { background: "transparent", borderColor: "rgba(255,255,255,0.06)", color: "#64748b" } }>
                 {f === "all" ? `All (${enriched.length})` : `${SL[f]} (${enriched.filter(i=>i.status===f).length})`}
               </button>
@@ -8817,7 +8817,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             </div>
 
             {/* Rack Assignment + Capacity */}
-            <div className="rounded-xl p-4" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.2)" }}>
+            <div className="rounded-xl p-4" style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.2)" }}>
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-lg">📦</span>
                 <div className="flex-1 min-w-[160px]">
@@ -8888,7 +8888,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                          placeholder="Qty" className="w-20 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none modal-input"
                          style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
                   <button onClick={addItemToBOM} className="px-4 py-2 rounded-lg text-xs font-bold text-white"
-                          style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 14px rgba(37,99,235,0.3)" }}>Add</button>
+                          style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 14px rgba(232,85,61,0.3)" }}>Add</button>
                 </div>
               </div>
               {addErr && <div className="text-[10px] text-red-400 mt-2">⚠ {addErr}</div>}
@@ -8958,7 +8958,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
       {/* ── Sticky summary bar ── */}
       {!editMode && (
-        <div className="flex-shrink-0" style={{ background: "linear-gradient(0deg,#0a0c14,#0c1018)", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+        <div className="flex-shrink-0" style={{ background: "linear-gradient(0deg,#17191E,#191B20)", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
           {/* Migration 026 — critical items get a dedicated BOM-Outward popup
               (rendered below, see "Critical Item Confirmation" modal). The
               inline panel that used to live here was moved out so the
@@ -9055,7 +9055,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && !issuing && setShowCriticalModal(false)}>
           <div className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col"
-               style={{ maxHeight: "92vh", background: "#0d1018",
+               style={{ maxHeight: "92vh", background: "#1B1D22",
                         border: "1px solid rgba(249,115,22,0.5)",
                         boxShadow: "0 40px 100px rgba(0,0,0,0.92), 0 0 60px rgba(249,115,22,0.08)" }}>
             {/* Header */}
@@ -9187,9 +9187,9 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && !issuing && setShowDestChoice(false)}>
           <div className="w-full max-w-md rounded-2xl overflow-hidden"
-               style={{ background: "#0d1018", border: "1px solid rgba(59,130,246,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+               style={{ background: "#1B1D22", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
             <div className="px-6 py-5 border-b border-white/[0.08]"
-                 style={{ background: "linear-gradient(90deg,rgba(59,130,246,0.10),rgba(99,102,241,0.05))" }}>
+                 style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.10),rgba(204,74,51,0.05))" }}>
               <div className="text-sm font-black text-white">Where should this build go?</div>
               <div className="text-[11px] text-slate-500 mt-0.5">
                 {bomKey}{serialNo ? ` · S/N ${serialNo}` : ""}
@@ -9247,11 +9247,11 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && !issuing && setShowDurationModal(false)}>
           <div className="w-full max-w-xl rounded-2xl overflow-hidden flex flex-col"
-               style={{ maxHeight: "92vh", background: "#0d1018",
-                        border: "1px solid rgba(59,130,246,0.5)",
-                        boxShadow: "0 40px 100px rgba(0,0,0,0.92), 0 0 60px rgba(59,130,246,0.08)" }}>
+               style={{ maxHeight: "92vh", background: "#1B1D22",
+                        border: "1px solid rgba(232,85,61,0.5)",
+                        boxShadow: "0 40px 100px rgba(0,0,0,0.92), 0 0 60px rgba(232,85,61,0.08)" }}>
             <div className="px-6 py-4 border-b border-white/[0.08] flex items-start justify-between flex-shrink-0"
-                 style={{ background: "linear-gradient(90deg,rgba(59,130,246,0.14),rgba(99,102,241,0.06))" }}>
+                 style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.14),rgba(204,74,51,0.06))" }}>
               <div>
                 <div className="text-sm font-black text-white flex items-center gap-2">
                   ⏱️ Department Durations
@@ -9332,8 +9332,8 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                         }}
                         disabled={issuing}
                         className="text-xs font-black text-white px-4 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{ background: "linear-gradient(135deg,#2563eb,#4f46e5)",
-                                 boxShadow: "0 0 14px rgba(79,70,229,0.3)" }}>
+                        style={{ background: "linear-gradient(135deg,#E8553D,#A33E2A)",
+                                 boxShadow: "0 0 14px rgba(163,62,42,0.3)" }}>
                   ✓ Save Durations & Continue
                 </button>
               </div>
@@ -9401,11 +9401,11 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
   const showToast = (text, sub) => { setToast({ text, sub }); setTimeout(() => setToast(null), 3500); };
 
   const inpCls  = `w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
-  const selStyle = { background: "#0b0e17", color: "#f0f6ff" };
+  const selStyle = { background: "#1A1C21", color: "#f0f6ff" };
 
   const OLabel = ({ text, req }) => (
     <div className="text-[11px] font-medium tracking-tight mb-1.5"
-         style={{ color: "#93c5fd" }}>
+         style={{ color: "#F7A992" }}>
       {text}{req && <span className="text-red-400 ml-0.5">*</span>}
     </div>
   );
@@ -9537,7 +9537,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
       {/* Serial Number Modal */}
       {serialModal && bomDefs?.[serialModal] && (
         <div className="fixed inset-0 z-[75] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(10px)" }}>
-          <div className="bg-[#0c1018] rounded-2xl w-full max-w-md mx-4 overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.85)", animation: "slideUp 0.25s ease both" }}>
+          <div className="bg-[#191B20] rounded-2xl w-full max-w-md mx-4 overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.85)", animation: "slideUp 0.25s ease both" }}>
             <div className="px-6 py-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black text-white flex-shrink-0"
@@ -9586,7 +9586,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                 </button>
                 <button onClick={confirmSerial}
                         className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-all"
-                        style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 20px rgba(37,99,235,0.3)" }}>
+                        style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 20px rgba(232,85,61,0.3)" }}>
                   Proceed to Issue →
                 </button>
               </div>
@@ -9598,7 +9598,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
       {/* 2026-06-02d — BOM action toast (Duplicate / Delete result) */}
       {bomActionToast && (
         <div className="fixed bottom-6 right-6 z-[65] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#0d1018,#0a0c14)", border: "1px solid rgba(59,130,246,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "linear-gradient(135deg,#1B1D22,#17191E)", border: "1px solid rgba(232,85,61,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">📋</span>
           <div>
             <div className="text-xs font-bold text-white">{bomActionToast.text}</div>
@@ -9614,7 +9614,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setConfirmDeleteBOM(null)}>
           <div className="w-full max-w-md rounded-2xl overflow-hidden"
-               style={{ background: "#0d1018", border: `1px solid ${confirmDeleteBOM.info.canDelete ? "rgba(239,68,68,0.4)" : "rgba(245,158,11,0.4)"}`, boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+               style={{ background: "#1B1D22", border: `1px solid ${confirmDeleteBOM.info.canDelete ? "rgba(239,68,68,0.4)" : "rgba(245,158,11,0.4)"}`, boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
             <div className="px-5 py-4 border-b border-white/[0.08]"
                  style={{ background: confirmDeleteBOM.info.canDelete ? "rgba(239,68,68,0.06)" : "rgba(245,158,11,0.06)" }}>
               <div className={`text-sm font-black ${confirmDeleteBOM.info.canDelete ? "text-red-400" : "text-amber-300"}`}>
@@ -9712,7 +9712,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setRemoveRackConfirm(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-               style={{ background: "#0d1018", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
+               style={{ background: "#1B1D22", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
             <div className="px-5 py-4 border-b border-white/[0.08]" style={{ background: "rgba(239,68,68,0.06)" }}>
               <div className="text-sm font-black text-red-400">🗑 Remove Machine From Rack?</div>
               <div className="text-[10px] text-slate-500 mt-0.5">
@@ -9790,11 +9790,11 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
         <div className="fixed inset-0 z-[75] flex items-center justify-center p-4"
              style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(10px)" }}
              onClick={(e) => e.target === e.currentTarget && setShowCreate(false)}>
-          <div className="bg-[#0c1018] rounded-2xl w-full max-w-2xl overflow-hidden flex flex-col"
+          <div className="bg-[#191B20] rounded-2xl w-full max-w-2xl overflow-hidden flex flex-col"
                style={{ border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.85)", maxHeight: "90vh", animation: "slideUp 0.25s ease both" }}>
             <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base" style={{ background: "rgba(59,130,246,0.15)" }}>📋</div>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base" style={{ background: "rgba(232,85,61,0.15)" }}>📋</div>
                 <div>
                   <div className="text-sm font-black text-white">Create New BOM</div>
                   <div className="text-[10px] text-slate-500 mt-0.5">Define a new machine model with components and rack capacity</div>
@@ -9874,7 +9874,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                     style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
                   <button onClick={addCreateItem}
                     className="px-4 py-2 rounded-lg text-xs font-bold text-white mt-2"
-                    style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)" }}>+ Add</button>
+                    style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)" }}>+ Add</button>
                 </div>
               </div>
 
@@ -9924,7 +9924,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
 
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#0d1018,#0a0c14)", border: "1px solid rgba(249,115,22,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "linear-gradient(135deg,#1B1D22,#17191E)", border: "1px solid rgba(249,115,22,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">📤</span>
           <div>
             <div className="text-xs font-black text-white">{toast.text}</div>
@@ -9947,7 +9947,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
             {canDo("outward","editBOM") && onCreateBOM && (
               <button onClick={openCreateBOM}
                 className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-white transition-all"
-                style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 14px rgba(37,99,235,0.3)" }}>
+                style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 14px rgba(232,85,61,0.3)" }}>
                 + New BOM
               </button>
             )}
@@ -9973,7 +9973,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                 // its rounded corners, so removing overflow-hidden has no
                 // visual side effect.
                 <div key={bomKey} onClick={() => canDo("outward","bom") && openBomFlow()}
-                     className={`bg-[#0e1117] rounded-xl transition-all duration-200 group relative ${canDo("outward","bom") ? "cursor-pointer hover:bg-[#111620]" : "opacity-60 cursor-not-allowed"}`}
+                     className={`bg-[#1A1C21] rounded-xl transition-all duration-200 group relative ${canDo("outward","bom") ? "cursor-pointer hover:bg-[#111620]" : "opacity-60 cursor-not-allowed"}`}
                      style={{ border: "1px solid rgba(255,255,255,0.07)" }}
                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = bom.color + "55"; e.currentTarget.style.boxShadow = `0 0 24px ${bom.color}12`; }}
                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)"; e.currentTarget.style.boxShadow = "none"; }}>
@@ -10001,7 +10001,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                         {actionsKey === bomKey && (
                           <div role="menu" onMouseDown={(e) => e.stopPropagation()}
                                className="absolute right-0 top-full mt-1 z-30 w-44 rounded-lg overflow-hidden"
-                               style={{ background: "#0d1018", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 24px 60px rgba(0,0,0,0.85)" }}>
+                               style={{ background: "#1B1D22", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 24px 60px rgba(0,0,0,0.85)" }}>
                             <button onClick={() => { setActionsKey(null); if (canDo("outward","bom")) openBomFlow(); }}
                                     className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-300 hover:bg-white/[0.06] hover:text-white transition-all flex items-center gap-2">
                               <span>📤</span>Open BOM (Issue)
@@ -10102,7 +10102,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
         )}
 
         {/* ── Manual Outward ── */}
-        <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-6">
+        <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-6">
           <div className="flex items-center gap-2 mb-5">
             <h2 className="text-sm font-extrabold text-white">✋ Manual Outward</h2>
             <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full">Ad-hoc Issue</span>
@@ -10186,7 +10186,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
 
         {/* ── Outward History ── */}
         {outwardLog && outwardLog.length > 0 && (
-          <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl p-5">
             <SectionHeader>📋 Outward History</SectionHeader>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -10201,7 +10201,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                       <td className="px-4 py-2 text-[10px] text-slate-500 font-mono">{entry.date}</td>
                       <td className="px-4 py-2">
                         <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
-                              style={{ background: entry.type === "bom" ? "rgba(249,115,22,0.1)" : "rgba(59,130,246,0.1)", color: entry.type === "bom" ? "#fb923c" : "#60a5fa", border: `1px solid ${entry.type === "bom" ? "rgba(249,115,22,0.2)" : "rgba(59,130,246,0.2)"}` }}>
+                              style={{ background: entry.type === "bom" ? "rgba(249,115,22,0.1)" : "rgba(232,85,61,0.1)", color: entry.type === "bom" ? "#fb923c" : "#F18A75", border: `1px solid ${entry.type === "bom" ? "rgba(249,115,22,0.2)" : "rgba(232,85,61,0.2)"}` }}>
                           {entry.type === "bom" ? "BOM" : "Manual"}
                         </span>
                       </td>
@@ -10322,8 +10322,8 @@ function AtoZMachineReport({
   // ── Section 1: Header KPIs ────────────────────────────────────────────
   const Hdr = () => (
     <div className="rounded-xl p-5 mb-5"
-         style={{ background: "linear-gradient(135deg,rgba(59,130,246,0.08),rgba(99,102,241,0.03))",
-                  border: "1px solid rgba(59,130,246,0.35)" }}>
+         style={{ background: "linear-gradient(135deg,rgba(232,85,61,0.08),rgba(204,74,51,0.03))",
+                  border: "1px solid rgba(232,85,61,0.35)" }}>
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <div className="text-[9px] font-black text-blue-400 uppercase tracking-[0.14em]">A-to-Z Machine Report</div>
@@ -10336,7 +10336,7 @@ function AtoZMachineReport({
         <div className="flex items-center gap-4 flex-wrap text-right">
           <div>
             <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Current Stage</div>
-            <div className="text-[13px] font-black mt-0.5" style={{ color: STAGE_COLORS[machine.stage] || "#3b82f6" }}>{machine.stage}</div>
+            <div className="text-[13px] font-black mt-0.5" style={{ color: STAGE_COLORS[machine.stage] || "#E8553D" }}>{machine.stage}</div>
           </div>
           <div>
             <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Status</div>
@@ -10486,7 +10486,7 @@ function AtoZMachineReport({
                 <div className="flex items-center gap-2 flex-wrap mb-2">
                   <span className="text-[12px] font-black text-white">{h.fromDepartment}</span>
                   <span className="text-slate-500">→</span>
-                  <span className="text-[12px] font-black" style={{ color: STAGE_COLORS[h.toDepartment] || "#60a5fa" }}>{h.toDepartment}</span>
+                  <span className="text-[12px] font-black" style={{ color: STAGE_COLORS[h.toDepartment] || "#F18A75" }}>{h.toDepartment}</span>
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                         style={{ background: h.status === "accepted" ? "rgba(34,197,94,0.1)" : "rgba(249,115,22,0.1)",
                                  color:      h.status === "accepted" ? "#86efac"              : "#fdba74",
@@ -10565,7 +10565,7 @@ function AtoZMachineReport({
                       Before-Dispatch checklist · {bdDispatch.templateName || "—"} (v{bdDispatch.templateVersion || 1})
                     </div>
                     <div className="rounded-lg px-3 py-2 text-[10px] space-y-0.5"
-                         style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.2)" }}>
+                         style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.2)" }}>
                       {(bdDispatch.answers || []).map((a, i) => (
                         <div key={i} className="flex items-start gap-2">
                           <span className="text-[11px]">{a.checked ? "✓" : "✗"}</span>
@@ -10640,7 +10640,7 @@ function AtoZMachineReport({
       <div className="relative pl-5">
         <div className="absolute left-2 top-0 bottom-0 w-px" style={{ background: "rgba(255,255,255,0.06)" }} />
         {(machine.history || []).map((h, i) => {
-          const sc = STAGE_COLORS[h.stage] || "#3b82f6";
+          const sc = STAGE_COLORS[h.stage] || "#E8553D";
           return (
             <div key={i} className="relative mb-2 last:mb-0">
               <div className="absolute -left-[13px] top-1 w-2.5 h-2.5 rounded-full"
@@ -11013,7 +11013,7 @@ function ReportCenterPage({
         {tab === "summary" && (
           <div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <ReportKPI label="Total machines" value={summary.total} color="#3b82f6" />
+              <ReportKPI label="Total machines" value={summary.total} color="#E8553D" />
               <ReportKPI label="Active" value={summary.active} color="#f97316" />
               <ReportKPI label="Completed" value={summary.completed} color="#22c55e" />
               <ReportKPI label="Avg rating" value={summary.avgRating ?? "—"} color="#eab308" suffix={summary.avgRating ? "★" : ""} />
@@ -11045,12 +11045,12 @@ function ReportCenterPage({
           return (
             <div>
               <div className="rounded-xl p-4 mb-4 no-print flex items-center gap-3 flex-wrap"
-                   style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.25)" }}>
+                   style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.25)" }}>
                 <div className="text-[10px] font-black uppercase tracking-wider text-blue-200">A-to-Z Machine Report</div>
                 <select value={pickedId}
                         onChange={(e) => setAtozMachineId(e.target.value)}
                         className="flex-1 min-w-[220px] rounded-lg px-3 py-1.5 text-[12px] text-white outline-none focus:border-blue-500/60"
-                        style={{ background: "#0b0e17", border: "1px solid rgba(255,255,255,0.1)", color: "#f0f6ff" }}>
+                        style={{ background: "#1A1C21", border: "1px solid rgba(255,255,255,0.1)", color: "#f0f6ff" }}>
                   {options.length === 0 && <option value="">— no machines match the current filters —</option>}
                   {options.map((m) => (
                     <option key={m.id} value={String(m.id)}>
@@ -11061,7 +11061,7 @@ function ReportCenterPage({
                 </select>
                 <button onClick={printReport} disabled={!pickedId}
                         className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all disabled:opacity-40"
-                        style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 10px rgba(37,99,235,0.3)" }}>
+                        style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 10px rgba(232,85,61,0.3)" }}>
                   🖨 Print / Save as PDF
                 </button>
               </div>
@@ -11096,7 +11096,7 @@ function ReportCenterPage({
   );
 }
 
-function ReportKPI({ label, value, color = "#3b82f6", suffix = "" }) {
+function ReportKPI({ label, value, color = "#E8553D", suffix = "" }) {
   return (
     <div className="p-4 rounded-xl" style={{ background: `${color}10`, border: `1px solid ${color}33` }}>
       <div className="text-[9px] font-bold uppercase tracking-[0.08em] mb-1" style={{ color }}>{label}</div>
@@ -11145,7 +11145,7 @@ function ReportTable({ title, rows }) {
 // ─── MACHINE TRACKER PAGE ────────────────────────────────────────────────────
 
 const STAGE_COLORS = {
-  "BOM Issued": "#3b82f6",
+  "BOM Issued": "#E8553D",
   "Assembly":   "#8b5cf6",
   "Mechanical": "#f97316",
   "Electrical": "#eab308",
@@ -11169,7 +11169,7 @@ function SignaturePad({ onSave, onCancel, initialSvg = "" }) {
     const c = canvasRef.current;
     if (!c) return;
     const ctx = c.getContext("2d");
-    ctx.fillStyle = "#0d1018";
+    ctx.fillStyle = "#1B1D22";
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
     ctx.strokeStyle = "#e5e7eb";
     ctx.lineWidth = 2;
@@ -11222,7 +11222,7 @@ function SignaturePad({ onSave, onCancel, initialSvg = "" }) {
       <canvas
         ref={canvasRef}
         width={WIDTH} height={HEIGHT}
-        style={{ width: "100%", maxWidth: WIDTH, height: HEIGHT, background: "#0d1018", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, touchAction: "none", cursor: "crosshair" }}
+        style={{ width: "100%", maxWidth: WIDTH, height: HEIGHT, background: "#1B1D22", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, touchAction: "none", cursor: "crosshair" }}
         onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
         onTouchStart={start} onTouchMove={move} onTouchEnd={end}
       />
@@ -11240,7 +11240,7 @@ function SignaturePad({ onSave, onCancel, initialSvg = "" }) {
         )}
         <button type="button" onClick={save}
                 className="text-[11px] font-black text-white px-4 py-1.5 rounded-lg transition-all"
-                style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 12px rgba(37,99,235,0.3)" }}>
+                style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 12px rgba(232,85,61,0.3)" }}>
           Save Signature
         </button>
       </div>
@@ -11631,7 +11631,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#0d1018,#0a0c14)", border: "1px solid rgba(34,197,94,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "linear-gradient(135deg,#1B1D22,#17191E)", border: "1px solid rgba(34,197,94,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">🔧</span>
           <div>
             <div className="text-xs font-bold text-white">{toast.text}</div>
@@ -11649,7 +11649,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           <button onClick={() => onNavigate("settings")}
                   title="Open Machine Tracker settings (deadlines, HOLD rules, checklists)"
                   className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all"
-                  style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.35)", color: "#93c5fd" }}>
+                  style={{ background: "rgba(232,85,61,0.1)", border: "1px solid rgba(232,85,61,0.35)", color: "#F7A992" }}>
             ⚙️ Settings
           </button>
         )}
@@ -11796,7 +11796,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               below the fold. Feature 2 of 2026-06-01h. */}
 
           {rackData.length === 0 ? (
-            <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl py-10 text-center">
+            <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl py-10 text-center">
               <div className="text-3xl mb-2">📦</div>
               <div className="text-xs font-bold text-white mb-1">No Machine Models Defined</div>
               <div className="text-[10px] text-slate-500">Create a BOM definition from <button onClick={() => onNavigate("outward")} className="text-blue-400 underline hover:text-blue-300">Outward</button> to start tracking racks.</div>
@@ -11856,7 +11856,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                             {rackActionsKey === r.key && (
                               <div role="menu" onMouseDown={(e) => e.stopPropagation()}
                                    className="absolute right-0 top-full mt-1 z-30 w-44 rounded-lg overflow-hidden"
-                                   style={{ background: "#0d1018", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 24px 60px rgba(0,0,0,0.85)" }}>
+                                   style={{ background: "#1B1D22", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 24px 60px rgba(0,0,0,0.85)" }}>
                                 <button type="button"
                                         onClick={() => {
                                           setRackActionsKey(null);
@@ -11928,7 +11928,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
         {/* ── Empty state ── */}
         {filtered.length === 0 && (
-          <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl py-20 text-center">
+          <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl py-20 text-center">
             <div className="text-5xl mb-4">🔧</div>
             <div className="text-sm font-bold text-white mb-2">No Machines Tracked</div>
             {filter === "completed" ? (
@@ -11953,11 +11953,11 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             const isExpanded = expanded === machine.id;
             const selStage   = stageMap[machine.id] || "";
             const futureStages = MACHINE_STAGES.filter((_, i) => i > curIdx);
-            const stageColor = STAGE_COLORS[machine.stage] || "#3b82f6";
+            const stageColor = STAGE_COLORS[machine.stage] || "#E8553D";
             const pct = isComplete ? 100 : Math.round((curIdx / (MACHINE_STAGES.length - 1)) * 100);
 
             return (
-              <div key={machine.id} className="bg-[#0e1117] rounded-xl overflow-hidden transition-all"
+              <div key={machine.id} className="bg-[#1A1C21] rounded-xl overflow-hidden transition-all"
                    style={{ border: `1px solid ${isComplete ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.07)"}` }}>
 
                 {/* ── Card header ── */}
@@ -12040,14 +12040,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           <select value={selStage}
                                   onChange={(e) => setStageMap((p) => ({ ...p, [machine.id]: e.target.value }))}
                                   className="bg-white/[0.04] border border-white/[0.1] rounded-lg px-2 py-1.5 text-[11px] text-slate-300 outline-none"
-                                  style={{ background: "#0b0e17" }}>
+                                  style={{ background: "#1A1C21" }}>
                             <option value="">Update Stage</option>
                             {futureStages.map((s) => <option key={s} value={s}>{s}</option>)}
                           </select>
                           <button onClick={() => handleStageUpdate(machine)}
                                   disabled={!selStage}
                                   className="text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                                  style={{ background: selStage ? "linear-gradient(135deg,#2563eb,#1d4ed8)" : "transparent", borderColor: selStage ? "rgba(37,99,235,0.4)" : "rgba(255,255,255,0.08)", color: selStage ? "white" : "rgba(255,255,255,0.3)" }}>
+                                  style={{ background: selStage ? "linear-gradient(135deg,#E8553D,#CC4A33)" : "transparent", borderColor: selStage ? "rgba(232,85,61,0.4)" : "rgba(255,255,255,0.08)", color: selStage ? "white" : "rgba(255,255,255,0.3)" }}>
                             Update
                           </button>
                         </>
@@ -12067,7 +12067,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         && pickTemplate(checklistTemplates, machine.bomKey, machine.currentDepartment || machine.stage, "during_work") && (
                         <button onClick={() => openDuringWorkModal(machine)}
                                 className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
-                                style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 10px rgba(37,99,235,0.3)" }}
+                                style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 10px rgba(232,85,61,0.3)" }}
                                 title="During-Work Checks">
                           📋 During-Work Checks
                         </button>
@@ -12119,7 +12119,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         <div className="relative pl-5">
                           <div className="absolute left-2 top-0 bottom-0 w-px" style={{ background: "rgba(255,255,255,0.06)" }} />
                           {[...machine.history].reverse().map((h, i) => {
-                            const sc = STAGE_COLORS[h.stage] || "#3b82f6";
+                            const sc = STAGE_COLORS[h.stage] || "#E8553D";
                             return (
                               <div key={i} className="relative mb-3 last:mb-0">
                                 <div className="absolute -left-[13px] top-1 w-2.5 h-2.5 rounded-full flex-shrink-0"
@@ -12313,9 +12313,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setEditRackModal(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-               style={{ background: "#0d1018", border: "1px solid rgba(59,130,246,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+               style={{ background: "#1B1D22", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
             <div className="px-5 py-4 border-b border-white/[0.08]"
-                 style={{ background: "rgba(59,130,246,0.06)" }}>
+                 style={{ background: "rgba(232,85,61,0.06)" }}>
               <div className="text-sm font-black text-blue-300">✏️ Edit Rack Capacity</div>
               <div className="text-[10px] text-slate-500 mt-0.5">
                 {editRackModal.key} · {editRackModal.label}
@@ -12361,7 +12361,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         setEditRackModal(null);
                       }}
                       className="text-[11px] font-bold px-4 py-1.5 rounded-lg text-white border transition-all"
-                      style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", borderColor: "rgba(99,130,255,0.5)" }}>
+                      style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", borderColor: "rgba(99,130,255,0.5)" }}>
                 Save
               </button>
             </div>
@@ -12380,7 +12380,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setDeleteRackConfirm(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-               style={{ background: "#0d1018", border: `1px solid ${deleteRackConfirm.ready > 0 ? "rgba(245,158,11,0.4)" : "rgba(239,68,68,0.4)"}`, boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+               style={{ background: "#1B1D22", border: `1px solid ${deleteRackConfirm.ready > 0 ? "rgba(245,158,11,0.4)" : "rgba(239,68,68,0.4)"}`, boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
             <div className="px-5 py-4 border-b border-white/[0.08]"
                  style={{ background: deleteRackConfirm.ready > 0 ? "rgba(245,158,11,0.06)" : "rgba(239,68,68,0.06)" }}>
               <div className={`text-sm font-black ${deleteRackConfirm.ready > 0 ? "text-amber-300" : "text-red-400"}`}>
@@ -12443,7 +12443,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setStartProd(null)}>
           <div className="w-full max-w-md rounded-2xl p-6 space-y-4"
-               style={{ background: "#0d1018", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
+               style={{ background: "#1B1D22", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: "rgba(34,197,94,0.15)" }}>▶</div>
               <div className="flex-1 min-w-0">
@@ -12529,7 +12529,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setRemoveRackConfirm(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-               style={{ background: "#0d1018", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
+               style={{ background: "#1B1D22", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
             <div className="px-5 py-4 border-b border-white/[0.08]" style={{ background: "rgba(239,68,68,0.06)" }}>
               <div className="text-sm font-black text-red-400">🗑 Remove Machine From Rack?</div>
               <div className="text-[10px] text-slate-500 mt-0.5">
@@ -12589,7 +12589,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(10px)" }}
                onClick={(e) => e.target === e.currentTarget && !transferBusy && setFinishModal(null)}>
             <div className="w-full max-w-md rounded-2xl overflow-hidden"
-                 style={{ background: "#0d1018", border: "1px solid rgba(249,115,22,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+                 style={{ background: "#1B1D22", border: "1px solid rgba(249,115,22,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
               <div className="px-6 py-5 border-b border-white/[0.08]"
                    style={{ background: "linear-gradient(90deg,rgba(249,115,22,0.10),rgba(234,88,12,0.05))" }}>
                 <div className="text-sm font-black text-white">Finish & Transfer</div>
@@ -12700,7 +12700,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                             <select value="" onChange={(e) => { if (e.target.value) addWorker(e.target.value); }}
                                     disabled={unassigned.length === 0}
                                     className="flex-1 min-w-[180px] bg-white/[0.04] border border-white/[0.1] rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-emerald-500/60 disabled:opacity-50"
-                                    style={{ background: "#0b0e17", color: "#f0f6ff" }}>
+                                    style={{ background: "#1A1C21", color: "#f0f6ff" }}>
                               <option value="">
                                 {unassigned.length === 0 ? "— All dept employees added —" : "+ Add worker…"}
                               </option>
@@ -12714,7 +12714,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                               <div className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Main / Responsible Employee</div>
                               <select value={mainId || ""} onChange={(e) => setMain(e.target.value)}
                                       className="w-full bg-white/[0.04] border border-yellow-500/40 rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-yellow-500/70"
-                                      style={{ background: "#0b0e17", color: "#f0f6ff" }}>
+                                      style={{ background: "#1A1C21", color: "#f0f6ff" }}>
                                 <option value="">— Pick the main employee —</option>
                                 {workedBy.map((id) => {
                                   const u = (allUsers || []).find((x) => x.id === id);
@@ -12765,7 +12765,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
                 {/* Phase B — Department checklist (if a template exists for this dept) */}
                 {finishModal.template && Array.isArray(finishModal.answers) && finishModal.answers.length > 0 && (
-                  <div className="rounded-lg px-3 py-3" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.3)" }}>
+                  <div className="rounded-lg px-3 py-3" style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.3)" }}>
                     <div className="text-[11px] font-black text-blue-300 mb-2">
                       Checklist · {finishModal.template.name}
                       <span className="text-slate-500 font-normal ml-1">(unchecked items need a remark)</span>
@@ -12820,7 +12820,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(10px)" }}
                onClick={(e) => e.target === e.currentTarget && !busy && setAcceptModal(null)}>
             <div className="w-full max-w-md rounded-2xl overflow-hidden"
-                 style={{ background: "#0d1018", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)", maxHeight: "90vh", overflowY: "auto" }}>
+                 style={{ background: "#1B1D22", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)", maxHeight: "90vh", overflowY: "auto" }}>
               <div className="px-6 py-5 border-b border-white/[0.08]"
                    style={{ background: "linear-gradient(90deg,rgba(34,197,94,0.10),rgba(22,163,74,0.05))" }}>
                 <div className="text-sm font-black text-white">Accept into {handover.toDepartment}</div>
@@ -12887,7 +12887,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         follow the same "unchecked needs remark" rule as
                         Finish & Transfer. */}
                     {acceptModal.checklistTemplate && (acceptModal.checklistAnswers || []).length > 0 && (
-                      <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.3)" }}>
+                      <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.3)" }}>
                         <div className="text-[10px] font-bold text-blue-200 uppercase tracking-wider mb-1">
                           📋 {acceptModal.checklistTemplate.name || "Before-Receive Checklist"}
                         </div>
@@ -12979,9 +12979,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(10px)" }}
                onClick={(e) => e.target === e.currentTarget && !busy && setDuringWorkModal(null)}>
             <div className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col"
-                 style={{ background: "#0d1018", border: "1px solid rgba(59,130,246,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)", maxHeight: "90vh" }}>
+                 style={{ background: "#1B1D22", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)", maxHeight: "90vh" }}>
               <div className="px-6 py-4 border-b border-white/[0.08] flex-shrink-0"
-                   style={{ background: "linear-gradient(90deg,rgba(59,130,246,0.12),rgba(99,102,241,0.05))" }}>
+                   style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.12),rgba(204,74,51,0.05))" }}>
                 <div className="text-sm font-black text-white">📋 During-Work Checks</div>
                 <div className="text-[11px] text-slate-400 mt-0.5">{machine.bomKey}{machine.serialNo ? ` · S/N ${machine.serialNo}` : ""} · {machine.currentDepartment || machine.stage}</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">{template?.name || "Checks"}</div>
@@ -13025,7 +13025,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 </button>
                 <button onClick={submitDuringWork} disabled={busy}
                         className="text-xs font-black text-white px-4 py-1.5 rounded-lg transition-all disabled:opacity-50"
-                        style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 0 14px rgba(37,99,235,0.3)" }}>
+                        style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 14px rgba(232,85,61,0.3)" }}>
                   {busy ? "Saving…" : "✓ Save Checks"}
                 </button>
               </div>
@@ -13249,7 +13249,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
     });
     return (
       <div className="fixed inset-0 z-[80] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}>
-        <div className="bg-[#0c1018] rounded-2xl w-full max-w-lg mx-4 overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.85)", animation: "slideUp 0.25s ease both" }}>
+        <div className="bg-[#191B20] rounded-2xl w-full max-w-lg mx-4 overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.85)", animation: "slideUp 0.25s ease both" }}>
           <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}>
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
@@ -13290,7 +13290,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
     <div className="flex-1 overflow-y-auto">
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#0d1018,#0a0c14)", border: `1px solid ${toast.type === "error" ? "rgba(239,68,68,0.45)" : "rgba(34,197,94,0.45)"}`, boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "linear-gradient(135deg,#1B1D22,#17191E)", border: `1px solid ${toast.type === "error" ? "rgba(239,68,68,0.45)" : "rgba(34,197,94,0.45)"}`, boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">{toast.type === "error" ? "⚠️" : "✅"}</span>
           <div>
             <div className="text-xs font-bold text-white">{toast.text}</div>
@@ -13327,7 +13327,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
                onClick={(e) => e.target === e.currentTarget && setConfirmFulfill(null)}>
             <div className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col"
-                 style={{ maxHeight: "90vh", background: "#0d1018",
+                 style={{ maxHeight: "90vh", background: "#1B1D22",
                           border: `1px solid ${criticalRows.length ? "rgba(249,115,22,0.5)" : "rgba(34,197,94,0.4)"}`,
                           boxShadow: "0 40px 100px rgba(0,0,0,0.92)" }}>
               {/* Header */}
@@ -13433,7 +13433,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                         <span className="text-[9px] font-mono text-slate-600">{entry.code}</span>
                         {cf.mode === "all" && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                style={{ background: "rgba(59,130,246,0.1)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}>
+                                style={{ background: "rgba(232,85,61,0.1)", color: "#F7A992", border: "1px solid rgba(232,85,61,0.25)" }}>
                             {entry.bomKey}{entry.serialNo ? ` · ${entry.serialNo}` : ""}
                           </span>
                         )}
@@ -13509,7 +13509,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
         </div>
 
         {groups.length === 0 ? (
-          <div className="bg-[#0e1117] border border-white/[0.07] rounded-xl py-20 text-center" style={{ animation: "fadeIn 0.4s ease both" }}>
+          <div className="bg-[#1A1C21] border border-white/[0.07] rounded-xl py-20 text-center" style={{ animation: "fadeIn 0.4s ease both" }}>
             <div className="text-5xl mb-4">✅</div>
             <div className="text-sm font-bold text-white mb-2">No Pending Materials</div>
             <div className="text-[11px] text-slate-500">All BOM issues are fully fulfilled. Issue a BOM from Outward to track shortfalls here.</div>
@@ -13545,11 +13545,11 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                 const gSC       = gStatus === "ready" ? "#22c55e" : gStatus === "partial" ? "#f97316" : "#ef4444";
                 const gLabel    = gStatus === "ready" ? "All Ready" : gStatus === "partial" ? "Partially Available" : "Awaiting Stock";
                 const machine   = machineByIssue[String(group.issueId)] || null;
-                const stageColor = machine ? (STAGE_COLORS[machine.stage] || "#3b82f6") : "#3b82f6";
+                const stageColor = machine ? (STAGE_COLORS[machine.stage] || "#E8553D") : "#E8553D";
                 const bom        = bomDefs?.[group.bomKey];
 
                 return (
-                  <div key={group.key} className="bg-[#0e1117] border border-white/[0.07] rounded-xl overflow-hidden"
+                  <div key={group.key} className="bg-[#1A1C21] border border-white/[0.07] rounded-xl overflow-hidden"
                        style={{ animation: "slideUp 0.3s ease both" }}>
 
                     {/* Group header */}
@@ -13567,7 +13567,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                             <span className="text-sm font-bold text-white">{group.bomLabel}</span>
                             {group.serialNo && (
                               <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full"
-                                    style={{ background: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}>
+                                    style={{ background: "rgba(232,85,61,0.12)", color: "#F7A992", border: "1px solid rgba(232,85,61,0.25)" }}>
                                 S/N: {group.serialNo}
                               </span>
                             )}
@@ -13681,10 +13681,10 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
 // ─── HISTORY & REPORTS ────────────────────────────────────────────────────────
 
 const AUDIT_META = {
-  po_created:        { label: "PO Created",        icon: "📋", color: "#3b82f6", module: "Purchase"   },
+  po_created:        { label: "PO Created",        icon: "📋", color: "#E8553D", module: "Purchase"   },
   po_approved:       { label: "PO Approved",        icon: "✅", color: "#22c55e", module: "Purchase"   },
   po_rejected:       { label: "PO Rejected",        icon: "❌", color: "#ef4444", module: "Purchase"   },
-  po_ordered:        { label: "Order Placed",        icon: "🚚", color: "#6366f1", module: "Purchase"   },
+  po_ordered:        { label: "Order Placed",        icon: "🚚", color: "#CC4A33", module: "Purchase"   },
   po_received:       { label: "PO Received",         icon: "📥", color: "#10b981", module: "Purchase"   },
   po_deleted:        { label: "PO Deleted",          icon: "🗑️", color: "#64748b", module: "Purchase"   },
   inward_manual:     { label: "Manual Inward",       icon: "📥", color: "#10b981", module: "Inward"     },
@@ -13692,17 +13692,17 @@ const AUDIT_META = {
   outward_manual:    { label: "Manual Outward",      icon: "📤", color: "#fb923c", module: "Outward"    },
   stock_adjust:      { label: "Stock Adjusted",      icon: "🔢", color: "#8b5cf6", module: "Inventory"  },
   inventory_add:     { label: "Item Added",          icon: "➕", color: "#22c55e", module: "Inventory"  },
-  inventory_edit:    { label: "Item Edited",         icon: "✏️", color: "#3b82f6", module: "Inventory"  },
+  inventory_edit:    { label: "Item Edited",         icon: "✏️", color: "#E8553D", module: "Inventory"  },
   inventory_delete:  { label: "Item Deleted",        icon: "🗑️", color: "#ef4444", module: "Inventory"  },
   inventory_archive: { label: "Item Archived",        icon: "📦", color: "#64748b", module: "Inventory"  },
   bom_updated:       { label: "BOM Updated",         icon: "⚙️", color: "#f59e0b", module: "BOM"        },
   pending_fulfilled: { label: "Pending Fulfilled",   icon: "✅", color: "#22c55e", module: "Pending"    },
   pending_cleared:   { label: "Pending Cleared",     icon: "🧹", color: "#64748b", module: "Pending"    },
-  machine_created:   { label: "Machine Created",     icon: "🏭", color: "#3b82f6", module: "Machine"    },
-  machine_stage:     { label: "Stage Updated",       icon: "🔄", color: "#6366f1", module: "Machine"    },
+  machine_created:   { label: "Machine Created",     icon: "🏭", color: "#E8553D", module: "Machine"    },
+  machine_stage:     { label: "Stage Updated",       icon: "🔄", color: "#CC4A33", module: "Machine"    },
   machine_completed: { label: "Completed",           icon: "🏆", color: "#22c55e", module: "Machine"    },
   vendor_add:        { label: "Vendor Added",        icon: "➕", color: "#22c55e", module: "Vendor"     },
-  vendor_edit:       { label: "Vendor Updated",      icon: "✏️", color: "#3b82f6", module: "Vendor"     },
+  vendor_edit:       { label: "Vendor Updated",      icon: "✏️", color: "#E8553D", module: "Vendor"     },
   vendor_delete:     { label: "Vendor Deleted",      icon: "🗑️", color: "#ef4444", module: "Vendor"     },
   role_changed:      { label: "Role Changed",        icon: "👤", color: "#8b5cf6", module: "Settings"   },
 };
@@ -14081,7 +14081,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
   const machineStatus = (() => {
     const c = { completed: 0, active: 0 };
     machineLog.forEach((m) => { c[m.status] = (c[m.status] || 0) + 1; });
-    return [{ name: "Active", value: c.active || 0, fill: "#3b82f6" }, { name: "Completed", value: c.completed || 0, fill: "#22c55e" }];
+    return [{ name: "Active", value: c.active || 0, fill: "#E8553D" }, { name: "Completed", value: c.completed || 0, fill: "#22c55e" }];
   })();
   const stageBreakdown = (() => {
     const c = {};
@@ -14120,7 +14120,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
         {HR_TABS.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className="flex items-center gap-1.5 px-3.5 py-2 text-[11px] font-semibold rounded-t-lg transition-all relative"
-            style={tab===t.id ? { color:"#60a5fa", background:"rgba(59,130,246,0.1)", borderBottom:"2px solid #3b82f6" } : { color:"#475569" }}>
+            style={tab===t.id ? { color:"#F18A75", background:"rgba(232,85,61,0.1)", borderBottom:"2px solid #E8553D" } : { color:"#475569" }}>
             <span>{t.icon}</span>{t.label}
           </button>
         ))}
@@ -14207,7 +14207,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
             ) : (
               <div className="space-y-3">
                 {purchaseRows.map((p) => {
-                  const STATUS_COLOR = { pending:"#f59e0b", approved:"#3b82f6", ordered:"#6366f1", received:"#22c55e", rejected:"#ef4444", overdue:"#f97316" };
+                  const STATUS_COLOR = { pending:"#f59e0b", approved:"#E8553D", ordered:"#CC4A33", received:"#22c55e", rejected:"#ef4444", overdue:"#f97316" };
                   const sc = STATUS_COLOR[p.status] || "#64748b";
                   const totalAmt = (p.amount||0).toLocaleString("en-IN");
                   return (
@@ -14270,7 +14270,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
               <div className="space-y-3">
                 {machineRows.map((m) => {
                   const isComplete = m.status === "completed";
-                  const STAGE_C = { "BOM Issued":"#3b82f6","Assembly":"#6366f1","Mechanical":"#8b5cf6","Electrical":"#f59e0b","Trial":"#fb923c","Ready":"#22c55e" };
+                  const STAGE_C = { "BOM Issued":"#E8553D","Assembly":"#CC4A33","Mechanical":"#8b5cf6","Electrical":"#f59e0b","Trial":"#fb923c","Ready":"#22c55e" };
                   const stageColor = STAGE_C[m.stage] || "#64748b";
                   return (
                     <div key={m.id} className="rounded-xl p-4" style={CARD_STYLE}>
@@ -14470,7 +14470,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                         </div>
                       </div>
                       <div className="mt-3 grid grid-cols-3 gap-3">
-                        <div className="rounded-lg p-2 text-center" style={{ background:"rgba(59,130,246,0.08)" }}>
+                        <div className="rounded-lg p-2 text-center" style={{ background:"rgba(232,85,61,0.08)" }}>
                           <div className="text-sm font-black text-blue-400">{v.orders}</div>
                           <div className="text-[9px] text-slate-500">Orders</div>
                         </div>
@@ -14550,8 +14550,8 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
             {/* KPI summary */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { label:"Total PO Value",  value:`₹${pos.reduce((s,p)=>s+(p.amount||0),0).toLocaleString("en-IN")}`, icon:"💰", color:"#3b82f6" },
-                { label:"Total POs",       value:pos.length,                                                           icon:"📋", color:"#6366f1" },
+                { label:"Total PO Value",  value:`₹${pos.reduce((s,p)=>s+(p.amount||0),0).toLocaleString("en-IN")}`, icon:"💰", color:"#E8553D" },
+                { label:"Total POs",       value:pos.length,                                                           icon:"📋", color:"#CC4A33" },
                 { label:"Machines Tracked",value:machineLog.length,                                                    icon:"🔧", color:"#22c55e" },
                 { label:"Inward Entries",  value:inwardLog.length,                                                     icon:"📥", color:"#10b981" },
               ].map((k) => (
@@ -14572,12 +14572,12 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                 {monthlyPurchase.length === 0 ? <div className="text-center text-slate-600 py-8 text-xs">No data</div> : (
                   <ResponsiveContainer width="100%" height={180}>
                     <AreaChart data={monthlyPurchase} margin={{top:4,right:4,left:0,bottom:4}}>
-                      <defs><linearGradient id="hrPG" x1="0" y1="0" x2="0" y2="1"><stop offset="10%" stopColor="#3b82f6" stopOpacity={0.25}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs>
+                      <defs><linearGradient id="hrPG" x1="0" y1="0" x2="0" y2="1"><stop offset="10%" stopColor="#E8553D" stopOpacity={0.25}/><stop offset="95%" stopColor="#E8553D" stopOpacity={0}/></linearGradient></defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                       <XAxis dataKey="month" tick={{fill:"#475569",fontSize:9}} axisLine={false} tickLine={false} />
                       <YAxis tick={{fill:"#475569",fontSize:9}} axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={{background:"#0d1018",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,fontSize:11}} />
-                      <Area type="monotone" dataKey="amount" stroke="#3b82f6" strokeWidth={2} fill="url(#hrPG)" name="Amount ₹" />
+                      <Tooltip contentStyle={{background:"#1B1D22",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,fontSize:11}} />
+                      <Area type="monotone" dataKey="amount" stroke="#E8553D" strokeWidth={2} fill="url(#hrPG)" name="Amount ₹" />
                     </AreaChart>
                   </ResponsiveContainer>
                 )}
@@ -14592,8 +14592,8 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                       <XAxis dataKey="name" tick={{fill:"#475569",fontSize:8}} axisLine={false} tickLine={false} />
                       <YAxis tick={{fill:"#475569",fontSize:9}} axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={{background:"#0d1018",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,fontSize:11}} />
-                      <Bar dataKey="value" fill="#6366f1" radius={[4,4,0,0]} name="Amount ₹" />
+                      <Tooltip contentStyle={{background:"#1B1D22",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,fontSize:11}} />
+                      <Bar dataKey="value" fill="#CC4A33" radius={[4,4,0,0]} name="Amount ₹" />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -14621,7 +14621,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                         <div className="text-[9px] text-slate-600 mb-2 uppercase tracking-wider">Active by Stage</div>
                         <div className="flex flex-wrap gap-2">
                           {stageBreakdown.map((s) => {
-                            const STAGE_C={"BOM Issued":"#3b82f6","Assembly":"#6366f1","Mechanical":"#8b5cf6","Electrical":"#f59e0b","Trial":"#fb923c","Ready":"#22c55e"};
+                            const STAGE_C={"BOM Issued":"#E8553D","Assembly":"#CC4A33","Mechanical":"#8b5cf6","Electrical":"#f59e0b","Trial":"#fb923c","Ready":"#22c55e"};
                             const c = STAGE_C[s.stage]||"#64748b";
                             return <span key={s.stage} className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{background:c+"18",color:c}}>{s.stage}: {s.count}</span>;
                           })}
@@ -14665,7 +14665,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                       <XAxis dataKey="month" tick={{fill:"#475569",fontSize:9}} axisLine={false} tickLine={false} />
                       <YAxis tick={{fill:"#475569",fontSize:9}} axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={{background:"#0d1018",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,fontSize:11}} />
+                      <Tooltip contentStyle={{background:"#1B1D22",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,fontSize:11}} />
                       <Bar dataKey="qty" fill="#10b981" radius={[4,4,0,0]} name="Qty" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -14684,7 +14684,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                     <div className="text-lg font-black text-green-400">{pendingFulfilled.length}</div>
                     <div className="text-[9px] text-slate-500">Fulfilled</div>
                   </div>
-                  <div className="rounded-lg px-3 py-2 text-center" style={{background:"rgba(59,130,246,0.08)"}}>
+                  <div className="rounded-lg px-3 py-2 text-center" style={{background:"rgba(232,85,61,0.08)"}}>
                     <div className="text-lg font-black text-blue-400">{[...new Set(pendingLog.map(p=>p.issueId).filter(Boolean))].length}</div>
                     <div className="text-[9px] text-slate-500">Machines Pending</div>
                   </div>
@@ -14736,7 +14736,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
 
 const ROLE_CONFIG = {
   Admin: {
-    label: "Admin", icon: "👑", color: "#6366f1", badge: "Full Access",
+    label: "Admin", icon: "👑", color: "#CC4A33", badge: "Full Access",
     pages: ["dashboard","inventory","inward","outward","pending","pipeline","machines","vendors","analytics","ai","history","settings"],
     actions: {
       inventory: { add: true,  edit: true,  delete: true,  adjust: true  },
@@ -14749,7 +14749,7 @@ const ROLE_CONFIG = {
     },
   },
   "Purchase Manager": {
-    label: "Purchase Manager", icon: "🛒", color: "#3b82f6", badge: "Purchase",
+    label: "Purchase Manager", icon: "🛒", color: "#E8553D", badge: "Purchase",
     pages: ["dashboard","inventory","inward","pipeline","vendors","history","analytics"],
     actions: {
       inventory: { add: false, edit: false, delete: false, adjust: false },
@@ -14804,7 +14804,7 @@ function EmptyState({ icon = "📭", title = "Nothing here yet", desc = "", acti
 
 // ─── LOADING SPINNER ─────────────────────────────────────────────────────────
 
-function Spinner({ size = 20, color = "#3b82f6" }) {
+function Spinner({ size = 20, color = "#E8553D" }) {
   return (
     <div className="animate-spin" style={{ width: size, height: size, borderRadius: "50%", border: `2px solid rgba(255,255,255,0.08)`, borderTopColor: color }} />
   );
@@ -14874,12 +14874,12 @@ function GlobalSearch({ items, pos, vendorList, machineLog, onClose, onNavigate 
       })),
     },
     {
-      type: "po", label: "Purchase Orders", color: "#3b82f6",
+      type: "po", label: "Purchase Orders", color: "#E8553D",
       total: matchedPOs.length,
       rows: matchedPOs.slice(0, LIMIT).map((p) => {
-        const stClr = { pending:"#f59e0b", approved:"#3b82f6", ordered:"#8b5cf6", received:"#22c55e", rejected:"#ef4444" }[p.status] || "#64748b";
+        const stClr = { pending:"#f59e0b", approved:"#E8553D", ordered:"#8b5cf6", received:"#22c55e", rejected:"#ef4444" }[p.status] || "#64748b";
         return {
-          nav: "pipeline", icon: "🛒", color: "#3b82f6",
+          nav: "pipeline", icon: "🛒", color: "#E8553D",
           label: p.id,
           badge: { text: p.status, bg: stClr + "20", color: stClr },
           sub: `${p.vendor}  ·  ₹${(p.amount || 0).toLocaleString("en-IN")}  ·  ${p.date || ""}`,
@@ -14887,12 +14887,12 @@ function GlobalSearch({ items, pos, vendorList, machineLog, onClose, onNavigate 
       }),
     },
     {
-      type: "vendor", label: "Vendors", color: "#6366f1",
+      type: "vendor", label: "Vendors", color: "#CC4A33",
       total: matchedVendors.length,
       rows: matchedVendors.slice(0, LIMIT).map((v) => ({
-        nav: "vendors", icon: "🏭", color: "#6366f1",
+        nav: "vendors", icon: "🏭", color: "#CC4A33",
         label: v.name,
-        badge: v.category ? { text: v.category, bg: "#6366f120", color: "#6366f1" } : null,
+        badge: v.category ? { text: v.category, bg: "#CC4A3320", color: "#CC4A33" } : null,
         sub: [v.contactPerson, v.phone, v.email].filter(Boolean).join("  ·  ") || "No contact info",
       })),
     },
@@ -14932,7 +14932,7 @@ function GlobalSearch({ items, pos, vendorList, machineLog, onClose, onNavigate 
          style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)" }}
          onClick={onClose}>
       <div className="w-full max-w-xl mx-4 overflow-hidden"
-           style={{ background: "#0c1018", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 16, boxShadow: "0 32px 80px rgba(0,0,0,0.9)" }}
+           style={{ background: "#191B20", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 16, boxShadow: "0 32px 80px rgba(0,0,0,0.9)" }}
            onClick={(e) => e.stopPropagation()}>
 
         {/* Input */}
@@ -15033,7 +15033,7 @@ function NotificationPanel({ notifications, dismissed, onClose, onNavigate, onDi
   const TYPE_CFG = {
     critical:      { label: "Critical Stock",     icon: "🔴", color: "#ef4444", nav: "inventory" },
     warning:       { label: "Low Stock Alert",    icon: "🟠", color: "#f59e0b", nav: "inventory" },
-    approval:      { label: "Approval Pending",   icon: "📋", color: "#3b82f6", nav: "pipeline" },
+    approval:      { label: "Approval Pending",   icon: "📋", color: "#E8553D", nav: "pipeline" },
     followup:      { label: "Follow-Up Due",      icon: "📞", color: "#8b5cf6", nav: "pipeline" },
     pending_alert: { label: "Pending Materials",  icon: "⏳", color: "#f97316", nav: "pending" },
     machine_ready: { label: "Machine Ready",      icon: "🏆", color: "#22c55e", nav: "machines" },
@@ -15045,7 +15045,7 @@ function NotificationPanel({ notifications, dismissed, onClose, onNavigate, onDi
   return (
     <div className="fixed inset-0 z-[90]" onClick={onClose}>
       <div className="absolute right-4 top-16 w-[360px] overflow-hidden"
-           style={{ background: "#0c1018", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 14, boxShadow: "0 24px 64px rgba(0,0,0,0.8)" }}
+           style={{ background: "#191B20", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 14, boxShadow: "0 24px 64px rgba(0,0,0,0.8)" }}
            onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
@@ -15442,8 +15442,8 @@ export default function App() {
   //   3. `!currentUser` → definitely signed out. Show LoginPage.
   if (authLoadError) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-6" style={{ background: "#080a0f", color: "#e5e7eb", fontFamily: "Inter, system-ui, sans-serif" }}>
-        <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: "#0d1018", border: "1px solid rgba(239,68,68,0.35)", boxShadow: "0 24px 60px rgba(0,0,0,0.7)" }}>
+      <div className="min-h-screen flex items-center justify-center px-6" style={{ background: "#16181C", color: "#e5e7eb", fontFamily: "Inter, system-ui, sans-serif" }}>
+        <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: "#1B1D22", border: "1px solid rgba(239,68,68,0.35)", boxShadow: "0 24px 60px rgba(0,0,0,0.7)" }}>
           <div className="flex items-center gap-3 mb-3">
             <div style={{ fontSize: 24 }}>⚠️</div>
             <div>
@@ -15457,7 +15457,7 @@ export default function App() {
           <div className="flex gap-2">
             <button onClick={retryAuthLoad}
                     className="flex-1 py-2 rounded-xl text-xs font-semibold text-white"
-                    style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", boxShadow: "0 4px 12px rgba(99,102,241,0.35)" }}>
+                    style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 12px rgba(204,74,51,0.35)" }}>
               ↻ Retry
             </button>
             <button onClick={() => { try { localStorage.removeItem("erp_session"); } catch {} try { localStorage.removeItem("erp_supabase_session"); } catch {} try { window.location.reload(); } catch {} }}
@@ -15472,9 +15472,9 @@ export default function App() {
   }
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#080a0f", color: "#e5e7eb", fontFamily: "Inter, system-ui, sans-serif" }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#16181C", color: "#e5e7eb", fontFamily: "Inter, system-ui, sans-serif" }}>
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 rounded-full animate-spin" style={{ border: "3px solid rgba(99,102,241,0.15)", borderTopColor: "#6366f1" }} />
+          <div className="w-8 h-8 rounded-full animate-spin" style={{ border: "3px solid rgba(204,74,51,0.15)", borderTopColor: "#CC4A33" }} />
           <div style={{ fontSize: 11, color: "#64748b", letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 700 }}>
             Restoring session{supabaseMode ? "" : ""}…
           </div>
@@ -16370,7 +16370,7 @@ export default function App() {
     if (bomDefs[k]) return { success: false, error: "A BOM with this key already exists" };
     if (!(def.label || "").trim()) return { success: false, error: "Machine Model Name is required" };
     if (!(def.items || []).length) return { success: false, error: "At least one component is required" };
-    const palette = ["#3b82f6","#6366f1","#8b5cf6","#ec4899","#f59e0b","#22c55e","#06b6d4","#14b8a6","#f97316","#a855f7"];
+    const palette = ["#E8553D","#CC4A33","#8b5cf6","#ec4899","#f59e0b","#22c55e","#06b6d4","#14b8a6","#f97316","#a855f7"];
     const color = def.color || palette[Object.keys(bomDefs).length % palette.length];
     const newBom = {
       label: def.label.trim(),
@@ -16399,7 +16399,7 @@ export default function App() {
     let newKey = `${srcKey}-COPY`;
     let n = 2;
     while (bomDefs[newKey]) { newKey = `${srcKey}-COPY-${n++}`; }
-    const palette = ["#3b82f6","#6366f1","#8b5cf6","#ec4899","#f59e0b","#22c55e","#06b6d4","#14b8a6","#f97316","#a855f7"];
+    const palette = ["#E8553D","#CC4A33","#8b5cf6","#ec4899","#f59e0b","#22c55e","#06b6d4","#14b8a6","#f97316","#a855f7"];
     const newBom = {
       label:        src.label ? `${src.label} (Copy)` : newKey,
       color:        palette[Object.keys(bomDefs).length % palette.length],
@@ -17471,7 +17471,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-[#080a0f] text-white overflow-hidden"
+    <div className="flex h-screen bg-[#16181C] text-white overflow-hidden"
          style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif", fontFeatureSettings: '"cv02","cv03","cv04","cv11"' }}>
 
       {/* Sidebar in its own boundary — historically the blast site (UserProfileMenu
@@ -17531,9 +17531,9 @@ export default function App() {
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setShowShortcuts(false)}>
           <div className="w-full max-w-2xl rounded-2xl overflow-hidden"
-               style={{ background: "#0d1018", border: "1px solid rgba(99,102,241,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+               style={{ background: "#1B1D22", border: "1px solid rgba(204,74,51,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
             <div className="px-5 py-4 border-b border-white/[0.08] flex items-center justify-between"
-                 style={{ background: "linear-gradient(90deg,rgba(59,130,246,0.10),rgba(99,102,241,0.05))" }}>
+                 style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.10),rgba(204,74,51,0.05))" }}>
               <div>
                 <div className="text-sm font-black text-white">⌨ Keyboard Shortcuts</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">Press <kbd className="px-1 py-0.5 text-[9px] font-mono rounded bg-white/[0.08] border border-white/[0.1]">Esc</kbd> to close</div>

@@ -129,7 +129,7 @@ export default function POSettings({ value, onChange, onPersist, isSuperAdmin = 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <div className={lbl}>Active Template (used on every PO)</div>
-            <select value={po.template} onChange={(e) => setTemplate(e.target.value)} className={inp} style={{ background: "#0b0e17" }}>
+            <select value={po.template} onChange={(e) => setTemplate(e.target.value)} className={inp} style={{ background: "#1A1C21" }}>
               {PO_TEMPLATE_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
           </div>
@@ -211,8 +211,8 @@ export default function POSettings({ value, onChange, onPersist, isSuperAdmin = 
               <button key={c.id} onClick={() => setEditId(c.id)}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all"
                       style={{
-                        background: sel ? "rgba(59,130,246,0.10)" : "rgba(255,255,255,0.03)",
-                        border:     `1px solid ${sel ? "rgba(59,130,246,0.40)" : "rgba(255,255,255,0.07)"}`,
+                        background: sel ? "rgba(232,85,61,0.10)" : "rgba(255,255,255,0.03)",
+                        border:     `1px solid ${sel ? "rgba(232,85,61,0.40)" : "rgba(255,255,255,0.07)"}`,
                       }}>
                 {c.logo
                   ? <img src={c.logo} alt="" className="w-9 h-9 rounded object-contain bg-white/5 flex-shrink-0" />
@@ -248,7 +248,7 @@ export default function POSettings({ value, onChange, onPersist, isSuperAdmin = 
               <button onClick={() => onPersist(po)}
                       title="Save all companies to Supabase"
                       className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-white border border-blue-500/50 transition-all"
-                      style={{ background: "linear-gradient(135deg,#2563eb,#4f46e5)", boxShadow: "0 0 10px rgba(59,130,246,0.30)" }}>
+                      style={{ background: "linear-gradient(135deg,#E8553D,#A33E2A)", boxShadow: "0 0 10px rgba(232,85,61,0.30)" }}>
                 💾 Save Company
               </button>
             )}
