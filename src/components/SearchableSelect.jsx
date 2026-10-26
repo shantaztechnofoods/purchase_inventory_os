@@ -214,7 +214,7 @@ export default function SearchableSelect({
           style={{
             top: "100%",
             maxHeight: 280,
-            background: "linear-gradient(180deg,#1B1D22,#090c14)",
+            background: "linear-gradient(180deg,#FFFFFF,#090c14)",
             border: "1px solid rgba(232,85,61,0.45)",
             boxShadow: "0 20px 50px rgba(0,0,0,0.85)",
           }}>

@@ -53,7 +53,7 @@ export default function LoginPage() {
 
         {/* Card */}
         <div className="rounded-2xl p-7"
-             style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}>
+             style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.08)", boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}>
           <h2 className="text-base font-bold text-white mb-1">Sign in</h2>
           <p className="text-xs text-slate-500 mb-6">Enter your credentials to access the system</p>
 
@@ -71,11 +71,11 @@ export default function LoginPage() {
                 autoFocus
                 className="w-full px-3.5 py-2.5 rounded-xl text-sm text-white placeholder-slate-600 outline-none transition-all"
                 style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(26,31,46,0.05)",
+                  border: "1px solid rgba(26,31,46,0.1)",
                 }}
                 onFocus={(e) => { e.target.style.borderColor = "rgba(204,74,51,0.5)"; e.target.style.boxShadow = "0 0 0 3px rgba(204,74,51,0.12)"; }}
-                onBlur={(e)  => { e.target.style.borderColor = "rgba(255,255,255,0.1)"; e.target.style.boxShadow = "none"; }}
+                onBlur={(e)  => { e.target.style.borderColor = "rgba(26,31,46,0.1)"; e.target.style.boxShadow = "none"; }}
               />
             </div>
 
@@ -92,11 +92,11 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   className="w-full px-3.5 py-2.5 rounded-xl text-sm text-white placeholder-slate-600 outline-none transition-all pr-10"
                   style={{
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.1)",
+                    background: "rgba(26,31,46,0.05)",
+                    border: "1px solid rgba(26,31,46,0.1)",
                   }}
                   onFocus={(e) => { e.target.style.borderColor = "rgba(204,74,51,0.5)"; e.target.style.boxShadow = "0 0 0 3px rgba(204,74,51,0.12)"; }}
-                  onBlur={(e)  => { e.target.style.borderColor = "rgba(255,255,255,0.1)"; e.target.style.boxShadow = "none"; }}
+                  onBlur={(e)  => { e.target.style.borderColor = "rgba(26,31,46,0.1)"; e.target.style.boxShadow = "none"; }}
                 />
                 <button
                   type="button"

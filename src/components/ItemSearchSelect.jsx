@@ -10,7 +10,7 @@ function highlight(text, query) {
   return (
     <>
       {text.slice(0, idx)}
-      <mark style={{ background: "rgba(204,74,51,0.45)", color: "#fff", padding: "0 1px", borderRadius: 2 }}>
+      <mark style={{ background: "rgba(204,74,51,0.45)", color: "#1A1F2E", padding: "0 1px", borderRadius: 2 }}>
         {text.slice(idx, idx + query.length)}
       </mark>
       {text.slice(idx + query.length)}
@@ -181,7 +181,7 @@ export default function ItemSearchSelect({
           className="absolute left-0 right-0 mt-1 rounded-lg overflow-hidden z-50"
           style={{
             background: "#0d1119",
-            border: "1px solid rgba(255,255,255,0.12)",
+            border: "1px solid rgba(26,31,46,0.12)",
             boxShadow: "0 16px 48px rgba(0,0,0,0.65)",
           }}
         >
@@ -205,12 +205,12 @@ export default function ItemSearchSelect({
                     className="w-full text-left px-3 py-2 transition-colors flex items-center gap-2"
                     style={{
                       background: active ? "rgba(204,74,51,0.18)" : "transparent",
-                      borderBottom: "1px solid rgba(255,255,255,0.03)",
+                      borderBottom: "1px solid rgba(26,31,46,0.04)",
                     }}
                   >
                     {showCategory && it.category && (
                       <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide flex-shrink-0"
-                            style={{ background: "rgba(255,255,255,0.06)", color: "#94a3b8" }}>
+                            style={{ background: "rgba(26,31,46,0.06)", color: "#94a3b8" }}>
                         {it.category}
                       </span>
                     )}
