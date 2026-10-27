@@ -66,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-27-trial-certificate-v2";
+const APP_BUILD = "2026-10-27-fix-chipname-crash";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -13827,7 +13827,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                               Main Employee signature <span className="text-red-400 ml-0.5">*</span>
                             </div>
                             <div className="text-[10px] text-slate-400 mb-2">
-                              <span className="font-bold text-white">{mainUser ? chipName(mainUser) : "Main Employee"}</span> must sign to confirm this department's work.
+                              <span className="font-bold text-white">{chipName(mainId)}</span> must sign to confirm this department's work.
                               {!isCurrentUser && " (Hand the device to them to sign now.)"}
                             </div>
                             {haveSig ? (

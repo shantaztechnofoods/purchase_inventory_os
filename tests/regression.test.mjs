@@ -436,6 +436,21 @@ test("regression: App.jsx reads full useAuth contract (lockout retry screen)", (
   }
 });
 
+// ─── Bug-regression guards (specific crash patterns that must not return) ───
+
+test("regression: chipName() is never called with a user object (xe.startsWith crash)", () => {
+  // Bug introduced 2026-10-27: chipName(mainUser) passed a user object instead
+  // of the ID string, crashing with "xe.startsWith is not a function" the moment
+  // a worker was auto-selected in the Finish & Transfer modal. Fix: chipName(mainId).
+  const src = read(APP_JSX);
+  assert.ok(
+    !has(src, "chipName(mainUser)"),
+    "chipName(mainUser) is back in App.jsx — this passes a user OBJECT to a function " +
+    "that calls id.startsWith(), causing a TypeError crash in the Finish & Transfer modal. " +
+    "Call chipName(mainId) instead."
+  );
+});
+
 // ─── Build marker invariant (deploys stay observable) ───────────────────────
 
 test("regression: APP_BUILD / APP_BUILD_TAG match (deploy-marker consistency)", () => {
