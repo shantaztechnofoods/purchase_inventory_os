@@ -65,7 +65,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-27-tracker-settings";
+const APP_BUILD = "2026-10-27-trial-certificate";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -11505,6 +11505,591 @@ function AttachmentLink({ attachment }) {
   );
 }
 
+// ─── Trial Certificate — module-scope helpers + components ───────────────────
+
+const TC_INP = "w-full bg-white/[0.05] border border-white/[0.12] rounded-lg px-2.5 py-1.5 text-[12px] text-white placeholder-slate-500 outline-none focus:border-cyan-500/60 transition-colors";
+
+const TRIAL_CHECKPOINTS = [
+  { key: "dbLevel",              label: "DB Level",                type: "cb"    },
+  { key: "dbHeight",             label: "DB Height",               type: "num",  unit: "mm"  },
+  { key: "photoSensorDist",      label: "Photo Sensor Distance",   type: "num",  unit: "mm"  },
+  { key: "cutterHeight",         label: "Cutter Height",           type: "num",  unit: "mm"  },
+  { key: "ptfeBeltCentre",       label: "PTFE Belt Centre",        type: "cb"    },
+  { key: "ptfeBeltTension",      label: "PTFE Belt Tension",       type: "cb"    },
+  { key: "pressingHeat",         label: "Pressing Heat",           type: "num",  unit: "°C"  },
+  { key: "metalPartCentre",      label: "Metal Part Centre",       type: "cb"    },
+  { key: "conveyorSpeed",        label: "Conveyor Speed",          type: "cb"    },
+  { key: "tawaAlignment",        label: "Tawa Alignment",          type: "cb"    },
+  { key: "thicknessWeight",      label: "Thickness Weight",        type: "range", unit: "g"  },
+  { key: "roastingTawaAlignment",label: "Roasting Tawa Alignment", type: "cb"    },
+  { key: "roastingStopCentre",   label: "Roasting Stop Centre",    type: "cb"    },
+  { key: "oilPipeCentre",        label: "Oil Pipe Centre",         type: "cb"    },
+  { key: "nutBoltMarking",       label: "Nut / Bolt Marking",      type: "cb"    },
+  { key: "roastingRotateSpeed",  label: "Roasting Rotate Speed",   type: "num",  unit: "RPM" },
+];
+
+function mkTrialCert() {
+  const spd = () => ({ mainFrq:"", revFrq:"", jogFrq:"", thickness:"",
+                        cutter:{onTm:"",onDly:""}, cyl2:{onTm:"",onDly:""}, cyl3:{onTm:"",onDly:""} });
+  return {
+    trialDate: new Date().toISOString().slice(0, 10),
+    khakhraMode: { speed1: spd(), speed2: spd(), speed3: spd() },
+    bakhriMode:  spd(),
+    checkPoints: {
+      dbLevel:false, dbHeight:"", photoSensorDist:"", cutterHeight:"",
+      ptfeBeltCentre:false, ptfeBeltTension:false, pressingHeat:"",
+      metalPartCentre:false, conveyorSpeed:false, tawaAlignment:false,
+      thicknessWeightFrom:"", thicknessWeightTo:"",
+      roastingTawaAlignment:false, roastingStopCentre:false, oilPipeCentre:false,
+      nutBoltMarking:false, roastingRotateSpeed:"",
+    },
+    electricalLoad: { rPhase:"", yPhase:"", bPhase:"" },
+    trialByName:"", trialBySignature:"",
+    checkByName:"", checkBySignature:"",
+    note:"",
+  };
+}
+
+function FreqTimingBlock({ label, data, onChange }) {
+  const upd = (field, val) => onChange({ ...data, [field]: val });
+  const updTable = (part, sf, val) => onChange({ ...data, [part]: { ...data[part], [sf]: val } });
+  const inp = TC_INP + " text-center";
+  return (
+    <div className="space-y-2">
+      {label && <div className="text-[11px] font-black text-slate-300 uppercase tracking-wide">{label}</div>}
+      <div className="grid grid-cols-4 gap-1.5">
+        <input value={data.mainFrq}   onChange={(e) => upd("mainFrq",   e.target.value)} placeholder="Main FRQ"  className={inp} />
+        <input value={data.revFrq}    onChange={(e) => upd("revFrq",    e.target.value)} placeholder="REV FRQ"   className={inp} />
+        <input value={data.jogFrq}    onChange={(e) => upd("jogFrq",    e.target.value)} placeholder="JOG FRQ"   className={inp} />
+        <input value={data.thickness} onChange={(e) => upd("thickness", e.target.value)} placeholder="Thickness" className={inp} />
+      </div>
+      <div>
+        <div className="grid grid-cols-3 gap-1.5 mb-1">
+          {["","ON TM","ON DLY"].map((h) => (
+            <div key={h} className="text-[10px] font-bold text-slate-500 text-center uppercase tracking-wide">{h}</div>
+          ))}
+        </div>
+        {[["cutter","CUTTER"],["cyl2","CYL-2"],["cyl3","CYL-3"]].map(([part, partLabel]) => (
+          <div key={part} className="grid grid-cols-3 gap-1.5 mb-1.5">
+            <div className="text-[11px] font-bold text-slate-300 flex items-center">{partLabel}</div>
+            <input value={data[part].onTm}  onChange={(e) => updTable(part,"onTm", e.target.value)} className={inp} />
+            <input value={data[part].onDly} onChange={(e) => updTable(part,"onDly",e.target.value)} className={inp} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TrialCertificateModal({ machine, nowTick, workflow, busy, onClose, onSubmit }) {
+  const [cert, setCert] = useState(() => mkTrialCert());
+  const [narration, setNarration] = useState("");
+  const [trialSigOpen, setTrialSigOpen] = useState(false);
+  const [checkSigOpen, setCheckSigOpen] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  const upd = (path, val) => {
+    setCert((prev) => {
+      const next = { ...prev };
+      const keys = path.split(".");
+      let cur = next;
+      for (let i = 0; i < keys.length - 1; i++) {
+        cur[keys[i]] = { ...cur[keys[i]] };
+        cur = cur[keys[i]];
+      }
+      cur[keys[keys.length - 1]] = val;
+      return next;
+    });
+  };
+  const updSpd = (mode, spdKey, newData) => setCert((prev) => ({
+    ...prev, [mode]: { ...prev[mode], [spdKey]: newData }
+  }));
+
+  const fromDepartment = machine.currentDepartment || machine.stage;
+  const expectedCfg = (machine.deptDurations && machine.deptDurations[fromDepartment])
+                    || (workflow && workflow.dept_durations && workflow.dept_durations[fromDepartment]);
+  const expectedDurationMinutes = (expectedCfg && expectedCfg.minutes) || 0;
+  const { actualMinutes, overrunMinutes, isOverrun } = computeOverrun(
+    machine.departmentEnteredAt, expectedDurationMinutes, nowTick
+  );
+
+  const handleSubmit = () => {
+    if (!cert.trialByName.trim())   { setFormError("Trial By name is required."); return; }
+    if (!cert.trialBySignature)     { setFormError("Trial By signature is required — click Draw."); return; }
+    if (isOverrun && !narration.trim()) { setFormError("Overrun explanation is required."); return; }
+    setFormError("");
+    onSubmit({ cert, narration, actualDurationMinutes: actualMinutes, expectedDurationMinutes });
+  };
+
+  const SecHead = ({ title, accent = "#06b6d4" }) => (
+    <div className="flex items-center gap-2 mb-3">
+      <div className="h-px flex-1" style={{ background: accent + "30" }} />
+      <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: accent }}>{title}</div>
+      <div className="h-px flex-1" style={{ background: accent + "30" }} />
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-3"
+         style={{ background: "rgba(4,6,12,0.95)", backdropFilter: "blur(12px)" }}
+         onClick={(e) => e.target === e.currentTarget && !busy && onClose()}>
+      <div className="w-full rounded-2xl overflow-hidden flex flex-col"
+           style={{ maxWidth: 900, maxHeight: "96vh", background: "var(--surface-elevated)",
+                    border: "1px solid rgba(6,182,212,0.3)", boxShadow: "0 40px 80px rgba(0,0,0,0.95)" }}>
+
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-white/[0.08] flex-shrink-0 flex items-center justify-between"
+             style={{ background: "linear-gradient(90deg,rgba(6,182,212,0.12),rgba(6,182,212,0.04))" }}>
+          <div>
+            <div className="text-sm font-black text-white">Machine Trial Certificate</div>
+            <div className="text-[11px] text-slate-400 mt-0.5">
+              {machine.bomKey}{machine.serialNo ? ` · S/N ${machine.serialNo}` : ""} · Trial → Ready
+            </div>
+          </div>
+          <button onClick={() => !busy && onClose()}
+                  className="text-slate-500 hover:text-white text-xl leading-none transition-colors">✕</button>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+
+          {/* Machine Details */}
+          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <SecHead title="Machine Details" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[["BOM Key", machine.bomKey],["Serial No", machine.serialNo||"—"],["BOM Label", machine.bomLabel||"—"]].map(([l,v]) => (
+                <div key={l}>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">{l}</div>
+                  <div className="text-[12px] font-bold text-white">{v}</div>
+                </div>
+              ))}
+              <div>
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Trial Date</div>
+                <input type="date" value={cert.trialDate} onChange={(e) => upd("trialDate", e.target.value)} className={TC_INP} />
+              </div>
+            </div>
+          </div>
+
+          {/* Khakhra Mode */}
+          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <SecHead title="Parameter Set Value — Khakhra Mode" accent="#8b5cf6" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {["speed1","speed2","speed3"].map((spd, i) => (
+                <div key={spd} className="rounded-lg p-3" style={{ background: "rgba(139,92,246,0.07)", border: "1px solid rgba(139,92,246,0.18)" }}>
+                  <FreqTimingBlock label={"Speed " + (i + 1)} data={cert.khakhraMode[spd]}
+                                   onChange={(d) => updSpd("khakhraMode", spd, d)} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Bhakhri Mode */}
+          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <SecHead title="Bhakhri Mode" accent="#f97316" />
+            <div className="max-w-sm">
+              <FreqTimingBlock label="" data={cert.bakhriMode}
+                               onChange={(d) => setCert((prev) => ({ ...prev, bakhriMode: d }))} />
+            </div>
+          </div>
+
+          {/* Check Points */}
+          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <SecHead title="Check Points" accent="#22c55e" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-4">
+              {TRIAL_CHECKPOINTS.map((cp, idx) => {
+                if (cp.type === "cb") {
+                  const checked = !!cert.checkPoints[cp.key];
+                  return (
+                    <label key={cp.key} className="flex items-center gap-2.5 cursor-pointer group">
+                      <div className="relative flex-shrink-0">
+                        <input type="checkbox" checked={checked}
+                               onChange={(e) => upd("checkPoints." + cp.key, e.target.checked)}
+                               className="sr-only" />
+                        <div className={"w-4 h-4 rounded flex items-center justify-center transition-all " +
+                                        (checked ? "bg-green-500" : "bg-white/[0.05] border border-white/20 group-hover:border-green-500/50")}>
+                          {checked && <svg viewBox="0 0 10 8" className="w-2.5 h-2 fill-none stroke-white stroke-2"><polyline points="1,4 4,7 9,1"/></svg>}
+                        </div>
+                      </div>
+                      <span className="text-[12px] text-slate-300 group-hover:text-white transition-colors">
+                        {idx + 1}. {cp.label}
+                      </span>
+                    </label>
+                  );
+                }
+                if (cp.type === "range") {
+                  return (
+                    <div key={cp.key} className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[12px] text-slate-300 flex-shrink-0">{idx + 1}. {cp.label}</span>
+                      <input value={cert.checkPoints.thicknessWeightFrom || ""}
+                             onChange={(e) => upd("checkPoints.thicknessWeightFrom", e.target.value)}
+                             placeholder="From" className={TC_INP + " !w-16 text-center"} />
+                      <span className="text-slate-500 text-[11px]">—</span>
+                      <input value={cert.checkPoints.thicknessWeightTo || ""}
+                             onChange={(e) => upd("checkPoints.thicknessWeightTo", e.target.value)}
+                             placeholder="To" className={TC_INP + " !w-16 text-center"} />
+                      {cp.unit && <span className="text-[10px] text-slate-500">{cp.unit}</span>}
+                    </div>
+                  );
+                }
+                return (
+                  <div key={cp.key} className="flex items-center gap-2">
+                    <span className="text-[12px] text-slate-300 flex-shrink-0">{idx + 1}. {cp.label}</span>
+                    <input value={cert.checkPoints[cp.key] || ""}
+                           onChange={(e) => upd("checkPoints." + cp.key, e.target.value)}
+                           placeholder="Value" className={TC_INP + " !w-24 text-center flex-shrink-0"} />
+                    {cp.unit && <span className="text-[10px] text-slate-500 flex-shrink-0">{cp.unit}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Electrical Load */}
+          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <SecHead title="Electrical Load" accent="#eab308" />
+            <div className="grid grid-cols-3 gap-3 max-w-xs">
+              {[["rPhase","R Phase"],["yPhase","Y Phase"],["bPhase","B Phase"]].map(([k,l]) => (
+                <div key={k}>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">{l} (AMP)</div>
+                  <input value={cert.electricalLoad[k]}
+                         onChange={(e) => upd("electricalLoad." + k, e.target.value)}
+                         className={TC_INP + " text-center"} placeholder="0.0" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Overrun narration */}
+          {isOverrun && (
+            <div className="rounded-xl p-4" style={{ background: "rgba(234,179,8,0.06)", border: "1px solid rgba(234,179,8,0.3)" }}>
+              <div className="text-[11px] font-bold text-yellow-300 mb-2">
+                ⚠ Overrun by {formatDuration(overrunMinutes)} — explanation required
+              </div>
+              <textarea value={narration} onChange={(e) => setNarration(e.target.value)} rows={2}
+                        placeholder="Briefly explain why Trial took longer than expected…"
+                        className="w-full bg-white/[0.05] border border-yellow-500/40 rounded-lg px-3 py-2 text-[12px] text-white placeholder-slate-500 outline-none focus:border-yellow-500/70 resize-none" />
+            </div>
+          )}
+
+          {/* Sign-off */}
+          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <SecHead title="Sign-off" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* Trial By */}
+              <div className="space-y-2">
+                <div className="text-[11px] font-black text-slate-300">Machine Set and Trial By</div>
+                <input value={cert.trialByName} onChange={(e) => upd("trialByName", e.target.value)}
+                       placeholder="Name" className={TC_INP} />
+                {!trialSigOpen && !cert.trialBySignature && (
+                  <button onClick={() => setTrialSigOpen(true)}
+                          className="text-[11px] font-bold px-3 py-1.5 rounded-lg border border-white/[0.15] text-slate-300 hover:text-white hover:border-white/30 transition-all">
+                    ✍ Draw Signature
+                  </button>
+                )}
+                {!trialSigOpen && cert.trialBySignature && (
+                  <div className="flex items-center gap-2">
+                    <div className="rounded-lg p-1.5 inline-flex" style={{ background: "#fff" }}>
+                      <img src={cert.trialBySignature} alt="Trial By sig" style={{ height: 40 }} />
+                    </div>
+                    <button onClick={() => { upd("trialBySignature",""); setTrialSigOpen(true); }}
+                            className="text-[10px] font-bold text-slate-400 hover:text-white transition-colors">Re-draw</button>
+                  </div>
+                )}
+                {trialSigOpen && (
+                  <SignaturePad
+                    onSave={(svg) => { upd("trialBySignature", svg); setTrialSigOpen(false); }}
+                    onCancel={() => setTrialSigOpen(false)}
+                  />
+                )}
+              </div>
+              {/* Check By */}
+              <div className="space-y-2">
+                <div className="text-[11px] font-black text-slate-300">Check By Service Engineer</div>
+                <input value={cert.checkByName} onChange={(e) => upd("checkByName", e.target.value)}
+                       placeholder="Name (optional)" className={TC_INP} />
+                {!checkSigOpen && !cert.checkBySignature && (
+                  <button onClick={() => setCheckSigOpen(true)}
+                          className="text-[11px] font-bold px-3 py-1.5 rounded-lg border border-white/[0.15] text-slate-300 hover:text-white hover:border-white/30 transition-all">
+                    ✍ Draw Signature
+                  </button>
+                )}
+                {!checkSigOpen && cert.checkBySignature && (
+                  <div className="flex items-center gap-2">
+                    <div className="rounded-lg p-1.5 inline-flex" style={{ background: "#fff" }}>
+                      <img src={cert.checkBySignature} alt="Check By sig" style={{ height: 40 }} />
+                    </div>
+                    <button onClick={() => { upd("checkBySignature",""); setCheckSigOpen(true); }}
+                            className="text-[10px] font-bold text-slate-400 hover:text-white transition-colors">Re-draw</button>
+                  </div>
+                )}
+                {checkSigOpen && (
+                  <SignaturePad
+                    onSave={(svg) => { upd("checkBySignature", svg); setCheckSigOpen(false); }}
+                    onCancel={() => setCheckSigOpen(false)}
+                  />
+                )}
+              </div>
+            </div>
+            <div className="mt-3">
+              <div className="text-[11px] font-bold text-slate-400 mb-1">Note (optional)</div>
+              <textarea value={cert.note} onChange={(e) => upd("note", e.target.value)} rows={2}
+                        placeholder="Any additional remarks…"
+                        className="w-full bg-white/[0.05] border border-white/[0.12] rounded-lg px-3 py-2 text-[12px] text-white placeholder-slate-500 outline-none focus:border-cyan-500/60 resize-none transition-colors" />
+            </div>
+          </div>
+
+          {formError && (
+            <div className="rounded-lg px-4 py-2.5 text-[12px] font-bold text-red-300"
+                 style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)" }}>
+              ⚠ {formError}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between flex-shrink-0"
+             style={{ background: "rgba(0,0,0,0.35)" }}>
+          <button onClick={() => !busy && onClose()} disabled={busy}
+                  className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
+            Cancel
+          </button>
+          <button onClick={handleSubmit} disabled={busy}
+                  className="text-[11px] font-black text-white px-5 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: "linear-gradient(135deg,#06b6d4,#0891b2)", boxShadow: "0 0 12px rgba(6,182,212,0.3)" }}>
+            {busy ? "⏳ Saving…" : "Save Certificate & Transfer → Ready"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TrialCertificatePrintModal({ machine, onClose }) {
+  const cert = machine.trialCertificate;
+  if (!cert) return null;
+
+  const handlePrint = () => {
+    const w = window.open("", "_blank", "width=900,height=700");
+    if (!w) return;
+    const spdHtml = (spd, lbl) => [
+      "<tr><td class='sec' colspan='8'>" + lbl + "</td></tr>",
+      "<tr><td>Main FRQ</td><td>" + (spd.mainFrq||"") + "</td>" +
+          "<td>REV FRQ</td><td>" + (spd.revFrq||"") + "</td>" +
+          "<td>JOG FRQ</td><td>" + (spd.jogFrq||"") + "</td>" +
+          "<td>Thickness</td><td>" + (spd.thickness||"") + "</td></tr>",
+      "<tr><td>CUTTER ON TM</td><td>" + (spd.cutter&&spd.cutter.onTm||"") + "</td>" +
+          "<td>CUTTER ON DLY</td><td>" + (spd.cutter&&spd.cutter.onDly||"") + "</td>" +
+          "<td>CYL-2 ON TM</td><td>" + (spd.cyl2&&spd.cyl2.onTm||"") + "</td>" +
+          "<td>CYL-2 ON DLY</td><td>" + (spd.cyl2&&spd.cyl2.onDly||"") + "</td></tr>",
+      "<tr><td>CYL-3 ON TM</td><td>" + (spd.cyl3&&spd.cyl3.onTm||"") + "</td>" +
+          "<td>CYL-3 ON DLY</td><td>" + (spd.cyl3&&spd.cyl3.onDly||"") + "</td>" +
+          "<td colspan='4'></td></tr>",
+    ].join("");
+    const cpRows = TRIAL_CHECKPOINTS.map((cp, i) => {
+      let v = cert.checkPoints[cp.key];
+      if (cp.type === "cb") v = v ? "✓ OK" : "✗";
+      else if (cp.type === "range") v = (cert.checkPoints.thicknessWeightFrom||"") + " — " + (cert.checkPoints.thicknessWeightTo||"");
+      return "<tr><td>" + (i+1) + ". " + cp.label + "</td><td>" + (v||"") + (cp.unit && cp.type !== "cb" ? " "+cp.unit : "") + "</td></tr>";
+    }).join("");
+    const sig = (svg, name) =>
+      "<div style='text-align:center;min-width:160px'>" +
+      "<div style='height:60px;border:1px solid #ccc;margin-bottom:4px;display:flex;align-items:center;justify-content:center;background:#fafafa'>" +
+      (svg ? "<img src='" + svg + "' style='max-height:56px'/>" : "") +
+      "</div><div style='font-size:11px;border-top:1px solid #333;padding-top:2px'>" + (name||"") + "</div></div>";
+    w.document.write(
+      "<!DOCTYPE html><html><head><meta charset='utf-8'/>" +
+      "<title>Trial Certificate — " + machine.bomKey + "</title>" +
+      "<style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px;color:#111}" +
+      "h2{text-align:center;margin-bottom:4px;font-size:16px}" +
+      ".sub{text-align:center;color:#555;margin-bottom:16px;font-size:11px}" +
+      "table{width:100%;border-collapse:collapse;margin-bottom:14px}" +
+      "td,th{border:1px solid #bbb;padding:3px 6px}" +
+      "th{background:#eee;font-weight:bold}" +
+      ".sec{background:#e8f4ff;font-weight:bold;font-size:11px}" +
+      ".sigs{display:flex;gap:40px;margin-top:12px}" +
+      "@media print{body{padding:0}button{display:none}}</style></head><body>" +
+      "<h2>Machine Trial Certificate</h2>" +
+      "<div class='sub'>" + (machine.bomLabel||machine.bomKey) +
+        (machine.serialNo ? " · S/N " + machine.serialNo : "") + " · Trial Date: " + (cert.trialDate||"") + "</div>" +
+      "<button onclick='window.print()' style='display:block;margin:0 auto 16px;padding:6px 20px;background:#0891b2;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px'>🖨 Print</button>" +
+      "<table><tr><th>BOM Key</th><td>" + machine.bomKey + "</td><th>Serial No</th><td>" + (machine.serialNo||"—") +
+        "</td><th>BOM Label</th><td colspan='3'>" + (machine.bomLabel||"—") + "</td></tr></table>" +
+      "<table><tr><th colspan='8'>Parameter Set Value — Khakhra Mode</th></tr>" +
+        spdHtml(cert.khakhraMode.speed1,"Speed 1") +
+        spdHtml(cert.khakhraMode.speed2,"Speed 2") +
+        spdHtml(cert.khakhraMode.speed3,"Speed 3") +
+        "<tr><th colspan='8'>Bhakhri Mode</th></tr>" +
+        spdHtml(cert.bakhriMode,"—") +
+      "</table>" +
+      "<table><tr><th>#</th><th>Check Point</th><th>Value / Status</th></tr>" + cpRows + "</table>" +
+      "<table><tr><th>R Phase (AMP)</th><td>" + (cert.electricalLoad&&cert.electricalLoad.rPhase||"") +
+        "</td><th>Y Phase (AMP)</th><td>" + (cert.electricalLoad&&cert.electricalLoad.yPhase||"") +
+        "</td><th>B Phase (AMP)</th><td>" + (cert.electricalLoad&&cert.electricalLoad.bPhase||"") + "</td></tr></table>" +
+      (cert.note ? "<p style='font-size:11px;color:#555'><b>Note:</b> " + cert.note + "</p>" : "") +
+      "<div class='sigs'>" +
+        sig(cert.trialBySignature, "Machine Set &amp; Trial By<br/><b>" + (cert.trialByName||"") + "</b>") +
+        sig(cert.checkBySignature, "Check By Service Engineer<br/><b>" + (cert.checkByName||"") + "</b>") +
+      "</div></body></html>"
+    );
+    w.document.close();
+  };
+
+  const SecHead = ({ title, accent = "#06b6d4" }) => (
+    <div className="flex items-center gap-2 mb-3">
+      <div className="h-px flex-1" style={{ background: accent + "30" }} />
+      <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: accent }}>{title}</div>
+      <div className="h-px flex-1" style={{ background: accent + "30" }} />
+    </div>
+  );
+  const Field = ({ label, value }) => (
+    <div>
+      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-0.5">{label}</div>
+      <div className="text-[12px] text-white">{value || "—"}</div>
+    </div>
+  );
+  const SpdTable = ({ spd }) => (
+    <div className="space-y-1 text-[11px]">
+      <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-400">
+        <div>Main FRQ: <span className="text-white">{spd.mainFrq||"—"}</span></div>
+        <div>REV FRQ: <span className="text-white">{spd.revFrq||"—"}</span></div>
+        <div>JOG FRQ: <span className="text-white">{spd.jogFrq||"—"}</span></div>
+        <div>Thickness: <span className="text-white">{spd.thickness||"—"}</span></div>
+      </div>
+      <table className="w-full text-[10px]" style={{ borderCollapse: "collapse" }}>
+        <thead><tr>
+          {["","ON TM","ON DLY"].map((h) => (
+            <th key={h} className="text-left py-0.5 px-1 text-slate-500 font-bold">{h}</th>
+          ))}
+        </tr></thead>
+        <tbody>
+          {[["cutter","CUTTER"],["cyl2","CYL-2"],["cyl3","CYL-3"]].map(([p,l]) => (
+            <tr key={p} style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+              <td className="py-0.5 px-1 text-slate-400 font-bold">{l}</td>
+              <td className="py-0.5 px-1 text-white">{(spd[p]&&spd[p].onTm)||"—"}</td>
+              <td className="py-0.5 px-1 text-white">{(spd[p]&&spd[p].onDly)||"—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-3"
+         style={{ background: "rgba(4,6,12,0.95)", backdropFilter: "blur(12px)" }}
+         onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="w-full rounded-2xl overflow-hidden flex flex-col"
+           style={{ maxWidth: 900, maxHeight: "96vh", background: "var(--surface-elevated)",
+                    border: "1px solid rgba(6,182,212,0.3)", boxShadow: "0 40px 80px rgba(0,0,0,0.95)" }}>
+
+        <div className="px-6 py-4 border-b border-white/[0.08] flex-shrink-0 flex items-center justify-between"
+             style={{ background: "linear-gradient(90deg,rgba(6,182,212,0.12),rgba(6,182,212,0.04))" }}>
+          <div>
+            <div className="text-sm font-black text-white">Trial Certificate</div>
+            <div className="text-[11px] text-slate-400 mt-0.5">
+              {machine.bomKey}{machine.serialNo ? " · S/N " + machine.serialNo : ""} · {cert.trialDate||""}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={handlePrint}
+                    className="text-[11px] font-black text-white px-4 py-1.5 rounded-lg transition-all"
+                    style={{ background: "linear-gradient(135deg,#0891b2,#0e7490)", boxShadow: "0 0 10px rgba(8,145,178,0.3)" }}>
+              🖨 Print / PDF
+            </button>
+            <button onClick={onClose} className="text-slate-500 hover:text-white text-xl leading-none transition-colors">✕</button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <SecHead title="Machine Details" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Field label="BOM Key"    value={machine.bomKey} />
+              <Field label="Serial No"  value={machine.serialNo} />
+              <Field label="BOM Label"  value={machine.bomLabel} />
+              <Field label="Trial Date" value={cert.trialDate} />
+            </div>
+          </div>
+
+          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <SecHead title="Khakhra Mode" accent="#8b5cf6" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {["speed1","speed2","speed3"].map((spd, i) => (
+                <div key={spd} className="rounded-lg p-3" style={{ background: "rgba(139,92,246,0.07)", border: "1px solid rgba(139,92,246,0.18)" }}>
+                  <div className="text-[10px] font-black text-violet-400 uppercase tracking-wide mb-2">Speed {i+1}</div>
+                  <SpdTable spd={cert.khakhraMode[spd]} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <SecHead title="Bhakhri Mode" accent="#f97316" />
+            <div className="max-w-sm"><SpdTable spd={cert.bakhriMode} /></div>
+          </div>
+
+          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <SecHead title="Check Points" accent="#22c55e" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              {TRIAL_CHECKPOINTS.map((cp, i) => {
+                let val = cert.checkPoints[cp.key];
+                if (cp.type === "cb") val = val ? "✓ OK" : "✗";
+                else if (cp.type === "range") val = (cert.checkPoints.thicknessWeightFrom||"") + " — " + (cert.checkPoints.thicknessWeightTo||"");
+                const isOk = cp.type !== "cb" || !!cert.checkPoints[cp.key];
+                return (
+                  <div key={cp.key} className="flex items-center gap-2 py-1 px-2 rounded" style={{ background: "rgba(255,255,255,0.02)" }}>
+                    <span className="text-[12px] font-bold flex-shrink-0" style={{ color: isOk ? "#22c55e" : "#ef4444" }}>
+                      {cp.type === "cb" ? (isOk ? "✓" : "✗") : "•"}
+                    </span>
+                    <span className="text-[11px] text-slate-300">{i+1}. {cp.label}</span>
+                    <span className="ml-auto text-[11px] text-white font-bold">
+                      {cp.type !== "cb" ? (val||"—") : ""}{cp.unit && cp.type !== "cb" ? " "+cp.unit : ""}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <SecHead title="Electrical Load" accent="#eab308" />
+            <div className="grid grid-cols-3 gap-3 max-w-xs">
+              <Field label="R Phase (AMP)" value={cert.electricalLoad&&cert.electricalLoad.rPhase} />
+              <Field label="Y Phase (AMP)" value={cert.electricalLoad&&cert.electricalLoad.yPhase} />
+              <Field label="B Phase (AMP)" value={cert.electricalLoad&&cert.electricalLoad.bPhase} />
+            </div>
+          </div>
+
+          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <SecHead title="Sign-off" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {[{n:cert.trialByName,s:cert.trialBySignature,l:"Machine Set & Trial By"},
+                {n:cert.checkByName, s:cert.checkBySignature,l:"Check By Service Engineer"}].map((sg, si) => (
+                <div key={si} className="space-y-2">
+                  <div className="text-[11px] font-black text-slate-300">{sg.l}</div>
+                  <div className="text-[12px] text-white">{sg.n||"—"}</div>
+                  {sg.s
+                    ? <div className="rounded-lg p-2 inline-flex" style={{ background: "#fff" }}>
+                        <img src={sg.s} alt="sig" style={{ height: 50 }} />
+                      </div>
+                    : <div className="text-[11px] text-slate-500 italic">No signature</div>
+                  }
+                </div>
+              ))}
+            </div>
+            {cert.note && (
+              <div className="mt-3 pt-3 border-t border-white/[0.06]">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Note</div>
+                <div className="text-[12px] text-slate-300 italic">"{cert.note}"</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo = () => true, bomDefs = {}, onStartProduction, onRemoveRackMachine, onUpdateBOM,
   // Phase A props (optional — the page keeps working if any are missing)
   handovers = [], settings = {}, onFinishTransfer, onAcceptHandover, onRegisterSignature, currentUser = null,
@@ -11559,6 +12144,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     return () => clearInterval(id);
   }, []);
   const [finishModal, setFinishModal] = useState(null); // { machine, toDepartment, narration }
+  // Migration 032 — Trial Certificate modal state.
+  const [trialCertModal,     setTrialCertModal]     = useState(null); // { machine }
+  const [trialCertViewModal, setTrialCertViewModal] = useState(null); // machine object
   // Migration 028 — During-Work checklist runtime modal.
   const [duringWorkModal, setDuringWorkModal] = useState(null); // { machine, template, answers, busy, error }
   const [acceptModal, setAcceptModal] = useState(null); // { handover, password, needSig, sigSvg, busy, error }
@@ -11578,6 +12166,11 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       return;
     }
     const fromDepartment = machine.currentDepartment || machine.stage;
+    // Migration 032 — Trial → Ready uses the full Trial Certificate form instead of the normal finish modal.
+    if (fromDepartment === "Trial" && toDepartment === "Ready") {
+      setTrialCertModal({ machine });
+      return;
+    }
     // Migration 028 — BOM-scoped checklist lookup, with legacy dept-only
     // fallback for machines whose BOM hasn't configured its own before_dispatch
     // slot yet. See src/utils/checklistLogic.js:pickTemplate for the cascade.
@@ -11614,6 +12207,41 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     }
     setDuringWorkModal(null);
     showToast("During-Work checks saved", `${machine.bomKey}${machine.serialNo ? ` · S/N ${machine.serialNo}` : ""} · ${machine.currentDepartment || machine.stage}`);
+  };
+
+  // Migration 032 — Trial Certificate submit handler. Called by TrialCertificateModal.
+  const submitTrialCertificate = async ({ cert, narration, actualDurationMinutes, expectedDurationMinutes }) => {
+    if (!trialCertModal || transferBusy) return;
+    const { machine } = trialCertModal;
+    setTransferBusy(true);
+    try {
+      const res = await onFinishTransfer({
+        machineId: machine.id,
+        fromDepartment: "Trial",
+        toDepartment: "Ready",
+        expectedDurationMinutes,
+        actualDurationMinutes,
+        overrunNarration: narration || null,
+        checklistTemplate: null,
+        checklistAnswers: [],
+        workedBy: [],
+        workedBySnapshot: null,
+        mainEmployeeId: null,
+        mainEmployeeSignatureSvg: null,
+        trialCertificate: cert,
+      });
+      if (res && res.success === false) {
+        showToast("Transfer failed", res.error || "Unknown error");
+        return;
+      }
+      setTrialCertModal(null);
+      showToast(
+        `${machine.bomKey} → Ready`,
+        "Trial Certificate saved. Awaiting Ready acceptance."
+      );
+    } finally {
+      setTransferBusy(false);
+    }
   };
 
   const submitFinishTransfer = async () => {
@@ -12344,6 +12972,15 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           </span>
                         );
                       })()}
+                      {/* Migration 032 — Certificate view button for Trial-completed machines */}
+                      {isComplete && machine.trialCertificate && (
+                        <button onClick={() => setTrialCertViewModal(machine)}
+                                className="text-[10px] font-bold text-white px-2 py-1.5 rounded-lg border transition-all"
+                                style={{ background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.35)", color: "#67e8f9" }}
+                                title="View Trial Certificate">
+                          📋 Certificate
+                        </button>
+                      )}
                       <button onClick={() => setExpanded(isExpanded ? null : machine.id)}
                               className="text-[10px] font-bold text-slate-500 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-white/[0.07] hover:border-white/20 transition-all">
                         {isExpanded ? "Hide" : "History"}
@@ -13085,6 +13722,24 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           </div>
         );
       })()}
+
+      {/* ── Migration 032 — Trial Certificate input + view modals ── */}
+      {trialCertModal && (
+        <TrialCertificateModal
+          machine={trialCertModal.machine}
+          nowTick={nowTick}
+          workflow={workflow}
+          busy={transferBusy}
+          onClose={() => !transferBusy && setTrialCertModal(null)}
+          onSubmit={submitTrialCertificate}
+        />
+      )}
+      {trialCertViewModal && (
+        <TrialCertificatePrintModal
+          machine={trialCertViewModal}
+          onClose={() => setTrialCertViewModal(null)}
+        />
+      )}
 
       {/* ── Phase A — Accept modal (password re-auth + signature) ── */}
       {acceptModal && (() => {
@@ -17143,6 +17798,8 @@ export default function App() {
     // Feature 3/4 — pre-built snapshot from submitFinishTransfer that includes
     // both auth users and emp-member display names. If absent, compute from allUsers.
     workedBySnapshot: workedBySnapshotArg = null,
+    // Migration 032 — Trial Certificate JSON payload (optional; only for Trial→Ready).
+    trialCertificate = null,
   }) => {
     if (!currentUser?.id) return { success: false, error: "Not authenticated" };
     const machine = machineLog.find((m) => m.id === machineId);
@@ -17203,14 +17860,18 @@ export default function App() {
     const historyNote = `Finished ${fromDepartment} → ${toDepartment} (awaiting accept)`;
     setMachineLog((prev) => prev.map((m) =>
       m.id === machineId
-        ? { ...m, pendingHandoverId: res.handover.id, history: [...(m.history || []), { stage: m.stage, date: dateStr, note: historyNote }] }
+        ? { ...m, pendingHandoverId: res.handover.id,
+            history: [...(m.history || []), { stage: m.stage, date: dateStr, note: historyNote }],
+            ...(trialCertificate ? { trialCertificate } : {}) }
         : m
     ));
     if (isSupabaseEnabled()) {
-      machineUpdate(machineId, {
+      const machUpd = {
         pendingHandoverId: res.handover.id,
         history: [...(machine.history || []), { stage: machine.stage, date: dateStr, note: historyNote }],
-      }).then((r) => { if (!r.success) console.warn("[App] handleFinishTransfer: machine update failed", r.error); });
+      };
+      if (trialCertificate) machUpd.trialCertificate = trialCertificate;
+      machineUpdate(machineId, machUpd).then((r) => { if (!r.success) console.warn("[App] handleFinishTransfer: machine update failed", r.error); });
     }
 
     // Refresh handovers list locally — realtime will catch up but immediate

@@ -363,6 +363,15 @@ const USER_FACING_STRINGS = [
   // Machine Tracker Settings page (2026-10-27)
   "Machine Tracker Settings",
   "machines_settings",
+  // Migration 032 — Trial Certificate (2026-10-27)
+  "Machine Trial Certificate",
+  "Khakhra Mode",
+  "Bhakhri Mode",
+  "Check Points",
+  "Trial By",
+  "Check By Service Engineer",
+  "Electrical Load",
+  "trialCertificate",
 ];
 
 for (const s of USER_FACING_STRINGS) {

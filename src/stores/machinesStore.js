@@ -25,6 +25,10 @@ function toRow(m) {
   // Migration 027 — per-machine department duration overrides. Captured once
   // at BOM Outward. Stripped-on-retry if the schema hasn't been migrated yet.
   if (m.deptDurations         !== undefined) base.dept_durations        = m.deptDurations        || null;
+  // Migration 032 — Trial Certificate JSON payload. Saved when the Trial
+  // department submits Finish & Transfer → Ready. Stripped-on-retry for
+  // pre-032 schemas (isMissingColumnError path in updateMachine).
+  if (m.trialCertificate      !== undefined) base.trial_certificate     = m.trialCertificate     || null;
   return base;
 }
 function fromRow(r) {
@@ -47,6 +51,8 @@ function fromRow(r) {
     // Migration 027 — per-machine duration overrides. NULL for legacy rows;
     // the Department Workflow falls back to settings.department_workflow.
     deptDurations:       (r.dept_durations && typeof r.dept_durations === "object") ? r.dept_durations : null,
+    // Migration 032 — Trial Certificate payload. NULL for pre-032 rows.
+    trialCertificate:    (r.trial_certificate && typeof r.trial_certificate === "object") ? r.trial_certificate : null,
   };
 }
 
@@ -88,12 +94,13 @@ export async function createMachine(m) {
   const fullRow = toRow(m);
   let { data, error } = await c.from("machine_log").insert(fullRow).select().single();
   if (error && isMissingColumnError(error)) {
-    console.warn("[machines:create] optional columns missing (migrations 021 / 027) — retrying stripped");
+    console.warn("[machines:create] optional columns missing (migrations 021 / 027 / 032) — retrying stripped");
     const slim = { ...fullRow };
     delete slim.current_department;
     delete slim.department_entered_at;
     delete slim.pending_handover_id;
     delete slim.dept_durations;
+    delete slim.trial_certificate;
     ({ data, error } = await c.from("machine_log").insert(slim).select().single());
   }
   if (error) { console.error("[machines:create] failed", error); return { success: false, error: error.message }; }
@@ -127,13 +134,16 @@ export async function updateMachine(id, updates) {
   if (updates.currentDepartment     !== undefined) row.current_department    = updates.currentDepartment    || null;
   if (updates.departmentEnteredAt   !== undefined) row.department_entered_at = updates.departmentEnteredAt  || null;
   if (updates.pendingHandoverId     !== undefined) row.pending_handover_id   = updates.pendingHandoverId;    // may be null to clear
+  // Migration 032 — Trial Certificate payload (optional; strip on retry if schema not yet applied).
+  if (updates.trialCertificate      !== undefined) row.trial_certificate     = updates.trialCertificate     || null;
 
   let { error } = await c.from("machine_log").update(row).eq("id", id);
   if (error && isMissingColumnError(error)) {
-    console.warn("[machines:update] migration 021 columns missing — retrying without current_department/department_entered_at/pending_handover_id");
+    console.warn("[machines:update] migration columns missing — retrying without 021/032 columns");
     delete row.current_department;
     delete row.department_entered_at;
     delete row.pending_handover_id;
+    delete row.trial_certificate;
     ({ error } = await c.from("machine_log").update(row).eq("id", id));
   }
   if (error) { console.error("[machines:update] failed", error); return { success: false, error: error.message }; }
