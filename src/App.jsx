@@ -65,7 +65,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-26-light-glassmorphism";
+const APP_BUILD = "2026-10-27-premium-dark";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -403,32 +403,32 @@ const buildInitialHistory = (trend) => {
 };
 
 const statusConfig = {
-  critical: { label: "CRITICAL", bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/30", dot: "bg-red-500" },
-  warning:  { label: "WARNING",  bg: "bg-orange-500/10", text: "text-orange-400", border: "border-orange-500/30", dot: "bg-orange-500" },
-  safe:     { label: "SAFE",     bg: "bg-green-500/10", text: "text-green-400", border: "border-green-500/30", dot: "bg-green-500" },
-  approved: { label: "APPROVED", bg: "bg-green-500/10", text: "text-green-400", border: "border-green-500/30" },
-  pending:  { label: "PENDING",  bg: "bg-orange-500/10", text: "text-orange-400", border: "border-orange-500/30" },
-  review:   { label: "IN REVIEW",bg: "bg-blue-500/10", text: "text-blue-400", border: "border-blue-500/30" },
-  overdue:  { label: "OVERDUE",  bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/30" },
-  preferred:{ label: "PREFERRED",bg: "bg-green-500/10", text: "text-green-400", border: "border-green-500/30" },
-  active:   { label: "ACTIVE",   bg: "bg-blue-500/10", text: "text-blue-400", border: "border-blue-500/30" },
-  poor:     { label: "POOR",     bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/30" },
-  draft:    { label: "DRAFT",    bg: "bg-white/[0.04]", text: "text-slate-400", border: "border-white/[0.1]" },
-  ordered:  { label: "ORDERED",  bg: "bg-purple-500/10", text: "text-purple-400", border: "border-purple-500/30" },
-  received: { label: "RECEIVED", bg: "bg-green-500/10", text: "text-green-400", border: "border-green-500/30" },
-  rejected: { label: "REJECTED", bg: "bg-red-500/10",   text: "text-red-400",   border: "border-red-500/30" },
-  "fu-pending":  { label: "PENDING",   bg: "bg-orange-500/10",  text: "text-orange-400",  border: "border-orange-500/30" },
-  "fu-due":      { label: "DUE TODAY", bg: "bg-yellow-500/10",  text: "text-yellow-300",  border: "border-yellow-500/30" },
-  "fu-overdue":  { label: "OVERDUE",   bg: "bg-red-500/10",     text: "text-red-400",     border: "border-red-500/30"    },
-  "fu-done":     { label: "DONE",      bg: "bg-green-500/10",   text: "text-green-400",   border: "border-green-500/30"  },
+  critical: { label: "CRITICAL",  bg: "", text: "", border: "", dot: "#F87171",   style: { background: "rgba(248,113,113,0.10)", color: "#F87171",  border: "1px solid rgba(248,113,113,0.28)" } },
+  warning:  { label: "WARNING",   bg: "", text: "", border: "", dot: "#FCD34D",   style: { background: "rgba(252,211,77,0.09)",  color: "#FCD34D",  border: "1px solid rgba(252,211,77,0.28)" } },
+  safe:     { label: "SAFE",      bg: "", text: "", border: "", dot: "#4ADE80",   style: { background: "rgba(74,222,128,0.09)",  color: "#4ADE80",  border: "1px solid rgba(74,222,128,0.26)" } },
+  approved: { label: "APPROVED",  bg: "", text: "", border: "",                   style: { background: "rgba(74,222,128,0.09)",  color: "#4ADE80",  border: "1px solid rgba(74,222,128,0.26)" } },
+  pending:  { label: "PENDING",   bg: "", text: "", border: "",                   style: { background: "rgba(252,211,77,0.09)",  color: "#FCD34D",  border: "1px solid rgba(252,211,77,0.26)" } },
+  review:   { label: "IN REVIEW", bg: "", text: "", border: "",                   style: { background: "rgba(96,165,250,0.09)",  color: "#60A5FA",  border: "1px solid rgba(96,165,250,0.26)" } },
+  overdue:  { label: "OVERDUE",   bg: "", text: "", border: "",                   style: { background: "rgba(248,113,113,0.10)", color: "#F87171",  border: "1px solid rgba(248,113,113,0.28)" } },
+  preferred:{ label: "PREFERRED", bg: "", text: "text-emerald-400", border: "",  style: { background: "rgba(52,211,153,0.09)",  color: "#34D399",  border: "1px solid rgba(52,211,153,0.26)" } },
+  active:   { label: "ACTIVE",    bg: "", text: "", border: "",                   style: { background: "rgba(96,165,250,0.09)",  color: "#60A5FA",  border: "1px solid rgba(96,165,250,0.26)" } },
+  poor:     { label: "POOR",      bg: "", text: "", border: "",                   style: { background: "rgba(248,113,113,0.10)", color: "#F87171",  border: "1px solid rgba(248,113,113,0.28)" } },
+  draft:    { label: "DRAFT",     bg: "", text: "", border: "",                   style: { background: "rgba(255,255,255,0.05)", color: "#94a3b8",  border: "1px solid rgba(255,255,255,0.10)" } },
+  ordered:  { label: "ORDERED",   bg: "", text: "", border: "",                   style: { background: "rgba(192,132,252,0.09)", color: "#C084FC",  border: "1px solid rgba(192,132,252,0.26)" } },
+  received: { label: "RECEIVED",  bg: "", text: "", border: "",                   style: { background: "rgba(74,222,128,0.09)",  color: "#4ADE80",  border: "1px solid rgba(74,222,128,0.26)" } },
+  rejected: { label: "REJECTED",  bg: "", text: "", border: "",                   style: { background: "rgba(248,113,113,0.10)", color: "#F87171",  border: "1px solid rgba(248,113,113,0.28)" } },
+  "fu-pending":  { label: "PENDING",   bg: "", text: "", border: "", style: { background: "rgba(252,211,77,0.09)",  color: "#FCD34D", border: "1px solid rgba(252,211,77,0.26)" } },
+  "fu-due":      { label: "DUE TODAY", bg: "", text: "", border: "", style: { background: "rgba(252,211,77,0.12)",  color: "#FBBF24", border: "1px solid rgba(252,211,77,0.32)" } },
+  "fu-overdue":  { label: "OVERDUE",   bg: "", text: "", border: "", style: { background: "rgba(248,113,113,0.10)", color: "#F87171", border: "1px solid rgba(248,113,113,0.28)" } },
+  "fu-done":     { label: "DONE",      bg: "", text: "", border: "", style: { background: "rgba(74,222,128,0.09)",  color: "#4ADE80", border: "1px solid rgba(74,222,128,0.26)" } },
 };
 
 const StatusBadge = ({ status }) => {
   const cfg = statusConfig[status] || statusConfig.safe;
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide border ${cfg.bg} ${cfg.text} ${cfg.border}`}
-          style={{ letterSpacing: "0.04em" }}>
-      {cfg.dot && <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cfg.dot}`} />}
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+          style={{ letterSpacing: "0.05em", ...cfg.style }}>
+      {cfg.dot && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: cfg.dot }} />}
       {cfg.label}
     </span>
   );
@@ -449,7 +449,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-xl p-3 text-xs"
-         style={{ background: "rgba(12,16,24,0.96)", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 12px 36px rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}>
+         style={{ background: "rgba(12,16,24,0.96)", border: "1px solid var(--border-rim)", boxShadow: "0 12px 36px rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}>
       <p className="text-slate-400 mb-1.5 font-semibold text-[10px] uppercase tracking-wide">{label}</p>
       {payload.map((p, i) => (
         <p key={i} style={{ color: p.color }} className="font-bold text-[11px] flex items-center gap-1.5">
@@ -492,13 +492,13 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
   return (
     <aside
       className={`${collapsed ? "w-16" : "w-60"} flex flex-col flex-shrink-0 transition-all duration-300 overflow-hidden relative`}
-      style={{ background: "linear-gradient(180deg, #0a0d15 0%, #080b11 100%)", borderRight: "1px solid rgba(26,31,46,0.05)" }}
+      style={{ background: "var(--surface-nav)", borderRight: "1px solid rgba(255,255,255,0.05)" }}
     >
-      <div className="absolute right-0 top-24 bottom-24 w-px pointer-events-none"
-           style={{ background: "linear-gradient(180deg, transparent, rgba(232,85,61,0.18), transparent)" }} />
+      <div className="absolute right-0 top-28 bottom-28 w-px pointer-events-none"
+           style={{ background: "linear-gradient(180deg, transparent, rgba(232,85,61,0.20), transparent)" }} />
 
       {/* ── Logo + Search/Notif ── */}
-      <div className="px-3 py-4 border-b border-white/[0.05] flex-shrink-0">
+      <div className="px-3 pt-4 pb-3 flex-shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
         {!collapsed ? (
           <>
             {(() => {
@@ -508,16 +508,16 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
               const line2  = spaceI > 0 ? name.slice(spaceI + 1).toUpperCase() : "";
               const initial = name[0]?.toUpperCase() || "S";
               return (
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-white text-[13px] font-black overflow-hidden"
-                       style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 14px rgba(232,85,61,0.4)" }}>
+                <div className="flex items-center gap-2.5 mb-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-white text-[12px] font-black overflow-hidden"
+                       style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 12px rgba(232,85,61,0.38)" }}>
                     {settings.logo ? <img src={settings.logo} alt="logo" className="w-full h-full object-contain" /> : initial}
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[13px] font-bold text-white leading-none tracking-wider truncate">{line1}</div>
+                    <div className="text-[12px] font-bold leading-none tracking-widest truncate" style={{ color: "rgba(255,255,255,0.92)" }}>{line1}</div>
                     {line2 && (
-                      <div className="text-[10px] font-semibold leading-none tracking-wider mt-1.5 truncate"
-                           style={{ background: "linear-gradient(90deg,#F18A75,#CC4A33)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                      <div className="text-[9px] font-semibold leading-none tracking-widest mt-1.5 truncate"
+                           style={{ background: "linear-gradient(90deg,#F18A75,#E8553D)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
                         {line2}
                       </div>
                     )}
@@ -527,18 +527,18 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
             })()}
             <div className="flex items-center gap-1.5">
               <button onClick={onSearchOpen}
-                className="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] text-slate-500 hover:text-slate-300 transition-all"
-                style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.07)" }}>
-                <span>🔍</span><span className="flex-1">Search</span>
-                <kbd className="text-[9px] text-slate-700 px-1 rounded" style={{ background: "rgba(26,31,46,0.05)" }}>⌘K</kbd>
+                className="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] transition-all"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.35)" }}>
+                <span className="text-xs">🔍</span><span className="flex-1" style={{ color: "rgba(255,255,255,0.28)" }}>Search</span>
+                <kbd className="text-[9px] px-1 rounded" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.08)" }}>⌘K</kbd>
               </button>
               <button onClick={onNotifsOpen}
-                className="relative w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-300 transition-all flex-shrink-0"
-                style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.07)" }}>
+                className="relative w-8 h-8 rounded-lg flex items-center justify-center transition-all flex-shrink-0"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.35)" }}>
                 🔔
                 {notifCount > 0 && (
                   <span className="absolute -top-1 -right-1 text-[9px] font-black text-white rounded-full flex items-center justify-center"
-                        style={{ background: "#ef4444", minWidth: 16, height: 16, padding: "0 3px", boxShadow: "0 2px 6px rgba(239,68,68,0.6)" }}>
+                        style={{ background: "#ef4444", minWidth: 16, height: 16, padding: "0 3px", boxShadow: "0 2px 8px rgba(239,68,68,0.5)" }}>
                     {notifCount > 9 ? "9+" : notifCount}
                   </span>
                 )}
@@ -547,12 +547,12 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
           </>
         ) : (
           <div className="flex flex-col items-center gap-2">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-[13px] font-black overflow-hidden"
-                 style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 14px rgba(232,85,61,0.4)" }}>
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-[12px] font-black overflow-hidden"
+                 style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 12px rgba(232,85,61,0.38)" }}>
               {settings.logo ? <img src={settings.logo} alt="logo" className="w-full h-full object-contain" /> : (settings.companyName?.[0]?.toUpperCase() || "S")}
             </div>
-            <button onClick={onNotifsOpen} className="relative w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-white transition-all"
-                    style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.07)" }}>
+            <button onClick={onNotifsOpen} className="relative w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.35)" }}>
               🔔
               {notifCount > 0 && (
                 <span className="absolute -top-1 -right-1 text-[9px] font-black text-white rounded-full flex items-center justify-center"
@@ -561,32 +561,41 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
                 </span>
               )}
             </button>
-            <button onClick={onSearchOpen} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-white transition-all"
-                    style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.07)" }}>🔍</button>
+            <button onClick={onSearchOpen} className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.35)" }}>🔍</button>
           </div>
         )}
       </div>
 
       {/* ── Nav (filtered by role) ── */}
-      <nav className="flex-1 py-3 overflow-y-auto px-2 space-y-0.5">
+      <nav className="flex-1 py-2 overflow-y-auto px-2 space-y-0.5">
         {visible.map((item) => {
           const isActive = activePage === item.id;
           return (
             <div key={item.id}>
               {item.section && !collapsed && (
-                <div className="px-2 pt-5 pb-1.5 text-[9px] font-semibold text-slate-700 tracking-[0.08em]">{item.section}</div>
+                <div className="px-2 pt-5 pb-1 text-[9px] font-bold tracking-[0.12em] uppercase"
+                     style={{ color: "rgba(255,255,255,0.22)" }}>{item.section}</div>
               )}
               <button onClick={() => setActivePage(item.id)}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl transition-all duration-200 relative group ${isActive ? "text-white" : "text-slate-500 hover:text-slate-300"}`}
-                style={isActive ? { background: "linear-gradient(90deg,rgba(232,85,61,0.15),rgba(232,85,61,0.04))", boxShadow: "inset 0 0 0 1px rgba(232,85,61,0.22)" } : {}}>
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-all duration-150 relative group`}
+                style={isActive
+                  ? { background: "linear-gradient(90deg,rgba(232,85,61,0.16),rgba(232,85,61,0.06))", boxShadow: "inset 0 0 0 1px rgba(232,85,61,0.24)", color: "#F18A75" }
+                  : { color: "rgba(255,255,255,0.42)" }
+                }
+                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = ""; }}>
                 {isActive && <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full" style={{ background: "linear-gradient(180deg,#F18A75,#CC4A33)" }} />}
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0 transition-all duration-200 ${!isActive ? "group-hover:bg-white/[0.06]" : ""}`}
-                     style={isActive ? { background: "rgba(232,85,61,0.22)", border: "1px solid rgba(204,74,51,0.35)" } : {}}>
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
+                     style={isActive ? { background: "rgba(232,85,61,0.20)", border: "1px solid rgba(204,74,51,0.30)" } : {}}>
                   {item.icon}
                 </div>
                 {!collapsed && (
                   <>
-                    <span className="flex-1 text-left text-[13px] font-medium">{item.label}</span>
+                    <span className="flex-1 text-left text-[12.5px] font-medium tracking-[-0.01em]"
+                          style={{ color: isActive ? "#F0EEE8" : "rgba(255,255,255,0.55)" }}>
+                      {item.label}
+                    </span>
                     {(() => { const b = badges[item.id] ?? item.badge; return b > 0 ? (
                       <span className="text-[9px] font-black text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight"
                             style={{
@@ -603,10 +612,13 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
       </nav>
 
       {/* ── User Profile Menu ── */}
-      <div className="px-3 pb-3 pt-2 relative" style={{ borderTop: "1px solid rgba(26,31,46,0.05)" }}>
+      <div className="px-3 pb-3 pt-2 relative" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <UserProfileMenu collapsed={collapsed} />
         <button onClick={() => setCollapsed(!collapsed)}
-          className="mt-1 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-slate-700 hover:text-slate-400 hover:bg-white/[0.05] transition-all text-[9px] font-black tracking-[0.06em] uppercase">
+          className="mt-1 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg transition-all text-[9px] font-bold tracking-[0.08em] uppercase"
+          style={{ color: "rgba(255,255,255,0.22)" }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = "rgba(255,255,255,0.45)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = ""; e.currentTarget.style.color = "rgba(255,255,255,0.22)"; }}>
           {collapsed ? "▶" : <><span>◀</span><span>Collapse</span></>}
         </button>
       </div>
@@ -625,15 +637,15 @@ function Topbar({ title, subtitle, children }) {
   const timeStr = time.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
   return (
-    <div className="border-b border-white/[0.06] px-6 py-4 flex items-center gap-4 flex-shrink-0"
-         style={{ background: "linear-gradient(90deg,rgba(8,10,16,0.98),rgba(9,12,19,0.98))", backdropFilter: "blur(8px)" }}>
+    <div className="flex-shrink-0 flex items-center gap-4 px-6 py-3.5"
+         style={{ background: "var(--surface-card)", borderBottom: "1px solid var(--border-subtle)" }}>
       <div className="flex-1 min-w-0">
-        <h1 className="text-[15px] font-semibold text-white tracking-tight leading-none">{title}</h1>
-        {subtitle && <p className="text-[12px] text-slate-500 mt-1 leading-none font-normal">{subtitle}</p>}
+        <h1 className="text-[14px] font-semibold tracking-tight leading-none" style={{ color: "var(--text-strong)" }}>{title}</h1>
+        {subtitle && <p className="text-[11px] mt-1 leading-none font-normal" style={{ color: "var(--text-dim)" }}>{subtitle}</p>}
       </div>
-      <div className="text-[10px] font-mono text-slate-600 bg-white/[0.03] border border-white/[0.05] rounded-lg px-3 py-1.5 tabular-nums hidden md:flex items-center gap-1.5 flex-shrink-0"
-           style={{ fontFamily: "'Inter',system-ui,sans-serif" }}>
-        <span className="text-slate-700">🕐</span> {timeStr}
+      <div className="text-[11px] tabular-nums hidden md:flex items-center gap-1.5 flex-shrink-0 px-3 py-1.5 rounded-lg"
+           style={{ fontFamily: "'Inter',system-ui,sans-serif", color: "var(--text-dim)", background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
+        {timeStr}
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">{children}</div>
     </div>
@@ -646,17 +658,28 @@ const Btn = ({ variant = "ghost", size = "sm", onClick, children, className = ""
   const base = "inline-flex items-center gap-1.5 font-medium rounded-lg cursor-pointer border transition-all duration-150 active:scale-[0.96] select-none whitespace-nowrap";
   const sizes = { xs: "text-[11px] px-2.5 py-1 leading-none", sm: "text-[12px] px-3 py-1.5", md: "text-[13px] px-4 py-2" };
   const variants = {
-    primary: "bg-blue-600 text-white border-blue-500/70 hover:bg-blue-500 hover:border-blue-400 hover:shadow-[0_0_18px_rgba(232,85,61,0.45)]",
-    ghost:   "bg-white/[0.04] text-slate-400 border-white/[0.09] hover:text-white hover:bg-white/[0.08] hover:border-white/[0.18]",
-    green:   "bg-green-500/10 text-green-400 border-green-500/30 hover:bg-green-500/[0.18] hover:border-green-500/50 hover:shadow-[0_0_12px_rgba(34,197,94,0.2)]",
-    red:     "bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/[0.18] hover:border-red-500/50",
-    wa:      "bg-[#22c55e] text-white border-[#16a34a] hover:bg-[#16a34a] hover:shadow-[0_0_14px_rgba(34,197,94,0.4)]",
-    mail:    "bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/[0.18] hover:border-blue-500/50",
-    orange:  "bg-orange-500/10 text-orange-400 border-orange-500/30 hover:bg-orange-500/[0.18] hover:border-orange-500/50",
-    purple:  "bg-purple-500/10 text-purple-400 border-purple-500/30 hover:bg-purple-500/[0.18] hover:border-purple-500/50",
+    primary: "text-white border-transparent",
+    ghost:   "text-slate-400 border-white/[0.10] hover:text-white hover:bg-white/[0.07] hover:border-white/[0.18]",
+    green:   "bg-green-500/[0.10] text-green-400 border-green-500/[0.25] hover:bg-green-500/[0.18] hover:border-green-500/50",
+    red:     "bg-red-500/[0.10] text-red-400 border-red-500/[0.25] hover:bg-red-500/[0.18] hover:border-red-500/50",
+    wa:      "bg-[#22c55e] text-white border-[#16a34a] hover:bg-[#16a34a]",
+    mail:    "bg-blue-500/[0.10] text-blue-400 border-blue-500/[0.25] hover:bg-blue-500/[0.18] hover:border-blue-500/50",
+    orange:  "bg-orange-500/[0.10] text-orange-400 border-orange-500/[0.25] hover:bg-orange-500/[0.18] hover:border-orange-500/50",
+    purple:  "bg-purple-500/[0.10] text-purple-400 border-purple-500/[0.25] hover:bg-purple-500/[0.18] hover:border-purple-500/50",
   };
+  const primaryStyle = variant === "primary" ? {
+    background: disabled ? "rgba(232,85,61,0.35)" : "linear-gradient(135deg,#E8553D,#CC4A33)",
+    boxShadow: disabled ? "none" : "0 2px 12px rgba(232,85,61,0.32)",
+  } : {};
+  const ghostStyle = variant === "ghost" ? { background: "rgba(255,255,255,0.04)" } : {};
   // eslint-disable-next-line jsx-a11y/no-autofocus
-  return <button type={type} onClick={onClick} autoFocus={autoFocus} title={title} disabled={disabled} className={`${base} ${sizes[size]} ${variants[variant]} ${className} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}>{children}</button>;
+  return (
+    <button type={type} onClick={onClick} autoFocus={autoFocus} title={title} disabled={disabled}
+      className={`${base} ${sizes[size]} ${variants[variant]} ${className} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+      style={{ ...primaryStyle, ...ghostStyle }}>
+      {children}
+    </button>
+  );
 };
 
 // ─── METRIC CARD ─────────────────────────────────────────────────────────────
@@ -665,41 +688,45 @@ function MetricCard({ label, value, delta, deltaUp, icon, barPct, barColor, valu
   const color = barColor || "#E8553D";
   return (
     <div
-      className="bg-[#F4EFE5] border border-white/[0.07] rounded-2xl p-5 relative overflow-hidden card-hover"
-      style={{ animation: `slideUp 0.45s cubic-bezier(0.22,1,0.36,1) ${delay}ms both` }}
+      className="rounded-2xl p-5 relative overflow-hidden card-hover"
+      style={{
+        background: "var(--surface-card)",
+        border: "1px solid var(--border-subtle)",
+        boxShadow: "var(--shadow-sm), var(--shadow-inset)",
+        animation: `slideUp 0.45s cubic-bezier(0.22,1,0.36,1) ${delay}ms both`,
+      }}
     >
       {/* Top accent line */}
-      <div className="absolute top-0 left-4 right-4 h-px pointer-events-none"
-           style={{ background: `linear-gradient(90deg, transparent, ${color}90, transparent)` }} />
-      {/* Corner glow */}
-      <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full pointer-events-none"
-           style={{ background: color, filter: "blur(28px)", opacity: 0.08 }} />
+      <div className="absolute top-0 left-5 right-5 h-px pointer-events-none"
+           style={{ background: `linear-gradient(90deg, transparent, ${color}70, transparent)` }} />
+      {/* Corner ambient */}
+      <div className="absolute -top-10 -right-10 w-28 h-28 rounded-full pointer-events-none"
+           style={{ background: color, filter: "blur(36px)", opacity: 0.07 }} />
       {/* Icon */}
       {icon && (
-        <div className="absolute top-4 right-4 w-9 h-9 rounded-xl flex items-center justify-center text-base"
-             style={{ background: color + "15", border: `1px solid ${color}25` }}>
+        <div className="absolute top-4 right-4 w-8 h-8 rounded-xl flex items-center justify-center text-sm"
+             style={{ background: color + "12", border: `1px solid ${color}20` }}>
           {icon}
         </div>
       )}
-      <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.12em] mb-2.5">{label}</div>
-      <div className={`text-[26px] font-bold leading-none mb-1.5 tabular-nums ${valueColor || "text-white"}`}
-           style={{ fontFamily: "'Inter','SF Pro Text',system-ui,sans-serif", fontVariantNumeric: "tabular-nums" }}>
+      <div className="text-[9.5px] font-semibold uppercase tracking-[0.12em] mb-2.5" style={{ color: "var(--text-muted)" }}>{label}</div>
+      <div className={`text-[25px] font-bold leading-none mb-1.5 tabular-nums`}
+           style={{ fontFamily: "'Inter','SF Pro Text',system-ui,sans-serif", fontVariantNumeric: "tabular-nums", color: valueColor || "var(--text-strong)" }}>
         {value}
       </div>
       {delta && (
         <div className={`text-[10px] font-bold flex items-center gap-1 mt-1 ${
-          deltaUp !== undefined ? (deltaUp ? "text-emerald-400" : "text-red-400") : "text-slate-500"
-        }`}>
+          deltaUp !== undefined ? (deltaUp ? "text-emerald-400" : "text-red-400") : ""
+        }`} style={deltaUp === undefined ? { color: "var(--text-muted)" } : {}}>
           {deltaUp !== undefined && (deltaUp ? "▲ " : "▼ ")}{delta}
         </div>
       )}
       {barPct !== undefined && (
-        <div className="mt-4 h-1 bg-white/[0.05] rounded-full overflow-hidden">
+        <div className="mt-4 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
           <div className="h-full rounded-full transition-all duration-700"
                style={{
                  width: `${Math.min(barPct, 100)}%`,
-                 background: `linear-gradient(90deg, ${color}60, ${color})`,
-                 boxShadow: `0 0 6px ${color}45`,
+                 background: `linear-gradient(90deg, ${color}55, ${color})`,
                }} />
         </div>
       )}
@@ -712,8 +739,9 @@ function MetricCard({ label, value, delta, deltaUp, icon, barPct, barColor, valu
 function SectionHeader({ children, tag }) {
   return (
     <div className="flex items-center gap-2.5 mb-4">
-      <h2 className="text-[13px] font-semibold text-white tracking-tight">{children}</h2>
-      {tag && <span className="text-[10px] font-medium text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full tracking-wide">{tag}</span>}
+      <h2 className="text-[13px] font-semibold tracking-tight" style={{ color: "var(--text-strong)" }}>{children}</h2>
+      {tag && <span className="text-[10px] font-medium px-2 py-0.5 rounded-full tracking-wide"
+                     style={{ background: "rgba(96,165,250,0.10)", color: "#60a5fa", border: "1px solid rgba(96,165,250,0.22)" }}>{tag}</span>}
     </div>
   );
 }
@@ -801,9 +829,9 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
               onMouseEnter={(e) => { e.currentTarget.style.background = kpi.color + "18"; e.currentTarget.style.borderColor = kpi.color + "44"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = kpi.color + "0d"; e.currentTarget.style.borderColor = kpi.alert ? kpi.color + "44" : kpi.color + "22"; }}>
               <div className="text-lg mb-1.5">{kpi.icon}</div>
-              <div className="text-2xl font-black" style={{ color: kpi.alert ? kpi.color : "#f0f6ff" }}>{kpi.value}</div>
-              <div className="text-[10px] font-bold text-white mt-0.5 leading-tight">{kpi.label}</div>
-              <div className="text-[9px] text-slate-600 mt-0.5 truncate">{kpi.sub}</div>
+              <div className="text-2xl font-black" style={{ color: kpi.alert ? kpi.color : "var(--text-strong)" }}>{kpi.value}</div>
+              <div className="text-[10px] font-bold mt-0.5 leading-tight" style={{ color: "var(--text-muted)" }}>{kpi.label}</div>
+              <div className="text-[9px] mt-0.5 truncate" style={{ color: "var(--text-dim)" }}>{kpi.sub}</div>
             </button>
           ))}
         </div>
@@ -812,7 +840,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
           {/* 1. Critical Stock Requiring Immediate Purchase */}
-          <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-[12px] font-semibold text-white">🔴 Critical Stock — Order Now</span>
@@ -860,7 +888,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
           </div>
 
           {/* 2. Pending PO Approvals */}
-          <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-[12px] font-semibold text-white">📋 Pending PO Approvals</span>
@@ -904,7 +932,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
           </div>
 
           {/* 3. Pending Materials Blocking Production */}
-          <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-[12px] font-semibold text-white">⏳ Materials Blocking Production</span>
@@ -951,7 +979,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
           </div>
 
           {/* 4. Machines Ready for Next Stage */}
-          <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-[12px] font-semibold text-white">⚙️ Machines — Next Stage</span>
@@ -1000,7 +1028,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
         </div>
 
         {/* ── Recent Stock Movements (live ledger feed) ── */}
-        <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-5">
+        <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-semibold text-white">🔄 Recent Stock Movements</span>
@@ -1018,7 +1046,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                 const meta = MOVEMENT_META[m.movementType] || { label: m.movementType, sign: "±", color: "#8b5cf6" };
                 const isIn = m.qty > 0;
                 return (
-                  <div key={m.id} className="flex items-center gap-3 px-3 py-2 rounded-lg" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.05)" }}>
+                  <div key={m.id} className="flex items-center gap-3 px-3 py-2 rounded-lg" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.05)" }}>
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: meta.color }} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -1088,9 +1116,9 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-xs flex flex-col rounded-2xl overflow-hidden"
            style={{
-             background: "linear-gradient(180deg,#FFFFFF,#090c14)",
+             background: "var(--surface-elevated)",
              border: `1px solid ${accentBorder}`,
-             boxShadow: `0 32px 80px rgba(0,0,0,0.92), 0 0 60px ${accentGlow}, 0 0 0 1px rgba(26,31,46,0.04)`,
+             boxShadow: `0 32px 80px rgba(0,0,0,0.80), 0 0 40px ${accentGlow}`,
              animation: "slideUp 0.2s ease both",
            }}>
 
@@ -1115,7 +1143,7 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
 
           {/* Current stock chip */}
           <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl"
-               style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.06)" }}>
+               style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <span className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em]">Current Stock</span>
             <span className={`text-sm font-black ${statusConfig[item.status].text}`}
                   style={{ fontFamily: "'Inter','SF Pro Text',system-ui,sans-serif", fontVariantNumeric: "tabular-nums" }}>
@@ -1255,7 +1283,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
 
           {/* Stock level card */}
-          <div className="p-4 rounded-xl" style={{ background: "rgba(26,31,46,0.04)", border: `1px solid ${glowColor}` }}>
+          <div className="p-4 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${glowColor}` }}>
             <div className="flex items-end justify-between mb-3">
               <div>
                 <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-1">Current Stock</div>
@@ -1414,7 +1442,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-white/[0.06]"
-                      style={{ background: "rgba(26,31,46,0.04)" }}>
+                      style={{ background: "rgba(255,255,255,0.03)" }}>
                     {["Date","Event","Change","Qty"].map(h => (
                       <th key={h} className="text-left text-[10px] font-medium text-slate-500 uppercase tracking-wider px-3 py-2">{h}</th>
                     ))}
@@ -1519,7 +1547,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                     ["Machines Used In",  Object.keys(byMachine).length || "—","#22c55e"],
                   ].map(([lbl, val, col]) => (
                     <div key={lbl} className="px-3.5 py-3 rounded-xl"
-                         style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.06)" }}>
+                         style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                       <div className="text-[9px] font-black uppercase tracking-[0.06em] mb-1" style={{ color: "#475569" }}>{lbl}</div>
                       <div className="text-xs font-black tabular-nums" style={{ color: col }}>{val}</div>
                     </div>
@@ -1527,7 +1555,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                 </div>
 
                 {/* Monthly trend bar chart */}
-                <div className="px-3.5 py-3 rounded-xl" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.06)" }}>
+                <div className="px-3.5 py-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                   <div className="text-[9px] font-black uppercase tracking-[0.06em] text-slate-600 mb-2.5">Monthly Consumption Trend</div>
                   <div className="flex items-end gap-1.5" style={{ height: 52 }}>
                     {months.map((m) => (
@@ -1548,7 +1576,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
 
                 {/* Consumption by BOM */}
                 {Object.keys(byBOM).length > 0 && (
-                  <div className="px-3.5 py-3 rounded-xl" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.06)" }}>
+                  <div className="px-3.5 py-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                     <div className="text-[9px] font-black uppercase tracking-[0.06em] text-slate-600 mb-2">By BOM</div>
                     <div className="space-y-2">
                       {Object.entries(byBOM).map(([bom, qty]) => {
@@ -1575,7 +1603,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
 
                 {/* Consumption by Machine S/N */}
                 {Object.keys(byMachine).length > 0 && (
-                  <div className="px-3.5 py-3 rounded-xl" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.06)" }}>
+                  <div className="px-3.5 py-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                     <div className="text-[9px] font-black uppercase tracking-[0.06em] text-slate-600 mb-2">By Machine Serial No.</div>
                     <div className="space-y-1.5">
                       {Object.entries(byMachine).map(([sn, qty]) => {
@@ -1604,7 +1632,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                   <div className="rounded-xl overflow-hidden border border-white/[0.06]">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-white/[0.06]" style={{ background: "rgba(26,31,46,0.04)" }}>
+                        <tr className="border-b border-white/[0.06]" style={{ background: "rgba(255,255,255,0.03)" }}>
                           {["Date","BOM / Source","Serial No","Qty Used"].map((h) => (
                             <th key={h} className="text-left text-[9px] font-medium text-slate-500 uppercase tracking-wider px-2.5 py-1.5">{h}</th>
                           ))}
@@ -1745,7 +1773,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                             style={{
                               color:       mvFilter === key ? "#E8553D" : "#64748b",
                               background:  mvFilter === key ? "rgba(232,85,61,0.12)" : "transparent",
-                              borderColor: mvFilter === key ? "rgba(232,85,61,0.35)" : "rgba(26,31,46,0.08)",
+                              borderColor: mvFilter === key ? "rgba(232,85,61,0.35)" : "rgba(255,255,255,0.08)",
                             }}>
                       {label}
                     </button>
@@ -1792,7 +1820,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                   <div className="rounded-xl overflow-hidden border border-white/[0.06]">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-white/[0.06]" style={{ background: "rgba(26,31,46,0.04)" }}>
+                        <tr className="border-b border-white/[0.06]" style={{ background: "rgba(255,255,255,0.03)" }}>
                           {["Date", "Type", "Reference", "In", "Out", "Balance"].map((h) => (
                             <th key={h} className="text-left text-[9px] font-medium text-slate-500 uppercase tracking-wider px-2.5 py-2">{h}</th>
                           ))}
@@ -2045,7 +2073,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
 
   const roleColor = (r) => r === "Preferred" ? "#fbbf24" : r === "Approved" ? "#34d399" : "#94a3b8";
   const roleIcon  = (r) => r === "Preferred" ? "⭐" : r === "Approved" ? "✅" : "🔘";
-  const selectStyle = { background: "#FFFFFF", color: "#1A1F2E" };
+  const selectStyle = { background: "var(--surface-input)", color: "var(--text)" };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -2221,7 +2249,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
               <div
                 className="min-h-[44px] w-full bg-white/[0.04] border rounded-xl px-3 py-2 flex flex-wrap gap-1.5 items-center cursor-text transition-all"
                 style={{
-                  borderColor: dropOpen ? "rgba(232,85,61,0.55)" : "rgba(26,31,46,0.08)",
+                  borderColor: dropOpen ? "rgba(232,85,61,0.55)" : "var(--border-rim)",
                   boxShadow:   dropOpen ? "0 0 0 2px rgba(232,85,61,0.12)" : "none",
                 }}
                 onClick={() => { setDropOpen(true); setTimeout(() => vendorSearchRef.current?.focus(), 0); }}
@@ -2266,7 +2294,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
               {/* Dropdown */}
               {dropOpen && (
                 <div className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl overflow-hidden overflow-y-auto"
-                     style={{ background: "#FFFFFF", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 20px 50px rgba(0,0,0,0.8)", maxHeight: 224 }}>
+                     style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 20px 50px rgba(0,0,0,0.8)", maxHeight: 224 }}>
                   {vendorList.length === 0 ? (
                     <div className="px-4 py-5 text-center">
                       <div className="text-[11px] text-slate-500 mb-1">No vendors in Vendor Master yet.</div>
@@ -2391,9 +2419,9 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
             <div className="grid grid-cols-2 gap-3">
               {/* Photo */}
               <div className="flex items-center gap-3 p-3 rounded-xl"
-                   style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.06)" }}>
+                   style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                 <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
-                     style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
+                     style={{ background: "rgba(26,31,46,0.05)", border: "1px solid var(--border-rim)" }}>
                   {photo ? <img src={photo} alt="" className="w-full h-full object-cover" /> : <span className="text-xl">📷</span>}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -2412,9 +2440,9 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
               </div>
               {/* Design / Drawing */}
               <div className="flex items-center gap-3 p-3 rounded-xl"
-                   style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.06)" }}>
+                   style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                 <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
-                     style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
+                     style={{ background: "rgba(26,31,46,0.05)", border: "1px solid var(--border-rim)" }}>
                   {designFile
                     ? (/\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(designFile) || designFile.startsWith("data:image/")
                         ? <img src={designFile} alt="" className="w-full h-full object-cover" />
@@ -2595,7 +2623,7 @@ function ItemImportModal({ items, onImport, onClose }) {
                onDragOver={(e) => e.preventDefault()}
                onClick={() => fileRef.current?.click()}
                className="rounded-xl border-2 border-dashed cursor-pointer flex flex-col items-center justify-center py-10 transition-all"
-               style={{ borderColor: "rgba(26,31,46,0.1)" }}
+               style={{ borderColor: "var(--border-rim)" }}
                onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(232,85,61,0.4)"}
                onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(26,31,46,0.1)"}>
             <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
@@ -2627,7 +2655,7 @@ function ItemImportModal({ items, onImport, onClose }) {
                 <div className="overflow-x-auto max-h-[40vh]">
                   <table className="w-full">
                     <thead>
-                      <tr style={{ background: "rgba(26,31,46,0.04)" }}>
+                      <tr style={{ background: "rgba(255,255,255,0.03)" }}>
                         {["Status","Item Name","HSN Code"].map((h) => (
                           <th key={h} className="text-left text-[10px] font-semibold text-slate-500 px-3 py-2 whitespace-nowrap">{h}</th>
                         ))}
@@ -2978,7 +3006,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={e => e.target === e.currentTarget && setDeleteModal(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-               style={{ background: "#FFFFFF", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)", animation: "slideUp 0.25s ease both" }}>
+               style={{ background: "var(--surface-elevated)", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)", animation: "slideUp 0.25s ease both" }}>
 
             {/* Header */}
             <div className="px-5 py-4 border-b border-white/[0.08]" style={{ background: "rgba(239,68,68,0.06)" }}>
@@ -3025,7 +3053,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
 
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#FFFFFF,#F0EADC)", border: `1px solid ${toast.status === "critical" ? "rgba(239,68,68,0.45)" : toast.status === "warning" ? "rgba(249,115,22,0.45)" : "rgba(34,197,94,0.45)"}`, boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "var(--surface-raised)", border: `1px solid ${toast.status === "critical" ? "rgba(239,68,68,0.45)" : toast.status === "warning" ? "rgba(249,115,22,0.45)" : "rgba(34,197,94,0.45)"}`, boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">{toast.status === "critical" ? "🔴" : toast.status === "warning" ? "🟠" : "✅"}</span>
           <div>
             <div className="text-xs font-black text-white">{toast.name} added</div>
@@ -3101,7 +3129,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                     {alerts.slice(0, 10).map(chipFor)}
                     {alerts.length > 10 && (
                       <span className="text-[10px] font-bold text-slate-400 px-2 py-0.5 rounded-lg flex-shrink-0"
-                            style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
+                            style={{ background: "rgba(26,31,46,0.05)", border: "1px solid var(--border-rim)" }}>
                         +{alerts.length - 10} more
                       </span>
                     )}
@@ -3163,11 +3191,11 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
         </div>
 
         {/* Master table */}
-        <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl overflow-hidden">
+        <div className="bg-[#111622] border border-white/[0.07] rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-white/[0.07]" style={{ background: "rgba(26,31,46,0.04)" }}>
+                <tr className="border-b border-white/[0.07]" style={{ background: "rgba(255,255,255,0.03)" }}>
                   {cols.map(({ col, label }) => (
                     <th key={label}
                         onClick={col ? () => toggleSort(col) : undefined}
@@ -3490,7 +3518,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
   };
 
   const inpCls = `bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
-  const selStyle = { background: "#FFFFFF", color: "#1A1F2E" };
+  const selStyle = { background: "var(--surface-input)", color: "var(--text)" };
   const PLabel = ({ text, req }) => (
     <div className="text-[11px] font-medium tracking-tight mb-1.5" style={{ color: "#F7A992" }}>
       {text}{req && <span className="text-red-400 ml-0.5">*</span>}
@@ -3747,7 +3775,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                     return (
                       <button key={it.code} onClick={() => addLowStockItem(it)}
                               className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-all"
-                              style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.07)" }}>
+                              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.07)" }}>
                         <span className="text-[10px]" style={{ color: it.status === "critical" ? "#f87171" : "#fbbf24" }}>{it.status === "critical" ? "🔴" : "🟠"}</span>
                         <span className="text-[11px] font-bold text-white truncate flex-1">{it.name}</span>
                         <span className="text-[9px] font-mono text-slate-600 flex-shrink-0">{it.code}</span>
@@ -3824,7 +3852,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
               <div className="rounded-xl overflow-hidden border border-white/[0.06]">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-white/[0.06]" style={{ background: "rgba(26,31,46,0.04)" }}>
+                    <tr className="border-b border-white/[0.06]" style={{ background: "rgba(255,255,255,0.03)" }}>
                       {["Item","Qty","Rate ₹","Amount ₹","📎 Design",""].map((h) => (
                         <th key={h} className="text-left text-[10px] font-medium text-slate-500 uppercase tracking-wider px-3 py-2">{h}</th>
                       ))}
@@ -3885,7 +3913,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
           </div>
 
           {form.lineItems.length > 0 && (
-            <div className="p-4 rounded-xl space-y-2" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.07)" }}>
+            <div className="p-4 rounded-xl space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.07)" }}>
               <div className="flex justify-between text-[11px]">
                 <span className="text-slate-400">Subtotal</span>
                 <span className="font-mono font-bold text-white">₹{subtotal.toLocaleString("en-IN")}</span>
@@ -4009,7 +4037,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
               { label: "Total",    value: `₹${po.amount.toLocaleString("en-IN")}`, mono: true },
               { label: "Items",    value: `${po.lineItems?.length || 0} line item${po.lineItems?.length !== 1 ? "s" : ""}` },
             ].map(({ label, value, mono }) => (
-              <div key={label} className="px-3.5 py-3 rounded-xl" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.06)" }}>
+              <div key={label} className="px-3.5 py-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                 <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.06em] mb-1">{label}</div>
                 <div className={`text-xs font-semibold text-[#f0f6ff] ${mono ? "font-mono" : ""}`}>{value}</div>
               </div>
@@ -4017,7 +4045,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
           </div>
 
           {po.notes && (
-            <div className="px-3.5 py-3 rounded-xl" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.06)" }}>
+            <div className="px-3.5 py-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
               <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.06em] mb-1">Notes</div>
               <div className="text-xs text-slate-400">{po.notes}</div>
             </div>
@@ -4029,7 +4057,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
               <div className="rounded-xl overflow-hidden border border-white/[0.06]">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-white/[0.06]" style={{ background: "rgba(26,31,46,0.04)" }}>
+                    <tr className="border-b border-white/[0.06]" style={{ background: "rgba(255,255,255,0.03)" }}>
                       {["Item","Qty","Rate","Amount"].map((h) => (
                         <th key={h} className="text-left text-[10px] font-medium text-slate-500 uppercase tracking-wider px-3 py-2">{h}</th>
                       ))}
@@ -4151,7 +4179,7 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
     <div className="flex-1 overflow-y-auto">
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#FFFFFF,#F0EADC)", border: "1px solid rgba(232,85,61,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "var(--surface-raised)", border: "1px solid rgba(232,85,61,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">🧾</span>
           <div>
             <div className="text-xs font-black text-white">{toast.msg}</div>
@@ -4214,7 +4242,7 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
                       barPct={pos.length ? Math.round((overdueN / pos.length) * 100) : 0} barColor="#ef4444" />
         </div>
 
-        <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl overflow-hidden">
+        <div className="bg-[#111622] border border-white/[0.07] rounded-xl overflow-hidden">
           <div className="p-4 border-b border-white/[0.07] flex flex-wrap items-center gap-3">
             <div className="text-sm font-bold text-white">Purchase Order Register</div>
             <div className="flex gap-1 flex-wrap ml-2">
@@ -4233,7 +4261,7 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-white/[0.07]" style={{ background: "rgba(26,31,46,0.04)" }}>
+                <tr className="border-b border-white/[0.07]" style={{ background: "rgba(255,255,255,0.03)" }}>
                   {["PO No.","Date","Vendor","Items","Amount","Priority","Status","Delivery","Actions"].map((h) => (
                     <th key={h} className="text-left text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] px-4 py-3">{h}</th>
                   ))}
@@ -4401,7 +4429,7 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
                onDragOver={(e) => e.preventDefault()}
                onClick={() => fileRef.current?.click()}
                className="rounded-xl border-2 border-dashed cursor-pointer flex flex-col items-center justify-center py-10 transition-all"
-               style={{ borderColor: "rgba(26,31,46,0.1)" }}
+               style={{ borderColor: "var(--border-rim)" }}
                onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(232,85,61,0.4)"}
                onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(26,31,46,0.1)"}>
             <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
@@ -4433,7 +4461,7 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr style={{ background: "rgba(26,31,46,0.04)" }}>
+                      <tr style={{ background: "rgba(255,255,255,0.03)" }}>
                         {["Status","Vendor Name","Contact Person","Mobile","Email","GST"].map((h) => (
                           <th key={h} className="text-left text-[10px] font-semibold text-slate-500 px-3 py-2 whitespace-nowrap">{h}</th>
                         ))}
@@ -4526,7 +4554,7 @@ function VendorModal({ initialVendor, onSave, onClose }) {
   );
   const inpCls = (err) =>
     `w-full bg-white/[0.04] border ${err ? "border-red-500/60" : "border-white/[0.08]"} rounded-xl px-4 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
-  const selStyle = { background: "#FFFFFF", color: "#1A1F2E" };
+  const selStyle = { background: "var(--surface-input)", color: "var(--text)" };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -4700,7 +4728,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
     <div className="flex-1 overflow-y-auto">
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#FFFFFF,#F0EADC)", border: "1px solid rgba(232,85,61,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "var(--surface-raised)", border: "1px solid rgba(232,85,61,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">🏭</span>
           <div className="text-xs font-black text-white">{toast}</div>
           <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-300 text-xs">✕</button>
@@ -4746,7 +4774,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
                style={{ background: "rgba(4,6,12,0.88)", backdropFilter: "blur(14px)" }}
                onClick={(e) => e.target === e.currentTarget && setConfirmDelete(null)}>
-            <div className="w-96 rounded-2xl p-6" style={{ background: "#FFFFFF", border: `1px solid ${use.anyRefs ? "rgba(234,179,8,0.4)" : "rgba(239,68,68,0.35)"}` }}>
+            <div className="w-96 rounded-2xl p-6" style={{ background: "var(--surface-elevated)", border: `1px solid ${use.anyRefs ? "rgba(234,179,8,0.4)" : "rgba(239,68,68,0.35)"}` }}>
               <div className="text-sm font-black text-white mb-2">
                 {use.anyRefs ? "Archive Vendor?" : "Delete Vendor?"}
               </div>
@@ -4828,7 +4856,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
           <div className={`${profileVendor ? "xl:col-span-2" : ""} grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 content-start`}>
             {filtered.map((v) => (
               <div key={v.id}
-                   className={`bg-[#FFFFFF] border rounded-xl p-4 cursor-pointer card-hover ${profileVendor?.id === v.id ? "border-blue-500/40 shadow-[0_0_20px_rgba(232,85,61,0.07)]" : "border-white/[0.07]"}`}
+                   className={`bg-[#111622] border rounded-xl p-4 cursor-pointer card-hover ${profileVendor?.id === v.id ? "border-blue-500/40 shadow-[0_0_20px_rgba(232,85,61,0.07)]" : "border-white/[0.07]"}`}
                    onClick={() => setProfileVendor(profileVendor?.id === v.id ? null : v)}>
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 min-w-0 mr-2">
@@ -4921,7 +4949,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
             const roleColor  = (r) => r === "Preferred" ? "#fbbf24" : r === "Approved" ? "#34d399" : r === "Backup" ? "#94a3b8" : "#64748b";
 
             return (
-              <div className="bg-[#FFFFFF] border border-blue-500/20 rounded-xl p-5 space-y-5 self-start sticky top-4 overflow-y-auto max-h-[calc(100vh-120px)]">
+              <div className="bg-[#111622] border border-blue-500/20 rounded-xl p-5 space-y-5 self-start sticky top-4 overflow-y-auto max-h-[calc(100vh-120px)]">
 
                 {/* Header */}
                 <div className="flex items-start justify-between">
@@ -5054,7 +5082,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-slate-600 outline-none focus:border-blue-500/40" />
                       <select value={vendorPOStatus} onChange={(e) => setVendorPOStatus(e.target.value)}
                               className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-[11px] text-white outline-none"
-                              style={{ background: "#FFFFFF" }}>
+                              style={{ background: "var(--surface-elevated)" }}>
                         <option value="all">All statuses</option>
                         {["draft","pending","approved","ordered","received","overdue","rejected","review"].map((s) => <option key={s} value={s}>{s}</option>)}
                       </select>
@@ -5158,7 +5186,7 @@ function ApprovalsPage({ pos, onUpdatePO }) {
           <MetricCard label="Total POs"          value={pos.length.toString()}           valueColor="text-blue-400" />
         </div>
 
-        <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-5">
+        <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
           <SectionHeader>📋 Pending Approvals</SectionHeader>
           {displayList.length === 0 ? (
             <div className="py-14 text-center">
@@ -5207,7 +5235,7 @@ function ApprovalsPage({ pos, onUpdatePO }) {
           )}
         </div>
 
-        <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-5">
+        <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
           <SectionHeader>⚙️ Approval Rules</SectionHeader>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -5316,7 +5344,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
             <SectionHeader>📊 PO Value by Month (₹K)</SectionHeader>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={monthlyPOTrend.length > 0 ? monthlyPOTrend : monthlyPOData} barSize={28}>
@@ -5329,7 +5357,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
             </ResponsiveContainer>
           </div>
 
-          <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
             <SectionHeader>📈 Inventory Turnover Rate</SectionHeader>
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={turnoverData}>
@@ -5350,7 +5378,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
             <SectionHeader>🥧 Spend by Category</SectionHeader>
             {spendByCat.length > 0 ? (
               <>
@@ -5376,7 +5404,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
             )}
           </div>
 
-          <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
             <SectionHeader>🏭 Vendor-wise PO Count</SectionHeader>
             {vendorPOData.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
@@ -5393,7 +5421,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
             )}
           </div>
 
-          <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
             <SectionHeader>📉 Stock Status</SectionHeader>
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
@@ -5517,7 +5545,7 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
 
       <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chat */}
-        <div className="lg:col-span-2 bg-[#FFFFFF] border border-purple-500/20 rounded-xl overflow-hidden flex flex-col" style={{ height: "600px" }}>
+        <div className="lg:col-span-2 bg-[#111622] border border-purple-500/20 rounded-xl overflow-hidden flex flex-col" style={{ height: "600px" }}>
           <div className="bg-purple-500/10 border-b border-purple-500/20 p-4 flex items-center gap-3">
             <div className="relative">
               <div className="w-8 h-8 rounded-full bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-sm">🤖</div>
@@ -5569,7 +5597,7 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
 
         {/* Sidebar */}
         <div className="space-y-4">
-          <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
             <SectionHeader>🎯 AI Confidence Scores</SectionHeader>
             <div className="space-y-3">
               {aiStats.map((s) => (
@@ -5586,7 +5614,7 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
             </div>
           </div>
 
-          <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
             <SectionHeader>📊 Live Inventory Stats</SectionHeader>
             <div className="space-y-3">
               {[
@@ -5604,7 +5632,7 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
             </div>
           </div>
 
-          <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
             <SectionHeader>⚡ Quick Actions</SectionHeader>
             <div className="space-y-2">
               <Btn variant="primary" size="sm" className="w-full justify-center">📦 Auto-create all POs</Btn>
@@ -5638,7 +5666,7 @@ const Toggle = ({ checked, onChange, label, desc }) => (
     </div>
     <button onClick={() => onChange(!checked)}
             className="relative flex-shrink-0 w-11 h-6 rounded-full transition-all duration-200"
-            style={{ background: checked ? "#E8553D" : "rgba(26,31,46,0.08)", border: `1px solid ${checked ? "rgba(232,85,61,0.6)" : "rgba(26,31,46,0.1)"}` }}>
+            style={{ background: checked ? "#E8553D" : "rgba(255,255,255,0.08)", border: `1px solid ${checked ? "rgba(232,85,61,0.6)" : "rgba(255,255,255,0.15)"}` }}>
       <div className="absolute top-0.5 h-5 w-5 rounded-full transition-all duration-200 shadow"
            style={{ background: "#fff", left: checked ? "calc(100% - 22px)" : "2px" }} />
     </button>
@@ -5646,9 +5674,9 @@ const Toggle = ({ checked, onChange, label, desc }) => (
 );
 
 const Section = ({ icon, title, children }) => (
-  <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-2xl overflow-hidden">
+  <div className="bg-[#111622] border border-white/[0.07] rounded-2xl overflow-hidden">
     <div className="flex items-center gap-3 px-6 py-4 border-b border-white/[0.06]"
-         style={{ background: "rgba(26,31,46,0.04)" }}>
+         style={{ background: "rgba(255,255,255,0.03)" }}>
       <span className="text-base">{icon}</span>
       <span className="text-[14px] font-bold text-white">{title}</span>
     </div>
@@ -5816,7 +5844,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
               <div className="space-y-2">
                 {editing.items.length === 0 && <div className="text-[11px] text-slate-500 italic">Add at least one question to preview.</div>}
                 {editing.items.map((it, i) => (
-                  <div key={i} className="rounded-md px-2 py-2" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.08)" }}>
+                  <div key={i} className="rounded-md px-2 py-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.08)" }}>
                     <label className="flex items-start gap-2">
                       <input type="checkbox" disabled className="mt-0.5" />
                       <span className="text-[12px] text-slate-200 flex-1">{it.label || <em className="text-slate-500">(empty question)</em>}{it.required && <span className="text-red-400 ml-0.5">*</span>}</span>
@@ -5887,7 +5915,7 @@ function DeptEmployeesRow({ dept, assigned, notAssigned, canConfig, onSaveUserDe
   };
 
   return (
-    <div className="rounded-lg p-3" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.08)" }}>
+    <div className="rounded-lg p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.08)" }}>
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="text-[12px] font-black text-white">{dept}</span>
         <span className="text-[10px] text-slate-500">· {assigned.length} assigned</span>
@@ -5914,7 +5942,7 @@ function DeptEmployeesRow({ dept, assigned, notAssigned, canConfig, onSaveUserDe
         <div className="flex items-center gap-2 flex-wrap">
           <select value={pickValue} onChange={(e) => setPickValue(e.target.value)} disabled={busy || notAssigned.length === 0}
                   className="flex-1 min-w-[180px] bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-blue-500/40 disabled:opacity-50"
-                  style={{ background: "#FFFFFF", color: "#1A1F2E" }}>
+                  style={{ background: "var(--surface-input)", color: "var(--text)" }}>
             <option value="">
               {notAssigned.length === 0 ? "— All active users already assigned —" : "+ Add worker from existing users…"}
             </option>
@@ -6119,7 +6147,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
           <Section icon="📦" title="Inventory">
             <SLabel text="Currency" hint="Shown throughout the ERP" />
             <select value={settings.currency} onChange={(e) => upd("currency", e.target.value)}
-                    className={inpCls} style={{ background: "#FFFFFF", color: "#1A1F2E" }}>
+                    className={inpCls} style={{ background: "var(--surface-input)", color: "var(--text)" }}>
               {["INR (₹)", "USD ($)", "EUR (€)", "GBP (£)", "AED (د.إ)"].map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
@@ -6191,7 +6219,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                 <div>
                   <SLabel text="Per-department work time limits" hint="Admin-customizable duration for each department. If a department exceeds its limit, the operator must enter an explanation on Finish & Transfer." />
                   <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(26,31,46,0.08)" }}>
-                    <div className="grid grid-cols-5 gap-2 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-500" style={{ background: "rgba(26,31,46,0.04)" }}>
+                    <div className="grid grid-cols-5 gap-2 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-500" style={{ background: "rgba(255,255,255,0.03)" }}>
                       <div>Department</div>
                       <div>Days</div>
                       <div>Hours</div>
@@ -6348,7 +6376,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
           <Section icon="💾" title="Data & Backup">
             <div className="space-y-3">
               <div className="flex items-center justify-between p-4 rounded-xl border border-white/[0.07]"
-                   style={{ background: "rgba(26,31,46,0.04)" }}>
+                   style={{ background: "rgba(255,255,255,0.03)" }}>
                 <div>
                   <div className="text-[13px] font-semibold text-white">Backup Data</div>
                   <div className="text-[11px] text-slate-500 mt-0.5">Download a full JSON backup of all ERP data</div>
@@ -6361,7 +6389,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
               </div>
 
               <div className="flex items-center justify-between p-4 rounded-xl border border-white/[0.07]"
-                   style={{ background: "rgba(26,31,46,0.04)" }}>
+                   style={{ background: "rgba(255,255,255,0.03)" }}>
                 <div>
                   <div className="text-[13px] font-semibold text-white">Export Inventory to Excel</div>
                   <div className="text-[11px] text-slate-500 mt-0.5">Download all inventory items as a CSV file (opens in Excel)</div>
@@ -6461,7 +6489,7 @@ function POSearchCenter({
   return (
     <div className="flex-1 overflow-y-auto p-5 space-y-4">
       {/* Search + filter bar */}
-      <div className="rounded-xl p-4" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.07)" }}>
+      <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.07)" }}>
         <div className="grid grid-cols-1 md:grid-cols-6 gap-2.5">
           <div className="md:col-span-2">
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Search</div>
@@ -6473,7 +6501,7 @@ function POSearchCenter({
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Status</div>
             <select value={searchStatus} onChange={(e) => { setSearchStatus(e.target.value); setPage(0); }}
                     className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none"
-                    style={{ background: "#FFFFFF" }}>
+                    style={{ background: "var(--surface-elevated)" }}>
               <option value="all">All</option>
               {["draft","pending","approved","ordered","received","overdue","rejected","review"].map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -6482,7 +6510,7 @@ function POSearchCenter({
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Purchase Type</div>
             <select value={searchPurchaseType} onChange={(e) => { setSearchPurchaseType(e.target.value); setPage(0); }}
                     className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none"
-                    style={{ background: "#FFFFFF" }}>
+                    style={{ background: "var(--surface-elevated)" }}>
               <option value="all">All</option>
               {PURCHASE_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
             </select>
@@ -6513,11 +6541,11 @@ function POSearchCenter({
       </div>
 
       {/* Results table */}
-      <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl overflow-hidden">
+      <div className="bg-[#111622] border border-white/[0.07] rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-white/[0.07]" style={{ background: "rgba(26,31,46,0.04)" }}>
+              <tr className="border-b border-white/[0.07]" style={{ background: "rgba(255,255,255,0.03)" }}>
                 {["PO Number","Vendor","Date","Purchase Type","Status","Amount","Items"].map((h) => (
                   <th key={h} className="text-left text-[10px] font-semibold text-slate-500 uppercase tracking-[0.06em] px-4 py-3">{h}</th>
                 ))}
@@ -6557,7 +6585,7 @@ function POSearchCenter({
         {/* Pagination */}
         {totalPages > 1 && (
           <div className="px-4 py-3 border-t border-white/[0.06] flex items-center justify-between text-[10px]"
-               style={{ background: "rgba(26,31,46,0.04)" }}>
+               style={{ background: "rgba(255,255,255,0.03)" }}>
             <div className="text-slate-500">
               Page <span className="text-white font-bold">{pageSafe + 1}</span> of <span className="text-white font-bold">{totalPages}</span>
               <span className="text-slate-600"> · showing {(pageSafe * pageSize) + 1}–{Math.min((pageSafe + 1) * pageSize, sorted.length)}</span>
@@ -6794,7 +6822,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
     <div className="flex-1 overflow-hidden flex flex-col">
       {receiveToast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#FFFFFF,#F0EADC)", border: "1px solid rgba(34,197,94,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "var(--surface-raised)", border: "1px solid rgba(34,197,94,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">📦</span>
           <div>
             <div className="text-xs font-black text-white">Received — {receiveToast}</div>
@@ -6880,7 +6908,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                 return (
                   <div key={item.code}
                        className={`${card} ${item.status === "critical" ? "border-red-500/30" : "border-orange-500/20"}`}
-                       style={{ background: "#FFFFFF" }}>
+                       style={{ background: "var(--surface-elevated)" }}>
                     <div className="flex items-start justify-between gap-2 mb-2.5">
                       <div className="flex-1 min-w-0">
                         <div className="text-[11px] font-semibold text-white truncate">{item.name}</div>
@@ -6890,11 +6918,11 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                     </div>
                     {/* Stock details grid */}
                     <div className="grid grid-cols-2 gap-1 mb-2">
-                      <div className="px-2 py-1.5 rounded-lg" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.06)" }}>
+                      <div className="px-2 py-1.5 rounded-lg" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                         <div className="text-[8px] text-slate-600 uppercase tracking-wide mb-0.5">Current</div>
                         <div className={`text-[11px] font-bold ${item.status === "critical" ? "text-red-400" : "text-orange-400"}`}>{item.stock} {item.unit}</div>
                       </div>
-                      <div className="px-2 py-1.5 rounded-lg" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.06)" }}>
+                      <div className="px-2 py-1.5 rounded-lg" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                         <div className="text-[8px] text-slate-600 uppercase tracking-wide mb-0.5">Minimum</div>
                         <div className="text-[11px] font-bold text-slate-400">{item.min} {item.unit}</div>
                       </div>
@@ -6967,7 +6995,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
             <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 pb-2">
               {approvalPOs.length === 0 && <div className="text-center py-10 text-[11px] text-slate-600"><div className="text-3xl mb-2">✅</div>No POs awaiting approval</div>}
               {approvalPOs.map(po => (
-                <div key={po.id} className={`${card} border-orange-500/20`} style={{ background: "#FFFFFF" }}>
+                <div key={po.id} className={`${card} border-orange-500/20`} style={{ background: "var(--surface-elevated)" }}>
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <span className="text-[10px] font-mono font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded">{po.id}</span>
                     <StatusBadge status={po.status} />
@@ -7001,7 +7029,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               {makeOrderPOs.map(po => {
                 const v = vendorList.find(x => x.name === po.vendor);
                 return (
-                  <div key={po.id} className={`${card} border-blue-500/20`} style={{ background: "#FFFFFF" }}>
+                  <div key={po.id} className={`${card} border-blue-500/20`} style={{ background: "var(--surface-elevated)" }}>
                     <div className="flex items-center justify-between gap-2 mb-1.5">
                       <span className="text-[10px] font-mono font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded">{po.id}</span>
                       <StatusBadge status={po.status} />
@@ -7036,7 +7064,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                 const v  = vendorList.find(x => x.name === f.vendor);
                 return (
                   <div key={f.id} className={`${card} ${f.fstat==="fu-overdue"?"border-red-500/30":f.fstat==="fu-due"?"border-yellow-500/30":"border-purple-500/20"}`}
-                       style={{ background: "#FFFFFF" }}>
+                       style={{ background: "var(--surface-elevated)" }}>
                     <div className="flex items-center justify-between gap-2 mb-1.5">
                       <span className="text-[10px] font-mono font-bold text-purple-400 bg-purple-500/10 border border-purple-500/20 px-1.5 py-0.5 rounded">{f.poId}</span>
                       <FuBadge fstat={f.fstat} />
@@ -7098,7 +7126,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                 <div className="text-center py-10 text-[11px] text-slate-600"><div className="text-3xl mb-2">📭</div>No received orders yet</div>
               )}
               {receivedPOs.slice(0, 12).map(po => (
-                <div key={po.id} className={`${card} border-green-500/20`} style={{ background: "#FFFFFF" }}>
+                <div key={po.id} className={`${card} border-green-500/20`} style={{ background: "var(--surface-elevated)" }}>
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <span className="text-[10px] font-mono font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded">{po.id}</span>
                     <StatusBadge status="received" />
@@ -7160,7 +7188,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && cancelVendorWizard()}>
           <div className="w-full max-w-md rounded-2xl p-6 space-y-4"
-               style={{ background: "#FFFFFF", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
+               style={{ background: "var(--surface-elevated)", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base"
                    style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.35)" }}>📦</div>
@@ -7200,7 +7228,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
             <div className="flex gap-2 pt-1">
               <button onClick={cancelVendorWizard}
                       className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-all"
-                      style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>Cancel</button>
+                      style={{ background: "rgba(26,31,46,0.05)", border: "1px solid var(--border-rim)" }}>Cancel</button>
               <button onClick={confirmWizVendor} disabled={!vendorWizVendor}
                       className="flex-1 py-2.5 rounded-xl text-xs font-black text-white transition-all disabled:opacity-50"
                       style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.35)" }}>
@@ -7458,7 +7486,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         <div className="fixed inset-0 z-[55] flex items-center justify-center p-4"
              style={{ background:"rgba(4,6,12,0.92)", backdropFilter:"blur(12px)" }}
              onClick={e => e.target===e.currentTarget && (setReverseModal(null), setReverseReason(""), setReverseErr(""))}>
-          <div className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ background:"#FFFFFF", border:"1px solid rgba(245,158,11,0.4)", boxShadow:"0 40px 80px rgba(0,0,0,0.9)" }}>
+          <div className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ background:"var(--surface-elevated)", border:"1px solid rgba(245,158,11,0.4)", boxShadow:"0 40px 80px rgba(0,0,0,0.9)" }}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background:"rgba(245,158,11,0.15)" }}>↩</div>
               <div>
@@ -7499,7 +7527,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         <div className="fixed inset-0 z-[55] flex items-center justify-center p-4"
              style={{ background:"rgba(4,6,12,0.92)", backdropFilter:"blur(12px)" }}
              onClick={e => e.target===e.currentTarget && (setRejectModal(null),setRejectReason(""),setRejectErr(false))}>
-          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"#FFFFFF", border:"1px solid rgba(239,68,68,0.4)", boxShadow:"0 40px 80px rgba(0,0,0,0.9)", animation:"slideUp 0.25s ease both" }}>
+          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"var(--surface-elevated)", border:"1px solid rgba(239,68,68,0.4)", boxShadow:"0 40px 80px rgba(0,0,0,0.9)", animation:"slideUp 0.25s ease both" }}>
             <div className="text-sm font-black text-white">❌ Reject PO</div>
             <div>
               <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-1.5">Rejection Reason <span className="text-red-400">*</span></div>
@@ -7521,7 +7549,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         <div className="fixed inset-0 z-[55] flex items-center justify-center p-4"
              style={{ background:"rgba(4,6,12,0.92)", backdropFilter:"blur(12px)" }}
              onClick={e=>e.target===e.currentTarget&&(setMoModal(null),setEta(""),setEtaCustom(""))}>
-          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"#FFFFFF", border:"1px solid rgba(232,85,61,0.4)", boxShadow:"0 40px 80px rgba(0,0,0,0.9)", animation:"slideUp 0.25s ease both" }}>
+          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"var(--surface-elevated)", border:"1px solid rgba(232,85,61,0.4)", boxShadow:"0 40px 80px rgba(0,0,0,0.9)", animation:"slideUp 0.25s ease both" }}>
             <div>
               <div className="text-sm font-black text-white">📋 Confirm Order</div>
               <div className="text-[10px] text-slate-500 mt-1">{moModal.id} · {moModal.vendor} · ₹{(moModal.amount||0).toLocaleString("en-IN")}</div>
@@ -7558,7 +7586,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         <div className="fixed inset-0 z-[55] flex items-center justify-center p-4"
              style={{ background:"rgba(4,6,12,0.92)", backdropFilter:"blur(12px)" }}
              onClick={e=>e.target===e.currentTarget&&setFuModal(null)}>
-          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"#FFFFFF", border:"1px solid rgba(167,139,250,0.4)", boxShadow:"0 40px 80px rgba(0,0,0,0.9)", animation:"slideUp 0.25s ease both" }}>
+          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"var(--surface-elevated)", border:"1px solid rgba(167,139,250,0.4)", boxShadow:"0 40px 80px rgba(0,0,0,0.9)", animation:"slideUp 0.25s ease both" }}>
             <div>
               <div className="text-sm font-black text-white">✓ Mark Follow-Up Done</div>
               <div className="text-[10px] text-slate-500 mt-1">{fuModal.poId} · {fuModal.vendor}</div>
@@ -7601,7 +7629,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
                onClick={e => e.target === e.currentTarget && setQtyModal(null)}>
             <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-                 style={{ background: "#FFFFFF", border: "1px solid rgba(99,130,246,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)", animation: "slideUp 0.25s ease both" }}>
+                 style={{ background: "var(--surface-elevated)", border: "1px solid rgba(99,130,246,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)", animation: "slideUp 0.25s ease both" }}>
               {/* Header */}
               <div className="px-5 py-4 border-b border-white/[0.08]" style={{ background: "rgba(99,130,246,0.06)" }}>
                 <div className="text-sm font-black text-white">🛒 Create Purchase Order</div>
@@ -7615,7 +7643,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                   { label: "Shortage",      value: `${shortage} ${item.unit}`,   color: "#f97316" },
                   { label: "Recommended",   value: `${recommendedQty} ${item.unit}`, color: "#E8553D" },
                 ].map(s => (
-                  <div key={s.label} className="px-3 py-2.5 rounded-xl" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.06)" }}>
+                  <div key={s.label} className="px-3 py-2.5 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                     <div className="text-[9px] font-black text-slate-600 uppercase tracking-wider mb-1">{s.label}</div>
                     <div className="text-xs font-bold" style={{ color: s.color }}>{s.value}</div>
                   </div>
@@ -7681,7 +7709,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
 
   const inpCls = (err) =>
     `w-full bg-white/[0.04] border ${err ? "border-red-500/60" : "border-white/[0.08]"} rounded-xl px-4 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
-  const selStyle = { background: "#FFFFFF", color: "#1A1F2E" };
+  const selStyle = { background: "var(--surface-input)", color: "var(--text)" };
 
   const ILabel = ({ text, req }) => (
     <div className="text-[11px] font-medium tracking-tight mb-1.5"
@@ -7722,7 +7750,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
     <div className="flex-1 overflow-y-auto">
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#FFFFFF,#F0EADC)", border: "1px solid rgba(34,197,94,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "var(--surface-raised)", border: "1px solid rgba(34,197,94,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">📥</span>
           <div>
             <div className="text-xs font-black text-white">+{toast.qty} {toast.unit} — {toast.item}</div>
@@ -7738,7 +7766,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
 
       <div className="p-6 space-y-6">
         {/* ── Entry Form ── */}
-        <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-6" style={{ animation: "slideUp 0.4s ease both" }}>
+        <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-6" style={{ animation: "slideUp 0.4s ease both" }}>
           <div className="flex items-center gap-2 mb-5">
             <h2 className="text-sm font-extrabold text-white">📥 New Inward Entry</h2>
             <span className="text-[10px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded-full">GRN</span>
@@ -7796,7 +7824,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
             const newCfg     = statusConfig[newStatus];
             return (
               <div className="mt-4 rounded-xl overflow-hidden"
-                   style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(34,197,94,0.2)" }}>
+                   style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(34,197,94,0.2)" }}>
                 {/* Status header */}
                 <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.06]"
                      style={{ background: "rgba(34,197,94,0.04)" }}>
@@ -7867,7 +7895,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
         {appInwardLog.length > 0 && (() => {
           const combined = [...appInwardLog].sort((a, b) => b.id - a.id);
           return (
-            <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-5" style={{ animation: "slideUp 0.4s ease both" }}>
+            <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5" style={{ animation: "slideUp 0.4s ease both" }}>
               <div className="flex items-center gap-2 mb-4">
                 <SectionHeader>📋 Inward Log</SectionHeader>
                 {combined.filter(e => e.fromPO).length > 0 && (
@@ -8070,7 +8098,7 @@ function BomChecklistSlots({
 
   // ── Render ────────────────────────────────────────────────────────────────
   const DeptRow = ({ dept }) => (
-    <div className="rounded-xl p-3" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.07)" }}>
+    <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.07)" }}>
       <div className="text-[11px] font-black text-white mb-2 uppercase tracking-wider">{dept}</div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         {CHECKLIST_STAGES.map((s) => {
@@ -8110,7 +8138,7 @@ function BomChecklistSlots({
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(10px)" }}
              onClick={(e) => e.target === e.currentTarget && !busy && closeEditor()}>
           <div className="w-full max-w-xl rounded-2xl overflow-hidden flex flex-col"
-               style={{ maxHeight: "90vh", background: "#FFFFFF",
+               style={{ maxHeight: "90vh", background: "var(--surface-elevated)",
                         border: "1px solid rgba(232,85,61,0.5)",
                         boxShadow: "0 40px 100px rgba(0,0,0,0.92)" }}>
             <div className="px-5 py-3 border-b border-white/[0.08] flex items-start justify-between flex-shrink-0"
@@ -8138,7 +8166,7 @@ function BomChecklistSlots({
                 </button>
                 {reuseOpen && reuseCandidates.length > 0 && (
                   <div className="absolute left-0 right-0 top-full mt-1 z-10 rounded-lg overflow-hidden overflow-y-auto"
-                       style={{ background: "#FFFFFF", border: "1px solid rgba(232,85,61,0.35)", maxHeight: 220 }}>
+                       style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.35)", maxHeight: 220 }}>
                     {reuseCandidates.map((t) => (
                       <button key={t.id}
                               onMouseDown={(e) => { e.preventDefault(); applyReuse(t); }}
@@ -8158,7 +8186,7 @@ function BomChecklistSlots({
               {editing.items.map((it, idx) => (
                 <div key={it.id}
                      className="rounded-lg px-3 py-2 flex items-center gap-2"
-                     style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.07)" }}>
+                     style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.07)" }}>
                   <div className="text-[10px] font-mono text-slate-600 w-5 text-right">{idx + 1}.</div>
                   <input value={it.label}
                          onChange={(e) => patchRow(idx, { label: e.target.value })}
@@ -8294,7 +8322,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
   const allFlat  = Object.entries(items).flatMap(([cat, list]) => list.map((i) => ({ ...i, category: cat })));
   const findInv  = (code) => allFlat.find((i) => i.code === code);
-  const selStyle = { background: "#FFFFFF", color: "#1A1F2E" };
+  const selStyle = { background: "var(--surface-input)", color: "var(--text)" };
 
   const sourceItems = editMode ? editItems : bom.items;
 
@@ -8597,7 +8625,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     <div className="fixed inset-0 z-[70] flex flex-col" style={{ background: "#07090e" }}>
 
       {/* ── Header ── */}
-      <div className="flex-shrink-0" style={{ background: "linear-gradient(180deg,#F4EFE5,#090c14)", borderBottom: "1px solid rgba(26,31,46,0.07)" }}>
+      <div className="flex-shrink-0" style={{ background: "var(--surface-card)", borderBottom: "1px solid var(--border-subtle)" }}>
         <div className="flex items-center gap-4 px-6 py-4">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black text-white flex-shrink-0"
                style={{ background: bom.color + "22", border: `1px solid ${bom.color}55` }}>{bomKey}</div>
@@ -8740,13 +8768,13 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                   </div>
                   {criticalItemsInBom.length === 0 ? (
                     <div className="rounded-lg px-3 py-2.5 text-[11px]"
-                         style={{ background: "rgba(26,31,46,0.04)", color: "#94a3b8", border: "1px dashed rgba(26,31,46,0.08)" }}>
+                         style={{ background: "rgba(255,255,255,0.03)", color: "#94a3b8", border: "1px dashed rgba(26,31,46,0.08)" }}>
                       No components in this BOM are flagged <strong>Critical</strong>. To mark one, open <strong>Inventory → Edit Item</strong> and set <em>Critical Item = Yes</em>.
                     </div>
                   ) : (
                     <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(26,31,46,0.08)" }}>
                       <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-500"
-                           style={{ background: "rgba(26,31,46,0.04)" }}>
+                           style={{ background: "rgba(255,255,255,0.03)" }}>
                         <div className="col-span-3">Code</div>
                         <div className="col-span-5">Name</div>
                         <div className="col-span-2 text-right">Qty / Unit</div>
@@ -8841,7 +8869,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
             <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(26,31,46,0.07)" }}>
               <div className="grid gap-0 px-4 py-2 text-[10px] font-medium text-slate-500 uppercase tracking-wide"
-                   style={{ gridTemplateColumns: "1fr 100px 120px 60px", background: "rgba(26,31,46,0.04)" }}>
+                   style={{ gridTemplateColumns: "1fr 100px 120px 60px", background: "rgba(255,255,255,0.03)" }}>
                 <div>Item</div><div className="text-center">Category</div><div className="text-center">Qty / Unit</div><div />
               </div>
               {editItems.map((ei, idx) => {
@@ -8871,7 +8899,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             </div>
 
             {/* Add item */}
-            <div className="rounded-xl p-4" style={{ background: "rgba(26,31,46,0.04)", border: "1px dashed rgba(26,31,46,0.1)" }}>
+            <div className="rounded-xl p-4" style={{ background: "var(--surface-raised)", border: "1px dashed var(--border-rim)" }}>
               <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wide mb-3">+ Add Component</div>
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex-1 min-w-[200px]">
@@ -8919,7 +8947,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             )}
             {!canConfigChecklist && showChecklistPanel && (
               <div className="rounded-xl p-4 text-[11px] text-slate-400"
-                   style={{ background: "rgba(26,31,46,0.04)", border: "1px dashed rgba(26,31,46,0.08)" }}>
+                   style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(26,31,46,0.08)" }}>
                 You don't have permission to view or change checklists. Ask an admin with <code>machines.configDept</code>.
               </div>
             )}
@@ -8958,7 +8986,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
       {/* ── Sticky summary bar ── */}
       {!editMode && (
-        <div className="flex-shrink-0" style={{ background: "linear-gradient(0deg,#F0EADC,#F4EFE5)", borderTop: "1px solid rgba(26,31,46,0.08)" }}>
+        <div className="flex-shrink-0" style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)" }}>
           {/* Migration 026 — critical items get a dedicated BOM-Outward popup
               (rendered below, see "Critical Item Confirmation" modal). The
               inline panel that used to live here was moved out so the
@@ -9055,7 +9083,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && !issuing && setShowCriticalModal(false)}>
           <div className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col"
-               style={{ maxHeight: "92vh", background: "#FFFFFF",
+               style={{ maxHeight: "92vh", background: "var(--surface-elevated)",
                         border: "1px solid rgba(249,115,22,0.5)",
                         boxShadow: "0 40px 100px rgba(0,0,0,0.92), 0 0 60px rgba(249,115,22,0.08)" }}>
             {/* Header */}
@@ -9187,7 +9215,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && !issuing && setShowDestChoice(false)}>
           <div className="w-full max-w-md rounded-2xl overflow-hidden"
-               style={{ background: "#FFFFFF", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+               style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
             <div className="px-6 py-5 border-b border-white/[0.08]"
                  style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.10),rgba(204,74,51,0.05))" }}>
               <div className="text-sm font-black text-white">Where should this build go?</div>
@@ -9247,7 +9275,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && !issuing && setShowDurationModal(false)}>
           <div className="w-full max-w-xl rounded-2xl overflow-hidden flex flex-col"
-               style={{ maxHeight: "92vh", background: "#FFFFFF",
+               style={{ maxHeight: "92vh", background: "var(--surface-elevated)",
                         border: "1px solid rgba(232,85,61,0.5)",
                         boxShadow: "0 40px 100px rgba(0,0,0,0.92), 0 0 60px rgba(232,85,61,0.08)" }}>
             <div className="px-6 py-4 border-b border-white/[0.08] flex items-start justify-between flex-shrink-0"
@@ -9280,7 +9308,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 };
                 return (
                   <div key={dept} className="rounded-xl px-4 py-3 flex items-center gap-3 flex-wrap"
-                       style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.08)" }}>
+                       style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.08)" }}>
                     <div className="min-w-[110px]">
                       <div className="text-[12px] font-bold text-white">{dept}</div>
                       <div className="text-[9px] text-slate-500 uppercase tracking-wider">deadline</div>
@@ -9401,7 +9429,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
   const showToast = (text, sub) => { setToast({ text, sub }); setTimeout(() => setToast(null), 3500); };
 
   const inpCls  = `w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
-  const selStyle = { background: "#FFFFFF", color: "#1A1F2E" };
+  const selStyle = { background: "var(--surface-input)", color: "var(--text)" };
 
   const OLabel = ({ text, req }) => (
     <div className="text-[11px] font-medium tracking-tight mb-1.5"
@@ -9537,8 +9565,8 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
       {/* Serial Number Modal */}
       {serialModal && bomDefs?.[serialModal] && (
         <div className="fixed inset-0 z-[75] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(10px)" }}>
-          <div className="bg-[#F4EFE5] rounded-2xl w-full max-w-md mx-4 overflow-hidden" style={{ border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.85)", animation: "slideUp 0.25s ease both" }}>
-            <div className="px-6 py-5" style={{ borderBottom: "1px solid rgba(26,31,46,0.07)", background: "rgba(26,31,46,0.04)" }}>
+          <div className="bg-[#16203A] rounded-2xl w-full max-w-md mx-4 overflow-hidden" style={{ border: "1px solid var(--border-rim)", boxShadow: "0 32px 80px rgba(0,0,0,0.85)", animation: "slideUp 0.25s ease both" }}>
+            <div className="px-6 py-5" style={{ borderBottom: "1px solid rgba(26,31,46,0.07)", background: "rgba(255,255,255,0.03)" }}>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black text-white flex-shrink-0"
                      style={{ background: bomDefs[serialModal].color + "22", border: `1px solid ${bomDefs[serialModal].color}55` }}>
@@ -9598,7 +9626,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
       {/* 2026-06-02d — BOM action toast (Duplicate / Delete result) */}
       {bomActionToast && (
         <div className="fixed bottom-6 right-6 z-[65] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#FFFFFF,#F0EADC)", border: "1px solid rgba(232,85,61,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "var(--surface-raised)", border: "1px solid rgba(232,85,61,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">📋</span>
           <div>
             <div className="text-xs font-bold text-white">{bomActionToast.text}</div>
@@ -9614,7 +9642,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setConfirmDeleteBOM(null)}>
           <div className="w-full max-w-md rounded-2xl overflow-hidden"
-               style={{ background: "#FFFFFF", border: `1px solid ${confirmDeleteBOM.info.canDelete ? "rgba(239,68,68,0.4)" : "rgba(245,158,11,0.4)"}`, boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+               style={{ background: "var(--surface-elevated)", border: `1px solid ${confirmDeleteBOM.info.canDelete ? "rgba(239,68,68,0.4)" : "rgba(245,158,11,0.4)"}`, boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
             <div className="px-5 py-4 border-b border-white/[0.08]"
                  style={{ background: confirmDeleteBOM.info.canDelete ? "rgba(239,68,68,0.06)" : "rgba(245,158,11,0.06)" }}>
               <div className={`text-sm font-black ${confirmDeleteBOM.info.canDelete ? "text-red-400" : "text-amber-300"}`}>
@@ -9712,7 +9740,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setRemoveRackConfirm(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-               style={{ background: "#FFFFFF", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
+               style={{ background: "var(--surface-elevated)", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
             <div className="px-5 py-4 border-b border-white/[0.08]" style={{ background: "rgba(239,68,68,0.06)" }}>
               <div className="text-sm font-black text-red-400">🗑 Remove Machine From Rack?</div>
               <div className="text-[10px] text-slate-500 mt-0.5">
@@ -9790,8 +9818,8 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
         <div className="fixed inset-0 z-[75] flex items-center justify-center p-4"
              style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(10px)" }}
              onClick={(e) => e.target === e.currentTarget && setShowCreate(false)}>
-          <div className="bg-[#F4EFE5] rounded-2xl w-full max-w-2xl overflow-hidden flex flex-col"
-               style={{ border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.85)", maxHeight: "90vh", animation: "slideUp 0.25s ease both" }}>
+          <div className="bg-[#16203A] rounded-2xl w-full max-w-2xl overflow-hidden flex flex-col"
+               style={{ border: "1px solid var(--border-rim)", boxShadow: "0 32px 80px rgba(0,0,0,0.85)", maxHeight: "90vh", animation: "slideUp 0.25s ease both" }}>
             <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid rgba(26,31,46,0.07)" }}>
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base" style={{ background: "rgba(232,85,61,0.15)" }}>📋</div>
@@ -9825,7 +9853,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                 </div>
               </div>
 
-              <div className="rounded-xl p-4" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.07)" }}>
+              <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.07)" }}>
                 <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wide mb-3">Components ({createItems.length})</div>
                 {createItems.length === 0 ? (
                   <div className="text-[11px] text-slate-600 italic py-3 text-center">No components added yet. Use the row below to add.</div>
@@ -9835,7 +9863,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                       const inv = findItem(ci.code);
                       return (
                         <div key={ci.code} className="grid items-center gap-2 px-3 py-2 rounded-lg"
-                             style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.05)", gridTemplateColumns: "1fr 120px 100px 40px" }}>
+                             style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.05)", gridTemplateColumns: "1fr 120px 100px 40px" }}>
                           <div>
                             <div className="text-[11px] font-semibold text-white">{inv?.name || ci.code}</div>
                             <div className="text-[9px] font-mono text-slate-600">{ci.code}</div>
@@ -9883,7 +9911,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                   once the BOM row exists so each template lands with the real
                   bomKey. Hidden when the user lacks machines.configDept. */}
               {canConfigChecklist && (
-                <div className="rounded-xl p-4" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.07)" }}>
+                <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.07)" }}>
                   <div className="flex items-center justify-between mb-3">
                     <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">
                       Department Checklists (optional) {createChecklists.length ? `· ${createChecklists.length} set` : ""}
@@ -9909,7 +9937,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
             <div className="px-6 py-4 flex gap-2 flex-shrink-0" style={{ borderTop: "1px solid rgba(26,31,46,0.07)", background: "rgba(0,0,0,0.3)" }}>
               <button onClick={() => setShowCreate(false)}
                 className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-all"
-                style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
+                style={{ background: "rgba(26,31,46,0.05)", border: "1px solid var(--border-rim)" }}>
                 Cancel
               </button>
               <button onClick={submitCreateBOM}
@@ -9924,7 +9952,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
 
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#FFFFFF,#F0EADC)", border: "1px solid rgba(249,115,22,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "var(--surface-raised)", border: "1px solid rgba(249,115,22,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">📤</span>
           <div>
             <div className="text-xs font-black text-white">{toast.text}</div>
@@ -9973,7 +10001,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                 // its rounded corners, so removing overflow-hidden has no
                 // visual side effect.
                 <div key={bomKey} onClick={() => canDo("outward","bom") && openBomFlow()}
-                     className={`bg-[#FFFFFF] rounded-xl transition-all duration-200 group relative ${canDo("outward","bom") ? "cursor-pointer hover:bg-[#FAF6EE]" : "opacity-60 cursor-not-allowed"}`}
+                     className={`bg-[#111622] rounded-xl transition-all duration-200 group relative ${canDo("outward","bom") ? "cursor-pointer hover:bg-white/[0.05]" : "opacity-60 cursor-not-allowed"}`}
                      style={{ border: "1px solid rgba(26,31,46,0.07)" }}
                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = bom.color + "55"; e.currentTarget.style.boxShadow = `0 0 24px ${bom.color}12`; }}
                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(26,31,46,0.07)"; e.currentTarget.style.boxShadow = "none"; }}>
@@ -10001,7 +10029,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                         {actionsKey === bomKey && (
                           <div role="menu" onMouseDown={(e) => e.stopPropagation()}
                                className="absolute right-0 top-full mt-1 z-30 w-44 rounded-lg overflow-hidden"
-                               style={{ background: "#FFFFFF", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 24px 60px rgba(0,0,0,0.85)" }}>
+                               style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-rim)", boxShadow: "0 24px 60px rgba(0,0,0,0.85)" }}>
                             <button onClick={() => { setActionsKey(null); if (canDo("outward","bom")) openBomFlow(); }}
                                     className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-300 hover:bg-white/[0.06] hover:text-white transition-all flex items-center gap-2">
                               <span>📤</span>Open BOM (Issue)
@@ -10102,7 +10130,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
         )}
 
         {/* ── Manual Outward ── */}
-        <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-6">
+        <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-6">
           <div className="flex items-center gap-2 mb-5">
             <h2 className="text-sm font-extrabold text-white">✋ Manual Outward</h2>
             <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full">Ad-hoc Issue</span>
@@ -10186,7 +10214,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
 
         {/* ── Outward History ── */}
         {outwardLog && outwardLog.length > 0 && (
-          <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
             <SectionHeader>📋 Outward History</SectionHeader>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -10283,7 +10311,7 @@ function AtoZMachineReport({
   if (!machine) {
     return (
       <div className="rounded-xl p-6 text-[11px] text-slate-400"
-           style={{ background: "rgba(26,31,46,0.04)", border: "1px dashed rgba(26,31,46,0.1)" }}>
+           style={{ background: "var(--surface-raised)", border: "1px dashed var(--border-rim)" }}>
         Pick a machine above to see its full A-to-Z report.
       </div>
     );
@@ -10376,11 +10404,11 @@ function AtoZMachineReport({
   // ── Section 2: BOM components ─────────────────────────────────────────
   const Components = () => (
     <div className="rounded-xl p-4 mb-5"
-         style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.07)" }}>
+         style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.07)" }}>
       <div className="text-[11px] font-black uppercase tracking-wider text-slate-300 mb-3">📋 BOM Components ({(bom.items || []).length})</div>
       <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(26,31,46,0.07)" }}>
         <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500"
-             style={{ background: "rgba(26,31,46,0.04)" }}>
+             style={{ background: "rgba(255,255,255,0.03)" }}>
           <div className="col-span-3">Code</div>
           <div className="col-span-5">Name</div>
           <div className="col-span-2 text-right">Qty / Unit</div>
@@ -10420,14 +10448,14 @@ function AtoZMachineReport({
     const rows = machineOutward.flatMap((entry) => (entry.items || []).map((it) => ({ ...it, _entryDate: entry.date, _entryRef: entry.ref })));
     return (
       <div className="rounded-xl p-4 mb-5"
-           style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.07)" }}>
+           style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.07)" }}>
         <div className="text-[11px] font-black uppercase tracking-wider text-slate-300 mb-3">📤 Materials Issued ({rows.length})</div>
         {rows.length === 0 ? (
           <div className="text-[11px] text-slate-500 italic">No BOM Outward entries linked to this machine.</div>
         ) : (
           <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(26,31,46,0.07)" }}>
             <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500"
-                 style={{ background: "rgba(26,31,46,0.04)" }}>
+                 style={{ background: "rgba(255,255,255,0.03)" }}>
               <div className="col-span-3">Code</div>
               <div className="col-span-4">Name</div>
               <div className="col-span-2 text-right">Issued</div>
@@ -10466,7 +10494,7 @@ function AtoZMachineReport({
   // ── Section 4: Department-by-department timeline ──────────────────────
   const Timeline = () => (
     <div className="rounded-xl p-4 mb-5"
-         style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.07)" }}>
+         style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.07)" }}>
       <div className="text-[11px] font-black uppercase tracking-wider text-slate-300 mb-3">
         🏭 Department Timeline ({machineHandovers.length} handover{machineHandovers.length === 1 ? "" : "s"})
       </div>
@@ -10547,7 +10575,7 @@ function AtoZMachineReport({
                       Main Employee signature · {nameFromSnap(h.mainEmployeeId, h.workedBySnapshot)}
                     </div>
                     <div className="rounded px-2 py-1 inline-block"
-                         style={{ background: "#fff", border: "1px solid rgba(26,31,46,0.1)" }}
+                         style={{ background: "#fff", border: "1px solid var(--border-rim)" }}
                          dangerouslySetInnerHTML={{ __html: h.mainEmployeeSignatureSvg }} />
                   </div>
                 )}
@@ -10633,7 +10661,7 @@ function AtoZMachineReport({
   // ── Section 5: Stage history (fallback / audit) ───────────────────────
   const StageHistory = () => (
     <div className="rounded-xl p-4 mb-5"
-         style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.07)" }}>
+         style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.07)" }}>
       <div className="text-[11px] font-black uppercase tracking-wider text-slate-300 mb-3">
         🧾 Stage History ({(machine.history || []).length})
       </div>
@@ -10663,7 +10691,7 @@ function AtoZMachineReport({
     if (!machineAttach.length) return null;
     return (
       <div className="rounded-xl p-4 mb-5"
-           style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.07)" }}>
+           style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.07)" }}>
         <div className="text-[11px] font-black uppercase tracking-wider text-slate-300 mb-3">📎 Attachments ({machineAttach.length})</div>
         <ul className="text-[11px] text-slate-200 list-disc list-inside space-y-0.5">
           {machineAttach.map((a) => (
@@ -10952,7 +10980,7 @@ function ReportCenterPage({
 
       <div className="p-6 space-y-5 report-area">
         {/* Filters */}
-        <div className="rounded-xl p-4 no-print" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.08)" }}>
+        <div className="rounded-xl p-4 no-print" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.08)" }}>
           <div className="flex items-end gap-3 flex-wrap">
             <div>
               <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">From</div>
@@ -11050,7 +11078,7 @@ function ReportCenterPage({
                 <select value={pickedId}
                         onChange={(e) => setAtozMachineId(e.target.value)}
                         className="flex-1 min-w-[220px] rounded-lg px-3 py-1.5 text-[12px] text-white outline-none focus:border-blue-500/60"
-                        style={{ background: "#FFFFFF", border: "1px solid rgba(26,31,46,0.1)", color: "#1A1F2E" }}>
+                        style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-rim)", color: "var(--text)" }}>
                   {options.length === 0 && <option value="">— no machines match the current filters —</option>}
                   {options.map((m) => (
                     <option key={m.id} value={String(m.id)}>
@@ -11108,7 +11136,7 @@ function ReportKPI({ label, value, color = "#E8553D", suffix = "" }) {
 function ReportTable({ title, rows }) {
   if (!rows || rows.length === 0) {
     return (
-      <div className="rounded-xl py-14 text-center" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.08)" }}>
+      <div className="rounded-xl py-14 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.08)" }}>
         <div className="text-sm font-bold text-slate-400 mb-1">{title}</div>
         <div className="text-[11px] text-slate-600">No records match the current filters.</div>
       </div>
@@ -11116,7 +11144,7 @@ function ReportTable({ title, rows }) {
   }
   const columns = Object.keys(rows[0]);
   return (
-    <div className="rounded-xl overflow-hidden" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.08)" }}>
+    <div className="rounded-xl overflow-hidden" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.08)" }}>
       <div className="px-4 py-3 text-[11px] font-black text-slate-300 border-b border-white/[0.07]">{title}  ·  {rows.length} row{rows.length === 1 ? "" : "s"}</div>
       <div className="overflow-x-auto">
         <table className="w-full text-[11px]">
@@ -11222,7 +11250,7 @@ function SignaturePad({ onSave, onCancel, initialSvg = "" }) {
       <canvas
         ref={canvasRef}
         width={WIDTH} height={HEIGHT}
-        style={{ width: "100%", maxWidth: WIDTH, height: HEIGHT, background: "#FFFFFF", border: "1px solid rgba(26,31,46,0.12)", borderRadius: 8, touchAction: "none", cursor: "crosshair" }}
+        style={{ width: "100%", maxWidth: WIDTH, height: HEIGHT, background: "var(--surface-elevated)", border: "1px solid var(--border-rim)", borderRadius: 8, touchAction: "none", cursor: "crosshair" }}
         onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
         onTouchStart={start} onTouchMove={move} onTouchEnd={end}
       />
@@ -11631,7 +11659,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#FFFFFF,#F0EADC)", border: "1px solid rgba(34,197,94,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "var(--surface-raised)", border: "1px solid rgba(34,197,94,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">🔧</span>
           <div>
             <div className="text-xs font-bold text-white">{toast.text}</div>
@@ -11796,7 +11824,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               below the fold. Feature 2 of 2026-06-01h. */}
 
           {rackData.length === 0 ? (
-            <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl py-10 text-center">
+            <div className="bg-[#111622] border border-white/[0.07] rounded-xl py-10 text-center">
               <div className="text-3xl mb-2">📦</div>
               <div className="text-xs font-bold text-white mb-1">No Machine Models Defined</div>
               <div className="text-[10px] text-slate-500">Create a BOM definition from <button onClick={() => onNavigate("outward")} className="text-blue-400 underline hover:text-blue-300">Outward</button> to start tracking racks.</div>
@@ -11856,7 +11884,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                             {rackActionsKey === r.key && (
                               <div role="menu" onMouseDown={(e) => e.stopPropagation()}
                                    className="absolute right-0 top-full mt-1 z-30 w-44 rounded-lg overflow-hidden"
-                                   style={{ background: "#FFFFFF", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 24px 60px rgba(0,0,0,0.85)" }}>
+                                   style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-rim)", boxShadow: "0 24px 60px rgba(0,0,0,0.85)" }}>
                                 <button type="button"
                                         onClick={() => {
                                           setRackActionsKey(null);
@@ -11928,7 +11956,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
         {/* ── Empty state ── */}
         {filtered.length === 0 && (
-          <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl py-20 text-center">
+          <div className="bg-[#111622] border border-white/[0.07] rounded-xl py-20 text-center">
             <div className="text-5xl mb-4">🔧</div>
             <div className="text-sm font-bold text-white mb-2">No Machines Tracked</div>
             {filter === "completed" ? (
@@ -11957,7 +11985,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             const pct = isComplete ? 100 : Math.round((curIdx / (MACHINE_STAGES.length - 1)) * 100);
 
             return (
-              <div key={machine.id} className="bg-[#FFFFFF] rounded-xl overflow-hidden transition-all"
+              <div key={machine.id} className="bg-[#111622] rounded-xl overflow-hidden transition-all"
                    style={{ border: `1px solid ${isComplete ? "rgba(34,197,94,0.2)" : "rgba(26,31,46,0.07)"}` }}>
 
                 {/* ── Card header ── */}
@@ -11979,7 +12007,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                             {machine.stage}
                           </span>
                           <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
-                                style={{ background: "rgba(26,31,46,0.05)", color: "#94a3b8", border: "1px solid rgba(26,31,46,0.1)" }}>
+                                style={{ background: "rgba(26,31,46,0.05)", color: "#94a3b8", border: "1px solid var(--border-rim)" }}>
                             {curIdx + 1}/{MACHINE_STAGES.length} — {pct}%
                           </span>
                           {isComplete && (
@@ -12040,7 +12068,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           <select value={selStage}
                                   onChange={(e) => setStageMap((p) => ({ ...p, [machine.id]: e.target.value }))}
                                   className="bg-white/[0.04] border border-white/[0.1] rounded-lg px-2 py-1.5 text-[11px] text-slate-300 outline-none"
-                                  style={{ background: "#FFFFFF" }}>
+                                  style={{ background: "var(--surface-elevated)" }}>
                             <option value="">Update Stage</option>
                             {futureStages.map((s) => <option key={s} value={s}>{s}</option>)}
                           </select>
@@ -12313,7 +12341,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setEditRackModal(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-               style={{ background: "#FFFFFF", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+               style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
             <div className="px-5 py-4 border-b border-white/[0.08]"
                  style={{ background: "rgba(232,85,61,0.06)" }}>
               <div className="text-sm font-black text-blue-300">✏️ Edit Rack Capacity</div>
@@ -12342,7 +12370,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                     }
                   }}
                   className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none transition-all text-right font-mono"
-                  style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}
+                  style={{ background: "rgba(26,31,46,0.05)", border: "1px solid var(--border-rim)" }}
                 />
                 <div className="text-[10px] text-slate-600 mt-1">0 = no rack tracking. The card disappears from Production Rack View when capacity drops to 0.</div>
               </div>
@@ -12380,7 +12408,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setDeleteRackConfirm(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-               style={{ background: "#FFFFFF", border: `1px solid ${deleteRackConfirm.ready > 0 ? "rgba(245,158,11,0.4)" : "rgba(239,68,68,0.4)"}`, boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+               style={{ background: "var(--surface-elevated)", border: `1px solid ${deleteRackConfirm.ready > 0 ? "rgba(245,158,11,0.4)" : "rgba(239,68,68,0.4)"}`, boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
             <div className="px-5 py-4 border-b border-white/[0.08]"
                  style={{ background: deleteRackConfirm.ready > 0 ? "rgba(245,158,11,0.06)" : "rgba(239,68,68,0.06)" }}>
               <div className={`text-sm font-black ${deleteRackConfirm.ready > 0 ? "text-amber-300" : "text-red-400"}`}>
@@ -12443,7 +12471,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setStartProd(null)}>
           <div className="w-full max-w-md rounded-2xl p-6 space-y-4"
-               style={{ background: "#FFFFFF", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
+               style={{ background: "var(--surface-elevated)", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: "rgba(34,197,94,0.15)" }}>▶</div>
               <div className="flex-1 min-w-0">
@@ -12458,7 +12486,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 <div className="text-[9px] font-bold text-emerald-400 uppercase tracking-wide">Available on Rack</div>
                 <div className="text-2xl font-black text-emerald-400 mt-1">{startProd.ready}</div>
               </div>
-              <div className="p-3 rounded-xl text-center" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.08)" }}>
+              <div className="p-3 rounded-xl text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.08)" }}>
                 <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Rack Capacity</div>
                 <div className="text-2xl font-black text-slate-300 mt-1">{startProd.configured ? startProd.capacity : "—"}</div>
               </div>
@@ -12476,7 +12504,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                       <button onClick={() => { toggleStartSel(m.id); setStartErr(""); }}
                               className="flex items-center gap-3 flex-1 min-w-0 text-left">
                         <span className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 text-[10px] font-black"
-                              style={{ background: sel ? "#16a34a" : "transparent", border: `1.5px solid ${sel ? "#16a34a" : "rgba(255,255,255,0.25)"}`, color: "#1A1F2E" }}>
+                              style={{ background: sel ? "#16a34a" : "transparent", border: `1.5px solid ${sel ? "#16a34a" : "rgba(255,255,255,0.25)"}`, color: "var(--text)" }}>
                           {sel ? "✓" : ""}
                         </span>
                         <span className="text-[12px] font-mono font-bold text-white flex-1 truncate">{m.serialNo || "(no serial)"}</span>
@@ -12507,7 +12535,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             <div className="flex gap-2">
               <button onClick={() => setStartProd(null)}
                 className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-all"
-                style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
+                style={{ background: "rgba(26,31,46,0.05)", border: "1px solid var(--border-rim)" }}>
                 Cancel
               </button>
               <button onClick={confirmStartProd}
@@ -12529,7 +12557,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setRemoveRackConfirm(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-               style={{ background: "#FFFFFF", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
+               style={{ background: "var(--surface-elevated)", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
             <div className="px-5 py-4 border-b border-white/[0.08]" style={{ background: "rgba(239,68,68,0.06)" }}>
               <div className="text-sm font-black text-red-400">🗑 Remove Machine From Rack?</div>
               <div className="text-[10px] text-slate-500 mt-0.5">
@@ -12589,7 +12617,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(10px)" }}
                onClick={(e) => e.target === e.currentTarget && !transferBusy && setFinishModal(null)}>
             <div className="w-full max-w-md rounded-2xl overflow-hidden"
-                 style={{ background: "#FFFFFF", border: "1px solid rgba(249,115,22,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+                 style={{ background: "var(--surface-elevated)", border: "1px solid rgba(249,115,22,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
               <div className="px-6 py-5 border-b border-white/[0.08]"
                    style={{ background: "linear-gradient(90deg,rgba(249,115,22,0.10),rgba(234,88,12,0.05))" }}>
                 <div className="text-sm font-black text-white">Finish & Transfer</div>
@@ -12597,7 +12625,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               </div>
               <div className="p-5 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.08)" }}>
+                  <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.08)" }}>
                     <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">From</div>
                     <div className="text-[13px] font-black text-white mt-0.5">{fromDepartment}</div>
                   </div>
@@ -12700,7 +12728,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                             <select value="" onChange={(e) => { if (e.target.value) addWorker(e.target.value); }}
                                     disabled={unassigned.length === 0}
                                     className="flex-1 min-w-[180px] bg-white/[0.04] border border-white/[0.1] rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-emerald-500/60 disabled:opacity-50"
-                                    style={{ background: "#FFFFFF", color: "#1A1F2E" }}>
+                                    style={{ background: "var(--surface-input)", color: "var(--text)" }}>
                               <option value="">
                                 {unassigned.length === 0 ? "— All dept employees added —" : "+ Add worker…"}
                               </option>
@@ -12714,7 +12742,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                               <div className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Main / Responsible Employee</div>
                               <select value={mainId || ""} onChange={(e) => setMain(e.target.value)}
                                       className="w-full bg-white/[0.04] border border-yellow-500/40 rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-yellow-500/70"
-                                      style={{ background: "#FFFFFF", color: "#1A1F2E" }}>
+                                      style={{ background: "var(--surface-input)", color: "var(--text)" }}>
                                 <option value="">— Pick the main employee —</option>
                                 {workedBy.map((id) => {
                                   const u = (allUsers || []).find((x) => x.id === id);
@@ -12820,7 +12848,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(10px)" }}
                onClick={(e) => e.target === e.currentTarget && !busy && setAcceptModal(null)}>
             <div className="w-full max-w-md rounded-2xl overflow-hidden"
-                 style={{ background: "#FFFFFF", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)", maxHeight: "90vh", overflowY: "auto" }}>
+                 style={{ background: "var(--surface-elevated)", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)", maxHeight: "90vh", overflowY: "auto" }}>
               <div className="px-6 py-5 border-b border-white/[0.08]"
                    style={{ background: "linear-gradient(90deg,rgba(34,197,94,0.10),rgba(22,163,74,0.05))" }}>
                 <div className="text-sm font-black text-white">Accept into {handover.toDepartment}</div>
@@ -12897,7 +12925,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         <div className="space-y-1.5">
                           {acceptModal.checklistAnswers.map((a, i) => (
                             <div key={a.id || i} className="rounded-md px-2 py-1.5"
-                                 style={{ background: "rgba(26,31,46,0.04)", border: `1px solid ${a.checked ? "rgba(34,197,94,0.3)" : "rgba(26,31,46,0.08)"}` }}>
+                                 style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${a.checked ? "rgba(34,197,94,0.3)" : "rgba(26,31,46,0.08)"}` }}>
                               <label className="flex items-start gap-2 cursor-pointer">
                                 <input type="checkbox" checked={!!a.checked}
                                        onChange={(e) => setField({ checklistAnswers: toggleAnswer(acceptModal.checklistAnswers, i, e.target.checked), error: "" })}
@@ -12920,7 +12948,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                     )}
 
                     {/* Phase B — raise new pending items at this transfer */}
-                    <div className="rounded-lg px-3 py-2" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.08)" }}>
+                    <div className="rounded-lg px-3 py-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(26,31,46,0.08)" }}>
                       <div className="text-[10px] font-bold text-slate-300 uppercase tracking-wide mb-1.5">Any work from {handover.fromDepartment} still pending? (optional)</div>
                       <div className="space-y-2">
                         {(acceptModal.pendingItemsToRaise || []).map((desc, i) => (
@@ -12979,7 +13007,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(10px)" }}
                onClick={(e) => e.target === e.currentTarget && !busy && setDuringWorkModal(null)}>
             <div className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col"
-                 style={{ background: "#FFFFFF", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)", maxHeight: "90vh" }}>
+                 style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)", maxHeight: "90vh" }}>
               <div className="px-6 py-4 border-b border-white/[0.08] flex-shrink-0"
                    style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.12),rgba(204,74,51,0.05))" }}>
                 <div className="text-sm font-black text-white">📋 During-Work Checks</div>
@@ -12992,7 +13020,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 </div>
                 {answers.map((a, i) => (
                   <div key={a.id || i} className="rounded-md px-2 py-1.5"
-                       style={{ background: "rgba(26,31,46,0.04)", border: `1px solid ${a.checked ? "rgba(34,197,94,0.3)" : "rgba(26,31,46,0.08)"}` }}>
+                       style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${a.checked ? "rgba(34,197,94,0.3)" : "rgba(26,31,46,0.08)"}` }}>
                     <label className="flex items-start gap-2 cursor-pointer">
                       <input type="checkbox" checked={!!a.checked}
                              onChange={(e) => setField({ answers: toggleAnswer(answers, i, e.target.checked), error: "" })}
@@ -13249,8 +13277,8 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
     });
     return (
       <div className="fixed inset-0 z-[80] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}>
-        <div className="bg-[#F4EFE5] rounded-2xl w-full max-w-lg mx-4 overflow-hidden" style={{ border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.85)", animation: "slideUp 0.25s ease both" }}>
-          <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid rgba(26,31,46,0.07)", background: "rgba(26,31,46,0.04)" }}>
+        <div className="bg-[#16203A] rounded-2xl w-full max-w-lg mx-4 overflow-hidden" style={{ border: "1px solid var(--border-rim)", boxShadow: "0 32px 80px rgba(0,0,0,0.85)", animation: "slideUp 0.25s ease both" }}>
+          <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid rgba(26,31,46,0.07)", background: "rgba(255,255,255,0.03)" }}>
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
                    style={{ background: bom.color + "22", border: `1px solid ${bom.color}55` }}>{viewBOM}</div>
@@ -13265,7 +13293,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-3">Components — live stock</div>
             {bomItems.map(({ code, qty, inv, ok }) => (
               <div key={code} className="flex items-center gap-3 px-3 py-2.5 rounded-lg"
-                   style={{ background: "rgba(26,31,46,0.04)", border: `1px solid ${ok ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.15)"}` }}>
+                   style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${ok ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.15)"}` }}>
                 <div className="flex-1 min-w-0">
                   <div className="text-[11px] font-semibold text-white truncate">{inv?.name || code}</div>
                   <div className="text-[9px] font-mono text-slate-500 mt-0.5">{code} · {qty} {inv?.unit || "—"} / unit</div>
@@ -13290,7 +13318,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
     <div className="flex-1 overflow-y-auto">
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "linear-gradient(135deg,#FFFFFF,#F0EADC)", border: `1px solid ${toast.type === "error" ? "rgba(239,68,68,0.45)" : "rgba(34,197,94,0.45)"}`, boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "var(--surface-raised)", border: `1px solid ${toast.type === "error" ? "rgba(239,68,68,0.45)" : "rgba(34,197,94,0.45)"}`, boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">{toast.type === "error" ? "⚠️" : "✅"}</span>
           <div>
             <div className="text-xs font-bold text-white">{toast.text}</div>
@@ -13327,7 +13355,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
                onClick={(e) => e.target === e.currentTarget && setConfirmFulfill(null)}>
             <div className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col"
-                 style={{ maxHeight: "90vh", background: "#FFFFFF",
+                 style={{ maxHeight: "90vh", background: "var(--surface-elevated)",
                           border: `1px solid ${criticalRows.length ? "rgba(249,115,22,0.5)" : "rgba(34,197,94,0.4)"}`,
                           boxShadow: "0 40px 100px rgba(0,0,0,0.92)" }}>
               {/* Header */}
@@ -13428,7 +13456,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                     {nonCriticalRows.map((entry) => (
                       <div key={`nc-${entry.issueId || entry.bomKey}-${entry.code}`}
                            className="rounded-lg px-3 py-2 flex items-center gap-2 flex-wrap"
-                           style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.06)" }}>
+                           style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                         <span className="text-[11px] font-semibold text-white">{entry.name}</span>
                         <span className="text-[9px] font-mono text-slate-600">{entry.code}</span>
                         {cf.mode === "all" && (
@@ -13509,7 +13537,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
         </div>
 
         {groups.length === 0 ? (
-          <div className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl py-20 text-center" style={{ animation: "fadeIn 0.4s ease both" }}>
+          <div className="bg-[#111622] border border-white/[0.07] rounded-xl py-20 text-center" style={{ animation: "fadeIn 0.4s ease both" }}>
             <div className="text-5xl mb-4">✅</div>
             <div className="text-sm font-bold text-white mb-2">No Pending Materials</div>
             <div className="text-[11px] text-slate-500">All BOM issues are fully fulfilled. Issue a BOM from Outward to track shortfalls here.</div>
@@ -13549,11 +13577,11 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                 const bom        = bomDefs?.[group.bomKey];
 
                 return (
-                  <div key={group.key} className="bg-[#FFFFFF] border border-white/[0.07] rounded-xl overflow-hidden"
+                  <div key={group.key} className="bg-[#111622] border border-white/[0.07] rounded-xl overflow-hidden"
                        style={{ animation: "slideUp 0.3s ease both" }}>
 
                     {/* Group header */}
-                    <div className="px-5 py-4" style={{ background: "rgba(26,31,46,0.04)", borderBottom: "1px solid rgba(26,31,46,0.06)" }}>
+                    <div className="px-5 py-4" style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(26,31,46,0.06)" }}>
                       <div className="flex items-center gap-4 flex-wrap">
                         {/* BOM badge */}
                         <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[11px] font-black text-white flex-shrink-0"
@@ -13748,7 +13776,7 @@ function hrExportPDF(title, rows, cols) {
 
 function HRFilterBar({ search, setSearch, dateFrom, setDateFrom, dateTo, setDateTo, vendorFilter, setVendorFilter, vendorList, itemFilter, setItemFilter, allItems, machineFilter, setMachineFilter, machineLog, serialFilter, setSerialFilter, showVendor=true, showItem=true, showMachine=false, showSerial=false, onReset }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 px-6 py-3" style={{ background: "rgba(26,31,46,0.04)", borderBottom: "1px solid rgba(26,31,46,0.05)" }}>
+    <div className="flex flex-wrap items-center gap-2 px-6 py-3" style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(26,31,46,0.05)" }}>
       <div className="relative">
         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs">🔍</span>
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Global search…"
@@ -14109,7 +14137,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
     return Object.entries(map).map(([month, qty]) => ({ month, qty }));
   })();
 
-  const CARD_STYLE = { background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.06)", borderRadius: 12 };
+  const CARD_STYLE = { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12 };
 
   return (
     <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
@@ -14576,7 +14604,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(26,31,46,0.05)" />
                       <XAxis dataKey="month" tick={{fill:"#475569",fontSize:9}} axisLine={false} tickLine={false} />
                       <YAxis tick={{fill:"#475569",fontSize:9}} axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={{background:"#FFFFFF",border:"1px solid rgba(26,31,46,0.1)",borderRadius:8,fontSize:11}} />
+                      <Tooltip contentStyle={{background:"var(--surface-elevated)",border:"1px solid var(--border-rim)",borderRadius:8,fontSize:11}} />
                       <Area type="monotone" dataKey="amount" stroke="#E8553D" strokeWidth={2} fill="url(#hrPG)" name="Amount ₹" />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -14592,7 +14620,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(26,31,46,0.05)" />
                       <XAxis dataKey="name" tick={{fill:"#475569",fontSize:8}} axisLine={false} tickLine={false} />
                       <YAxis tick={{fill:"#475569",fontSize:9}} axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={{background:"#FFFFFF",border:"1px solid rgba(26,31,46,0.1)",borderRadius:8,fontSize:11}} />
+                      <Tooltip contentStyle={{background:"var(--surface-elevated)",border:"1px solid var(--border-rim)",borderRadius:8,fontSize:11}} />
                       <Bar dataKey="value" fill="#CC4A33" radius={[4,4,0,0]} name="Amount ₹" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -14665,7 +14693,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(26,31,46,0.05)" />
                       <XAxis dataKey="month" tick={{fill:"#475569",fontSize:9}} axisLine={false} tickLine={false} />
                       <YAxis tick={{fill:"#475569",fontSize:9}} axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={{background:"#FFFFFF",border:"1px solid rgba(26,31,46,0.1)",borderRadius:8,fontSize:11}} />
+                      <Tooltip contentStyle={{background:"var(--surface-elevated)",border:"1px solid var(--border-rim)",borderRadius:8,fontSize:11}} />
                       <Bar dataKey="qty" fill="#10b981" radius={[4,4,0,0]} name="Qty" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -14932,11 +14960,11 @@ function GlobalSearch({ items, pos, vendorList, machineLog, onClose, onNavigate 
          style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)" }}
          onClick={onClose}>
       <div className="w-full max-w-xl mx-4 overflow-hidden"
-           style={{ background: "#F4EFE5", border: "1px solid rgba(26,31,46,0.12)", borderRadius: 16, boxShadow: "0 32px 80px rgba(0,0,0,0.9)" }}
+           style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-rim)", borderRadius: 16, boxShadow: "0 32px 80px rgba(0,0,0,0.9)" }}
            onClick={(e) => e.stopPropagation()}>
 
         {/* Input */}
-        <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: "1px solid rgba(26,31,46,0.07)" }}>
+        <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
           <span className="text-slate-500 text-base flex-shrink-0">🔍</span>
           <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={handleKeyDown}
             placeholder="Search items, POs, vendors, machines, serial numbers…"
@@ -15045,7 +15073,7 @@ function NotificationPanel({ notifications, dismissed, onClose, onNavigate, onDi
   return (
     <div className="fixed inset-0 z-[90]" onClick={onClose}>
       <div className="absolute right-4 top-16 w-[360px] overflow-hidden"
-           style={{ background: "#F4EFE5", border: "1px solid rgba(26,31,46,0.1)", borderRadius: 14, boxShadow: "0 24px 64px rgba(0,0,0,0.8)" }}
+           style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-rim)", borderRadius: 14, boxShadow: "0 24px 64px rgba(0,0,0,0.8)" }}
            onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
@@ -15442,8 +15470,8 @@ export default function App() {
   //   3. `!currentUser` → definitely signed out. Show LoginPage.
   if (authLoadError) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-6" style={{ background: "#F7F3EB", color: "#e5e7eb", fontFamily: "Inter, system-ui, sans-serif" }}>
-        <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: "#FFFFFF", border: "1px solid rgba(239,68,68,0.35)", boxShadow: "0 24px 60px rgba(0,0,0,0.7)" }}>
+      <div className="min-h-screen flex items-center justify-center px-6" style={{ background: "var(--surface-base)", color: "var(--text)", fontFamily: "Inter, system-ui, sans-serif" }}>
+        <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: "var(--surface-elevated)", border: "1px solid rgba(239,68,68,0.35)", boxShadow: "0 24px 60px rgba(0,0,0,0.7)" }}>
           <div className="flex items-center gap-3 mb-3">
             <div style={{ fontSize: 24 }}>⚠️</div>
             <div>
@@ -15462,7 +15490,7 @@ export default function App() {
             </button>
             <button onClick={() => { try { localStorage.removeItem("erp_session"); } catch {} try { localStorage.removeItem("erp_supabase_session"); } catch {} try { window.location.reload(); } catch {} }}
                     className="flex-1 py-2 rounded-xl text-xs font-semibold"
-                    style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)", color: "#e5e7eb" }}>
+                    style={{ background: "rgba(26,31,46,0.05)", border: "1px solid var(--border-rim)", color: "#e5e7eb" }}>
               Sign in again
             </button>
           </div>
@@ -15472,7 +15500,7 @@ export default function App() {
   }
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#F7F3EB", color: "#e5e7eb", fontFamily: "Inter, system-ui, sans-serif" }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--surface-base)", color: "var(--text)", fontFamily: "Inter, system-ui, sans-serif" }}>
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 rounded-full animate-spin" style={{ border: "3px solid rgba(204,74,51,0.15)", borderTopColor: "#CC4A33" }} />
           <div style={{ fontSize: 11, color: "#64748b", letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 700 }}>
@@ -17471,8 +17499,8 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-[#F7F3EB] text-[#1A1F2E] overflow-hidden"
-         style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif", fontFeatureSettings: '"cv02","cv03","cv04","cv11"' }}>
+    <div className="flex h-screen overflow-hidden"
+         style={{ background: "var(--surface-base)", color: "var(--text)", fontFamily: "'Inter', system-ui, -apple-system, sans-serif", fontFeatureSettings: '"cv02","cv03","cv04","cv11"' }}>
 
       {/* Sidebar in its own boundary — historically the blast site (UserProfileMenu
           dereferenced currentUser.fullName, which is nullable in Supabase, blanking
@@ -17531,7 +17559,7 @@ export default function App() {
              style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setShowShortcuts(false)}>
           <div className="w-full max-w-2xl rounded-2xl overflow-hidden"
-               style={{ background: "#FFFFFF", border: "1px solid rgba(204,74,51,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
+               style={{ background: "var(--surface-elevated)", border: "1px solid rgba(204,74,51,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
             <div className="px-5 py-4 border-b border-white/[0.08] flex items-center justify-between"
                  style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.10),rgba(204,74,51,0.05))" }}>
               <div>
