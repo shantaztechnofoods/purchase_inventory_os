@@ -65,37 +65,38 @@ export default function UserProfileMenu({ collapsed = false }) {
       <button
         ref={triggerRef}
         onClick={() => setIsOpen((v) => !v)}
-        className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-xl transition-all ${collapsed ? "justify-center" : ""} ${isOpen ? "bg-white/[0.06]" : "hover:bg-white/[0.04]"}`}
+        className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-xl transition-all ${collapsed ? "justify-center" : ""} ${isOpen ? "bg-slate-100" : "hover:bg-slate-50"}`}
         title={collapsed ? `${displayName} — ${roleLabel}` : ""}
       >
         {/* Avatar */}
         <div className="relative flex-shrink-0">
           <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-black select-none"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black select-none"
             style={{
               background: `linear-gradient(135deg,${roleColor},${roleColor}aa)`,
-              boxShadow: `0 2px 10px ${roleColor}50`,
+              color: "#ffffff",
+              boxShadow: `0 2px 10px ${roleColor}40`,
             }}
           >
             {initials}
           </div>
           <div
             className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-[2px]"
-            style={{ borderColor: "#090b11" }}
+            style={{ borderColor: "#ffffff" }}
           />
         </div>
 
         {!collapsed && (
           <>
             <div className="flex-1 min-w-0 text-left">
-              <div className="text-[11px] font-black text-white truncate leading-none">{displayName}</div>
+              <div className="text-[11px] font-black truncate leading-none" style={{ color: "#0f141c" }}>{displayName}</div>
               <div className="text-[9px] font-semibold mt-0.5 leading-none truncate" style={{ color: roleColor }}>
                 {roleLabel}
               </div>
             </div>
             <span
-              className="text-slate-600 text-[9px] flex-shrink-0 transition-transform duration-200"
-              style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+              className="text-[9px] flex-shrink-0 transition-transform duration-200"
+              style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", color: "#94a3b8" }}
             >
               ▲
             </span>
@@ -109,7 +110,7 @@ export default function UserProfileMenu({ collapsed = false }) {
           {/* Mobile overlay */}
           <div
             className="fixed inset-0 z-40 md:hidden"
-            style={{ background: "rgba(0,0,0,0.3)" }}
+            style={{ background: "rgba(15,20,28,0.3)" }}
             onClick={() => setIsOpen(false)}
           />
 
@@ -122,23 +123,23 @@ export default function UserProfileMenu({ collapsed = false }) {
               right:  collapsed ? "auto" : 8,
               width:  collapsed ? 260 : "auto",
               minWidth: 240,
-              background: "#0d1119",
-              border: "1px solid rgba(26,31,46,0.1)",
-              boxShadow: "0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.4)",
+              background: "#ffffff",
+              border: "1px solid rgba(15,20,28,0.10)",
+              boxShadow: "0 24px 64px rgba(15,20,28,0.14), 0 0 0 1px rgba(15,20,28,0.04)",
               transformOrigin: collapsed ? "bottom left" : "bottom center",
             }}
           >
             {/* User Info Header */}
-            <div className="p-4" style={{ background: `linear-gradient(135deg,${roleColor}15,${roleColor}05)`, borderBottom: "1px solid rgba(26,31,46,0.07)" }}>
+            <div className="p-4" style={{ background: `linear-gradient(135deg,${roleColor}10,${roleColor}04)`, borderBottom: "1px solid rgba(15,20,28,0.08)" }}>
               <div className="flex items-center gap-3 mb-3">
                 <div
-                  className="w-11 h-11 rounded-full flex items-center justify-center text-white text-sm font-black flex-shrink-0"
-                  style={{ background: `linear-gradient(135deg,${roleColor},${roleColor}aa)`, boxShadow: `0 4px 14px ${roleColor}40` }}
+                  className="w-11 h-11 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0"
+                  style={{ background: `linear-gradient(135deg,${roleColor},${roleColor}aa)`, color: "#ffffff", boxShadow: `0 4px 14px ${roleColor}35` }}
                 >
                   {initials}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[13px] font-bold text-white truncate">{displayName}</div>
+                  <div className="text-[13px] font-bold truncate" style={{ color: "#0f141c" }}>{displayName}</div>
                   <div className="text-[10px] text-slate-500 truncate font-mono">@{currentUser.username}</div>
                 </div>
               </div>
@@ -154,19 +155,19 @@ export default function UserProfileMenu({ collapsed = false }) {
                 </div>
                 <div className="flex items-center justify-between text-[10px]">
                   <span className="text-slate-500">Last Login</span>
-                  <span className="text-slate-300 font-medium">{fmtDateTime(currentUser.lastLogin)}</span>
+                  <span className="font-medium" style={{ color: "#334155" }}>{fmtDateTime(currentUser.lastLogin)}</span>
                 </div>
                 {currentUser.mobile && (
                   <div className="flex items-center justify-between text-[10px]">
                     <span className="text-slate-500">Mobile</span>
-                    <span className="text-slate-300 font-medium">{currentUser.mobile}</span>
+                    <span className="font-medium" style={{ color: "#334155" }}>{currentUser.mobile}</span>
                   </div>
                 )}
               </div>
 
               {isSA && (
                 <div className="mt-3 px-2 py-1 rounded-md text-[9px] font-bold text-center uppercase tracking-wider"
-                     style={{ background: "rgba(236,72,153,0.15)", color: "#ec4899" }}>
+                     style={{ background: "rgba(236,72,153,0.10)", color: "#be185d", border: "1px solid rgba(236,72,153,0.22)" }}>
                   Super Administrator
                 </div>
               )}
@@ -186,7 +187,7 @@ export default function UserProfileMenu({ collapsed = false }) {
                 desc="Update your password"
                 onClick={() => { setIsOpen(false); setShowPasswordModal(true); }}
               />
-              <div className="my-1 mx-3" style={{ height: 1, background: "rgba(26,31,46,0.06)" }} />
+              <div className="my-1 mx-3" style={{ height: 1, background: "rgba(15,20,28,0.08)" }} />
               <MenuItem
                 icon="⏻"
                 label="Sign Out"
@@ -268,25 +269,26 @@ function MenuItem({ icon, label, desc, onClick, danger = false }) {
     <button
       onClick={onClick}
       className="w-full flex items-center gap-3 px-3 py-2 transition-colors group"
-      onMouseEnter={(e) => e.currentTarget.style.background = danger ? "rgba(239,68,68,0.08)" : "rgba(26,31,46,0.05)"}
+      onMouseEnter={(e) => e.currentTarget.style.background = danger ? "rgba(239,68,68,0.06)" : "rgba(15,20,28,0.04)"}
       onMouseLeave={(e) => e.currentTarget.style.background = ""}
     >
       <span
         className="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
         style={{
-          background: danger ? "rgba(239,68,68,0.1)" : "rgba(26,31,46,0.05)",
-          color: danger ? "#ef4444" : "#94a3b8",
+          background: danger ? "rgba(239,68,68,0.08)" : "rgba(15,20,28,0.04)",
+          color: danger ? "#dc2626" : "#64748b",
         }}
       >
         {icon}
       </span>
       <div className="flex-1 text-left min-w-0">
-        <div className={`text-[12px] font-semibold leading-tight ${danger ? "text-red-400" : "text-white"}`}>
+        <div className="text-[12px] font-semibold leading-tight" style={{ color: danger ? "#dc2626" : "#0f141c" }}>
           {label}
         </div>
-        <div className="text-[9px] text-slate-600 mt-0.5 leading-tight truncate">{desc}</div>
+        <div className="text-[9px] mt-0.5 leading-tight truncate" style={{ color: "#94a3b8" }}>{desc}</div>
       </div>
-      <span className={`text-[10px] flex-shrink-0 transition-transform group-hover:translate-x-0.5 ${danger ? "text-red-400" : "text-slate-700"}`}>
+      <span className="text-[10px] flex-shrink-0 transition-transform group-hover:translate-x-0.5"
+            style={{ color: danger ? "#dc2626" : "#94a3b8" }}>
         →
       </span>
     </button>
@@ -299,8 +301,8 @@ function ProfileModal({ user, roleLabel, roleColor, onClose, onSave }) {
   const [mobile,   setMobile]   = useState(user.mobile || "");
   const [errors,   setErrors]   = useState({});
 
-  const inputCls   = "w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all";
-  const inputStyle = { background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" };
+  const inputCls   = "w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all";
+  const inputStyle = { background: "#ffffff", border: "1px solid rgba(15,20,28,0.14)", color: "#0f141c" };
   const initials = (fullName || user.username || "U").split(" ").map((s) => s[0]).join("").slice(0, 2).toUpperCase() || "U";
 
   const handleSave = () => {
@@ -311,22 +313,22 @@ function ProfileModal({ user, roleLabel, roleColor, onClose, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(15,20,28,0.45)", backdropFilter: "blur(4px)" }}>
       <div className="w-full max-w-md rounded-2xl overflow-hidden user-menu-anim"
-           style={{ background: "#0e1118", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}>
+           style={{ background: "#ffffff", border: "1px solid rgba(15,20,28,0.10)", boxShadow: "0 32px 80px rgba(15,20,28,0.18)" }}>
         {/* Header */}
-        <div className="p-5" style={{ background: `linear-gradient(135deg,${roleColor}18,${roleColor}05)`, borderBottom: "1px solid rgba(26,31,46,0.07)" }}>
+        <div className="p-5" style={{ background: `linear-gradient(135deg,${roleColor}12,${roleColor}04)`, borderBottom: "1px solid rgba(15,20,28,0.08)" }}>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-white text-sm">My Profile</h3>
-            <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors text-lg leading-none">✕</button>
+            <h3 className="font-bold text-sm" style={{ color: "#0f141c" }}>My Profile</h3>
+            <button onClick={onClose} className="text-lg leading-none transition-colors" style={{ color: "#94a3b8" }}>✕</button>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-full flex items-center justify-center text-white text-base font-black"
-                 style={{ background: `linear-gradient(135deg,${roleColor},${roleColor}aa)`, boxShadow: `0 4px 16px ${roleColor}40` }}>
+            <div className="w-14 h-14 rounded-full flex items-center justify-center text-base font-black"
+                 style={{ background: `linear-gradient(135deg,${roleColor},${roleColor}aa)`, color: "#ffffff", boxShadow: `0 4px 16px ${roleColor}35` }}>
               {initials}
             </div>
             <div>
-              <div className="text-sm font-bold text-white">{fullName || user.fullName || user.username || "User"}</div>
+              <div className="text-sm font-bold" style={{ color: "#0f141c" }}>{fullName || user.fullName || user.username || "User"}</div>
               <div className="text-[10px] text-slate-500 font-mono">@{user.username}</div>
               <div className="text-[10px] font-semibold mt-1" style={{ color: roleColor }}>{roleLabel}</div>
             </div>
@@ -336,39 +338,39 @@ function ProfileModal({ user, roleLabel, roleColor, onClose, onSave }) {
         {/* Body */}
         <div className="p-5 space-y-3.5">
           <div>
-            <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Full Name *</label>
+            <label className="block text-[10px] font-semibold mb-1.5 uppercase tracking-wide" style={{ color: "#64748b" }}>Full Name *</label>
             <input value={fullName} onChange={(e) => setFullName(e.target.value)} className={inputCls} style={inputStyle} />
-            {errors.fullName && <div className="text-red-400 text-[10px] mt-1">{errors.fullName}</div>}
+            {errors.fullName && <div className="text-red-600 text-[10px] mt-1">{errors.fullName}</div>}
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Mobile</label>
+            <label className="block text-[10px] font-semibold mb-1.5 uppercase tracking-wide" style={{ color: "#64748b" }}>Mobile</label>
             <input value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="e.g. 9876543210"
                    className={inputCls} style={inputStyle} />
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Username</label>
+            <label className="block text-[10px] font-semibold mb-1.5 uppercase tracking-wide" style={{ color: "#64748b" }}>Username</label>
             <input value={user.username} disabled className={inputCls}
-                   style={{ ...inputStyle, opacity: 0.5, cursor: "not-allowed" }} />
-            <div className="text-[10px] text-slate-600 mt-1">Username cannot be changed</div>
+                   style={{ ...inputStyle, opacity: 0.6, cursor: "not-allowed" }} />
+            <div className="text-[10px] mt-1" style={{ color: "#94a3b8" }}>Username cannot be changed</div>
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Role</label>
+            <label className="block text-[10px] font-semibold mb-1.5 uppercase tracking-wide" style={{ color: "#64748b" }}>Role</label>
             <input value={roleLabel} disabled className={inputCls}
-                   style={{ ...inputStyle, opacity: 0.5, cursor: "not-allowed" }} />
-            <div className="text-[10px] text-slate-600 mt-1">Contact admin to change role</div>
+                   style={{ ...inputStyle, opacity: 0.6, cursor: "not-allowed" }} />
+            <div className="text-[10px] mt-1" style={{ color: "#94a3b8" }}>Contact admin to change role</div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex gap-2.5 p-5" style={{ borderTop: "1px solid rgba(26,31,46,0.07)" }}>
+        <div className="flex gap-2.5 p-5" style={{ borderTop: "1px solid rgba(15,20,28,0.08)" }}>
           <button onClick={onClose}
-            className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all"
-            style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
+            className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
+            style={{ background: "#faf8f5", border: "1px solid rgba(15,20,28,0.12)", color: "#475569" }}>
             Cancel
           </button>
           <button onClick={handleSave}
-            className="flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-all"
-            style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 12px rgba(204,74,51,0.35)" }}>
+            className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
+            style={{ background: "linear-gradient(135deg,#d92028,#b31820)", color: "#ffffff", boxShadow: "0 4px 12px rgba(217,32,40,0.28)" }}>
             Save Changes
           </button>
         </div>
@@ -406,8 +408,8 @@ function ChangePasswordModal({ user, onClose, onLocalSave, onSupabaseSaved }) {
   const [showCur,   setShowCur]   = useState(false);
   const [showNew,   setShowNew]   = useState(false);
 
-  const inputCls   = "w-full px-3 py-2.5 pr-12 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all";
-  const inputStyle = { background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" };
+  const inputCls   = "w-full px-3 py-2.5 pr-12 rounded-lg text-sm outline-none transition-all";
+  const inputStyle = { background: "#ffffff", border: "1px solid rgba(15,20,28,0.14)", color: "#0f141c" };
 
   const strength = (() => {
     if (!newPw) return { score: 0, label: "", color: "#64748b" };
@@ -462,58 +464,60 @@ function ChangePasswordModal({ user, onClose, onLocalSave, onSupabaseSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(15,20,28,0.45)", backdropFilter: "blur(4px)" }}>
       <div className="w-full max-w-sm rounded-2xl overflow-hidden user-menu-anim"
-           style={{ background: "#0e1118", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}>
-        <div className="p-5" style={{ borderBottom: "1px solid rgba(26,31,46,0.07)" }}>
+           style={{ background: "#ffffff", border: "1px solid rgba(15,20,28,0.10)", boxShadow: "0 32px 80px rgba(15,20,28,0.18)" }}>
+        <div className="p-5" style={{ borderBottom: "1px solid rgba(15,20,28,0.08)" }}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base"
-                   style={{ background: "rgba(204,74,51,0.15)", color: "#CC4A33" }}>🔐</div>
+                   style={{ background: "rgba(217,32,40,0.08)", color: "#d92028" }}>🔐</div>
               <div>
-                <h3 className="font-bold text-white text-sm">Change Password</h3>
-                <p className="text-[10px] text-slate-500 mt-0.5">Update your account password</p>
+                <h3 className="font-bold text-sm" style={{ color: "#0f141c" }}>Change Password</h3>
+                <p className="text-[10px] mt-0.5" style={{ color: "#64748b" }}>Update your account password</p>
               </div>
             </div>
-            <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors text-lg leading-none">✕</button>
+            <button onClick={onClose} className="text-lg leading-none transition-colors" style={{ color: "#94a3b8" }}>✕</button>
           </div>
         </div>
 
         {success ? (
           <div className="px-5 py-10 text-center">
             <div className="text-4xl mb-3">✅</div>
-            <div className="text-sm font-bold text-emerald-400 mb-1">Password Changed</div>
-            <div className="text-[10px] text-slate-500">Your password has been updated successfully</div>
+            <div className="text-sm font-bold mb-1" style={{ color: "#16a34a" }}>Password Changed</div>
+            <div className="text-[10px]" style={{ color: "#64748b" }}>Your password has been updated successfully</div>
           </div>
         ) : (
           <>
             <div className="p-5 space-y-3.5">
               <div>
-                <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Current Password</label>
+                <label className="block text-[10px] font-semibold mb-1.5 uppercase tracking-wide" style={{ color: "#64748b" }}>Current Password</label>
                 <div className="relative">
                   <input type={showCur ? "text" : "password"} value={currentPw}
                     onChange={(e) => { setCurrentPw(e.target.value); setError(""); }}
                     placeholder="Enter current password" className={inputCls} style={inputStyle} autoFocus />
                   <button type="button" onClick={() => setShowCur((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 hover:text-slate-300">
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px]"
+                    style={{ color: "#64748b" }}>
                     {showCur ? "Hide" : "Show"}
                   </button>
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">New Password</label>
+                <label className="block text-[10px] font-semibold mb-1.5 uppercase tracking-wide" style={{ color: "#64748b" }}>New Password</label>
                 <div className="relative">
                   <input type={showNew ? "text" : "password"} value={newPw}
                     onChange={(e) => { setNewPw(e.target.value); setError(""); }}
                     placeholder="Min 4 characters" className={inputCls} style={inputStyle} />
                   <button type="button" onClick={() => setShowNew((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 hover:text-slate-300">
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px]"
+                    style={{ color: "#64748b" }}>
                     {showNew ? "Hide" : "Show"}
                   </button>
                 </div>
                 {newPw && (
                   <div className="mt-2 flex items-center gap-2">
-                    <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "rgba(26,31,46,0.06)" }}>
+                    <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "rgba(15,20,28,0.08)" }}>
                       <div className="h-full transition-all duration-300"
                            style={{ width: `${(strength.score / 3) * 100}%`, background: strength.color }} />
                     </div>
@@ -522,35 +526,36 @@ function ChangePasswordModal({ user, onClose, onLocalSave, onSupabaseSaved }) {
                 )}
               </div>
               <div>
-                <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Confirm New Password</label>
+                <label className="block text-[10px] font-semibold mb-1.5 uppercase tracking-wide" style={{ color: "#64748b" }}>Confirm New Password</label>
                 <input type={showNew ? "text" : "password"} value={confirmPw}
                   onChange={(e) => { setConfirmPw(e.target.value); setError(""); }}
-                  placeholder="Repeat new password" className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all" style={inputStyle} />
+                  placeholder="Repeat new password" className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all" style={inputStyle} />
                 {confirmPw && confirmPw !== newPw && (
-                  <div className="text-red-400 text-[10px] mt-1">Passwords do not match</div>
+                  <div className="text-red-600 text-[10px] mt-1">Passwords do not match</div>
                 )}
               </div>
 
               {error && (
-                <div className="px-3 py-2 rounded-lg text-[11px] text-red-300"
-                     style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)" }}>
+                <div className="px-3 py-2 rounded-lg text-[11px]"
+                     style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.22)", color: "#b91c1c" }}>
                   {error}
                 </div>
               )}
             </div>
 
-            <div className="flex gap-2.5 p-5" style={{ borderTop: "1px solid rgba(26,31,46,0.07)" }}>
+            <div className="flex gap-2.5 p-5" style={{ borderTop: "1px solid rgba(15,20,28,0.08)" }}>
               <button onClick={onClose} disabled={saving}
-                className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all"
-                style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)", opacity: saving ? 0.5 : 1 }}>
+                className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
+                style={{ background: "#faf8f5", border: "1px solid rgba(15,20,28,0.12)", color: "#475569", opacity: saving ? 0.5 : 1 }}>
                 Cancel
               </button>
               <button onClick={handleSave}
                 disabled={!currentPw || !newPw || !confirmPw || saving}
-                className="flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-all"
+                className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
                 style={{
-                  background: "linear-gradient(135deg,#E8553D,#CC4A33)",
-                  boxShadow: "0 4px 12px rgba(204,74,51,0.35)",
+                  background: "linear-gradient(135deg,#d92028,#b31820)",
+                  color: "#ffffff",
+                  boxShadow: "0 4px 12px rgba(217,32,40,0.28)",
                   opacity: (!currentPw || !newPw || !confirmPw || saving) ? 0.4 : 1,
                   cursor: saving ? "wait" : (!currentPw || !newPw || !confirmPw) ? "not-allowed" : "pointer",
                 }}>

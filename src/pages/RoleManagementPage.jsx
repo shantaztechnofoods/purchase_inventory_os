@@ -245,8 +245,8 @@ export default function RoleManagementPage({ canDo }) {
 
       {/* Edit/Add Modal */}
       {showModal && editForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
-          <div className="w-full max-w-2xl rounded-2xl flex flex-col mx-4" style={{ background: "#0e1118", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)", maxHeight: "90vh" }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(15,20,28,0.14)", backdropFilter: "blur(4px)" }}>
+          <div className="w-full max-w-2xl rounded-2xl flex flex-col mx-4" style={{ background: "#ffffff", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(15,20,28,0.18)", maxHeight: "90vh" }}>
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: "1px solid rgba(26,31,46,0.07)" }}>
               <h3 className="font-bold text-white text-sm">{isNew ? "New Role" : `Edit: ${editForm.label}`}</h3>
@@ -365,8 +365,8 @@ export default function RoleManagementPage({ canDo }) {
 
       {/* Delete Confirm */}
       {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
-          <div className="w-full max-w-sm rounded-2xl p-6 mx-4" style={{ background: "#0e1118", border: "1px solid rgba(239,68,68,0.25)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(15,20,28,0.14)", backdropFilter: "blur(4px)" }}>
+          <div className="w-full max-w-sm rounded-2xl p-6 mx-4" style={{ background: "#ffffff", border: "1px solid rgba(239,68,68,0.25)", boxShadow: "0 32px 80px rgba(15,20,28,0.18)" }}>
             <div className="text-center">
               <div className="text-3xl mb-3">⚠️</div>
               <h3 className="font-bold text-white text-sm mb-2">Delete Role?</h3>

@@ -314,7 +314,7 @@ export default function AuditHistoryPage() {
       {/* Table */}
       <div className="flex-1 overflow-y-auto">
         <table className="w-full text-xs">
-          <thead className="sticky top-0 z-10" style={{ background: "#0a0d14" }}>
+          <thead className="sticky top-0 z-10" style={{ background: "#faf8f5" }}>
             <tr style={{ borderBottom: "1px solid rgba(26,31,46,0.07)" }}>
               <Th col="ts"     w={150}>Timestamp</Th>
               <Th col="user"   w={140}>User</Th>

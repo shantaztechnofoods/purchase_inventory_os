@@ -131,7 +131,7 @@ export default function VendorSearchSelect({
       )}
       {open && !disabled && (
         <div className="absolute left-0 right-0 mt-1 rounded-lg overflow-hidden z-50"
-             style={{ background: "#0d1119", border: "1px solid rgba(26,31,46,0.12)", boxShadow: "0 16px 48px rgba(0,0,0,0.65)" }}>
+             style={{ background: "#ffffff", border: "1px solid rgba(26,31,46,0.12)", boxShadow: "0 16px 48px rgba(15,20,28,0.12)" }}>
           <div ref={listRef} className="overflow-y-auto" style={{ maxHeight: 280 }}>
             {filtered.length === 0 ? (
               <div className="px-3 py-4 text-center text-[11px] text-slate-500">

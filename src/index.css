@@ -3,10 +3,9 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SHANTAZ ERP — Clean Light Design System  (2026-10-27)
-   Matching shantaz-live-board-v2.vercel.app:
-   white canvas · crimson accent #d92028 · Plus Jakarta Sans · subtle shadows
-   Dark sidebar preserved for nav contrast.
+   SHANTAZ ERP — Complete Light Design System  (2026-10-27)
+   Warm off-white canvas · crimson #D92028 · light sidebar · Plus Jakarta Sans
+   One consistent light theme across sidebar, main content, modals, tables.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
@@ -15,18 +14,20 @@
   --brand-mid:          #b31820;
   --brand-deep:         #8b1418;
   --brand-light:        #e85560;
-  --brand-pale:         #f4b0b4;
+  --brand-pale:         #fce9ea;
+  --brand-wash:         #fdf4f5;
   --brand-glow:         rgba(217, 32, 40, 0.22);
   --brand-rgb:          217, 32, 40;
 
-  /* ── Surface hierarchy — white canvas ────────────────────────────────────── */
-  --surface-page:       #f5f6f8;   /* slightly sunken (page behind cards) */
-  --surface-base:       #ffffff;   /* body background */
+  /* ── Surface hierarchy — warm off-white canvas ───────────────────────────── */
+  --surface-page:       #faf8f5;   /* warm off-white page background */
+  --surface-base:       #faf8f5;   /* body background (same as page) */
   --surface-card:       #ffffff;   /* cards and panels */
   --surface-raised:     #ffffff;   /* elevated cards, drawer headers */
   --surface-elevated:   #ffffff;   /* modals, command palette */
-  --surface-highlight:  #f5f6f8;   /* hover states */
-  --surface-nav:        #0f141c;   /* sidebar — stays dark for nav contrast */
+  --surface-highlight:  #faf8f5;   /* hover states */
+  --surface-nav:        #ffffff;   /* sidebar — LIGHT now */
+  --surface-nav-alt:    #faf8f5;   /* sidebar alt background sections */
   --surface-glass:      rgba(255, 255, 255, 0.88);
   --surface-glass-strong: rgba(255, 255, 255, 0.96);
   --surface-input:      #ffffff;
@@ -70,11 +71,14 @@
   --status-purple-bg:       rgba(124, 58, 237, 0.07);
   --status-purple-border:   rgba(124, 58, 237, 0.18);
 
-  /* ── Nav (sidebar — dark for readability) ───────────────────────────────── */
-  --nav-surface:        rgba(15, 20, 28, 0.98);
-  --nav-rim:            rgba(255, 255, 255, 0.08);
-  --nav-active-bg:      rgba(217, 32, 40, 0.12);
+  /* ── Nav (sidebar — LIGHT) ──────────────────────────────────────────────── */
+  --nav-surface:        #ffffff;
+  --nav-rim:            rgba(15, 20, 28, 0.08);
+  --nav-active-bg:      rgba(217, 32, 40, 0.08);
   --nav-active-border:  rgba(217, 32, 40, 0.28);
+  --nav-text:           #475569;
+  --nav-text-active:    #d92028;
+  --nav-text-muted:     #94a3b8;
 }
 
 /* ── Base ──────────────────────────────────────────────────────────────────── */
@@ -84,7 +88,7 @@ html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
-  background: var(--surface-base);
+  background: var(--surface-page);
   color: var(--text);
   font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
@@ -104,10 +108,6 @@ html, body, #root {
   background: rgba(var(--brand-rgb), 0.38);
 }
 ::-webkit-scrollbar-corner { background: transparent; }
-
-/* Sidebar scrollbar stays dark */
-aside::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); }
-aside::-webkit-scrollbar-thumb:hover { background: rgba(var(--brand-rgb), 0.45); }
 
 /* ── Keyboard focus ─────────────────────────────────────────────────────────── */
 :focus { outline: none; }
@@ -166,13 +166,13 @@ button, [role="button"] {
               box-shadow 0.12s ease, transform 0.10s ease, filter 0.12s ease;
 }
 button:hover:not(:disabled), [role="button"]:hover:not(:disabled) {
-  filter: brightness(0.96);
+  filter: brightness(0.98);
 }
 button:active:not(:disabled) { transform: scale(0.972); }
 
 /* ── Glass surface utilities ──────────────────────────────────────────────── */
 .glass {
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
   border: 1px solid rgba(15, 20, 28, 0.10);
@@ -180,7 +180,7 @@ button:active:not(:disabled) { transform: scale(0.972); }
   box-shadow: var(--shadow-md);
 }
 .glass-strong {
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
   border: 1px solid rgba(15, 20, 28, 0.14);
@@ -206,16 +206,18 @@ button:active:not(:disabled) { transform: scale(0.972); }
   outline: none;
 }
 
-/* ── Aside (sidebar shadow) ───────────────────────────────────────────────── */
+/* ── Aside (sidebar) — LIGHT with subtle right border ─────────────────────── */
 aside {
-  box-shadow: 2px 0 20px rgba(15, 20, 28, 0.12);
-  color-scheme: dark;
+  background: var(--surface-nav);
+  border-right: 1px solid var(--border-subtle);
+  box-shadow: 1px 0 0 rgba(15, 20, 28, 0.02);
+  color-scheme: light;
 }
 
-/* ── Phase 2: text-white in light areas → readable dark; dark sidebar/panels keep white ── */
+/* ── Text-white: default to strong dark text; keep white only inside explicit
+      dark panels. (Sidebar is no longer dark.) ───────────────────────────── */
 body .text-white { color: var(--text-strong); }
-body aside .text-white,
-body .dark-panel .text-white { color: rgba(255, 255, 255, 0.90); }
+body .dark-panel .text-white { color: rgba(255, 255, 255, 0.92); }
 
 /* ── Table rows ─────────────────────────────────────────────────────────── */
 tbody tr { transition: background-color 0.08s ease; }
