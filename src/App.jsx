@@ -65,7 +65,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-27-5features";
+const APP_BUILD = "2026-10-27-tracker-settings";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -6128,14 +6128,16 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
   // Phase B — checklist admin props (optional)
   checklistTemplates = [], onCreateChecklistTemplate, onUpdateChecklistTemplate, onDeleteChecklistTemplate,
   // Migration 029 — department-wise employee assignment (optional)
-  allUsers = [], onSaveUserDepartments }) {
+  allUsers = [], onSaveUserDepartments,
+  // Scoped view — when provided, only show matching tabs and start on initialTab
+  initialTab = "company", restrictTabs = null, pageTitle = "Settings" }) {
   // Snapshot of the last KNOWN-PERSISTED settings — used for the dirty-state pill
   // ("Unsaved changes") so operators see they need to click Save. Updated only after
   // a save round-trips successfully.
   const lastSavedSnapshotRef = useRef(JSON.stringify(initialSettings));
   const [saveError, setSaveError] = useState("");   // surfaces Supabase upsert failures
   const [settings, setSettings] = useState(() => ({ ...SETTINGS_DEFAULTS, ...initialSettings }));
-  const [tab,      setTab]      = useState("company");   // Settings tab: company | po | inventory | notifications | data
+  const [tab,      setTab]      = useState(initialTab);  // Settings tab: company | po | inventory | notifications | data
   const [saved,    setSaved]    = useState(false);
   const [backupOk, setBackupOk] = useState(false);
   const logoRef = useRef(null);
@@ -6228,11 +6230,12 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
     { id: "notifications", label: "🔔 Notifications",  desc: "WhatsApp / email alerts" },
     { id: "data",          label: "💾 Data & Backup",  desc: "Export + backup" },
   ];
-  const activeTab = SETTINGS_TABS.find((t) => t.id === tab) || SETTINGS_TABS[0];
+  const visibleTabs = restrictTabs ? SETTINGS_TABS.filter((t) => restrictTabs.includes(t.id)) : SETTINGS_TABS;
+  const activeTab = visibleTabs.find((t) => t.id === tab) || visibleTabs[0];
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <Topbar title="Settings" subtitle={`${activeTab.desc} · Build ${APP_BUILD}`}>
+      <Topbar title={pageTitle} subtitle={`${activeTab.desc} · Build ${APP_BUILD}`}>
         {isDirty && !saved && (
           <span className="text-[10px] font-bold px-2.5 py-1 rounded-full"
                 style={{ background: "rgba(249,115,22,0.15)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.35)" }}>
@@ -6262,7 +6265,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
       {/* Tab bar */}
       <div className="px-6 pt-4 max-w-5xl">
         <div className="flex gap-1 border-b border-white/[0.07] overflow-x-auto">
-          {SETTINGS_TABS.map((t) => {
+          {visibleTabs.map((t) => {
             const sel = t.id === tab;
             return (
               <button key={t.id} onClick={() => setTab(t.id)}
@@ -11892,8 +11895,8 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             deadlines, HOLD rules, checklist templates, signature + password
             policy. Hidden from non-admin operators. */}
         {canConfigureDept(canDo) && (
-          <button onClick={() => onNavigate("settings")}
-                  title="Open Machine Tracker settings (deadlines, HOLD rules, checklists)"
+          <button onClick={() => onNavigate("machines_settings")}
+                  title="Open Machine Tracker settings (deadlines, HOLD rules, checklists, employees)"
                   className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all"
                   style={{ background: "rgba(232,85,61,0.1)", border: "1px solid rgba(232,85,61,0.35)", color: "#F7A992" }}>
             ⚙️ Settings
@@ -17809,6 +17812,16 @@ export default function App() {
                               onDeleteChecklistTemplate={handleDeleteChecklistTemplate}
                               allUsers={allUsers}
                               onSaveUserDepartments={handleSaveUserDepartments} />,
+    machines_settings: <SettingsPage settings={settings} onSave={handleSaveSettings} isSuperAdmin={currentUser?.role === "super_admin"} canDo={canDo} onRegisterSignature={handleRegisterSignature} currentUser={currentUser}
+                              checklistTemplates={checklistTemplates}
+                              onCreateChecklistTemplate={handleCreateChecklistTemplate}
+                              onUpdateChecklistTemplate={handleUpdateChecklistTemplate}
+                              onDeleteChecklistTemplate={handleDeleteChecklistTemplate}
+                              allUsers={allUsers}
+                              onSaveUserDepartments={handleSaveUserDepartments}
+                              initialTab="department"
+                              restrictTabs={["department","checklists","employees"]}
+                              pageTitle="Machine Tracker Settings" />,
     users:     <UserManagementPage canDo={canDo} />,
     roles:     <RoleManagementPage canDo={canDo} />,
     audit:     <AuditHistoryPage />,

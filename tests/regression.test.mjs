@@ -360,6 +360,9 @@ const USER_FACING_STRINGS = [
   // Feature 5 — Accept multi-select (2026-10-27)
   "Team members present",
   "accept-side team",
+  // Machine Tracker Settings page (2026-10-27)
+  "Machine Tracker Settings",
+  "machines_settings",
 ];
 
 for (const s of USER_FACING_STRINGS) {
