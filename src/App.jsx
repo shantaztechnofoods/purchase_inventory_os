@@ -66,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-27-fix-chipname-crash";
+const APP_BUILD = "2026-10-27-finish-modal-redesign";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -13650,37 +13650,36 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           <div className="fixed inset-0 z-[90] flex items-center justify-center p-4"
                style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(10px)" }}
                onClick={(e) => e.target === e.currentTarget && !transferBusy && setFinishModal(null)}>
-            <div className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col"
-                 style={{ background: "var(--surface-elevated)", border: "1px solid rgba(249,115,22,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)", maxHeight: "90vh" }}>
-              <div className="px-6 py-5 border-b border-white/[0.08] flex-shrink-0"
-                   style={{ background: "linear-gradient(90deg,rgba(249,115,22,0.10),rgba(234,88,12,0.05))" }}>
-                <div className="text-sm font-black text-white">Finish & Transfer</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">{machine.bomKey}{machine.serialNo ? ` · S/N ${machine.serialNo}` : ""}</div>
+            <div className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col bg-white"
+                 style={{ border: "1px solid #e2e8f0", boxShadow: "0 25px 60px rgba(0,0,0,0.18)", maxHeight: "90vh" }}>
+              <div className="px-6 py-5 border-b border-slate-100 flex-shrink-0 bg-white">
+                <div className="text-sm font-black text-slate-900">Finish & Transfer</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">{machine.bomKey}{machine.serialNo ? ` · S/N ${machine.serialNo}` : ""}</div>
               </div>
               <div className="p-5 space-y-4 flex-1 overflow-y-auto">
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <div className="rounded-lg px-3 py-2.5 bg-slate-50 border border-slate-200">
                     <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">From</div>
-                    <div className="text-[13px] font-black text-white mt-0.5">{fromDepartment}</div>
+                    <div className="text-[13px] font-black text-slate-900 mt-0.5">{fromDepartment}</div>
                   </div>
-                  <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.25)" }}>
-                    <div className="text-[9px] font-bold text-emerald-500 uppercase tracking-wide">To (next)</div>
-                    <div className="text-[13px] font-black text-emerald-300 mt-0.5">{toDepartment}</div>
+                  <div className="rounded-lg px-3 py-2.5 bg-emerald-50 border border-emerald-200">
+                    <div className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide">To (next)</div>
+                    <div className="text-[13px] font-black text-emerald-700 mt-0.5">{toDepartment}</div>
                   </div>
                 </div>
-                <div className="rounded-lg px-3 py-2.5" style={{ background: isOverrun ? "rgba(239,68,68,0.07)" : "rgba(255,255,255,0.03)", border: `1px solid ${isOverrun ? "rgba(239,68,68,0.3)" : "rgba(255,255,255,0.08)"}` }}>
+                <div className={`rounded-lg px-3 py-2.5 border ${isOverrun ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200"}`}>
                   <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">Time in {fromDepartment}</div>
-                  <div className="text-[12px] text-slate-200 mt-0.5">
-                    Actual <span className="font-bold text-white">{formatDuration(actualMinutes)}</span>
-                    <span className="text-slate-500"> · expected {formatDuration(expectedMin)}</span>
-                    {isOverrun && <span className="text-red-400 font-bold ml-2">· overrun {formatDuration(overrunMinutes)}</span>}
+                  <div className="text-[12px] text-slate-700 mt-0.5">
+                    Actual <span className="font-bold text-slate-900">{formatDuration(actualMinutes)}</span>
+                    <span className="text-slate-400"> · expected {formatDuration(expectedMin)}</span>
+                    {isOverrun && <span className="text-red-600 font-bold ml-2">· overrun {formatDuration(overrunMinutes)}</span>}
                   </div>
                 </div>
                 {isOverrun && (
                   <div>
-                    <label className="text-[11px] font-bold text-red-300 block mb-1.5">
+                    <label className="text-[11px] font-bold text-red-600 block mb-1.5">
                       Explanation required (overrun)
-                      <span className="text-red-400 ml-0.5">*</span>
+                      <span className="text-red-500 ml-0.5">*</span>
                     </label>
                     <textarea
                       value={narration}
@@ -13688,9 +13687,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                       placeholder="Why did this department take longer than configured?"
                       rows={3}
                       autoFocus
-                      className="w-full bg-white/[0.04] border border-red-500/40 rounded-lg px-3 py-2 text-[12px] text-white placeholder-slate-500 outline-none focus:border-red-500/70"
+                      className="w-full bg-white border border-red-300 rounded-lg px-3 py-2 text-[12px] text-slate-900 placeholder-slate-400 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 transition-colors"
                     />
-                    <div className="text-[10px] text-slate-500 mt-1">This explanation is saved to the handover audit record and shown on reports.</div>
+                    <div className="text-[10px] text-slate-400 mt-1">This explanation is saved to the handover audit record and shown on reports.</div>
                   </div>
                 )}
 
@@ -13740,16 +13739,15 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   // Workers eligible to be Main (auth users only — emp members can't sign)
                   const authWorkedBy = workedBy.filter((id) => !id.startsWith("emp:"));
                   return (
-                    <div className="rounded-lg px-3 py-3" style={{ background: "rgba(16,185,129,0.04)", border: "1px solid rgba(16,185,129,0.3)" }}>
-                      <div className="text-[11px] font-black text-emerald-200 mb-1">
-                        Workers from {fromDepartment} <span className="text-red-400 ml-0.5">*</span>
+                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
+                      <div className="text-[11px] font-black text-slate-800 mb-1">
+                        Workers from {fromDepartment} <span className="text-red-500 ml-0.5">*</span>
                       </div>
-                      <div className="text-[10px] text-slate-400 mb-2">
-                        Pick everyone who worked on this machine. The <span className="text-yellow-300 font-semibold">Main / Responsible Employee</span> (must have an ERP login) signs to confirm. Factory workers without logins can be added from Settings → Employees.
+                      <div className="text-[10px] text-slate-500 mb-2">
+                        Pick everyone who worked on this machine. The <span className="text-amber-600 font-semibold">Main / Responsible Employee</span> (must have an ERP login) signs to confirm. Factory workers without logins can be added from Settings → Employees.
                       </div>
                       {!hasAnyWorkers ? (
-                        <div className="rounded px-2 py-2 text-[11px] font-semibold"
-                             style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                        <div className="rounded-lg px-2 py-2 text-[11px] font-semibold text-red-600 bg-red-50 border border-red-200">
                           ⚠ No employees are assigned to {fromDepartment} yet. Ask an admin to assign workers in Settings → Department Workflow or add display names in Settings → Employees.
                         </div>
                       ) : (
@@ -13761,15 +13759,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                 const isMain = !isEmp && mainId === id;
                                 return (
                                   <span key={id}
-                                        className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full"
-                                        style={{ background: isMain ? "rgba(234,179,8,0.12)" : isEmp ? "rgba(99,102,241,0.10)" : "rgba(34,197,94,0.08)",
-                                                 border: `1px solid ${isMain ? "rgba(234,179,8,0.5)" : isEmp ? "rgba(99,102,241,0.4)" : "rgba(34,197,94,0.35)"}`,
-                                                 color: isMain ? "#fde68a" : isEmp ? "#a5b4fc" : "#86efac" }}>
+                                        className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
+                                          isMain ? "bg-amber-50 border-amber-300 text-amber-700" : isEmp ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                        }`}>
                                     {isMain ? "⭐" : isEmp ? "👤" : ""}
                                     {chipName(id)}
                                     <button onClick={() => removeWorker(id)}
                                             title="Remove worker"
-                                            className="ml-0.5 text-slate-400 hover:text-red-300">×</button>
+                                            className="ml-0.5 text-slate-400 hover:text-red-500">×</button>
                                   </span>
                                 );
                               })}
@@ -13778,8 +13775,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           <div className="flex flex-wrap gap-2">
                             {unassignedUsers.length > 0 && (
                               <select value="" onChange={(e) => { if (e.target.value) addWorker(e.target.value); }}
-                                      className="flex-1 min-w-[160px] bg-white/[0.04] border border-white/[0.1] rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-emerald-500/60"
-                                      style={{ background: "var(--surface-input)", color: "var(--text)" }}>
+                                      className="flex-1 min-w-[160px] bg-white border border-slate-300 rounded-md px-2 py-1.5 text-[11px] text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-100 transition-colors">
                                 <option value="">+ Add ERP user…</option>
                                 {unassignedUsers.map((u) => (
                                   <option key={u.id} value={u.id}>{u.fullName || u.username}{u.username && u.fullName ? ` (${u.username})` : ""}</option>
@@ -13788,8 +13784,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                             )}
                             {unassignedEmps.length > 0 && (
                               <select value="" onChange={(e) => { if (e.target.value) addWorker(`emp:${e.target.value}`); }}
-                                      className="flex-1 min-w-[160px] bg-white/[0.04] border border-indigo-500/30 rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-indigo-500/60"
-                                      style={{ background: "var(--surface-input)", color: "var(--text)" }}>
+                                      className="flex-1 min-w-[160px] bg-white border border-slate-300 rounded-md px-2 py-1.5 text-[11px] text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-100 transition-colors">
                                 <option value="">+ Add factory worker…</option>
                                 {unassignedEmps.map((m) => (
                                   <option key={m.id} value={m.id}>{m.name}</option>
@@ -13799,10 +13794,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           </div>
                           {authWorkedBy.length > 1 && (
                             <div className="mt-2">
-                              <div className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Main / Responsible Employee (must sign)</div>
+                              <div className="text-[10px] font-bold text-slate-600 mb-1 uppercase tracking-wider">Main / Responsible Employee (must sign)</div>
                               <select value={mainId || ""} onChange={(e) => setMain(e.target.value)}
-                                      className="w-full bg-white/[0.04] border border-yellow-500/40 rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-yellow-500/70"
-                                      style={{ background: "var(--surface-input)", color: "var(--text)" }}>
+                                      className="w-full bg-white border border-amber-300 rounded-md px-2 py-1.5 text-[11px] text-slate-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-50 transition-colors">
                                 <option value="">— Pick the main employee —</option>
                                 {authWorkedBy.map((id) => {
                                   const u = (allUsers || []).find((x) => x.id === id);
@@ -13822,25 +13816,24 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         const isCurrentUser = currentUser && mainId === currentUser.id;
                         const haveSig = !!finishModal.mainSigSvg;
                         return (
-                          <div className="mt-3 pt-3 border-t border-emerald-500/20">
-                            <div className="text-[10px] font-bold text-emerald-200 uppercase tracking-wider mb-1">
-                              Main Employee signature <span className="text-red-400 ml-0.5">*</span>
+                          <div className="mt-3 pt-3 border-t border-slate-200">
+                            <div className="text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                              Main Employee signature <span className="text-red-500 ml-0.5">*</span>
                             </div>
-                            <div className="text-[10px] text-slate-400 mb-2">
-                              <span className="font-bold text-white">{chipName(mainId)}</span> must sign to confirm this department's work.
+                            <div className="text-[10px] text-slate-500 mb-2">
+                              <span className="font-bold text-slate-900">{chipName(mainId)}</span> must sign to confirm this department's work.
                               {!isCurrentUser && " (Hand the device to them to sign now.)"}
                             </div>
                             {haveSig ? (
-                              <div className="rounded-lg px-3 py-2 flex items-center gap-2"
-                                   style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.3)" }}>
-                                <span className="text-[11px] font-bold text-emerald-300">✓ Signature captured</span>
+                              <div className="rounded-lg px-3 py-2 flex items-center gap-2 bg-emerald-50 border border-emerald-200">
+                                <span className="text-[11px] font-bold text-emerald-700">✓ Signature captured</span>
                                 <button onClick={() => setFinishModal((prev) => prev ? { ...prev, mainSigSvg: null, mainSigNeeded: false } : prev)}
-                                        className="ml-auto text-[10px] text-slate-400 hover:text-red-300 underline">
+                                        className="ml-auto text-[10px] text-slate-400 hover:text-red-500 underline">
                                   Re-sign
                                 </button>
                               </div>
                             ) : (
-                              <SignaturePad
+                              <SignaturePad light
                                 onSave={(svg) => setFinishModal((prev) => prev ? { ...prev, mainSigSvg: svg } : prev)}
                               />
                             )}
@@ -13853,25 +13846,25 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
                 {/* Phase B — Department checklist (if a template exists for this dept) */}
                 {finishModal.template && Array.isArray(finishModal.answers) && finishModal.answers.length > 0 && (
-                  <div className="rounded-lg px-3 py-3" style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.3)" }}>
-                    <div className="text-[11px] font-black text-blue-300 mb-2">
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
+                    <div className="text-[11px] font-black text-slate-800 mb-2">
                       Checklist · {finishModal.template.name}
-                      <span className="text-slate-500 font-normal ml-1">(unchecked items need a remark)</span>
+                      <span className="text-slate-400 font-normal ml-1">(unchecked items need a remark)</span>
                     </div>
                     <div className="space-y-2 max-h-56 overflow-y-auto">
                       {finishModal.answers.map((a, i) => (
-                        <div key={i} className="rounded-md px-2 py-2" style={{ background: a.checked ? "rgba(34,197,94,0.06)" : "rgba(255,255,255,0.03)", border: `1px solid ${a.checked ? "rgba(34,197,94,0.25)" : "rgba(255,255,255,0.08)"}` }}>
+                        <div key={i} className={`rounded-md px-2 py-2 border ${a.checked ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 border-slate-200"}`}>
                           <label className="flex items-start gap-2 cursor-pointer">
                             <input type="checkbox" checked={!!a.checked}
                                    onChange={(e) => setFinishModal((prev) => prev ? { ...prev, answers: toggleAnswer(prev.answers, i, e.target.checked) } : prev)}
-                                   className="mt-0.5" />
-                            <span className="text-[12px] text-slate-200 flex-1">{a.label}{a.required && <span className="text-red-400 ml-0.5">*</span>}</span>
+                                   className="mt-0.5 accent-slate-900" />
+                            <span className="text-[12px] text-slate-700 flex-1">{a.label}{a.required && <span className="text-red-500 ml-0.5">*</span>}</span>
                           </label>
                           {!a.checked && (
                             <input type="text" value={a.remark || ""}
                                    onChange={(e) => setFinishModal((prev) => prev ? { ...prev, answers: setAnswerRemark(prev.answers, i, e.target.value) } : prev)}
                                    placeholder="Remark (required for unchecked item)"
-                                   className="w-full mt-2 bg-white/[0.04] border border-orange-500/40 rounded px-2 py-1.5 text-[11px] text-white placeholder-slate-500 outline-none focus:border-orange-500/70" />
+                                   className="w-full mt-2 bg-white border border-slate-300 rounded px-2 py-1.5 text-[11px] text-slate-900 placeholder-slate-400 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-100 transition-colors" />
                           )}
                         </div>
                       ))}
@@ -13882,15 +13875,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   <div className="text-[10px] text-slate-500">No checklist template configured for {fromDepartment}. Admins can add one in Settings → Department Checklists.</div>
                 )}
               </div>
-              <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between flex-shrink-0"
-                   style={{ background: "rgba(0,0,0,0.35)" }}>
+              <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between flex-shrink-0 bg-white">
                 <button onClick={() => !transferBusy && setFinishModal(null)} disabled={transferBusy}
-                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
+                        className="text-[12px] font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                   Cancel
                 </button>
                 <button onClick={submitFinishTransfer} disabled={transferBusy || (isOverrun && !narration.trim())}
-                        className="text-[11px] font-black text-white px-5 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{ background: "linear-gradient(135deg,#f97316,#ea580c)", boxShadow: "0 0 12px rgba(249,115,22,0.3)" }}>
+                        className="text-[12px] font-bold text-white bg-orange-500 hover:bg-orange-600 px-5 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                   {transferBusy ? "⏳ Sending…" : `Finish & Transfer → ${toDepartment}`}
                 </button>
               </div>
