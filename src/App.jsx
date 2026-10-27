@@ -66,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-27-finish-modal-redesign";
+const APP_BUILD = "2026-10-27-light-theme-redesign";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -414,7 +414,7 @@ const statusConfig = {
   preferred:{ label: "PREFERRED", bg: "", text: "text-emerald-400", border: "",  style: { background: "rgba(52,211,153,0.09)",  color: "#34D399",  border: "1px solid rgba(52,211,153,0.26)" } },
   active:   { label: "ACTIVE",    bg: "", text: "", border: "",                   style: { background: "rgba(96,165,250,0.09)",  color: "#60A5FA",  border: "1px solid rgba(96,165,250,0.26)" } },
   poor:     { label: "POOR",      bg: "", text: "", border: "",                   style: { background: "rgba(248,113,113,0.10)", color: "#F87171",  border: "1px solid rgba(248,113,113,0.28)" } },
-  draft:    { label: "DRAFT",     bg: "", text: "", border: "",                   style: { background: "rgba(255,255,255,0.05)", color: "#94a3b8",  border: "1px solid rgba(255,255,255,0.10)" } },
+  draft:    { label: "DRAFT",     bg: "", text: "", border: "",                   style: { background: "rgba(15,20,28,0.04)",  color: "#64748b",  border: "1px solid rgba(15,20,28,0.12)" } },
   ordered:  { label: "ORDERED",   bg: "", text: "", border: "",                   style: { background: "rgba(192,132,252,0.09)", color: "#C084FC",  border: "1px solid rgba(192,132,252,0.26)" } },
   received: { label: "RECEIVED",  bg: "", text: "", border: "",                   style: { background: "rgba(74,222,128,0.09)",  color: "#4ADE80",  border: "1px solid rgba(74,222,128,0.26)" } },
   rejected: { label: "REJECTED",  bg: "", text: "", border: "",                   style: { background: "rgba(248,113,113,0.10)", color: "#F87171",  border: "1px solid rgba(248,113,113,0.28)" } },
@@ -660,24 +660,26 @@ const Btn = ({ variant = "ghost", size = "sm", onClick, children, className = ""
   const sizes = { xs: "text-[11px] px-2.5 py-1 leading-none", sm: "text-[12px] px-3 py-1.5", md: "text-[13px] px-4 py-2" };
   const variants = {
     primary: "text-white border-transparent",
-    ghost:   "text-slate-400 border-white/[0.10] hover:text-white hover:bg-white/[0.07] hover:border-white/[0.18]",
-    green:   "bg-green-500/[0.10] text-green-400 border-green-500/[0.25] hover:bg-green-500/[0.18] hover:border-green-500/50",
-    red:     "bg-red-500/[0.10] text-red-400 border-red-500/[0.25] hover:bg-red-500/[0.18] hover:border-red-500/50",
+    ghost:   "text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-50 hover:border-slate-300",
+    green:   "bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:border-green-300",
+    red:     "bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300",
     wa:      "bg-[#22c55e] text-white border-[#16a34a] hover:bg-[#16a34a]",
-    mail:    "bg-blue-500/[0.10] text-blue-400 border-blue-500/[0.25] hover:bg-blue-500/[0.18] hover:border-blue-500/50",
-    orange:  "bg-orange-500/[0.10] text-orange-400 border-orange-500/[0.25] hover:bg-orange-500/[0.18] hover:border-orange-500/50",
-    purple:  "bg-purple-500/[0.10] text-purple-400 border-purple-500/[0.25] hover:bg-purple-500/[0.18] hover:border-purple-500/50",
+    mail:    "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300",
+    orange:  "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 hover:border-orange-300",
+    purple:  "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 hover:border-purple-300",
   };
   const primaryStyle = variant === "primary" ? {
-    background: disabled ? "rgba(232,85,61,0.35)" : "linear-gradient(135deg,#E8553D,#CC4A33)",
-    boxShadow: disabled ? "none" : "0 2px 12px rgba(232,85,61,0.32)",
+    background: disabled ? "rgba(217,32,40,0.35)" : "linear-gradient(135deg,#d92028,#b31820)",
+    boxShadow: disabled ? "none" : "0 2px 12px rgba(217,32,40,0.22)",
+    color: "#ffffff",
   } : {};
-  const ghostStyle = variant === "ghost" ? { background: "rgba(255,255,255,0.04)" } : {};
+  const ghostStyle = {};
+  const waStyle = variant === "wa" ? { color: "#ffffff" } : {};
   // eslint-disable-next-line jsx-a11y/no-autofocus
   return (
     <button type={type} onClick={onClick} autoFocus={autoFocus} title={title} disabled={disabled}
       className={`${base} ${sizes[size]} ${variants[variant]} ${className} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
-      style={{ ...primaryStyle, ...ghostStyle }}>
+      style={{ ...primaryStyle, ...ghostStyle, ...waStyle }}>
       {children}
     </button>
   );
@@ -841,7 +843,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
           {/* 1. Critical Stock Requiring Immediate Purchase */}
-          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-slate-200 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-[12px] font-semibold text-white">🔴 Critical Stock — Order Now</span>
@@ -863,7 +865,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs font-bold text-white truncate">{item.name}</span>
-                            <span className="text-[9px] font-mono text-slate-600 bg-white/[0.05] px-1.5 py-0.5 rounded flex-shrink-0">{item.code}</span>
+                            <span className="text-[9px] font-mono text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded flex-shrink-0">{item.code}</span>
                           </div>
                           <div className="text-[10px] text-slate-400 mt-0.5">
                             Stock: <span className="text-red-400 font-bold">{item.stock} {item.unit}</span>
@@ -873,7 +875,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                         </div>
                         <Btn variant="primary" size="xs" onClick={() => onNavigate?.("pipeline")}>🛒 Order</Btn>
                       </div>
-                      <div className="h-1 bg-white/[0.05] rounded-full overflow-hidden">
+                      <div className="h-1 bg-slate-50 rounded-full overflow-hidden">
                         <div className="h-full rounded-full bg-red-500" style={{ width: `${pct}%` }} />
                       </div>
                     </div>
@@ -889,7 +891,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
           </div>
 
           {/* 2. Pending PO Approvals */}
-          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-slate-200 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-[12px] font-semibold text-white">📋 Pending PO Approvals</span>
@@ -933,7 +935,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
           </div>
 
           {/* 3. Pending Materials Blocking Production */}
-          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-slate-200 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-[12px] font-semibold text-white">⏳ Materials Blocking Production</span>
@@ -956,7 +958,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[11px] font-bold text-white truncate">{p.name || p.code}</span>
-                            <span className="text-[9px] font-mono text-slate-600 bg-white/[0.05] px-1.5 py-0.5 rounded flex-shrink-0">{p.code}</span>
+                            <span className="text-[9px] font-mono text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded flex-shrink-0">{p.code}</span>
                           </div>
                           <div className="text-[10px] text-slate-400 mt-0.5">
                             Need: <span className="text-white font-bold">{p.pendingQty} {p.unit}</span>
@@ -980,7 +982,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
           </div>
 
           {/* 4. Machines Ready for Next Stage */}
-          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-slate-200 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-[12px] font-semibold text-white">⚙️ Machines — Next Stage</span>
@@ -1004,7 +1006,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[11px] font-bold text-white truncate">{m.bomLabel || m.bomKey}</span>
-                            {m.serialNo && <span className="text-[9px] font-mono text-slate-600 bg-white/[0.05] px-1.5 py-0.5 rounded flex-shrink-0">{m.serialNo}</span>}
+                            {m.serialNo && <span className="text-[9px] font-mono text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded flex-shrink-0">{m.serialNo}</span>}
                           </div>
                           <div className="text-[10px] text-slate-400 mt-0.5">
                             Stage <span className="text-white font-bold">{stageN}</span>
@@ -1029,7 +1031,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
         </div>
 
         {/* ── Recent Stock Movements (live ledger feed) ── */}
-        <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
+        <div className="bg-[#111622] border border-slate-200 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-semibold text-white">🔄 Recent Stock Movements</span>
@@ -1052,7 +1054,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[11px] font-bold text-white truncate">{m.itemName || m.itemCode}</span>
-                        <span className="text-[9px] font-mono text-slate-600 bg-white/[0.05] px-1.5 py-0.5 rounded flex-shrink-0">{m.itemCode}</span>
+                        <span className="text-[9px] font-mono text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded flex-shrink-0">{m.itemCode}</span>
                       </div>
                       <div className="text-[10px] text-slate-500 mt-0.5 truncate">
                         <span style={{ color: meta.color }}>{meta.label}</span>
@@ -1124,7 +1126,7 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
            }}>
 
         {/* Header */}
-        <div className="px-5 py-4 border-b border-white/[0.07] flex items-center justify-between"
+        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between"
              style={{ background: isAdd ? "rgba(34,197,94,0.06)" : "rgba(249,115,22,0.06)" }}>
           <div className="min-w-0 pr-2">
             <div className="text-[10px] font-black uppercase tracking-[0.08em] mb-0.5"
@@ -1134,7 +1136,7 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
             <div className="text-xs font-semibold text-white truncate">{item.name}</div>
           </div>
           <button onClick={onClose}
-                  className="w-7 h-7 rounded-lg bg-white/[0.05] hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all duration-200 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                  className="w-7 h-7 rounded-lg bg-slate-50 hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all duration-200 flex items-center justify-center text-xs font-bold flex-shrink-0">
             ✕
           </button>
         </div>
@@ -1162,7 +1164,7 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
                    onChange={(e) => setQty(e.target.value)}
                    onKeyDown={(e) => e.key === "Enter" && confirm()}
                    placeholder="Enter quantity"
-                   className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-sm font-bold text-[#f0f6ff] placeholder-slate-600 outline-none leading-relaxed modal-input"
+                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-[#f0f6ff] placeholder-slate-600 outline-none leading-relaxed modal-input"
                    style={{ fontVariantNumeric: "tabular-nums", fontFamily: "'Inter','SF Pro Text',system-ui,sans-serif" }} />
           </div>
 
@@ -1186,7 +1188,7 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-white/[0.07] flex gap-2 flex-shrink-0"
+        <div className="px-5 py-4 border-t border-slate-200 flex gap-2 flex-shrink-0"
              style={{ background: "rgba(0,0,0,0.3)" }}>
           <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
           <button onClick={confirm}
@@ -1246,7 +1248,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
            }}>
 
         {/* Header */}
-        <div className="px-6 py-5 border-b border-white/[0.08] flex items-start justify-between flex-shrink-0"
+        <div className="px-6 py-5 border-b border-slate-200 flex items-start justify-between flex-shrink-0"
              style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.1),rgba(204,74,51,0.05))" }}>
           <div className="flex-1 min-w-0 pr-3 flex items-start gap-3">
             {/* Optional item photo (Phase 1 item media) */}
@@ -1275,7 +1277,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
             </div>
           </div>
           <button onClick={onClose}
-                  className="w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all duration-200 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                  className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all duration-200 flex items-center justify-center text-sm font-bold flex-shrink-0">
             ✕
           </button>
         </div>
@@ -1302,7 +1304,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                 </div>
               </div>
             </div>
-            <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+            <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden">
               <div className="h-full rounded-full transition-all duration-700"
                    style={{ width: `${Math.min(stockPct, 100)}%`, background: barGrad }} />
             </div>
@@ -1420,7 +1422,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                        onChange={e => setAdjustQty(e.target.value)}
                        onKeyDown={e => e.key === "Enter" && handleAdjust()}
                        placeholder="Enter quantity"
-                       className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input"
+                       className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input"
                        style={{ fontVariantNumeric: "tabular-nums" }} />
                 <button onClick={handleAdjust}
                         className="px-4 py-2 rounded-xl text-xs font-bold text-white transition-all duration-200"
@@ -1428,7 +1430,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                   Confirm
                 </button>
                 <button onClick={() => { setAdjustMode(null); setAdjustQty(""); }}
-                        className="px-3 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-white/[0.04] border border-white/[0.08] transition-all">
+                        className="px-3 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-slate-900 bg-slate-50 border border-slate-200 transition-all">
                   Cancel
                 </button>
               </div>
@@ -1439,10 +1441,10 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
           {/* Stock History */}
           <div>
             <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-2.5">Stock History</div>
-            <div className="rounded-xl overflow-hidden border border-white/[0.06]">
+            <div className="rounded-xl overflow-hidden border border-slate-200">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-white/[0.06]"
+                  <tr className="border-b border-slate-200"
                       style={{ background: "rgba(255,255,255,0.03)" }}>
                     {["Date","Event","Change","Qty"].map(h => (
                       <th key={h} className="text-left text-[10px] font-medium text-slate-500 uppercase tracking-wider px-3 py-2">{h}</th>
@@ -1451,7 +1453,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                 </thead>
                 <tbody>
                   {history.map((h, i) => (
-                    <tr key={i} className="border-b border-white/[0.03] last:border-0 hover:bg-white/[0.02] transition-colors">
+                    <tr key={i} className="border-b border-slate-200 last:border-0 hover:bg-transparent transition-colors">
                       <td className="px-3 py-2 text-[10px] text-slate-500"
                           style={{ fontFamily: "'Inter',system-ui,sans-serif" }}>{h.date}</td>
                       <td className="px-3 py-2 text-[10px] text-slate-400">{h.event}</td>
@@ -1460,7 +1462,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                           : h.change > 0 ? <span className="text-green-400">+{h.change}</span>
                           : <span className="text-red-400">{h.change}</span>}
                       </td>
-                      <td className="px-3 py-2 text-[10px] font-mono font-bold text-slate-300">{h.qty}</td>
+                      <td className="px-3 py-2 text-[10px] font-mono font-bold text-slate-500">{h.qty}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1592,7 +1594,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                               </div>
                               <span className="text-[11px] font-mono font-bold text-orange-400">{qty} {item.unit}</span>
                             </div>
-                            <div className="h-1 bg-white/[0.05] rounded-full overflow-hidden">
+                            <div className="h-1 bg-slate-50 rounded-full overflow-hidden">
                               <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "rgba(249,115,22,0.55)" }} />
                             </div>
                           </div>
@@ -1630,10 +1632,10 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                   <div className="text-[9px] font-black uppercase tracking-[0.06em] text-slate-600 mb-1.5">
                     Last {last10.length} Usage{last10.length !== 1 ? "s" : ""}
                   </div>
-                  <div className="rounded-xl overflow-hidden border border-white/[0.06]">
+                  <div className="rounded-xl overflow-hidden border border-slate-200">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-white/[0.06]" style={{ background: "rgba(255,255,255,0.03)" }}>
+                        <tr className="border-b border-slate-200" style={{ background: "rgba(255,255,255,0.03)" }}>
                           {["Date","BOM / Source","Serial No","Qty Used"].map((h) => (
                             <th key={h} className="text-left text-[9px] font-medium text-slate-500 uppercase tracking-wider px-2.5 py-1.5">{h}</th>
                           ))}
@@ -1641,7 +1643,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                       </thead>
                       <tbody>
                         {last10.map((u, i) => (
-                          <tr key={i} className="border-b border-white/[0.03] last:border-0 hover:bg-white/[0.02] transition-colors">
+                          <tr key={i} className="border-b border-slate-200 last:border-0 hover:bg-transparent transition-colors">
                             <td className="px-2.5 py-1.5 text-[10px] text-slate-500 whitespace-nowrap">{u.date}</td>
                             <td className="px-2.5 py-1.5 text-[10px] max-w-[90px] truncate" title={u.label}>
                               {u.type === "bom"
@@ -1787,13 +1789,13 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                     <div className="flex-1">
                       <div className="text-[9px] text-slate-600 mb-1">From</div>
                       <input type="date" value={mvDateFrom} onChange={(e) => setMvDateFrom(e.target.value)}
-                             className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-[10px] text-slate-300 outline-none"
+                             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[10px] text-slate-500 outline-none"
                              style={{ colorScheme: "dark" }} />
                     </div>
                     <div className="flex-1">
                       <div className="text-[9px] text-slate-600 mb-1">To</div>
                       <input type="date" value={mvDateTo} onChange={(e) => setMvDateTo(e.target.value)}
-                             className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-[10px] text-slate-300 outline-none"
+                             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[10px] text-slate-500 outline-none"
                              style={{ colorScheme: "dark" }} />
                     </div>
                   </div>
@@ -1818,10 +1820,10 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                 {filtered.length === 0 ? (
                   <div className="text-[11px] text-slate-600 py-3 text-center">No movements in this period.</div>
                 ) : (
-                  <div className="rounded-xl overflow-hidden border border-white/[0.06]">
+                  <div className="rounded-xl overflow-hidden border border-slate-200">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-white/[0.06]" style={{ background: "rgba(255,255,255,0.03)" }}>
+                        <tr className="border-b border-slate-200" style={{ background: "rgba(255,255,255,0.03)" }}>
                           {["Date", "Type", "Reference", "In", "Out", "Balance"].map((h) => (
                             <th key={h} className="text-left text-[9px] font-medium text-slate-500 uppercase tracking-wider px-2.5 py-2">{h}</th>
                           ))}
@@ -1831,7 +1833,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                         {filtered.map((m, i) => {
                           const cfg = txnCfg(m.type);
                           return (
-                            <tr key={i} className="border-b border-white/[0.03] last:border-0 hover:bg-white/[0.015] transition-colors">
+                            <tr key={i} className="border-b border-slate-200 last:border-0 hover:bg-transparent transition-colors">
                               <td className="px-2.5 py-2 text-[10px] text-slate-500 whitespace-nowrap">{m.date}</td>
                               <td className="px-2.5 py-2">
                                 <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md whitespace-nowrap"
@@ -1846,7 +1848,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                               <td className="px-2.5 py-2 text-[10px] font-mono font-bold">
                                 {m.qtyOut > 0 ? <span className="text-red-400">-{m.qtyOut}</span> : <span className="text-slate-700">—</span>}
                               </td>
-                              <td className="px-2.5 py-2 text-[10px] font-mono font-bold text-slate-300 tabular-nums">{m.balance} {item.unit}</td>
+                              <td className="px-2.5 py-2 text-[10px] font-mono font-bold text-slate-500 tabular-nums">{m.balance} {item.unit}</td>
                             </tr>
                           );
                         })}
@@ -1860,7 +1862,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/[0.08] flex items-center gap-2 flex-wrap flex-shrink-0"
+        <div className="px-6 py-4 border-t border-slate-200 flex items-center gap-2 flex-wrap flex-shrink-0"
              style={{ background: "rgba(0,0,0,0.35)" }}>
           {onEdit   && <Btn variant="ghost" size="sm" onClick={onEdit}>✏️ Edit</Btn>}
           {onDelete && <Btn variant="red"   size="sm" onClick={() => { setAdjustMode(null); onDelete(); }}>🗑️ Delete</Btn>}
@@ -2057,7 +2059,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
   };
 
   const inp = (err) =>
-    `w-full bg-white/[0.04] border ${err ? "border-red-500/60" : "border-white/[0.08]"} rounded-xl px-4 py-3 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none leading-relaxed modal-input`;
+    `w-full bg-slate-50 border ${err ? "border-red-500/60" : "border-slate-200"} rounded-xl px-4 py-3 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none leading-relaxed modal-input`;
 
   const computedStatus = (() => {
     const s = Number(form.stock);
@@ -2089,14 +2091,14 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
            }}>
 
         {/* Header */}
-        <div className="px-6 py-5 border-b border-white/[0.08] flex items-center justify-between flex-shrink-0"
+        <div className="px-6 py-5 border-b border-slate-200 flex items-center justify-between flex-shrink-0"
              style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.11),rgba(204,74,51,0.06))" }}>
           <div>
             <div className="text-[15px] font-semibold text-white tracking-tight">{isEdit ? "Edit Inventory Item" : "Add Inventory Item"}</div>
             <div className="text-[11px] text-slate-400 mt-0.5">Status auto-calculates from stock vs minimum level</div>
           </div>
           <button onClick={onClose}
-                  className="w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all duration-200 flex items-center justify-center text-sm font-bold">
+                  className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all duration-200 flex items-center justify-center text-sm font-bold">
             ✕
           </button>
         </div>
@@ -2248,7 +2250,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
 
               {/* Selector box — chips + search input in one container */}
               <div
-                className="min-h-[44px] w-full bg-white/[0.04] border rounded-xl px-3 py-2 flex flex-wrap gap-1.5 items-center cursor-text transition-all"
+                className="min-h-[44px] w-full bg-slate-50 border rounded-xl px-3 py-2 flex flex-wrap gap-1.5 items-center cursor-text transition-all"
                 style={{
                   borderColor: dropOpen ? "rgba(232,85,61,0.55)" : "var(--border-rim)",
                   boxShadow:   dropOpen ? "0 0 0 2px rgba(232,85,61,0.12)" : "none",
@@ -2307,7 +2309,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
                     </div>
                   ) : (
                     <>
-                      <div className="px-3.5 py-2 border-b border-white/[0.05] flex items-center justify-between flex-shrink-0">
+                      <div className="px-3.5 py-2 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
                         <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider">
                           Vendor Master · {unlinkedVendors.length} available
                         </span>
@@ -2321,7 +2323,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
                       {vendorDropItems.map((v) => (
                         <button key={v.id}
                                 onMouseDown={(e) => { e.preventDefault(); addVendorLink(v); }}
-                                className="w-full text-left flex items-center gap-3 px-3.5 py-2.5 hover:bg-white/[0.05] active:bg-white/[0.08] transition-colors border-b border-white/[0.04] last:border-0">
+                                className="w-full text-left flex items-center gap-3 px-3.5 py-2.5 hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-200 last:border-0">
                           <span className="text-[11px] flex-shrink-0">{roleIcon(v.priority)}</span>
                           <div className="flex-1 min-w-0">
                             <div className="text-xs font-semibold text-white truncate">{v.name}</div>
@@ -2341,7 +2343,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
                         </button>
                       ))}
                       {hasMoreVendors && (
-                        <div className="px-4 py-2 text-center border-t border-white/[0.05]">
+                        <div className="px-4 py-2 text-center border-t border-slate-200">
                           <span className="text-[10px] text-slate-700">
                             Type to filter · {unlinkedVendors.filter((v) => !vendorSearch || v.name.toLowerCase().includes(vendorSearch.toLowerCase())).length - 20} more not shown
                           </span>
@@ -2426,11 +2428,11 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
                   {photo ? <img src={photo} alt="" className="w-full h-full object-cover" /> : <span className="text-xl">📷</span>}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-semibold text-slate-300 mb-1">Item Photo</div>
+                  <div className="text-[11px] font-semibold text-slate-500 mb-1">Item Photo</div>
                   <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={onPickPhoto} />
                   <div className="flex gap-1.5">
                     <button onClick={() => photoInputRef.current?.click()} disabled={photoBusy}
-                            className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-white/[0.1] text-slate-300 hover:border-white/20 transition-all disabled:opacity-50">
+                            className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-slate-200 text-slate-500 hover:border-white/20 transition-all disabled:opacity-50">
                       {photoBusy ? "Uploading…" : "Upload"}
                     </button>
                     {photo && !photoBusy && <button onClick={() => setPhoto("")}
@@ -2451,11 +2453,11 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
                     : <span className="text-xl">📐</span>}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-semibold text-slate-300 mb-1">Design / Drawing</div>
+                  <div className="text-[11px] font-semibold text-slate-500 mb-1">Design / Drawing</div>
                   <input ref={designInputRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={onPickDesign} />
                   <div className="flex gap-1.5">
                     <button onClick={() => designInputRef.current?.click()} disabled={designBusy}
-                            className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-white/[0.1] text-slate-300 hover:border-white/20 transition-all disabled:opacity-50">
+                            className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-slate-200 text-slate-500 hover:border-white/20 transition-all disabled:opacity-50">
                       {designBusy ? "Uploading…" : "Upload"}
                     </button>
                     {designFile && !designBusy && <button onClick={() => { setDesignFile(""); setDesignName(""); }}
@@ -2476,7 +2478,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/[0.08] flex items-center justify-between flex-shrink-0"
+        <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between flex-shrink-0"
              style={{ background: "rgba(0,0,0,0.35)" }}>
           <div className="text-[10px] text-slate-500">Fields marked <span className="text-red-400">*</span> are required</div>
           <div className="flex gap-2">
@@ -2579,12 +2581,12 @@ function ItemImportModal({ items, onImport, onClose }) {
            style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.35)", boxShadow: "0 32px 80px rgba(0,0,0,0.92)", animation: "slideUp 0.2s ease both" }}>
 
         {/* Header */}
-        <div className="px-6 py-4 border-b border-white/[0.07] flex items-center justify-between flex-shrink-0">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
           <div>
             <div className="text-sm font-black text-white">Import Items</div>
             <div className="text-[11px] text-slate-500 mt-0.5">Upload a CSV or Excel file exported from Google Sheets</div>
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-white text-lg leading-none">✕</button>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-900 text-lg leading-none">✕</button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
@@ -2613,8 +2615,8 @@ function ItemImportModal({ items, onImport, onClose }) {
             <div className="text-[10px] text-slate-500 pt-1" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
               Only <span className="text-blue-300 font-semibold">Name</span> is required.
               Every other column in the sheet is ignored — defaults are applied
-              (Unit = <span className="text-slate-300">Nos</span>, Category = <span className="text-slate-300">Mechanical</span>,
-              Opening Stock / Min / Rate = <span className="text-slate-300">0</span>).
+              (Unit = <span className="text-slate-500">Nos</span>, Category = <span className="text-slate-500">Mechanical</span>,
+              Opening Stock / Min / Rate = <span className="text-slate-500">0</span>).
               Re-importing the same sheet never creates duplicates.
             </div>
           </div>
@@ -2646,7 +2648,7 @@ function ItemImportModal({ items, onImport, onClose }) {
           {rows && rows.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <div className="text-[11px] font-semibold text-slate-300">{rows.length} row{rows.length !== 1 ? "s" : ""} detected</div>
+                <div className="text-[11px] font-semibold text-slate-500">{rows.length} row{rows.length !== 1 ? "s" : ""} detected</div>
                 <div className="flex items-center gap-3 text-[10px]">
                   {readyCount  > 0 && <span className="font-bold text-green-400">{readyCount} new</span>}
                   {updateCount > 0 && <span className="font-bold text-yellow-300">{updateCount} existing — missing fields will be filled in</span>}
@@ -2683,7 +2685,7 @@ function ItemImportModal({ items, onImport, onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/[0.07] flex items-center justify-between gap-3 flex-shrink-0">
+        <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between gap-3 flex-shrink-0">
           <div className="text-[10px] text-slate-600">
             {rows
               ? (readyCount + updateCount > 0
@@ -3010,7 +3012,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                style={{ background: "var(--surface-elevated)", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)", animation: "slideUp 0.25s ease both" }}>
 
             {/* Header */}
-            <div className="px-5 py-4 border-b border-white/[0.08]" style={{ background: "rgba(239,68,68,0.06)" }}>
+            <div className="px-5 py-4 border-b border-slate-200" style={{ background: "rgba(239,68,68,0.06)" }}>
               <div className="text-sm font-black text-red-400">🗑️ Delete Item</div>
               <div className="text-[10px] text-slate-500 mt-0.5">{deleteModal.item.name} · {deleteModal.item.code}</div>
             </div>
@@ -3039,7 +3041,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
 
             {/* Footer — Cancel autofocuses so Enter on an accidental open
                 dismisses the destructive action by default. */}
-            <div className="px-5 py-4 border-t border-white/[0.08] flex gap-2" style={{ background: "rgba(0,0,0,0.35)" }}>
+            <div className="px-5 py-4 border-t border-slate-200 flex gap-2" style={{ background: "rgba(0,0,0,0.35)" }}>
               <Btn variant="ghost" size="sm" autoFocus onClick={() => setDeleteModal(null)}>Cancel</Btn>
               <div className="flex-1" />
               <button onClick={() => handleConfirmDelete(deleteModal.category, deleteModal.item.code)}
@@ -3061,7 +3063,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
             <div className="text-[10px] text-slate-500 mt-0.5">Category: {toast.machine}</div>
           </div>
           <StatusBadge status={toast.status} />
-          <button onClick={() => setToast(null)} className="ml-1 w-5 h-5 rounded flex items-center justify-center text-slate-600 hover:text-slate-300 text-[10px]">✕</button>
+          <button onClick={() => setToast(null)} className="ml-1 w-5 h-5 rounded flex items-center justify-center text-slate-600 hover:text-slate-500 text-[10px]">✕</button>
         </div>
       )}
 
@@ -3069,7 +3071,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
         <Btn variant="ghost" size="sm">⬇️ Export</Btn>
         {canDo("inventory","add") && (
           <button onClick={() => setShowImport(true)}
-                  className="text-xs font-bold px-3 py-1.5 rounded-lg border border-white/[0.1] text-slate-300 hover:text-white hover:border-white/[0.25] transition-all flex items-center gap-1.5">
+                  className="text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-all flex items-center gap-1.5">
             ⬆ Import Items
           </button>
         )}
@@ -3120,7 +3122,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                 onClick={() => setAttentionOpen((v) => !v)}
                 aria-expanded={attentionOpen}
                 aria-controls="erp-attention-body"
-                className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.02] rounded-xl"
+                className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-transparent rounded-xl"
                 style={{ minHeight: 48 }}>
                 <span className="text-[10px] font-black text-red-400 uppercase tracking-[0.08em] flex-shrink-0">⚠ Attention</span>
                 <span className="text-[11px] font-bold text-white">({summary})</span>
@@ -3155,7 +3157,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
 
         {/* Filter bar */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex gap-0.5 bg-white/[0.03] rounded-lg p-0.5 border border-white/[0.06]">
+          <div className="flex gap-0.5 bg-slate-50 rounded-lg p-0.5 border border-slate-200">
             {[
               { key: "all",      label: `All (${totalSKUs})`,              active: "bg-blue-500/20 text-blue-400 border border-blue-500/30"    },
               { key: "critical", label: `Critical (${criticalCount})`,     active: "bg-red-500/20 text-red-400 border border-red-500/30"       },
@@ -3163,14 +3165,14 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
               { key: "safe",     label: `Safe (${safeCount})`,             active: "bg-green-500/20 text-green-400 border border-green-500/30" },
             ].map(({ key, label, active }) => (
               <button key={key} onClick={() => setStatusFilter(key)}
-                      className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-all ${statusFilter === key ? active : "text-slate-500 hover:text-slate-300"}`}>
+                      className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-all ${statusFilter === key ? active : "text-slate-500 hover:text-slate-500"}`}>
                 {label}
               </button>
             ))}
           </div>
 
           <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)}
-                  className="bg-white/[0.04] border border-white/[0.09] rounded-lg px-3 py-1.5 text-xs text-slate-300 outline-none"
+                  className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-500 outline-none"
                   style={{ background: "#0c0f17" }}>
             <option value="all">All Categories</option>
             {machines.map((m) => <option key={m} value={m}>{m}</option>)}
@@ -3180,27 +3182,27 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 text-[11px] pointer-events-none">🔍</span>
             <input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)}
                    placeholder="Search code, name, vendor, location..."
-                   className="bg-white/[0.04] border border-white/[0.09] rounded-lg pl-7 pr-3 py-1.5 text-xs text-white placeholder-slate-600 outline-none focus:border-blue-500/40 w-72 transition-all" />
+                   className="bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-3 py-1.5 text-xs text-white placeholder-slate-600 outline-none focus:border-blue-500/40 w-72 transition-all" />
           </div>
 
           {filtersActive && (
             <button onClick={clearFilters}
-                    className="text-[10px] font-bold text-slate-500 hover:text-red-400 px-2.5 py-1.5 rounded-lg border border-white/[0.08] hover:border-red-500/30 transition-all">
+                    className="text-[10px] font-bold text-slate-500 hover:text-red-400 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:border-red-500/30 transition-all">
               ✕ Clear
             </button>
           )}
         </div>
 
         {/* Master table */}
-        <div className="bg-[#111622] border border-white/[0.07] rounded-xl overflow-hidden">
+        <div className="bg-[#111622] border border-slate-200 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-white/[0.07]" style={{ background: "rgba(255,255,255,0.03)" }}>
+                <tr className="border-b border-slate-200" style={{ background: "rgba(255,255,255,0.03)" }}>
                   {cols.map(({ col, label }) => (
                     <th key={label}
                         onClick={col ? () => toggleSort(col) : undefined}
-                        className={`text-left text-[10px] font-semibold text-slate-500 uppercase tracking-[0.06em] px-4 py-3 ${col ? "cursor-pointer hover:text-slate-300 select-none" : ""}`}>
+                        className={`text-left text-[10px] font-semibold text-slate-500 uppercase tracking-[0.06em] px-4 py-3 ${col ? "cursor-pointer hover:text-slate-500 select-none" : ""}`}>
                       {label}{col && <SortIcon col={col} />}
                     </th>
                   ))}
@@ -3223,7 +3225,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                   return (
                     <tr key={`${item.category}-${item.code}`}
                         onClick={() => setSelectedItem({ item: { ...item }, category: item.category })}
-                        className={`border-b border-white/[0.08] cursor-pointer hover:bg-white/[0.05] transition-colors ${isCrit ? "bg-red-500/[0.025]" : ""} ${lastAddedCode === item.code ? "bg-blue-500/[0.08]" : ""}`}>
+                        className={`border-b border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors ${isCrit ? "bg-red-500/[0.025]" : ""} ${lastAddedCode === item.code ? "bg-blue-500/[0.08]" : ""}`}>
                       <td className="px-4 py-4 text-xs font-mono font-bold text-blue-400 whitespace-nowrap">{item.code}</td>
                       <td className="px-4 py-4 text-xs font-semibold text-white max-w-[160px]">
                         <div className="truncate">{item.name}</div>
@@ -3238,7 +3240,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold font-mono tabular-nums" style={{ color: cfg.dot || cfg.style?.color || "var(--text)" }}>{item.stock}</span>
-                          <div className="w-14 h-1 bg-white/[0.06] rounded-full overflow-hidden flex-shrink-0">
+                          <div className="w-14 h-1 bg-slate-50 rounded-full overflow-hidden flex-shrink-0">
                             <div className="h-full rounded-full transition-all duration-500" style={{ width: `${stockPct}%`, background: barColor }} />
                           </div>
                         </div>
@@ -3261,19 +3263,19 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                           {canDo("inventory","adjust") && (
                             <button onClick={() => setQuickAdjust({ item: { ...item }, category: item.category, mode: "add" })}
                                     title="Add Stock"
-                                    className="w-6 h-6 rounded flex items-center justify-center text-xs font-black text-green-400 hover:text-white transition-all"
+                                    className="w-6 h-6 rounded flex items-center justify-center text-xs font-black text-green-400 hover:text-slate-900 transition-all"
                                     style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.22)" }}>＋</button>
                           )}
                           {canDo("inventory","adjust") && (
                             <button onClick={() => setQuickAdjust({ item: { ...item }, category: item.category, mode: "remove" })}
                                     title="Remove Stock"
-                                    className="w-6 h-6 rounded flex items-center justify-center text-xs font-black text-orange-400 hover:text-white transition-all"
+                                    className="w-6 h-6 rounded flex items-center justify-center text-xs font-black text-orange-400 hover:text-slate-900 transition-all"
                                     style={{ background: "rgba(249,115,22,0.1)", border: "1px solid rgba(249,115,22,0.22)" }}>－</button>
                           )}
                           {canDo("inventory","edit") && (
                             <button onClick={() => setEditingItem({ item: { ...item }, category: item.category })}
                                     title="Edit"
-                                    className="w-6 h-6 rounded flex items-center justify-center text-[11px] text-slate-500 hover:text-white transition-all"
+                                    className="w-6 h-6 rounded flex items-center justify-center text-[11px] text-slate-500 hover:text-slate-900 transition-all"
                                     style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>✏</button>
                           )}
                           {item.status !== "safe" && (
@@ -3290,10 +3292,10 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
           </div>
 
           {/* Footer */}
-          <div className="px-5 py-3 border-t border-white/[0.06] flex items-center justify-between"
+          <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between"
                style={{ background: "rgba(255,255,255,0.01)" }}>
             <div className="text-[10px] text-slate-600">
-              Showing <span className="text-slate-300 font-bold">{sorted.length}</span> of <span className="text-slate-300 font-bold">{totalSKUs}</span> items
+              Showing <span className="text-slate-500 font-bold">{sorted.length}</span> of <span className="text-slate-500 font-bold">{totalSKUs}</span> items
             </div>
             <div className="text-[10px] text-slate-500 tabular-nums">
               Inventory Value:{" "}
@@ -3518,7 +3520,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
     });
   };
 
-  const inpCls = `bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
+  const inpCls = `bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
   const selStyle = { background: "var(--surface-input)", color: "var(--text)" };
   const PLabel = ({ text, req }) => (
     <div className="text-[11px] font-medium tracking-tight mb-1.5" style={{ color: "#F7A992" }}>
@@ -3532,13 +3534,13 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-2xl flex flex-col rounded-2xl overflow-hidden"
            style={{ maxHeight: "92vh", background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.32)", boxShadow: "0 40px 100px rgba(0,0,0,0.92),0 0 80px rgba(232,85,61,0.1)", animation: "slideUp 0.25s ease both" }}>
-        <div className="px-6 py-5 border-b border-white/[0.08] flex items-center justify-between flex-shrink-0"
+        <div className="px-6 py-5 border-b border-slate-200 flex items-center justify-between flex-shrink-0"
              style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.11),rgba(204,74,51,0.06))" }}>
           <div>
             <div className="text-[15px] font-semibold text-white">{isEdit ? "Edit Purchase Order" : "Create Purchase Order"}</div>
             <div className="text-[11px] text-slate-400 mt-0.5">Select vendor · Add items · Review totals</div>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-sm font-bold">✕</button>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-sm font-bold">✕</button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
@@ -3850,10 +3852,10 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
             {addErr && <div className="text-[10px] text-red-400 mb-2">⚠ {addErr}</div>}
 
             {form.lineItems.length > 0 ? (
-              <div className="rounded-xl overflow-hidden border border-white/[0.06]">
+              <div className="rounded-xl overflow-hidden border border-slate-200">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-white/[0.06]" style={{ background: "rgba(255,255,255,0.03)" }}>
+                    <tr className="border-b border-slate-200" style={{ background: "rgba(255,255,255,0.03)" }}>
                       {["Item","Qty","Rate ₹","Amount ₹","📎 Design",""].map((h) => (
                         <th key={h} className="text-left text-[10px] font-medium text-slate-500 uppercase tracking-wider px-3 py-2">{h}</th>
                       ))}
@@ -3861,13 +3863,13 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                   </thead>
                   <tbody>
                     {form.lineItems.map((li, idx) => (
-                      <tr key={idx} className="border-b border-white/[0.04] last:border-0">
+                      <tr key={idx} className="border-b border-slate-200 last:border-0">
                         <td className="px-3 py-2">
                           <div className="text-xs font-semibold text-white">{li.name}</div>
                           <div className="text-[9px] text-slate-500 font-mono">{li.code} · {li.unit}</div>
                         </td>
-                        <td className="px-3 py-2 text-xs font-mono text-slate-300 text-right">{li.qty}</td>
-                        <td className="px-3 py-2 text-xs font-mono text-slate-300 text-right">{li.rate.toLocaleString("en-IN")}</td>
+                        <td className="px-3 py-2 text-xs font-mono text-slate-500 text-right">{li.qty}</td>
+                        <td className="px-3 py-2 text-xs font-mono text-slate-500 text-right">{li.rate.toLocaleString("en-IN")}</td>
                         <td className="px-3 py-2 text-xs font-bold font-mono text-green-400 text-right">₹{li.amount.toLocaleString("en-IN")}</td>
                         {/* Phase 3 — per-line "Attach Design" checkbox. Enabled only when the
                             item has a design file; disabled+tooltip otherwise. Unchecked = no
@@ -3907,7 +3909,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                 </table>
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-white/[0.08] py-8 text-center text-xs text-slate-600">
+              <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs text-slate-600">
                 No items added. Select item + qty + rate then click Add.
               </div>
             )}
@@ -3944,7 +3946,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                   <span className="font-mono font-bold text-orange-300">₹{igst.toLocaleString("en-IN")}</span>
                 </div>
               )}
-              <div className="flex justify-between text-sm border-t border-white/[0.06] pt-2">
+              <div className="flex justify-between text-sm border-t border-slate-200 pt-2">
                 <span className="font-bold text-white">Total</span>
                 <span className="font-mono font-black text-green-400">₹{total.toLocaleString("en-IN")}</span>
               </div>
@@ -3952,13 +3954,13 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-white/[0.08] flex items-center justify-between gap-2 flex-shrink-0"
+        <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between gap-2 flex-shrink-0"
              style={{ background: "rgba(0,0,0,0.35)" }}>
           <div className="text-[10px] text-slate-500">{form.lineItems.length} item{form.lineItems.length !== 1 ? "s" : ""} · ₹{total.toLocaleString("en-IN")}</div>
           <div className="flex gap-2">
             <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
             <button onClick={() => handleSave("draft")}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-slate-300 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] transition-all">
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-slate-500 border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-all">
               💾 Save Draft
             </button>
             <button onClick={() => handleSave("pending")}
@@ -3996,7 +3998,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
       <div className="w-full max-w-lg flex flex-col rounded-2xl overflow-hidden"
            style={{ maxHeight: "90vh", background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.32)", boxShadow: "0 40px 100px rgba(0,0,0,0.92)", animation: "slideUp 0.25s ease both" }}>
 
-        <div className="px-6 py-5 border-b border-white/[0.08] flex items-start justify-between flex-shrink-0"
+        <div className="px-6 py-5 border-b border-slate-200 flex items-start justify-between flex-shrink-0"
              style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.1),rgba(204,74,51,0.05))" }}>
           <div>
             <div className="text-[15px] font-semibold text-white">{po.id}</div>
@@ -4008,7 +4010,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
               <span className={`text-[10px] font-bold uppercase ${po.priority === "urgent" ? "text-red-400" : po.priority === "high" ? "text-orange-400" : "text-slate-500"}`}>{po.priority}</span>
             </div>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-sm font-bold flex-shrink-0">✕</button>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-sm font-bold flex-shrink-0">✕</button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
@@ -4020,12 +4022,12 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black border transition-all ${
                     i < cur ? "bg-blue-500 border-blue-500 text-white" :
                     i === cur ? "bg-blue-500/20 border-blue-500/60 text-blue-400" :
-                    "bg-white/[0.04] border-white/[0.1] text-slate-600 opacity-40"
-                  }`}>{i < cur ? "✓" : i + 1}</div>
+                    "bg-slate-50 border-slate-200 text-slate-600 opacity-40"
+                  }`} style={i < cur ? { color: "#fff" } : undefined}>{i < cur ? "✓" : i + 1}</div>
                   <div className={`text-[8px] mt-1 font-bold ${i === cur ? "text-blue-400" : i < cur ? "text-slate-400" : "text-slate-700"}`}>{s}</div>
                 </div>
                 {i < steps.length - 1 && (
-                  <div className={`flex-1 h-px mx-1 mb-4 ${i < cur ? "bg-blue-500" : "bg-white/[0.06]"}`} />
+                  <div className={`flex-1 h-px mx-1 mb-4 ${i < cur ? "bg-blue-500" : "bg-slate-50"}`} />
                 )}
               </div>
             ))}
@@ -4055,10 +4057,10 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
           {po.lineItems?.length > 0 && (
             <div>
               <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-2">Line Items</div>
-              <div className="rounded-xl overflow-hidden border border-white/[0.06]">
+              <div className="rounded-xl overflow-hidden border border-slate-200">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-white/[0.06]" style={{ background: "rgba(255,255,255,0.03)" }}>
+                    <tr className="border-b border-slate-200" style={{ background: "rgba(255,255,255,0.03)" }}>
                       {["Item","Qty","Rate","Amount"].map((h) => (
                         <th key={h} className="text-left text-[10px] font-medium text-slate-500 uppercase tracking-wider px-3 py-2">{h}</th>
                       ))}
@@ -4066,12 +4068,12 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
                   </thead>
                   <tbody>
                     {po.lineItems.map((li, i) => (
-                      <tr key={i} className="border-b border-white/[0.04] last:border-0">
+                      <tr key={i} className="border-b border-slate-200 last:border-0">
                         <td className="px-3 py-2">
                           <div className="text-[11px] font-semibold text-white">{li.name}</div>
                           <div className="text-[9px] text-slate-500 font-mono">{li.code}</div>
                         </td>
-                        <td className="px-3 py-2 text-[11px] font-mono text-slate-300">{li.qty} {li.unit}</td>
+                        <td className="px-3 py-2 text-[11px] font-mono text-slate-500">{li.qty} {li.unit}</td>
                         <td className="px-3 py-2 text-[11px] font-mono text-slate-400">₹{li.rate.toLocaleString("en-IN")}</td>
                         <td className="px-3 py-2 text-[11px] font-bold font-mono text-green-400">₹{li.amount.toLocaleString("en-IN")}</td>
                       </tr>
@@ -4098,8 +4100,8 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
               <div className="text-xs font-bold text-green-400 mb-1">📦 Confirm GRN — Mark as Received?</div>
               <div className="text-[10px] text-slate-500 mb-3">All line item quantities will be added to inventory stock automatically.</div>
               <div className="flex gap-2">
-                <button onClick={onMarkReceived} className="px-4 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: "rgba(34,197,94,0.8)", border: "1px solid rgba(34,197,94,0.5)" }}>✅ Confirm Received</button>
-                <button onClick={() => setConfirmReceive(false)} className="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white bg-white/[0.04] border border-white/[0.08] transition-all">Cancel</button>
+                <button onClick={onMarkReceived} className="px-4 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: "rgba(34,197,94,0.8)", border: "1px solid rgba(34,197,94,0.5)", color: "#fff" }}>✅ Confirm Received</button>
+                <button onClick={() => setConfirmReceive(false)} className="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-900 bg-slate-50 border border-slate-200 transition-all">Cancel</button>
               </div>
             </div>
           )}
@@ -4109,14 +4111,14 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
               <div className="text-xs font-bold text-red-400 mb-1">Delete this PO?</div>
               <div className="text-[10px] text-slate-500 mb-3">This cannot be undone.</div>
               <div className="flex gap-2">
-                <button onClick={onDelete} className="px-4 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: "rgba(239,68,68,0.8)", border: "1px solid rgba(239,68,68,0.5)" }}>Yes, Delete</button>
-                <button onClick={() => setConfirmDelete(false)} className="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white bg-white/[0.04] border border-white/[0.08] transition-all">Cancel</button>
+                <button onClick={onDelete} className="px-4 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: "rgba(239,68,68,0.8)", border: "1px solid rgba(239,68,68,0.5)", color: "#fff" }}>Yes, Delete</button>
+                <button onClick={() => setConfirmDelete(false)} className="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-900 bg-slate-50 border border-slate-200 transition-all">Cancel</button>
               </div>
             </div>
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-white/[0.08] flex items-center gap-2 flex-wrap flex-shrink-0"
+        <div className="px-6 py-4 border-t border-slate-200 flex items-center gap-2 flex-wrap flex-shrink-0"
              style={{ background: "rgba(0,0,0,0.35)" }}>
           {["draft","pending","review"].includes(po.status) && (
             <Btn variant="ghost" size="sm" onClick={onEdit}>✏️ Edit</Btn>
@@ -4172,7 +4174,7 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
   const pendingN  = pos.filter((p) => ["pending","review","draft"].includes(p.status)).length;
 
   const priorityChip = (p) => {
-    const cfg = { urgent: "bg-red-500/10 text-red-400", high: "bg-orange-500/10 text-orange-400", normal: "bg-white/[0.05] text-slate-500", low: "bg-white/[0.03] text-slate-600" };
+    const cfg = { urgent: "bg-red-500/10 text-red-400", high: "bg-orange-500/10 text-orange-400", normal: "bg-slate-50 text-slate-500", low: "bg-slate-50 text-slate-600" };
     return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${cfg[p] || cfg.normal}`}>{p}</span>;
   };
 
@@ -4186,7 +4188,7 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
             <div className="text-xs font-black text-white">{toast.msg}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">{toast.sub}</div>
           </div>
-          <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-300 text-xs">✕</button>
+          <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-500 text-xs">✕</button>
         </div>
       )}
 
@@ -4243,8 +4245,8 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
                       barPct={pos.length ? Math.round((overdueN / pos.length) * 100) : 0} barColor="#ef4444" />
         </div>
 
-        <div className="bg-[#111622] border border-white/[0.07] rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-white/[0.07] flex flex-wrap items-center gap-3">
+        <div className="bg-[#111622] border border-slate-200 rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-slate-200 flex flex-wrap items-center gap-3">
             <div className="text-sm font-bold text-white">Purchase Order Register</div>
             <div className="flex gap-1 flex-wrap ml-2">
               {["all","draft","pending","approved","ordered","received","overdue"].map((f) => (
@@ -4256,13 +4258,13 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
             </div>
             <input value={search} onChange={(e) => setSearch(e.target.value)}
               placeholder="🔍 Search PO / vendor..."
-              className="ml-auto bg-white/[0.04] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-600 outline-none focus:border-blue-500/40 w-52" />
+              className="ml-auto bg-slate-50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-600 outline-none focus:border-blue-500/40 w-52" />
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-white/[0.07]" style={{ background: "rgba(255,255,255,0.03)" }}>
+                <tr className="border-b border-slate-200" style={{ background: "rgba(255,255,255,0.03)" }}>
                   {["PO No.","Date","Vendor","Items","Amount","Priority","Status","Delivery","Actions"].map((h) => (
                     <th key={h} className="text-left text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] px-4 py-3">{h}</th>
                   ))}
@@ -4277,7 +4279,7 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
                 {filtered.map((po) => (
                   <tr key={po.id}
                       onClick={() => setDetailPO(po)}
-                      className={`border-b border-white/[0.04] hover:bg-white/[0.035] transition-colors cursor-pointer ${po.status === "overdue" ? "bg-red-500/[0.02]" : ""}`}>
+                      className={`border-b border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer ${po.status === "overdue" ? "bg-red-500/[0.02]" : ""}`}>
                     <td className="px-4 py-3">
                       <span className="text-[10px] font-mono font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-md">{po.id}</span>
                     </td>
@@ -4382,12 +4384,12 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
            style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.35)", boxShadow: "0 32px 80px rgba(0,0,0,0.92)", animation: "slideUp 0.2s ease both" }}>
 
         {/* Header */}
-        <div className="px-6 py-4 border-b border-white/[0.07] flex items-center justify-between flex-shrink-0">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
           <div>
             <div className="text-sm font-black text-white">Import Vendors</div>
             <div className="text-[11px] text-slate-500 mt-0.5">Upload a CSV or Excel file exported from Google Sheets</div>
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-white text-lg leading-none">✕</button>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-900 text-lg leading-none">✕</button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
@@ -4452,7 +4454,7 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
           {rows && rows.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <div className="text-[11px] font-semibold text-slate-300">{rows.length} row{rows.length !== 1 ? "s" : ""} detected</div>
+                <div className="text-[11px] font-semibold text-slate-500">{rows.length} row{rows.length !== 1 ? "s" : ""} detected</div>
                 <div className="flex items-center gap-3 text-[10px]">
                   {readyCount  > 0 && <span className="font-bold text-green-400">{readyCount} new</span>}
                   {updateCount > 0 && <span className="font-bold text-yellow-300">{updateCount} existing — missing fields will be filled in</span>}
@@ -4492,7 +4494,7 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/[0.07] flex items-center justify-between gap-3 flex-shrink-0">
+        <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between gap-3 flex-shrink-0">
           <div className="text-[10px] text-slate-600">
             {rows
               ? (readyCount + updateCount > 0
@@ -4554,7 +4556,7 @@ function VendorModal({ initialVendor, onSave, onClose }) {
     </div>
   );
   const inpCls = (err) =>
-    `w-full bg-white/[0.04] border ${err ? "border-red-500/60" : "border-white/[0.08]"} rounded-xl px-4 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
+    `w-full bg-slate-50 border ${err ? "border-red-500/60" : "border-slate-200"} rounded-xl px-4 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
   const selStyle = { background: "var(--surface-input)", color: "var(--text)" };
 
   return (
@@ -4564,12 +4566,12 @@ function VendorModal({ initialVendor, onSave, onClose }) {
       <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl overflow-hidden"
            style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.35)", boxShadow: "0 32px 80px rgba(0,0,0,0.92), 0 0 60px rgba(232,85,61,0.08)", animation: "slideUp 0.2s ease both" }}>
 
-        <div className="px-6 py-4 border-b border-white/[0.07] flex items-center justify-between flex-shrink-0">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
           <div>
             <div className="text-sm font-black text-white">{isEdit ? "Edit Vendor" : "Add New Vendor"}</div>
             <div className="text-[11px] text-slate-500 mt-0.5">Supplier details &amp; terms</div>
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-white text-lg leading-none">✕</button>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-900 text-lg leading-none">✕</button>
         </div>
 
         <div className="p-6 overflow-y-auto">
@@ -4647,7 +4649,7 @@ function VendorModal({ initialVendor, onSave, onClose }) {
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-white/[0.07] flex items-center justify-end gap-3 flex-shrink-0">
+        <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-3 flex-shrink-0">
           <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
           <button onClick={handleSave}
                   className="text-xs font-black px-5 py-2 rounded-xl text-white"
@@ -4732,7 +4734,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
              style={{ background: "var(--surface-raised)", border: "1px solid rgba(232,85,61,0.45)", boxShadow: "0 20px 60px rgba(0,0,0,0.75)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">🏭</span>
           <div className="text-xs font-black text-white">{toast}</div>
-          <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-300 text-xs">✕</button>
+          <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-500 text-xs">✕</button>
         </div>
       )}
 
@@ -4833,10 +4835,10 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
 
       <Topbar title="Vendor Management" subtitle={`${activeVendors.length} suppliers · ${activeVendors.filter((v) => v.status === "preferred").length} preferred`}>
         <input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)}
-               placeholder="Search vendors..." className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-slate-300 placeholder-slate-600 outline-none w-44" />
+               placeholder="Search vendors..." className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-500 placeholder-slate-600 outline-none w-44" />
         {canDo("vendors","add") && (
           <button onClick={() => setShowImport(true)}
-                  className="text-xs font-bold px-3 py-1.5 rounded-lg border border-white/[0.1] text-slate-300 hover:text-white hover:border-white/[0.25] transition-all flex items-center gap-1.5">
+                  className="text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-all flex items-center gap-1.5">
             ⬆ Import
           </button>
         )}
@@ -4857,7 +4859,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
           <div className={`${profileVendor ? "xl:col-span-2" : ""} grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 content-start`}>
             {filtered.map((v) => (
               <div key={v.id}
-                   className={`bg-[#111622] border rounded-xl p-4 cursor-pointer card-hover ${profileVendor?.id === v.id ? "border-blue-500/40 shadow-[0_0_20px_rgba(232,85,61,0.07)]" : "border-white/[0.07]"}`}
+                   className={`bg-[#111622] border rounded-xl p-4 cursor-pointer card-hover ${profileVendor?.id === v.id ? "border-blue-500/40 shadow-[0_0_20px_rgba(232,85,61,0.07)]" : "border-slate-200"}`}
                    onClick={() => setProfileVendor(profileVendor?.id === v.id ? null : v)}>
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 min-w-0 mr-2">
@@ -4892,14 +4894,14 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                     <span className="text-slate-500">On-time delivery</span>
                     <span className="font-bold tabular-nums" style={{ color: perfColor(v.performance) }}>{v.performance}%</span>
                   </div>
-                  <div className="h-1 bg-white/[0.05] rounded-full overflow-hidden">
+                  <div className="h-1 bg-slate-50 rounded-full overflow-hidden">
                     <div className="h-full rounded-full" style={{ width: `${v.performance}%`, background: perfColor(v.performance) }} />
                   </div>
                 </div>
 
                 <div className="flex flex-wrap gap-1 mb-3.5">
                   {[v.category, `Lead: ${v.leadDays}d`, v.annualValue, `${vendorPOCounts[v.name] || 0} POs`].map((tag) => (
-                    <span key={tag} className="text-[9px] font-semibold text-slate-500 bg-white/[0.04] border border-white/[0.06] px-2 py-0.5 rounded-full">{tag}</span>
+                    <span key={tag} className="text-[9px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">{tag}</span>
                   ))}
                 </div>
 
@@ -4958,7 +4960,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                     <div className="text-sm font-black text-white">{v.name}</div>
                     <div className="text-[11px] text-slate-500 mt-0.5">{v.category}</div>
                   </div>
-                  <button onClick={() => setProfileVendor(null)} className="text-slate-600 hover:text-slate-300 text-sm leading-none">✕</button>
+                  <button onClick={() => setProfileVendor(null)} className="text-slate-600 hover:text-slate-500 text-sm leading-none">✕</button>
                 </div>
 
                 {/* Summary stats */}
@@ -4971,7 +4973,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                       ["Pending",      pendingPOs.length,                                           "#f97316"],
                       ["Received",     receivedPOs.length,                                          "#8b5cf6"],
                     ].map(([lbl, val, col]) => (
-                      <div key={lbl} className="bg-white/[0.03] border border-white/[0.07] rounded-lg p-3">
+                      <div key={lbl} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
                         <div className="text-[9px] text-slate-600 uppercase tracking-wide mb-1">{lbl}</div>
                         <div className="text-[13px] font-black tabular-nums leading-tight" style={{ color: col }}>{val}</div>
                       </div>
@@ -4987,17 +4989,17 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                 {/* Contact */}
                 <div className="space-y-1.5">
                   <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em]">Contact</div>
-                  {v.contactPerson && <div className="text-[11px] text-slate-300">👤 {v.contactPerson}</div>}
-                  <div className="text-[11px] text-slate-300">📞 {v.phone}</div>
-                  <div className="text-[11px] text-slate-300">✉️ {v.email}</div>
-                  {v.gst     && <div className="text-[11px] text-slate-400">GST: <span className="font-mono text-slate-300">{v.gst}</span></div>}
+                  {v.contactPerson && <div className="text-[11px] text-slate-500">👤 {v.contactPerson}</div>}
+                  <div className="text-[11px] text-slate-500">📞 {v.phone}</div>
+                  <div className="text-[11px] text-slate-500">✉️ {v.email}</div>
+                  {v.gst     && <div className="text-[11px] text-slate-400">GST: <span className="font-mono text-slate-500">{v.gst}</span></div>}
                   {v.address && <div className="text-[11px] text-slate-400">📍 {v.address}</div>}
                 </div>
 
                 {/* Terms */}
                 <div className="grid grid-cols-2 gap-3">
                   {[["Payment", v.paymentTerms], ["Lead Time", `${v.leadDays} days`]].map(([lbl, val]) => (
-                    <div key={lbl} className="bg-white/[0.03] border border-white/[0.07] rounded-lg p-3">
+                    <div key={lbl} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
                       <div className="text-[9px] text-slate-600 uppercase tracking-wide mb-1">{lbl}</div>
                       <div className="text-xs font-bold text-white">{val}</div>
                     </div>
@@ -5014,7 +5016,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                   ) : (
                     <div className="space-y-1.5">
                       {itemRates.map((item) => (
-                        <div key={item.code} className="p-2.5 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                        <div key={item.code} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
                           <div className="flex items-start justify-between gap-2 mb-1.5">
                             <div className="min-w-0 flex-1">
                               <div className="text-[11px] font-semibold text-white truncate">{item.name}</div>
@@ -5031,7 +5033,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                             </div>
                           </div>
                           <div className="flex items-center justify-between">
-                            <div className="text-[10px] font-mono font-bold text-slate-300">
+                            <div className="text-[10px] font-mono font-bold text-slate-500">
                               {item.lastRate ? `₹${item.lastRate.toLocaleString("en-IN")} / ${item.unit}` : <span className="text-slate-600 font-normal">No rate history</span>}
                             </div>
                             {item.lastPODate && <div className="text-[9px] text-slate-600">Last: {item.lastPODate}</div>}
@@ -5080,9 +5082,9 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                     <div className="space-y-1.5 mb-2">
                       <input value={vendorPOSearch} onChange={(e) => setVendorPOSearch(e.target.value)}
                              placeholder="Search PO id, item…"
-                             className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-slate-600 outline-none focus:border-blue-500/40" />
+                             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-slate-600 outline-none focus:border-blue-500/40" />
                       <select value={vendorPOStatus} onChange={(e) => setVendorPOStatus(e.target.value)}
-                              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-[11px] text-white outline-none"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] text-white outline-none"
                               style={{ background: "var(--surface-elevated)" }}>
                         <option value="all">All statuses</option>
                         {["draft","pending","approved","ordered","received","overdue","rejected","review"].map((s) => <option key={s} value={s}>{s}</option>)}
@@ -5113,7 +5115,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                       <>
                         <div className="space-y-1.5 max-h-[420px] overflow-y-auto pr-1">
                           {visible.map((po) => (
-                            <div key={po.id} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                            <div key={po.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200">
                               <div className="min-w-0 flex-1">
                                 <div className="text-[11px] font-mono font-bold text-blue-400">{po.id}</div>
                                 <div className="text-[10px] text-slate-500">
@@ -5144,7 +5146,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                 {v.notes && (
                   <div className="p-3 rounded-lg bg-orange-500/[0.06] border border-orange-500/20">
                     <div className="text-[9px] font-black text-orange-400 uppercase tracking-wide mb-1">Notes</div>
-                    <div className="text-[11px] text-slate-300">{v.notes}</div>
+                    <div className="text-[11px] text-slate-500">{v.notes}</div>
                   </div>
                 )}
               </div>
@@ -5187,7 +5189,7 @@ function ApprovalsPage({ pos, onUpdatePO }) {
           <MetricCard label="Total POs"          value={pos.length.toString()}           valueColor="text-blue-400" />
         </div>
 
-        <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
+        <div className="bg-[#111622] border border-slate-200 rounded-xl p-5">
           <SectionHeader>📋 Pending Approvals</SectionHeader>
           {displayList.length === 0 ? (
             <div className="py-14 text-center">
@@ -5205,7 +5207,7 @@ function ApprovalsPage({ pos, onUpdatePO }) {
                       ? "bg-green-500/[0.05] border-green-500/20 opacity-60"
                       : po.status === "review"
                       ? "bg-orange-500/[0.04] border-orange-500/20"
-                      : "bg-white/[0.02] border-white/[0.06]"
+                      : "bg-transparent border-slate-200"
                   }`}>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
@@ -5236,12 +5238,12 @@ function ApprovalsPage({ pos, onUpdatePO }) {
           )}
         </div>
 
-        <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
+        <div className="bg-[#111622] border border-slate-200 rounded-xl p-5">
           <SectionHeader>⚙️ Approval Rules</SectionHeader>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-white/[0.06]">
+                <tr className="border-b border-slate-200">
                   {["Rule", "Trigger", "Approver", "Limit", "Status"].map((h) => (
                     <th key={h} className="text-left text-[10px] font-bold text-slate-600 uppercase tracking-wide px-4 py-3">{h}</th>
                   ))}
@@ -5249,7 +5251,7 @@ function ApprovalsPage({ pos, onUpdatePO }) {
               </thead>
               <tbody>
                 {approvalRules.map((r, i) => (
-                  <tr key={i} className="border-b border-white/[0.04] hover:bg-white/[0.03]">
+                  <tr key={i} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="px-4 py-3 text-xs font-bold text-white">{r.rule}</td>
                     <td className="px-4 py-3 text-xs text-slate-400">{r.trigger}</td>
                     <td className="px-4 py-3 text-xs text-blue-400 font-semibold">{r.approver}</td>
@@ -5345,7 +5347,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-slate-200 rounded-xl p-5">
             <SectionHeader>📊 PO Value by Month (₹K)</SectionHeader>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={monthlyPOTrend.length > 0 ? monthlyPOTrend : monthlyPOData} barSize={28}>
@@ -5358,7 +5360,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
             </ResponsiveContainer>
           </div>
 
-          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-slate-200 rounded-xl p-5">
             <SectionHeader>📈 Inventory Turnover Rate</SectionHeader>
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={turnoverData}>
@@ -5379,7 +5381,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-slate-200 rounded-xl p-5">
             <SectionHeader>🥧 Spend by Category</SectionHeader>
             {spendByCat.length > 0 ? (
               <>
@@ -5405,7 +5407,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
             )}
           </div>
 
-          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-slate-200 rounded-xl p-5">
             <SectionHeader>🏭 Vendor-wise PO Count</SectionHeader>
             {vendorPOData.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
@@ -5422,7 +5424,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
             )}
           </div>
 
-          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-slate-200 rounded-xl p-5">
             <SectionHeader>📉 Stock Status</SectionHeader>
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
@@ -5564,7 +5566,7 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
                 <div className={`max-w-[85%] text-xs leading-relaxed rounded-xl px-4 py-3 whitespace-pre-wrap ${
                   msg.role === "user"
                     ? "bg-blue-500/20 text-blue-100 border border-blue-500/30"
-                    : "bg-white/[0.04] text-slate-300 border border-white/[0.06]"
+                    : "bg-slate-50 text-slate-500 border border-slate-200"
                 }`}>
                   {msg.text}
                 </div>
@@ -5572,14 +5574,14 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
             ))}
             {sending && (
               <div className="flex justify-start">
-                <div className="max-w-[85%] text-xs leading-relaxed rounded-xl px-4 py-3 whitespace-pre-wrap bg-white/[0.04] text-slate-300 border border-white/[0.06]">
+                <div className="max-w-[85%] text-xs leading-relaxed rounded-xl px-4 py-3 whitespace-pre-wrap bg-slate-50 text-slate-500 border border-slate-200">
                   🤖 Thinking…
                 </div>
               </div>
             )}
           </div>
 
-          <div className="p-3 border-t border-white/[0.06]">
+          <div className="p-3 border-t border-slate-200">
             <div className="flex flex-wrap gap-1.5 mb-3">
               {quickActions.map((a) => (
                 <button key={a.label} onClick={() => send(a.query)}
@@ -5590,7 +5592,7 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
               <input value={input} onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && send(input)}
                 placeholder="Ask about inventory, POs, vendors..."
-                className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-purple-500/40" />
+                className="flex-1 bg-slate-50 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-purple-500/40" />
               <Btn variant="primary" size="sm" onClick={() => send(input)}>Send ↗</Btn>
             </div>
           </div>
@@ -5598,7 +5600,7 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
 
         {/* Sidebar */}
         <div className="space-y-4">
-          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-slate-200 rounded-xl p-5">
             <SectionHeader>🎯 AI Confidence Scores</SectionHeader>
             <div className="space-y-3">
               {aiStats.map((s) => (
@@ -5607,7 +5609,7 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
                     <span className="text-slate-400">{s.label}</span>
                     <span className="font-bold font-mono" style={{ color: s.color }}>{s.pct}%</span>
                   </div>
-                  <div className="h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden">
                     <div className="h-full rounded-full" style={{ width: `${s.pct}%`, background: s.color }} />
                   </div>
                 </div>
@@ -5615,7 +5617,7 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
             </div>
           </div>
 
-          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-slate-200 rounded-xl p-5">
             <SectionHeader>📊 Live Inventory Stats</SectionHeader>
             <div className="space-y-3">
               {[
@@ -5633,7 +5635,7 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
             </div>
           </div>
 
-          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-slate-200 rounded-xl p-5">
             <SectionHeader>⚡ Quick Actions</SectionHeader>
             <div className="space-y-2">
               <Btn variant="primary" size="sm" className="w-full justify-center">📦 Auto-create all POs</Btn>
@@ -5654,13 +5656,13 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
 // SettingsPage caused inputs to lose focus on every keystroke (remount on re-render).
 const SLabel = ({ text, hint }) => (
   <div className="mb-1.5">
-    <div className="text-[12px] font-semibold text-slate-300">{text}</div>
+    <div className="text-[12px] font-semibold text-slate-500">{text}</div>
     {hint && <div className="text-[10px] text-slate-600 mt-0.5">{hint}</div>}
   </div>
 );
 
 const Toggle = ({ checked, onChange, label, desc }) => (
-  <div className="flex items-center justify-between py-3.5 border-b border-white/[0.05] last:border-0">
+  <div className="flex items-center justify-between py-3.5 border-b border-slate-200 last:border-0">
     <div>
       <div className="text-[13px] font-semibold text-white">{label}</div>
       {desc && <div className="text-[11px] text-slate-500 mt-0.5">{desc}</div>}
@@ -5675,8 +5677,8 @@ const Toggle = ({ checked, onChange, label, desc }) => (
 );
 
 const Section = ({ icon, title, children }) => (
-  <div className="bg-[#111622] border border-white/[0.07] rounded-2xl overflow-hidden">
-    <div className="flex items-center gap-3 px-6 py-4 border-b border-white/[0.06]"
+  <div className="bg-[#111622] border border-slate-200 rounded-2xl overflow-hidden">
+    <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-200"
          style={{ background: "rgba(255,255,255,0.03)" }}>
       <span className="text-base">{icon}</span>
       <span className="text-[14px] font-bold text-white">{title}</span>
@@ -5793,7 +5795,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
             <div>
               <SLabel text="Department" />
               <select value={editing.department} onChange={(e) => setEditing((p) => ({ ...p, department: e.target.value }))}
-                      disabled={!canConfig} className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-white outline-none">
+                      disabled={!canConfig} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-white outline-none">
                 {DEPTS.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
@@ -5801,12 +5803,12 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
               <SLabel text="Template name" />
               <input type="text" value={editing.name} onChange={(e) => setEditing((p) => ({ ...p, name: e.target.value }))}
                      disabled={!canConfig} placeholder="e.g. Assembly QC"
-                     className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-white outline-none" />
+                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-white outline-none" />
             </div>
           </div>
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <div className="text-[11px] font-semibold text-slate-300">Checklist Questions</div>
+              <div className="text-[11px] font-semibold text-slate-500">Checklist Questions</div>
               {canConfig && <button onClick={addItem} className="text-[10px] font-bold text-blue-300 hover:text-blue-200 px-2 py-0.5 rounded border border-blue-500/30 bg-blue-500/10">+ Add Question</button>}
             </div>
             <div className="space-y-2">
@@ -5819,7 +5821,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
                   <input type="text" value={it.label || ""}
                          onChange={(e) => patchItem(i, { label: e.target.value })}
                          disabled={!canConfig} placeholder="Question text (e.g. Bolts torqued correctly)"
-                         className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-[11px] text-white outline-none focus:border-blue-500/40" />
+                         className="flex-1 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-white outline-none focus:border-blue-500/40" />
                   <label className="text-[10px] text-slate-400 flex items-center gap-1">
                     <input type="checkbox" checked={!!it.required} onChange={(e) => patchItem(i, { required: e.target.checked })} disabled={!canConfig} />
                     required
@@ -5828,10 +5830,10 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
                     <>
                       <button type="button" onClick={() => moveItem(i, -1)} disabled={i === 0}
                               title="Move up"
-                              className="text-[11px] text-slate-500 hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed px-1">↑</button>
+                              className="text-[11px] text-slate-500 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed px-1">↑</button>
                       <button type="button" onClick={() => moveItem(i, +1)} disabled={i === editing.items.length - 1}
                               title="Move down"
-                              className="text-[11px] text-slate-500 hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed px-1">↓</button>
+                              className="text-[11px] text-slate-500 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed px-1">↓</button>
                       <button type="button" onClick={() => removeItem(i)} title="Remove question"
                               className="text-[11px] text-slate-500 hover:text-red-400 px-1">×</button>
                     </>
@@ -5849,17 +5851,17 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
                   <div key={i} className="rounded-md px-2 py-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
                     <label className="flex items-start gap-2">
                       <input type="checkbox" disabled className="mt-0.5" />
-                      <span className="text-[12px] text-slate-200 flex-1">{it.label || <em className="text-slate-500">(empty question)</em>}{it.required && <span className="text-red-400 ml-0.5">*</span>}</span>
+                      <span className="text-[12px] text-slate-700 flex-1">{it.label || <em className="text-slate-500">(empty question)</em>}{it.required && <span className="text-red-400 ml-0.5">*</span>}</span>
                     </label>
                     <input type="text" disabled placeholder="Remark (required when unchecked)"
-                           className="w-full mt-2 bg-white/[0.04] border border-orange-500/20 rounded px-2 py-1 text-[10px] text-slate-500" />
+                           className="w-full mt-2 bg-slate-50 border border-orange-500/20 rounded px-2 py-1 text-[10px] text-slate-500" />
                   </div>
                 ))}
               </div>
             </div>
           )}
           <div className="flex items-center gap-3 flex-wrap">
-            <label className="text-[11px] text-slate-300 flex items-center gap-2">
+            <label className="text-[11px] text-slate-500 flex items-center gap-2">
               <input type="checkbox" checked={editing.active !== false} onChange={(e) => setEditing((p) => ({ ...p, active: e.target.checked }))} disabled={!canConfig} />
               Active (shown on Finish & Transfer)
             </label>
@@ -5868,11 +5870,11 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
                     className="text-[11px] font-bold text-blue-300 px-3 py-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20">
               {preview ? "Hide Preview" : "Preview"}
             </button>
-            <button onClick={() => { setEditing(null); setPreview(false); }} className="text-[11px] font-bold text-slate-400 px-3 py-1.5 rounded-lg border border-white/[0.1] bg-white/[0.04]">
+            <button onClick={() => { setEditing(null); setPreview(false); }} className="text-[11px] font-bold text-slate-400 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50">
               Cancel
             </button>
             {canConfig && (
-              <button onClick={save} disabled={busy} className="text-[11px] font-black text-white px-4 py-1.5 rounded-lg disabled:opacity-50" style={{ background: "linear-gradient(135deg,#16a34a,#15803d)" }}>
+              <button onClick={save} disabled={busy} className="text-[11px] font-black text-white px-4 py-1.5 rounded-lg disabled:opacity-50" style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", color: "#fff" }}>
                 {busy ? "⏳ Saving…" : "Save Checklist"}
               </button>
             )}
@@ -5943,7 +5945,7 @@ function DeptEmployeesRow({ dept, assigned, notAssigned, canConfig, onSaveUserDe
       {canConfig && (
         <div className="flex items-center gap-2 flex-wrap">
           <select value={pickValue} onChange={(e) => setPickValue(e.target.value)} disabled={busy || notAssigned.length === 0}
-                  className="flex-1 min-w-[180px] bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-blue-500/40 disabled:opacity-50"
+                  className="flex-1 min-w-[180px] bg-slate-50 border border-slate-200 rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-blue-500/40 disabled:opacity-50"
                   style={{ background: "var(--surface-input)", color: "var(--text)" }}>
             <option value="">
               {notAssigned.length === 0 ? "— All active users already assigned —" : "+ Add worker from existing users…"}
@@ -6021,7 +6023,7 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
       {editing && (
         <div className="mb-4 rounded-xl px-4 py-4 space-y-3"
              style={{ background: "rgba(232,85,61,0.04)", border: "1px solid rgba(232,85,61,0.25)" }}>
-          <div className="text-[12px] font-bold text-slate-200">
+          <div className="text-[12px] font-bold text-slate-700">
             {members.some((m) => m.id === editing.id) ? "Edit Employee" : "New Employee"}
           </div>
           <div>
@@ -6029,7 +6031,7 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
             <input type="text" value={editing.name}
                    onChange={(e) => setEditing((prev) => prev ? { ...prev, name: e.target.value } : prev)}
                    placeholder="e.g. Raju Kumar"
-                   className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-[12px] text-white placeholder-slate-600 outline-none focus:border-blue-500/40" />
+                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[12px] text-white placeholder-slate-600 outline-none focus:border-blue-500/40" />
           </div>
           <div>
             <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Departments</label>
@@ -6047,7 +6049,7 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
                              return { ...prev, departments: depts };
                            })}
                            className="accent-blue-500 w-3.5 h-3.5" />
-                    <span className="text-[11px] text-slate-300">{d}</span>
+                    <span className="text-[11px] text-slate-500">{d}</span>
                   </label>
                 );
               })}
@@ -6057,7 +6059,7 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
             <input type="checkbox" checked={!!editing.active}
                    onChange={(e) => setEditing((prev) => prev ? { ...prev, active: e.target.checked } : prev)}
                    className="accent-emerald-500 w-3.5 h-3.5" />
-            <span className="text-[11px] text-slate-300">Active (appears in dropdowns)</span>
+            <span className="text-[11px] text-slate-500">Active (appears in dropdowns)</span>
           </label>
           {err && <div className="text-[11px] text-red-400">{err}</div>}
           <div className="flex gap-2">
@@ -6067,7 +6069,7 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
               Save
             </button>
             <button onClick={() => { setEditing(null); setErr(""); }}
-                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08]">
+                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100">
               Cancel
             </button>
           </div>
@@ -6205,7 +6207,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
     } catch {}
   };
 
-  const inpCls = "w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-[13px] text-[#f0f6ff] placeholder-slate-600 outline-none focus:border-blue-500/40 transition-colors";
+  const inpCls = "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-[#f0f6ff] placeholder-slate-600 outline-none focus:border-blue-500/40 transition-colors";
 
   // SLabel / Toggle / Section are hoisted to module scope (above SETTINGS_DEFAULTS).
   // Defining them inside this component remounted every <Section> subtree on each
@@ -6259,13 +6261,13 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
             <div className="text-[11px] text-slate-400 mt-0.5 break-words">{saveError}</div>
             <div className="text-[11px] text-slate-500 mt-1">Your local edits are still here. Fix the issue (check console for details) and click Save again.</div>
           </div>
-          <button onClick={() => setSaveError("")} className="flex-shrink-0 text-slate-500 hover:text-white text-sm">✕</button>
+          <button onClick={() => setSaveError("")} className="flex-shrink-0 text-slate-500 hover:text-slate-900 text-sm">✕</button>
         </div>
       )}
 
       {/* Tab bar */}
       <div className="px-6 pt-4 max-w-5xl">
-        <div className="flex gap-1 border-b border-white/[0.07] overflow-x-auto">
+        <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
           {visibleTabs.map((t) => {
             const sel = t.id === tab;
             return (
@@ -6366,7 +6368,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                              const rem = current.accept_timeout_minutes % 60;
                              commitWorkflow({ accept_timeout_minutes: h * 60 + rem });
                            }}
-                           className="w-20 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                           className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
                     <span className="text-[11px] text-slate-400">hours</span>
                     <input type="number" min="0" max="59" step="1"
                            value={current.accept_timeout_minutes % 60}
@@ -6376,7 +6378,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                              const h = Math.floor(current.accept_timeout_minutes / 60);
                              commitWorkflow({ accept_timeout_minutes: h * 60 + m });
                            }}
-                           className="w-20 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                           className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
                     <span className="text-[11px] text-slate-400">minutes</span>
                     <span className="text-[11px] text-slate-500 ml-2">= {current.accept_timeout_minutes} min total · default 2 hours</span>
                   </div>
@@ -6400,26 +6402,26 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                       const minutes = mins % 60;
                       const setMinutes = (newMins) => commitWorkflow({ dept_durations: { [d]: { minutes: Math.max(0, newMins) } } });
                       return (
-                        <div key={d} className="grid grid-cols-5 gap-2 px-3 py-2 items-center border-t border-white/[0.05]">
-                          <div className="text-[12px] font-semibold text-slate-200">{d}</div>
+                        <div key={d} className="grid grid-cols-5 gap-2 px-3 py-2 items-center border-t border-slate-200">
+                          <div className="text-[12px] font-semibold text-slate-700">{d}</div>
                           <input type="number" min="0" step="1" value={days} disabled={!canConfig}
                                  onChange={(e) => {
                                    const nd = Math.max(0, parseInt(e.target.value, 10) || 0);
                                    setMinutes(nd * 24 * 60 + hours * 60 + minutes);
                                  }}
-                                 className="w-20 bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                                 className="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
                           <input type="number" min="0" max="23" step="1" value={hours} disabled={!canConfig}
                                  onChange={(e) => {
                                    const nh = Math.max(0, Math.min(23, parseInt(e.target.value, 10) || 0));
                                    setMinutes(days * 24 * 60 + nh * 60 + minutes);
                                  }}
-                                 className="w-20 bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                                 className="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
                           <input type="number" min="0" max="59" step="1" value={minutes} disabled={!canConfig}
                                  onChange={(e) => {
                                    const nm = Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0));
                                    setMinutes(days * 24 * 60 + hours * 60 + nm);
                                  }}
-                                 className="w-20 bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                                 className="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
                           <div className="text-[11px] text-slate-400 font-mono">{mins} min · {formatDuration(mins)}</div>
                         </div>
                       );
@@ -6450,7 +6452,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                   const active       = (allUsers || []).filter((u) => u && u.status !== "disabled");
                   const totalAssigned = active.reduce((n, u) => n + (Array.isArray(u.departments) && u.departments.length ? 1 : 0), 0);
                   return (
-                  <div className="pt-5 border-t border-white/[0.05]">
+                  <div className="pt-5 border-t border-slate-200">
                     <SLabel text="👥 Department Employees"
                             hint="Assign existing users to one or more departments. During Finish & Transfer, only this list shows up in the Workers / Main Employee pickers for that department. Reuses the existing user records — no new login or role is created." />
                     {/* Prominent empty-state banner so admins immediately know
@@ -6491,7 +6493,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                 })()}
 
                 {onRegisterSignature && currentUser && (
-                  <div className="pt-5 border-t border-white/[0.05]">
+                  <div className="pt-5 border-t border-slate-200">
                     <SLabel text="My digital signature" hint="A one-time signature used when you accept a department handover. The acceptance also re-verifies your password." />
                     <SignaturePad
                       onSave={async (svg) => {
@@ -6551,7 +6553,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
         {tab === "data" && (
           <Section icon="💾" title="Data & Backup">
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-4 rounded-xl border border-white/[0.07]"
+              <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200"
                    style={{ background: "rgba(255,255,255,0.03)" }}>
                 <div>
                   <div className="text-[13px] font-semibold text-white">Backup Data</div>
@@ -6564,7 +6566,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                 </button>
               </div>
 
-              <div className="flex items-center justify-between p-4 rounded-xl border border-white/[0.07]"
+              <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200"
                    style={{ background: "rgba(255,255,255,0.03)" }}>
                 <div>
                   <div className="text-[13px] font-semibold text-white">Export Inventory to Excel</div>
@@ -6671,12 +6673,12 @@ function POSearchCenter({
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Search</div>
             <input value={searchQ} onChange={(e) => { setSearchQ(e.target.value); setPage(0); }}
                    placeholder="PO number, vendor, item code, item name…"
-                   className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-blue-500/40" />
+                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-blue-500/40" />
           </div>
           <div>
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Status</div>
             <select value={searchStatus} onChange={(e) => { setSearchStatus(e.target.value); setPage(0); }}
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white outline-none"
                     style={{ background: "var(--surface-elevated)" }}>
               <option value="all">All</option>
               {["draft","pending","approved","ordered","received","overdue","rejected","review"].map((s) => <option key={s} value={s}>{s}</option>)}
@@ -6685,7 +6687,7 @@ function POSearchCenter({
           <div>
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Purchase Type</div>
             <select value={searchPurchaseType} onChange={(e) => { setSearchPurchaseType(e.target.value); setPage(0); }}
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white outline-none"
                     style={{ background: "var(--surface-elevated)" }}>
               <option value="all">All</option>
               {PURCHASE_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
@@ -6694,13 +6696,13 @@ function POSearchCenter({
           <div>
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">From</div>
             <input type="date" value={searchDateFrom} onChange={(e) => { setSearchDateFrom(e.target.value); setPage(0); }}
-                   className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none"
+                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white outline-none"
                    style={{ colorScheme: "dark" }} />
           </div>
           <div>
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">To</div>
             <input type="date" value={searchDateTo} onChange={(e) => { setSearchDateTo(e.target.value); setPage(0); }}
-                   className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none"
+                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white outline-none"
                    style={{ colorScheme: "dark" }} />
           </div>
         </div>
@@ -6710,18 +6712,18 @@ function POSearchCenter({
             {sorted.length !== pos.length && <span className="text-slate-600"> · of {pos.length.toLocaleString("en-IN")} total</span>}
           </div>
           <button onClick={clearAll}
-                  className="text-[10px] font-bold text-slate-500 hover:text-red-400 px-2.5 py-1 rounded-lg border border-white/[0.08] hover:border-red-500/30 transition-all">
+                  className="text-[10px] font-bold text-slate-500 hover:text-red-400 px-2.5 py-1 rounded-lg border border-slate-200 hover:border-red-500/30 transition-all">
             ✕ Clear
           </button>
         </div>
       </div>
 
       {/* Results table */}
-      <div className="bg-[#111622] border border-white/[0.07] rounded-xl overflow-hidden">
+      <div className="bg-[#111622] border border-slate-200 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-white/[0.07]" style={{ background: "rgba(255,255,255,0.03)" }}>
+              <tr className="border-b border-slate-200" style={{ background: "rgba(255,255,255,0.03)" }}>
                 {["PO Number","Vendor","Date","Purchase Type","Status","Amount","Items"].map((h) => (
                   <th key={h} className="text-left text-[10px] font-semibold text-slate-500 uppercase tracking-[0.06em] px-4 py-3">{h}</th>
                 ))}
@@ -6737,7 +6739,7 @@ function POSearchCenter({
                 const sc = statusColor(po.status);
                 return (
                   <tr key={po.id} onClick={() => onOpenPO?.(po)}
-                      className="border-b border-white/[0.05] cursor-pointer hover:bg-white/[0.04] transition-colors">
+                      className="border-b border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 text-xs font-mono font-bold text-blue-400 whitespace-nowrap">{po.id}</td>
                     <td className="px-4 py-3 text-xs font-semibold text-white max-w-[200px]"><div className="truncate">{po.vendor}</div></td>
                     <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap font-mono">{po.poDate || po.date || "—"}</td>
@@ -6760,17 +6762,17 @@ function POSearchCenter({
         </div>
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="px-4 py-3 border-t border-white/[0.06] flex items-center justify-between text-[10px]"
+          <div className="px-4 py-3 border-t border-slate-200 flex items-center justify-between text-[10px]"
                style={{ background: "rgba(255,255,255,0.03)" }}>
             <div className="text-slate-500">
               Page <span className="text-white font-bold">{pageSafe + 1}</span> of <span className="text-white font-bold">{totalPages}</span>
               <span className="text-slate-600"> · showing {(pageSafe * pageSize) + 1}–{Math.min((pageSafe + 1) * pageSize, sorted.length)}</span>
             </div>
             <div className="flex gap-1">
-              <button onClick={() => setPage(0)}            disabled={pageSafe === 0}              className="px-2 py-1 rounded-md border border-white/[0.08] text-slate-300 hover:bg-white/[0.06] transition-all disabled:opacity-30 disabled:cursor-not-allowed">⏮ First</button>
-              <button onClick={() => setPage(pageSafe - 1)} disabled={pageSafe === 0}              className="px-2 py-1 rounded-md border border-white/[0.08] text-slate-300 hover:bg-white/[0.06] transition-all disabled:opacity-30 disabled:cursor-not-allowed">◀ Prev</button>
-              <button onClick={() => setPage(pageSafe + 1)} disabled={pageSafe >= totalPages - 1}  className="px-2 py-1 rounded-md border border-white/[0.08] text-slate-300 hover:bg-white/[0.06] transition-all disabled:opacity-30 disabled:cursor-not-allowed">Next ▶</button>
-              <button onClick={() => setPage(totalPages - 1)} disabled={pageSafe >= totalPages - 1} className="px-2 py-1 rounded-md border border-white/[0.08] text-slate-300 hover:bg-white/[0.06] transition-all disabled:opacity-30 disabled:cursor-not-allowed">Last ⏭</button>
+              <button onClick={() => setPage(0)}            disabled={pageSafe === 0}              className="px-2 py-1 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 transition-all disabled:opacity-30 disabled:cursor-not-allowed">⏮ First</button>
+              <button onClick={() => setPage(pageSafe - 1)} disabled={pageSafe === 0}              className="px-2 py-1 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 transition-all disabled:opacity-30 disabled:cursor-not-allowed">◀ Prev</button>
+              <button onClick={() => setPage(pageSafe + 1)} disabled={pageSafe >= totalPages - 1}  className="px-2 py-1 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 transition-all disabled:opacity-30 disabled:cursor-not-allowed">Next ▶</button>
+              <button onClick={() => setPage(totalPages - 1)} disabled={pageSafe >= totalPages - 1} className="px-2 py-1 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 transition-all disabled:opacity-30 disabled:cursor-not-allowed">Last ⏭</button>
             </div>
           </div>
         )}
@@ -6988,7 +6990,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
   };
   const ViewBtn = ({ po }) => (
     <button onClick={() => setViewPO(po)}
-            className="flex-1 text-[9px] font-bold py-1 rounded-lg text-slate-400 border border-white/[0.08] bg-white/[0.03] hover:text-white hover:bg-white/[0.08] transition-all">
+            className="flex-1 text-[9px] font-bold py-1 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:text-slate-900 hover:bg-slate-100 transition-all">
       📄 View PO
     </button>
   );
@@ -7015,20 +7017,20 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
             <div className="text-xs font-black text-white">{waToast}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">Add a valid mobile number in Vendor Master.</div>
           </div>
-          <button onClick={() => setWaToast(null)} className="ml-2 text-slate-600 hover:text-slate-300 text-xs">✕</button>
+          <button onClick={() => setWaToast(null)} className="ml-2 text-slate-600 hover:text-slate-500 text-xs">✕</button>
         </div>
       )}
 
       <Topbar title="Order Pipeline" subtitle={`${lowStock.length} low stock · ${approvalPOs.length} pending approval · ${makeOrderPOs.length} ready to order · ${enrichedFU.length} follow-ups · ${receivedPOs.length} received`}>
         {/* View-mode toggle — Pipeline (cards) vs Search (table). Card view stays
             the default; Search is the new ERP table that scales to 100k+ POs. */}
-        <div className="flex gap-0.5 bg-white/[0.03] rounded-lg p-0.5 border border-white/[0.06]">
+        <div className="flex gap-0.5 bg-slate-50 rounded-lg p-0.5 border border-slate-200">
           {[
             { k: "pipeline", label: "📋 Pipeline" },
             { k: "search",   label: "🔍 Search" },
           ].map(({ k, label }) => (
             <button key={k} onClick={() => setViewMode(k)}
-                    className={`px-2.5 py-1 rounded-md text-[10.5px] font-bold transition-all ${viewMode === k ? "bg-blue-500/20 text-blue-300 border border-blue-500/40" : "text-slate-500 hover:text-slate-300"}`}>
+                    className={`px-2.5 py-1 rounded-md text-[10.5px] font-bold transition-all ${viewMode === k ? "bg-blue-500/20 text-blue-300 border border-blue-500/40" : "text-slate-500 hover:text-slate-500"}`}>
               {label}
             </button>
           ))}
@@ -7140,7 +7142,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                         </div>
                       );
                     })()}
-                    <div className="h-1 rounded-full bg-white/[0.05] mb-2.5 overflow-hidden">
+                    <div className="h-1 rounded-full bg-slate-50 mb-2.5 overflow-hidden">
                       <div className="h-full rounded-full" style={{ width: `${poPct}%`, background: item.status === "critical" ? "#ef4444" : "#f97316" }} />
                     </div>
                     {canDo("pipeline","create") && (
@@ -7252,13 +7254,13 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                     <div className="grid grid-cols-2 gap-x-3 gap-y-1 mb-2 text-[9px]">
                       <div>
                         <div className="text-slate-600 mb-0.5">Remaining</div>
-                        <div className={`font-bold ${f.daysRemaining<0?"text-red-400":f.daysRemaining===0?"text-yellow-400":"text-slate-300"}`}>
+                        <div className={`font-bold ${f.daysRemaining<0?"text-red-400":f.daysRemaining===0?"text-yellow-400":"text-slate-500"}`}>
                           {f.daysRemaining<0?`${Math.abs(f.daysRemaining)}d overdue`:f.daysRemaining===0?"Due today":`${f.daysRemaining}d left`}
                         </div>
                       </div>
                       <div>
                         <div className="text-slate-600 mb-0.5">ETA</div>
-                        <div className="font-bold text-slate-300">{f.eta||"—"}</div>
+                        <div className="font-bold text-slate-500">{f.eta||"—"}</div>
                       </div>
                       <div>
                         <div className="text-slate-600 mb-0.5">Next Follow-up</div>
@@ -7372,7 +7374,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                 <div className="text-sm font-black text-white">Select Vendor</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">Vendors with preferred low-stock items, sorted by item count.</div>
               </div>
-              <button onClick={cancelVendorWizard} className="text-slate-500 hover:text-white text-lg leading-none">✕</button>
+              <button onClick={cancelVendorWizard} className="text-slate-500 hover:text-slate-900 text-lg leading-none">✕</button>
             </div>
             {vendorsWithPreferredLowStock.length === 0 ? (
               <div className="py-6 text-center">
@@ -7403,7 +7405,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
             )}
             <div className="flex gap-2 pt-1">
               <button onClick={cancelVendorWizard}
-                      className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-all"
+                      className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-slate-900 transition-all"
                       style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-rim)" }}>Cancel</button>
               <button onClick={confirmWizVendor} disabled={!vendorWizVendor}
                       className="flex-1 py-2.5 rounded-xl text-xs font-black text-white transition-all disabled:opacity-50"
@@ -7431,7 +7433,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
           <div className="w-full max-w-2xl flex flex-col rounded-2xl overflow-hidden"
                style={{ maxHeight:"92vh", background:"var(--surface-elevated)", border:"1px solid rgba(232,85,61,0.32)", boxShadow:"0 40px 100px rgba(0,0,0,0.92)", animation:"slideUp 0.25s ease both" }}>
             {/* ── Header ── */}
-            <div className="px-5 py-4 border-b border-white/[0.08] flex-shrink-0"
+            <div className="px-5 py-4 border-b border-slate-200 flex-shrink-0"
                  style={{ background:"linear-gradient(90deg,rgba(232,85,61,0.09),rgba(204,74,51,0.05))" }}>
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -7453,7 +7455,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                           className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg text-orange-400 border border-orange-500/30 bg-orange-500/10 hover:bg-orange-500/20 transition-all">
                     📄 PDF
                   </button>
-                  <button onClick={() => setViewPO(null)} className="w-7 h-7 rounded-lg bg-white/[0.05] hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-sm font-bold ml-0.5">✕</button>
+                  <button onClick={() => setViewPO(null)} className="w-7 h-7 rounded-lg bg-slate-50 hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-sm font-bold ml-0.5">✕</button>
                 </div>
               </div>
               {/* Progress Steps */}
@@ -7461,12 +7463,12 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                 {steps.map((s, i) => (
                   <div key={s} className="flex items-center flex-1 last:flex-none">
                     <div className="flex flex-col items-center">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black border ${i<cur?"bg-blue-500 border-blue-500 text-white":i===cur?"bg-blue-500/20 border-blue-500/60 text-blue-400":"bg-white/[0.04] border-white/[0.1] text-slate-600 opacity-40"}`}>
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black border ${i<cur?"bg-blue-500 border-blue-500 text-white":i===cur?"bg-blue-500/20 border-blue-500/60 text-blue-400":"bg-slate-50 border-slate-200 text-slate-600 opacity-40"}`} style={i<cur?{color:"#fff"}:undefined}>
                         {i < cur ? "✓" : i + 1}
                       </div>
                       <div className={`text-[7px] mt-1 font-bold ${i===cur?"text-blue-400":i<cur?"text-slate-400":"text-slate-700"}`}>{s}</div>
                     </div>
-                    {i < steps.length - 1 && <div className={`flex-1 h-px mx-1 mb-3.5 ${i<cur?"bg-blue-500":"bg-white/[0.06]"}`} />}
+                    {i < steps.length - 1 && <div className={`flex-1 h-px mx-1 mb-3.5 ${i<cur?"bg-blue-500":"bg-slate-50"}`} />}
                   </div>
                 ))}
               </div>
@@ -7490,11 +7492,11 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                   <div className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.12em] mb-2">Purchase Order</div>
                   <div className="grid gap-y-1.5 text-[10.5px]" style={{ gridTemplateColumns:"auto 1fr" }}>
                     <span className="text-slate-500 pr-3">PO Number</span><span className="font-mono font-bold text-white">{viewPO.id}</span>
-                    <span className="text-slate-500 pr-3">Date</span><span className="font-semibold text-slate-300">{viewPO.date}</span>
-                    <span className="text-slate-500 pr-3">ETA</span><span className="font-semibold text-slate-300">{viewPO.eta || viewPO.delivery || "—"}</span>
+                    <span className="text-slate-500 pr-3">Date</span><span className="font-semibold text-slate-500">{viewPO.date}</span>
+                    <span className="text-slate-500 pr-3">ETA</span><span className="font-semibold text-slate-500">{viewPO.eta || viewPO.delivery || "—"}</span>
                     <span className="text-slate-500 pr-3">Priority</span>
                     <span className={`font-bold uppercase text-[9px] ${viewPO.priority==="urgent"?"text-red-400":viewPO.priority==="high"?"text-orange-400":"text-slate-400"}`}>{viewPO.priority||"normal"}</span>
-                    <span className="text-slate-500 pr-3">Items</span><span className="font-semibold text-slate-300">{viewPO.lineItems?.length||0} line items</span>
+                    <span className="text-slate-500 pr-3">Items</span><span className="font-semibold text-slate-500">{viewPO.lineItems?.length||0} line items</span>
                     <span className="text-slate-500 pr-3">Grand Total</span><span className="font-black text-green-400 font-mono">₹{poTotal.toLocaleString("en-IN")}</span>
                   </div>
                 </div>
@@ -7525,7 +7527,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                               <div className="text-[9px] font-mono text-slate-500">{li.code}</div>
                             </td>
                             <td className="px-2 py-2 text-[10px] text-slate-400 text-center">{li.unit||"—"}</td>
-                            <td className="px-3 py-2 text-[11px] font-mono text-slate-300 text-right">{li.qty}</td>
+                            <td className="px-3 py-2 text-[11px] font-mono text-slate-500 text-right">{li.qty}</td>
                             <td className="px-3 py-2 text-[11px] font-mono text-slate-400 text-right">₹{li.rate?.toLocaleString("en-IN")}</td>
                             <td className="px-3 py-2 text-[11px] font-bold font-mono text-green-400 text-right">₹{li.amount?.toLocaleString("en-IN")}</td>
                           </tr>
@@ -7536,7 +7538,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                     <div style={{ background:"rgba(255,255,255,0.03)", borderTop:"1px solid rgba(255,255,255,0.06)" }}>
                       <div className="flex justify-between px-3 py-1.5 text-[10px]">
                         <span className="text-slate-500">Subtotal</span>
-                        <span className="font-mono font-semibold text-slate-300">₹{subtotal.toLocaleString("en-IN")}</span>
+                        <span className="font-mono font-semibold text-slate-500">₹{subtotal.toLocaleString("en-IN")}</span>
                       </div>
                       <div className="flex justify-between px-3 py-1.5 text-[10px]">
                         <span className="text-slate-500">GST (18%)</span>
@@ -7602,7 +7604,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
             </div>
 
             {/* ── Footer Actions ── */}
-            <div className="px-5 py-3.5 border-t border-white/[0.08] flex gap-2 flex-wrap flex-shrink-0" style={{ background:"rgba(0,0,0,0.35)" }}>
+            <div className="px-5 py-3.5 border-t border-slate-200 flex gap-2 flex-wrap flex-shrink-0" style={{ background:"rgba(0,0,0,0.35)" }}>
               <Btn variant="ghost" size="sm" onClick={() => setViewPO(null)}>Close</Btn>
               <div className="flex-1" />
               {["pending","review","draft"].includes(viewPO.status) && canDo("pipeline","approve") && (
@@ -7678,7 +7680,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-1.5">Reason <span className="text-red-400">*</span></div>
               <textarea value={reverseReason} onChange={e => { setReverseReason(e.target.value); setReverseErr(""); }} rows={3}
                 placeholder="e.g. Received by mistake / Wrong vendor / Test entry…"
-                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 outline-none resize-none" />
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 outline-none resize-none" />
               {reverseErr && <div className="text-[10px] text-red-400 mt-1">{reverseErr}</div>}
             </div>
             <div className="flex gap-2">
@@ -7709,7 +7711,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-1.5">Rejection Reason <span className="text-red-400">*</span></div>
               <textarea value={rejectReason} onChange={e=>{setRejectReason(e.target.value);setRejectErr(false);}} rows={3}
                         placeholder="Enter reason for rejection..."
-                        className={`w-full bg-white/[0.04] border rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 outline-none resize-none modal-input ${rejectErr?"border-red-500/60":"border-white/[0.08]"}`} />
+                        className={`w-full bg-slate-50 border rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 outline-none resize-none modal-input ${rejectErr?"border-red-500/60":"border-slate-200"}`} />
               {rejectErr && <div className="text-[10px] text-red-400 mt-1">Reason is required</div>}
             </div>
             <div className="flex gap-2">
@@ -7735,14 +7737,14 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               <div className="grid grid-cols-4 gap-1.5 mb-2">
                 {[1,3,5,7].map(d=>(
                   <button key={d} onClick={()=>{setEta(String(d));setEtaCustom("");}}
-                          className={`py-2 rounded-lg text-xs font-bold border transition-all ${eta===String(d)?"bg-blue-500/25 text-blue-400 border-blue-500/50":"bg-white/[0.04] text-slate-400 border-white/[0.08] hover:bg-white/[0.08]"}`}>{d}d</button>
+                          className={`py-2 rounded-lg text-xs font-bold border transition-all ${eta===String(d)?"bg-blue-500/25 text-blue-400 border-blue-500/50":"bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100"}`}>{d}d</button>
                 ))}
               </div>
               <button onClick={()=>setEta("custom")}
-                      className={`w-full py-2 rounded-lg text-xs font-bold border transition-all mb-2 ${eta==="custom"?"bg-purple-500/20 text-purple-400 border-purple-500/40":"bg-white/[0.04] text-slate-400 border-white/[0.08] hover:bg-white/[0.08]"}`}>
+                      className={`w-full py-2 rounded-lg text-xs font-bold border transition-all mb-2 ${eta==="custom"?"bg-purple-500/20 text-purple-400 border-purple-500/40":"bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100"}`}>
                 📅 Custom Date
               </button>
-              {eta==="custom" && <input type="date" value={etaCustom} onChange={e=>setEtaCustom(e.target.value)} className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-xs text-white outline-none modal-input" />}
+              {eta==="custom" && <input type="date" value={etaCustom} onChange={e=>setEtaCustom(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-white outline-none modal-input" />}
               {!eta && <div className="text-[10px] text-orange-400 mt-1">Select an ETA to confirm</div>}
             </div>
             <div className="flex gap-2">
@@ -7772,14 +7774,14 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               <div className="grid grid-cols-4 gap-1.5 mb-2">
                 {[1,3,5,7].map(d=>(
                   <button key={d} onClick={()=>{setFuFreq(d);setFuCustom("");}}
-                          className={`py-2 rounded-lg text-xs font-bold border transition-all ${fuFreq===d&&fuFreq!=="custom"?"bg-purple-500/25 text-purple-400 border-purple-500/50":"bg-white/[0.04] text-slate-400 border-white/[0.08] hover:bg-white/[0.08]"}`}>{d}d</button>
+                          className={`py-2 rounded-lg text-xs font-bold border transition-all ${fuFreq===d&&fuFreq!=="custom"?"bg-purple-500/25 text-purple-400 border-purple-500/50":"bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100"}`}>{d}d</button>
                 ))}
               </div>
               <button onClick={()=>setFuFreq("custom")}
-                      className={`w-full py-2 rounded-lg text-xs font-bold border transition-all mb-2 ${fuFreq==="custom"?"bg-purple-500/20 text-purple-400 border-purple-500/40":"bg-white/[0.04] text-slate-400 border-white/[0.08] hover:bg-white/[0.08]"}`}>
+                      className={`w-full py-2 rounded-lg text-xs font-bold border transition-all mb-2 ${fuFreq==="custom"?"bg-purple-500/20 text-purple-400 border-purple-500/40":"bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100"}`}>
                 📅 Custom Date
               </button>
-              {fuFreq==="custom" && <input type="date" value={fuCustom} onChange={e=>setFuCustom(e.target.value)} className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-xs text-white outline-none modal-input" />}
+              {fuFreq==="custom" && <input type="date" value={fuCustom} onChange={e=>setFuCustom(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-white outline-none modal-input" />}
             </div>
             <div className="flex gap-2">
               <Btn variant="ghost" size="sm" onClick={()=>setFuModal(null)}>Cancel</Btn>
@@ -7807,7 +7809,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
             <div className="w-full max-w-sm rounded-2xl overflow-hidden"
                  style={{ background: "var(--surface-elevated)", border: "1px solid rgba(99,130,246,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)", animation: "slideUp 0.25s ease both" }}>
               {/* Header */}
-              <div className="px-5 py-4 border-b border-white/[0.08]" style={{ background: "rgba(99,130,246,0.06)" }}>
+              <div className="px-5 py-4 border-b border-slate-200" style={{ background: "rgba(99,130,246,0.06)" }}>
                 <div className="text-sm font-black text-white">🛒 Create Purchase Order</div>
                 <div className="text-[10px] text-slate-500 mt-0.5 truncate">{item.name} · {item.code}</div>
               </div>
@@ -7830,13 +7832,13 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Order Quantity <span className="text-red-400">*</span></div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setQtyInput(v => String(Math.max(1, (parseInt(v, 10) || 0) - 1)))}
-                          className="w-9 h-9 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.08] transition-all text-lg font-bold flex items-center justify-center flex-shrink-0">−</button>
+                          className="w-9 h-9 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-white/10 border border-slate-200 transition-all text-lg font-bold flex items-center justify-center flex-shrink-0">−</button>
                   <input type="number" min="1" value={qtyInput}
                          onChange={e => setQtyInput(e.target.value)}
-                         className="flex-1 text-center bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2 text-sm font-bold text-white outline-none modal-input"
+                         className="flex-1 text-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-white outline-none modal-input"
                          style={{ fontVariantNumeric: "tabular-nums" }} />
                   <button onClick={() => setQtyInput(v => String((parseInt(v, 10) || 0) + 1))}
-                          className="w-9 h-9 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.08] transition-all text-lg font-bold flex items-center justify-center flex-shrink-0">+</button>
+                          className="w-9 h-9 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-white/10 border border-slate-200 transition-all text-lg font-bold flex items-center justify-center flex-shrink-0">+</button>
                 </div>
                 {item.lastPurchaseRate > 0 && (
                   <div className="mt-2 px-3 py-2 rounded-xl flex justify-between items-center"
@@ -7884,7 +7886,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
   const newStock     = selectedItem && parsedQty > 0 ? selectedItem.stock + parsedQty : null;
 
   const inpCls = (err) =>
-    `w-full bg-white/[0.04] border ${err ? "border-red-500/60" : "border-white/[0.08]"} rounded-xl px-4 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
+    `w-full bg-slate-50 border ${err ? "border-red-500/60" : "border-slate-200"} rounded-xl px-4 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
   const selStyle = { background: "var(--surface-input)", color: "var(--text)" };
 
   const ILabel = ({ text, req }) => (
@@ -7932,7 +7934,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
             <div className="text-xs font-black text-white">+{toast.qty} {toast.unit} — {toast.item}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">From: {toast.vendor}</div>
           </div>
-          <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-300 text-xs">✕</button>
+          <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-500 text-xs">✕</button>
         </div>
       )}
 
@@ -7942,7 +7944,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
 
       <div className="p-6 space-y-6">
         {/* ── Entry Form ── */}
-        <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-6" style={{ animation: "slideUp 0.4s ease both" }}>
+        <div className="bg-[#111622] border border-slate-200 rounded-xl p-6" style={{ animation: "slideUp 0.4s ease both" }}>
           <div className="flex items-center gap-2 mb-5">
             <h2 className="text-sm font-extrabold text-white">📥 New Inward Entry</h2>
             <span className="text-[10px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded-full">GRN</span>
@@ -8002,7 +8004,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
               <div className="mt-4 rounded-xl overflow-hidden"
                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(34,197,94,0.2)" }}>
                 {/* Status header */}
-                <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.06]"
+                <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200"
                      style={{ background: "rgba(34,197,94,0.04)" }}>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Stock Preview</span>
@@ -8027,7 +8029,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
                          style={{ fontFamily: "'Inter',system-ui,sans-serif" }}>
                       {selectedItem.stock} <span className="text-xs text-slate-500">{selectedItem.unit}</span>
                     </div>
-                    <div className="mt-2 h-1 bg-white/[0.05] rounded-full overflow-hidden">
+                    <div className="mt-2 h-1 bg-slate-50 rounded-full overflow-hidden">
                       <div className="h-full rounded-full" style={{ width: `${fillPctNow}%`, background: statusConfig[selectedItem.status].dot || "#E8553D" }} />
                     </div>
                     <div className="text-[9px] text-slate-600 mt-1">Min: {selectedItem.min} {selectedItem.unit}</div>
@@ -8045,7 +8047,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
                          style={{ fontFamily: "'Inter',system-ui,sans-serif" }}>
                       {newS} <span className="text-xs text-slate-500">{selectedItem.unit}</span>
                     </div>
-                    <div className="mt-2 h-1 bg-white/[0.05] rounded-full overflow-hidden">
+                    <div className="mt-2 h-1 bg-slate-50 rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all duration-500" style={{ width: `${fillPctNew}%`, background: newCfg.dot || "#E8553D" }} />
                     </div>
                     <div className="text-[9px] text-slate-600 mt-1">{fillPctNew}% of min level</div>
@@ -8071,7 +8073,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
         {appInwardLog.length > 0 && (() => {
           const combined = [...appInwardLog].sort((a, b) => b.id - a.id);
           return (
-            <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5" style={{ animation: "slideUp 0.4s ease both" }}>
+            <div className="bg-[#111622] border border-slate-200 rounded-xl p-5" style={{ animation: "slideUp 0.4s ease both" }}>
               <div className="flex items-center gap-2 mb-4">
                 <SectionHeader>📋 Inward Log</SectionHeader>
                 {combined.filter(e => e.fromPO).length > 0 && (
@@ -8083,7 +8085,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-white/[0.06]">
+                    <tr className="border-b border-slate-200">
                       {["Date","Vendor","Code","Item","Qty","Notes"].map((h) => (
                         <th key={h} className="text-left text-[10px] font-bold text-slate-600 uppercase tracking-wide px-4 py-2">{h}</th>
                       ))}
@@ -8091,7 +8093,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
                   </thead>
                   <tbody>
                     {combined.map((entry) => (
-                      <tr key={entry.id} className={`border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors ${entry.fromPO ? "bg-green-500/[0.02]" : ""}`}>
+                      <tr key={entry.id} className={`border-b border-slate-200 hover:bg-transparent transition-colors ${entry.fromPO ? "bg-green-500/[0.02]" : ""}`}>
                         <td className="px-4 py-2 text-[10px] text-slate-500 font-mono">{entry.date}</td>
                         <td className="px-4 py-2 text-[10px] text-slate-400">
                           {entry.vendor}
@@ -8285,7 +8287,7 @@ function BomChecklistSlots({
             <button key={s.key}
                     onClick={() => openEditor(dept, s.key)}
                     disabled={readOnly}
-                    className={`text-left px-3 py-2 rounded-lg border transition-all ${readOnly ? "cursor-default opacity-70" : "hover:bg-white/[0.04] cursor-pointer"}`}
+                    className={`text-left px-3 py-2 rounded-lg border transition-all ${readOnly ? "cursor-default opacity-70" : "hover:bg-slate-50 cursor-pointer"}`}
                     style={{ background: slot ? "rgba(34,197,94,0.05)" : "rgba(255,255,255,0.03)",
                              borderColor: slot ? "rgba(34,197,94,0.3)" : "rgba(255,255,255,0.08)" }}>
               <div className="text-[9px] font-bold uppercase tracking-wider" style={{ color: slot ? "#4ade80" : "#64748b" }}>{s.short}</div>
@@ -8317,7 +8319,7 @@ function BomChecklistSlots({
                style={{ maxHeight: "90vh", background: "var(--surface-elevated)",
                         border: "1px solid rgba(232,85,61,0.5)",
                         boxShadow: "0 40px 100px rgba(0,0,0,0.92)" }}>
-            <div className="px-5 py-3 border-b border-white/[0.08] flex items-start justify-between flex-shrink-0"
+            <div className="px-5 py-3 border-b border-slate-200 flex items-start justify-between flex-shrink-0"
                  style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.14),rgba(204,74,51,0.06))" }}>
               <div>
                 <div className="text-sm font-black text-white">📋 Checklist · {editing.dept}</div>
@@ -8325,17 +8327,17 @@ function BomChecklistSlots({
                 <div className="text-[10px] text-slate-500 mt-0.5">{CHECKLIST_STAGES.find((s) => s.key === editing.stage).hint}</div>
               </div>
               <button onClick={closeEditor} disabled={busy}
-                      className="w-7 h-7 rounded-lg bg-white/[0.05] hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-xs font-bold disabled:opacity-40">
+                      className="w-7 h-7 rounded-lg bg-slate-50 hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-xs font-bold disabled:opacity-40">
                 ✕
               </button>
             </div>
 
             {/* Reuse picker */}
-            <div className="px-5 py-2 border-b border-white/[0.05] flex items-center gap-2 flex-wrap">
+            <div className="px-5 py-2 border-b border-slate-200 flex items-center gap-2 flex-wrap">
               <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Reuse:</span>
               <div className="relative flex-1 min-w-[180px]">
                 <button onClick={() => setReuseOpen((v) => !v)} disabled={busy || reuseCandidates.length === 0}
-                        className="w-full text-left text-[11px] font-semibold px-3 py-1.5 rounded-lg border bg-white/[0.04] border-white/[0.08] text-slate-300 hover:bg-white/[0.07] transition-all disabled:opacity-40">
+                        className="w-full text-left text-[11px] font-semibold px-3 py-1.5 rounded-lg border bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-50 transition-all disabled:opacity-40">
                   {reuseCandidates.length === 0
                     ? "No templates yet to copy from"
                     : "Pick a template to copy its steps…"} ▾
@@ -8346,7 +8348,7 @@ function BomChecklistSlots({
                     {reuseCandidates.map((t) => (
                       <button key={t.id}
                               onMouseDown={(e) => { e.preventDefault(); applyReuse(t); }}
-                              className="w-full text-left px-3 py-2 hover:bg-white/[0.06] border-b border-white/[0.04] last:border-0">
+                              className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-200 last:border-0">
                         <div className="text-[11px] font-bold text-white truncate">{t.name}</div>
                         <div className="text-[9px] text-slate-500">
                           {t.bomKey ? `BOM ${t.bomKey}` : "Shared library"} · {t.stage ? CHECKLIST_STAGES.find((s) => s.key === t.stage)?.short || t.stage : "Legacy"} · {(t.items || []).length} step{(t.items || []).length === 1 ? "" : "s"}
@@ -8367,7 +8369,7 @@ function BomChecklistSlots({
                   <input value={it.label}
                          onChange={(e) => patchRow(idx, { label: e.target.value })}
                          placeholder="What should the operator check?"
-                         className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1.5 text-[12px] text-white outline-none focus:border-blue-500/40 modal-input" />
+                         className="flex-1 bg-slate-50 border border-slate-200 rounded-md px-2 py-1.5 text-[12px] text-white outline-none focus:border-blue-500/40 modal-input" />
                   <label className="flex items-center gap-1 cursor-pointer text-[10px] text-slate-400">
                     <input type="checkbox" checked={!!it.required}
                            onChange={(e) => patchRow(idx, { required: e.target.checked })}
@@ -8375,9 +8377,9 @@ function BomChecklistSlots({
                     Must do
                   </label>
                   <button onClick={() => moveRow(idx, -1)} disabled={idx === 0 || busy}
-                          className="text-[10px] font-bold w-6 h-6 rounded border border-white/[0.08] bg-white/[0.03] text-slate-400 hover:text-white disabled:opacity-30">▲</button>
+                          className="text-[10px] font-bold w-6 h-6 rounded border border-slate-200 bg-slate-50 text-slate-400 hover:text-slate-900 disabled:opacity-30">▲</button>
                   <button onClick={() => moveRow(idx, 1)} disabled={idx === editing.items.length - 1 || busy}
-                          className="text-[10px] font-bold w-6 h-6 rounded border border-white/[0.08] bg-white/[0.03] text-slate-400 hover:text-white disabled:opacity-30">▼</button>
+                          className="text-[10px] font-bold w-6 h-6 rounded border border-slate-200 bg-slate-50 text-slate-400 hover:text-slate-900 disabled:opacity-30">▼</button>
                   <button onClick={() => removeRow(idx)} disabled={busy || editing.items.length === 1}
                           className="text-[10px] font-bold w-6 h-6 rounded border border-red-500/20 bg-red-500/10 text-red-300 hover:bg-red-500/20 disabled:opacity-30">✕</button>
                 </div>
@@ -8394,7 +8396,7 @@ function BomChecklistSlots({
               )}
             </div>
 
-            <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between flex-shrink-0"
+            <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between flex-shrink-0"
                  style={{ background: "rgba(0,0,0,0.35)" }}>
               <div className="flex gap-2">
                 {(editing._id || editing._localId) && (
@@ -8407,7 +8409,7 @@ function BomChecklistSlots({
               </div>
               <div className="flex gap-2">
                 <button onClick={closeEditor} disabled={busy}
-                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all">
                   Cancel
                 </button>
                 <button onClick={saveSlot} disabled={busy}
@@ -8598,7 +8600,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     return (
       <div key={cat}>
         <button onClick={() => setCatCollapsed((p) => ({ ...p, [cat]: !p[cat] }))}
-                className="w-full flex items-center gap-3 px-6 py-2 hover:bg-white/[0.02] transition-colors"
+                className="w-full flex items-center gap-3 px-6 py-2 hover:bg-transparent transition-colors"
                 style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
           <span className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] w-28 text-left">{cat}</span>
           <div className="flex gap-1.5">
@@ -8614,7 +8616,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
           const partialFill = item.available > 0 && item.available < item.required ? (item.available / item.required) * 100 : 0;
           return (
             <div key={item.code}
-                 className={`grid gap-0 items-center px-6 py-2 border-b border-white/[0.03] transition-all hover:bg-white/[0.015] ${!rowChecked ? "opacity-35" : ""}`}
+                 className={`grid gap-0 items-center px-6 py-2 border-b border-slate-200 transition-all hover:bg-transparent ${!rowChecked ? "opacity-35" : ""}`}
                  style={{ gridTemplateColumns: "28px 1fr 72px 72px 80px 72px", background: rowChecked && item.status !== "green" ? `${sc}07` : "" }}>
               <div><input type="checkbox" checked={rowChecked} onChange={(e) => setChecked((p) => ({ ...p, [item.code]: e.target.checked }))} className="accent-blue-500 w-3.5 h-3.5" /></div>
               <div className="min-w-0 pr-3">
@@ -8625,7 +8627,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 <div className="flex items-center gap-2 pl-3 mt-0.5">
                   <span className="text-[9px] font-mono text-slate-600">{item.code}</span>
                   {partialFill > 0 && (
-                    <div className="flex-1 h-1 bg-white/[0.05] rounded-full overflow-hidden max-w-[60px]">
+                    <div className="flex-1 h-1 bg-slate-50 rounded-full overflow-hidden max-w-[60px]">
                       <div className="h-full rounded-full" style={{ width: `${Math.min(100, partialFill)}%`, background: sc }} />
                     </div>
                   )}
@@ -8636,14 +8638,14 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 <div className="text-[9px] text-slate-600">{item.unit}</div>
               </div>
               <div className="text-right">
-                <span className="text-[11px] font-bold font-mono text-slate-300" style={{ fontFamily:"'Inter',system-ui,sans-serif" }}>{item.required}</span>
+                <span className="text-[11px] font-bold font-mono text-slate-500" style={{ fontFamily:"'Inter',system-ui,sans-serif" }}>{item.required}</span>
                 <div className="text-[9px] text-slate-600">{item.unit}</div>
               </div>
               <div className="flex justify-end pr-2">
                 <input type="number" min="0" max={item.available} value={item.issueQty}
                        onChange={(e) => setIssueQtys((p) => ({ ...p, [item.code]: Math.min(item.available, Math.max(0, parseInt(e.target.value,10)||0)) }))}
                        disabled={!rowChecked}
-                       className="w-[58px] bg-white/[0.04] border rounded-lg px-2 py-1 text-xs text-white outline-none text-right modal-input disabled:opacity-30 transition-colors"
+                       className="w-[58px] bg-slate-50 border rounded-lg px-2 py-1 text-xs text-white outline-none text-right modal-input disabled:opacity-30 transition-colors"
                        style={{ fontFamily:"'Inter',system-ui,sans-serif", borderColor: rowChecked && item.overQty > 0 ? "rgba(251,191,36,0.55)" : rowChecked && item.issueQty < item.required ? "rgba(249,115,22,0.45)" : "rgba(255,255,255,0.08)" }} />
               </div>
               <div className="text-right pr-4">
@@ -8839,16 +8841,16 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
           {/* Units stepper */}
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
             <span className="text-[10px] text-slate-400 mr-1">Units</span>
-            <button onClick={() => onUnitsChange(Math.max(1, units - 1))} className="w-6 h-6 rounded text-sm font-bold text-slate-400 hover:text-white hover:bg-white/10 transition-all">−</button>
+            <button onClick={() => onUnitsChange(Math.max(1, units - 1))} className="w-6 h-6 rounded text-sm font-bold text-slate-400 hover:text-slate-900 hover:bg-white/10 transition-all">−</button>
             <span className="text-sm font-black text-white w-8 text-center font-mono" style={{ fontFamily: "'Inter',system-ui,sans-serif" }}>{units}</span>
-            <button onClick={() => onUnitsChange(units + 1)} className="w-6 h-6 rounded text-sm font-bold text-slate-400 hover:text-white hover:bg-white/10 transition-all">+</button>
+            <button onClick={() => onUnitsChange(units + 1)} className="w-6 h-6 rounded text-sm font-bold text-slate-400 hover:text-slate-900 hover:bg-white/10 transition-all">+</button>
           </div>
 
           <button onClick={() => { if (editMode) { setEditMode(false); resetEditState(); } else { resetEditState(); setEditMode(true); } }}
-                  className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${editMode ? "bg-orange-500/10 text-orange-400 border-orange-500/30" : "bg-white/[0.04] text-slate-400 border-white/[0.1] hover:text-white"}`}>
+                  className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${editMode ? "bg-orange-500/10 text-orange-400 border-orange-500/30" : "bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-900"}`}>
             {editMode ? "✕ Cancel" : "✏️ Edit BOM"}
           </button>
-          <button onClick={onClose} className="text-slate-500 hover:text-white text-[11px] font-bold px-3 py-1.5 rounded-lg hover:bg-white/[0.05] border border-white/[0.06] transition-all">✕ Close</button>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-900 text-[11px] font-bold px-3 py-1.5 rounded-lg hover:bg-slate-50 border border-slate-200 transition-all">✕ Close</button>
         </div>
 
         {/* Search + filter bar */}
@@ -8857,7 +8859,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             <div className="relative flex-1 min-w-[180px]">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 text-xs">🔍</span>
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search items, codes..."
-                     className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg pl-7 pr-3 py-1.5 text-xs text-slate-300 placeholder-slate-600 outline-none focus:border-blue-500/30" />
+                     className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-3 py-1.5 text-xs text-slate-500 placeholder-slate-600 outline-none focus:border-blue-500/30" />
             </div>
             {["all","green","orange","red"].map((f) => (
               <button key={f} onClick={() => setFilterStatus(f)}
@@ -8869,7 +8871,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               </button>
             ))}
             <button onClick={() => { const all = {}; enriched.forEach(i => { all[i.code] = true; }); setChecked(all); }} className="text-[10px] text-blue-400 font-bold px-2 py-1.5 hover:text-blue-300 transition-all">✓ All</button>
-            <button onClick={() => setChecked({})} className="text-[10px] text-slate-500 font-bold px-2 py-1.5 hover:text-slate-300 transition-all">✗ None</button>
+            <button onClick={() => setChecked({})} className="text-[10px] text-slate-500 font-bold px-2 py-1.5 hover:text-slate-500 transition-all">✗ None</button>
           </div>
         )}
       </div>
@@ -8977,13 +8979,13 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                       {criticalItemsInBom.map(({ code, qty, inv }) => {
                         const type = inv.outwardInputType === "serial" ? "Serial Number" : "Checkbox";
                         return (
-                          <div key={code} className="grid grid-cols-12 gap-2 items-center px-3 py-2 border-t border-white/[0.04]">
+                          <div key={code} className="grid grid-cols-12 gap-2 items-center px-3 py-2 border-t border-slate-200">
                             <div className="col-span-3 text-[10px] font-mono text-blue-300">{code}</div>
                             <div className="col-span-5">
                               <div className="text-[11px] font-semibold text-white truncate">{inv.name}</div>
                               <div className="text-[9px] text-slate-500">{inv.category || "—"}</div>
                             </div>
-                            <div className="col-span-2 text-right text-[11px] font-mono text-slate-300">
+                            <div className="col-span-2 text-right text-[11px] font-mono text-slate-500">
                               {qty} <span className="text-slate-600">{inv.unit || ""}</span>
                             </div>
                             <div className="col-span-2 text-right">
@@ -9023,13 +9025,13 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                   <div className="text-[10px] font-medium text-purple-200 mb-1.5">BOM Key</div>
                   <input value={editKey} onChange={(e) => { setEditKey(e.target.value.toUpperCase()); setRenameErr(""); }}
                     placeholder="e.g. KM-10"
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white font-mono outline-none modal-input" />
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-white font-mono outline-none modal-input" />
                 </div>
                 <div>
                   <div className="text-[10px] font-medium text-purple-200 mb-1.5">Machine Model Name</div>
                   <input value={editLabel} onChange={(e) => { setEditLabel(e.target.value); setRenameErr(""); }}
                     placeholder="e.g. Kneading Machine 10L"
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white outline-none modal-input" />
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-white outline-none modal-input" />
                 </div>
               </div>
               <div className="text-[10px] text-slate-500 mt-2">
@@ -9044,20 +9046,20 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 <span className="text-lg">📦</span>
                 <div className="flex-1 min-w-[160px]">
                   <div className="text-[11px] font-bold text-white">Production Rack</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">Rack ID: <span className="font-mono text-slate-300">{bomKey}</span> · Used by Machine Tracker → Rack View</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">Rack ID: <span className="font-mono text-slate-500">{bomKey}</span> · Used by Machine Tracker → Rack View</div>
                 </div>
                 <div className="flex items-center gap-2">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Rack Capacity</label>
                   <input type="number" min="0" step="1" value={editRackCap}
                          onChange={(e) => setEditRackCap(e.target.value)}
                          placeholder="0"
-                         className="w-24 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-sm font-bold text-white outline-none text-right modal-input"
+                         className="w-24 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-white outline-none text-right modal-input"
                          style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
                   <span className="text-[10px] text-slate-500">slots</span>
                 </div>
               </div>
               <div className="text-[10px] text-slate-500 mt-2">
-                Set to <span className="text-slate-300 font-bold">0</span> if this model doesn't use a rack. Replenishment alerts fire when Ready &lt; Capacity.
+                Set to <span className="text-slate-500 font-bold">0</span> if this model doesn't use a rack. Replenishment alerts fire when Ready &lt; Capacity.
               </div>
             </div>
 
@@ -9069,7 +9071,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               {editItems.map((ei, idx) => {
                 const inv = findInv(ei.code);
                 return (
-                  <div key={ei.code} className={`grid gap-0 items-center px-4 py-3 hover:bg-white/[0.02] ${idx > 0 ? "border-t border-white/[0.04]" : ""}`}
+                  <div key={ei.code} className={`grid gap-0 items-center px-4 py-3 hover:bg-transparent ${idx > 0 ? "border-t border-slate-200" : ""}`}
                        style={{ gridTemplateColumns: "1fr 100px 120px 60px" }}>
                     <div>
                       <div className="text-[11px] font-semibold text-white">{inv?.name || ei.code}</div>
@@ -9079,7 +9081,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                     <div className="flex items-center gap-1.5 justify-center">
                       <input type="number" min="0.1" step="0.1" value={ei.qty}
                              onChange={(e) => setEditItems((p) => p.map((i) => i.code === ei.code ? { ...i, qty: parseFloat(e.target.value) || 0 } : i))}
-                             className="w-16 bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-xs text-white outline-none text-right modal-input"
+                             className="w-16 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-white outline-none text-right modal-input"
                              style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
                       <span className="text-[9px] text-slate-600">{inv?.unit || ""}</span>
                     </div>
@@ -9107,7 +9109,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 </div>
                 <div className="flex items-center gap-2">
                   <input type="number" min="0.1" step="0.1" value={addBaseQty} onChange={(e) => setAddBaseQty(e.target.value)}
-                         placeholder="Qty" className="w-20 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none modal-input"
+                         placeholder="Qty" className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white outline-none modal-input"
                          style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
                   <button onClick={addItemToBOM} className="px-4 py-2 rounded-lg text-xs font-bold text-white"
                           style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 14px rgba(232,85,61,0.3)" }}>Add</button>
@@ -9148,7 +9150,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
             <div className="flex gap-3 pt-2">
               <button onClick={() => { setEditMode(false); resetEditState(); }}
-                      className="text-xs font-bold text-slate-400 px-5 py-2.5 rounded-xl border border-white/[0.08] hover:text-white hover:border-white/20 transition-all">Discard Changes</button>
+                      className="text-xs font-bold text-slate-400 px-5 py-2.5 rounded-xl border border-slate-200 hover:text-slate-900 hover:border-white/20 transition-all">Discard Changes</button>
               <button onClick={saveBOMEdit}
                       className="text-xs font-black text-white px-8 py-2.5 rounded-xl transition-all"
                       style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.3)" }}>✓ Save BOM</button>
@@ -9189,7 +9191,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
           <div className="px-6 pt-3">
             <input value={issueNote} onChange={(e) => setIssueNote(e.target.value)}
                    placeholder="Issue reference / note (optional)..."
-                   className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-4 py-2 text-xs text-slate-300 placeholder-slate-600 outline-none focus:border-blue-500/30" />
+                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-xs text-slate-500 placeholder-slate-600 outline-none focus:border-blue-500/30" />
             {/* The inline destination radio was removed (2026-06-02c) because
                 operators couldn't see it. The destination choice now appears as
                 a dedicated popup at commit time — see "Destination popup" below
@@ -9226,7 +9228,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 <span className="text-red-400 font-bold">{missingN} items fully missing</span></>
               )}
             </div>
-            <button onClick={onClose} className="text-xs font-bold text-slate-500 px-4 py-2.5 rounded-xl border border-white/[0.08] hover:text-white hover:border-white/20 transition-all">Cancel</button>
+            <button onClick={onClose} className="text-xs font-bold text-slate-500 px-4 py-2.5 rounded-xl border border-slate-200 hover:text-slate-900 hover:border-white/20 transition-all">Cancel</button>
             {!confirmIssue ? (
               <button onClick={() => {
                         // Critical items in this outward → open the dedicated
@@ -9250,7 +9252,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                   ? <span className="text-[10px] font-bold" style={{color:"#fbbf24"}}>⚠ Confirm over-issue?</span>
                   : <span className="text-[10px] font-bold text-orange-400">Confirm issue?</span>
                 }
-                <button onClick={() => setConfirmIssue(false)} className="text-xs font-bold text-slate-500 px-3 py-2 rounded-lg border border-white/[0.08] hover:text-white transition-all">No</button>
+                <button onClick={() => setConfirmIssue(false)} className="text-xs font-bold text-slate-500 px-3 py-2 rounded-lg border border-slate-200 hover:text-slate-900 transition-all">No</button>
                 <button onClick={() => doIssue()} disabled={issuing}
                         className="text-xs font-black text-white px-5 py-2 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{ background: hasOverIssue ? "linear-gradient(135deg,#d97706,#b45309)" : "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: hasOverIssue ? "0 0 14px rgba(217,119,6,0.4)" : "0 0 14px rgba(34,197,94,0.3)" }}>
@@ -9281,7 +9283,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                         border: "1px solid rgba(249,115,22,0.5)",
                         boxShadow: "0 40px 100px rgba(0,0,0,0.92), 0 0 60px rgba(249,115,22,0.08)" }}>
             {/* Header */}
-            <div className="px-6 py-4 border-b border-white/[0.08] flex items-start justify-between flex-shrink-0"
+            <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between flex-shrink-0"
                  style={{ background: "linear-gradient(90deg,rgba(249,115,22,0.14),rgba(234,88,12,0.06))" }}>
               <div>
                 <div className="text-sm font-black text-white flex items-center gap-2">
@@ -9292,7 +9294,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 </div>
               </div>
               <button onClick={() => !issuing && setShowCriticalModal(false)} disabled={issuing}
-                      className="w-7 h-7 rounded-lg bg-white/[0.05] hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-xs font-bold disabled:opacity-40">
+                      className="w-7 h-7 rounded-lg bg-slate-50 hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-xs font-bold disabled:opacity-40">
                 ✕
               </button>
             </div>
@@ -9326,7 +9328,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                                checked={!!state.confirmed}
                                onChange={(e) => { setCriticalErr(""); setLine({ confirmed: e.target.checked }); }}
                                className="accent-emerald-500 w-4 h-4 mt-0.5" />
-                        <span className="text-[11px] text-slate-300 leading-relaxed">
+                        <span className="text-[11px] text-slate-500 leading-relaxed">
                           I confirm this critical item has been physically verified for all {line.issueQty} unit(s).
                         </span>
                       </label>
@@ -9351,7 +9353,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                                        }}
                                        placeholder={`Serial #${idx + 1}`}
                                        autoFocus={idx === 0}
-                                       className="bg-white/[0.04] rounded-md px-2 py-1.5 text-[11px] text-white outline-none modal-input"
+                                       className="bg-slate-50 rounded-md px-2 py-1.5 text-[11px] text-white outline-none modal-input"
                                        style={{ fontFamily: "'Inter',system-ui,sans-serif",
                                                 border: (alreadyUsed || dupeInBatch) ? "1px solid rgba(239,68,68,0.7)" : "1px solid rgba(255,255,255,0.08)" }} />
                                 {alreadyUsed && <span className="text-[9px] text-red-400 font-semibold">Already issued</span>}
@@ -9374,14 +9376,14 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             </div>
 
             {/* Footer */}
-            <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between flex-shrink-0"
+            <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between flex-shrink-0"
                  style={{ background: "rgba(0,0,0,0.35)" }}>
               <div className="text-[10px] text-slate-500">
                 Non-critical items in this outward are issued automatically on confirm.
               </div>
               <div className="flex gap-2">
                 <button onClick={() => !issuing && setShowCriticalModal(false)} disabled={issuing}
-                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
+                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all disabled:opacity-50">
                   Cancel
                 </button>
                 <button onClick={() => {
@@ -9419,7 +9421,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
              onClick={(e) => e.target === e.currentTarget && !issuing && setShowDestChoice(false)}>
           <div className="w-full max-w-md rounded-2xl overflow-hidden"
                style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
-            <div className="px-6 py-5 border-b border-white/[0.08]"
+            <div className="px-6 py-5 border-b border-slate-200"
                  style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.10),rgba(204,74,51,0.05))" }}>
               <div className="text-sm font-black text-white">Where should this build go?</div>
               <div className="text-[11px] text-slate-500 mt-0.5">
@@ -9452,11 +9454,11 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 </div>
               </button>
             </div>
-            <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between"
+            <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between"
                  style={{ background: "rgba(0,0,0,0.35)" }}>
               <div className="text-[10px] text-slate-500">Choose a destination to commit the issue.</div>
               <button onClick={() => !issuing && setShowDestChoice(false)} disabled={issuing}
-                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all disabled:opacity-50">
                 Cancel
               </button>
             </div>
@@ -9481,7 +9483,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                style={{ maxHeight: "92vh", background: "var(--surface-elevated)",
                         border: "1px solid rgba(232,85,61,0.5)",
                         boxShadow: "0 40px 100px rgba(0,0,0,0.92), 0 0 60px rgba(232,85,61,0.08)" }}>
-            <div className="px-6 py-4 border-b border-white/[0.08] flex items-start justify-between flex-shrink-0"
+            <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between flex-shrink-0"
                  style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.14),rgba(204,74,51,0.06))" }}>
               <div>
                 <div className="text-sm font-black text-white flex items-center gap-2">
@@ -9492,7 +9494,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 </div>
               </div>
               <button onClick={() => !issuing && setShowDurationModal(false)} disabled={issuing}
-                      className="w-7 h-7 rounded-lg bg-white/[0.05] hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-xs font-bold disabled:opacity-40">
+                      className="w-7 h-7 rounded-lg bg-slate-50 hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-xs font-bold disabled:opacity-40">
                 ✕
               </button>
             </div>
@@ -9520,14 +9522,14 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                       <div className="flex items-center gap-1.5">
                         <input type="number" min="0" step="1" value={row.days}
                                onChange={(e) => setField("days", e.target.value)}
-                               className="w-16 bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1 text-xs text-white outline-none text-right modal-input"
+                               className="w-16 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 text-xs text-white outline-none text-right modal-input"
                                style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
                         <span className="text-[11px] text-slate-500">days</span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <input type="number" min="0" max="23" step="1" value={row.hours}
                                onChange={(e) => setField("hours", e.target.value)}
-                               className="w-16 bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1 text-xs text-white outline-none text-right modal-input"
+                               className="w-16 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 text-xs text-white outline-none text-right modal-input"
                                style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
                         <span className="text-[11px] text-slate-500">hours</span>
                       </div>
@@ -9542,14 +9544,14 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 </div>
               )}
             </div>
-            <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between flex-shrink-0"
+            <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between flex-shrink-0"
                  style={{ background: "rgba(0,0,0,0.35)" }}>
               <div className="text-[10px] text-slate-500">
                 Locked after Outward — plan carefully.
               </div>
               <div className="flex gap-2">
                 <button onClick={() => !issuing && setShowDurationModal(false)} disabled={issuing}
-                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
+                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all disabled:opacity-50">
                   Back
                 </button>
                 <button onClick={() => {
@@ -9631,7 +9633,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
 
   const showToast = (text, sub) => { setToast({ text, sub }); setTimeout(() => setToast(null), 3500); };
 
-  const inpCls  = `w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
+  const inpCls  = `w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
   const selStyle = { background: "var(--surface-input)", color: "var(--text)" };
 
   const OLabel = ({ text, req }) => (
@@ -9804,7 +9806,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                   onChange={(e) => { setPendingSerial(e.target.value); setSerialErr(""); }}
                   onKeyDown={(e) => e.key === "Enter" && confirmSerial()}
                   placeholder="e.g. SHT-KM10-2024-001"
-                  className="w-full bg-white/[0.04] border rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 outline-none transition-all"
+                  className="w-full bg-slate-50 border rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 outline-none transition-all"
                   style={{ borderColor: serialErr ? "rgba(239,68,68,0.5)" : "rgba(255,255,255,0.08)", fontFamily: "'Inter',system-ui,sans-serif" }}
                 />
                 {serialErr && <div className="text-[11px] text-red-400 mt-1.5">{serialErr}</div>}
@@ -9812,7 +9814,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
               </div>
               <div className="flex gap-3 pt-1">
                 <button onClick={() => { setSerialModal(null); setPendingSerial(""); setSerialErr(""); }}
-                        className="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-400 border border-white/[0.08] hover:text-white hover:border-white/20 transition-all">
+                        className="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-400 border border-slate-200 hover:text-slate-900 hover:border-white/20 transition-all">
                   Cancel
                 </button>
                 <button onClick={confirmSerial}
@@ -9835,7 +9837,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
             <div className="text-xs font-bold text-white">{bomActionToast.text}</div>
             {bomActionToast.sub && <div className="text-[10px] text-slate-500 mt-0.5">{bomActionToast.sub}</div>}
           </div>
-          <button onClick={() => setBomActionToast(null)} className="ml-2 text-slate-600 hover:text-slate-300 text-xs">✕</button>
+          <button onClick={() => setBomActionToast(null)} className="ml-2 text-slate-600 hover:text-slate-500 text-xs">✕</button>
         </div>
       )}
 
@@ -9846,7 +9848,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
              onClick={(e) => e.target === e.currentTarget && setConfirmDeleteBOM(null)}>
           <div className="w-full max-w-md rounded-2xl overflow-hidden"
                style={{ background: "var(--surface-elevated)", border: `1px solid ${confirmDeleteBOM.info.canDelete ? "rgba(239,68,68,0.4)" : "rgba(245,158,11,0.4)"}`, boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
-            <div className="px-5 py-4 border-b border-white/[0.08]"
+            <div className="px-5 py-4 border-b border-slate-200"
                  style={{ background: confirmDeleteBOM.info.canDelete ? "rgba(239,68,68,0.06)" : "rgba(245,158,11,0.06)" }}>
               <div className={`text-sm font-black ${confirmDeleteBOM.info.canDelete ? "text-red-400" : "text-amber-300"}`}>
                 {confirmDeleteBOM.info.canDelete ? "🗑 Delete BOM?" : "⚠ Cannot Delete BOM"}
@@ -9858,12 +9860,12 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
             <div className="px-5 py-4 space-y-3 text-[11px]">
               {!confirmDeleteBOM.info.canDelete ? (
                 <>
-                  <div className="text-slate-300">
+                  <div className="text-slate-500">
                     This BOM has <span className="font-bold text-white">{confirmDeleteBOM.info.active.length}</span> active production build{confirmDeleteBOM.info.active.length !== 1 ? "s" : ""} past the rack stage. Complete or cancel them first, then delete.
                   </div>
                   <div className="max-h-32 overflow-y-auto rounded-lg" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.05)" }}>
                     {confirmDeleteBOM.info.active.slice(0, 10).map((m) => (
-                      <div key={m.id} className="px-3 py-1.5 text-[10px] flex items-center justify-between border-b border-white/[0.04] last:border-0">
+                      <div key={m.id} className="px-3 py-1.5 text-[10px] flex items-center justify-between border-b border-slate-200 last:border-0">
                         <span className="font-mono font-bold text-white">{m.serialNo || "(no serial)"}</span>
                         <span className="text-slate-500">{m.stage}</span>
                       </div>
@@ -9877,7 +9879,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                 <>
                   {confirmDeleteBOM.info.rack.length > 0 ? (
                     <>
-                      <div className="text-slate-300">
+                      <div className="text-slate-500">
                         <span className="font-bold text-white">{confirmDeleteBOM.info.rack.length}</span> rack machine{confirmDeleteBOM.info.rack.length !== 1 ? "s" : ""} will be removed. Materials will be returned to stock.
                       </div>
                       <ul className="space-y-1 ml-1">
@@ -9891,11 +9893,11 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                       </ul>
                     </>
                   ) : confirmDeleteBOM.info.completed.length > 0 ? (
-                    <div className="text-slate-300">
+                    <div className="text-slate-500">
                       BOM has <span className="font-bold text-white">{confirmDeleteBOM.info.completed.length}</span> completed build{confirmDeleteBOM.info.completed.length !== 1 ? "s" : ""} in history. They will remain visible in Machine Tracker after deletion (history is denormalised).
                     </div>
                   ) : (
-                    <div className="text-slate-300">
+                    <div className="text-slate-500">
                       This BOM has never been issued. Safe to delete directly.
                     </div>
                   )}
@@ -9903,9 +9905,9 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                 </>
               )}
             </div>
-            <div className="px-5 py-4 border-t border-white/[0.08] flex items-center gap-2" style={{ background: "rgba(0,0,0,0.35)" }}>
+            <div className="px-5 py-4 border-t border-slate-200 flex items-center gap-2" style={{ background: "rgba(0,0,0,0.35)" }}>
               <button autoFocus onClick={() => setConfirmDeleteBOM(null)}
-                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all">
                 Cancel
               </button>
               <div className="flex-1" />
@@ -9944,14 +9946,14 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
              onClick={(e) => e.target === e.currentTarget && setRemoveRackConfirm(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
                style={{ background: "var(--surface-elevated)", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
-            <div className="px-5 py-4 border-b border-white/[0.08]" style={{ background: "rgba(239,68,68,0.06)" }}>
+            <div className="px-5 py-4 border-b border-slate-200" style={{ background: "rgba(239,68,68,0.06)" }}>
               <div className="text-sm font-black text-red-400">🗑 Remove Machine From Rack?</div>
               <div className="text-[10px] text-slate-500 mt-0.5">
                 {removeRackConfirm.bomKey}{removeRackConfirm.serialNo ? ` · S/N ${removeRackConfirm.serialNo}` : ""}
               </div>
             </div>
             <div className="px-5 py-4 space-y-2.5 text-[11px]">
-              <div className="text-slate-300">This will:</div>
+              <div className="text-slate-500">This will:</div>
               <ul className="space-y-1 ml-1">
                 <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Restore the issued components to inventory</span></li>
                 <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Cancel any pending material requests for this build</span></li>
@@ -9960,10 +9962,10 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
               </ul>
               <div className="text-[10px] text-slate-500 pt-1">This action cannot be undone.</div>
             </div>
-            <div className="px-5 py-4 border-t border-white/[0.08] flex gap-2" style={{ background: "rgba(0,0,0,0.35)" }}>
+            <div className="px-5 py-4 border-t border-slate-200 flex gap-2" style={{ background: "rgba(0,0,0,0.35)" }}>
               <button autoFocus
                       onClick={() => setRemoveRackConfirm(null)}
-                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all">
                 Cancel
               </button>
               <div className="flex-1" />
@@ -10032,7 +10034,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                   <div className="text-[10px] text-slate-500 mt-0.5">Define a new machine model with components and rack capacity</div>
                 </div>
               </div>
-              <button onClick={() => setShowCreate(false)} className="text-slate-500 hover:text-white text-lg leading-none">✕</button>
+              <button onClick={() => setShowCreate(false)} className="text-slate-500 hover:text-slate-900 text-lg leading-none">✕</button>
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
@@ -10076,7 +10078,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                           <div className="flex items-center gap-1.5 justify-end">
                             <input type="number" min="0.1" step="0.1" value={ci.qty}
                               onChange={(e) => setCreateItems((p) => p.map((i) => i.code === ci.code ? { ...i, qty: parseFloat(e.target.value) || 0 } : i))}
-                              className="w-16 bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-xs text-white text-right outline-none modal-input"
+                              className="w-16 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-white text-right outline-none modal-input"
                               style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
                             <span className="text-[9px] text-slate-600">{inv?.unit || ""}</span>
                           </div>
@@ -10102,7 +10104,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                     onChange={(e) => setCreateAddQty(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && addCreateItem()}
                     placeholder="Qty"
-                    className="w-20 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none mt-2 modal-input text-right"
+                    className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white outline-none mt-2 modal-input text-right"
                     style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
                   <button onClick={addCreateItem}
                     className="px-4 py-2 rounded-lg text-xs font-bold text-white mt-2"
@@ -10140,7 +10142,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
 
             <div className="px-6 py-4 flex gap-2 flex-shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.3)" }}>
               <button onClick={() => setShowCreate(false)}
-                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-all"
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-slate-900 transition-all"
                 style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-rim)" }}>
                 Cancel
               </button>
@@ -10162,7 +10164,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
             <div className="text-xs font-black text-white">{toast.text}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">{toast.sub}</div>
           </div>
-          <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-300 text-xs">✕</button>
+          <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-500 text-xs">✕</button>
         </div>
       )}
 
@@ -10205,7 +10207,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                 // its rounded corners, so removing overflow-hidden has no
                 // visual side effect.
                 <div key={bomKey} onClick={() => canDo("outward","bom") && openBomFlow()}
-                     className={`bg-[#111622] rounded-xl transition-all duration-200 group relative ${canDo("outward","bom") ? "cursor-pointer hover:bg-white/[0.05]" : "opacity-60 cursor-not-allowed"}`}
+                     className={`bg-[#111622] rounded-xl transition-all duration-200 group relative ${canDo("outward","bom") ? "cursor-pointer hover:bg-slate-50" : "opacity-60 cursor-not-allowed"}`}
                      style={{ border: "1px solid rgba(255,255,255,0.07)" }}
                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = bom.color + "55"; e.currentTarget.style.boxShadow = `0 0 24px ${bom.color}12`; }}
                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)"; e.currentTarget.style.boxShadow = "none"; }}>
@@ -10226,7 +10228,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                         <button
                           onClick={(e) => { e.stopPropagation(); setActionsKey(actionsKey === bomKey ? null : bomKey); }}
                           title="BOM actions"
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/[0.06] transition-all"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all"
                           aria-haspopup="menu" aria-expanded={actionsKey === bomKey}>
                           ⋮
                         </button>
@@ -10235,11 +10237,11 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                                className="absolute right-0 top-full mt-1 z-30 w-44 rounded-lg overflow-hidden"
                                style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-rim)", boxShadow: "0 24px 60px rgba(0,0,0,0.85)" }}>
                             <button onClick={() => { setActionsKey(null); if (canDo("outward","bom")) openBomFlow(); }}
-                                    className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-300 hover:bg-white/[0.06] hover:text-white transition-all flex items-center gap-2">
+                                    className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center gap-2">
                               <span>📤</span>Open BOM (Issue)
                             </button>
                             <button onClick={() => { setActionsKey(null); setOpenBOM(bomKey); }}
-                                    className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-300 hover:bg-white/[0.06] hover:text-white transition-all flex items-center gap-2">
+                                    className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center gap-2">
                               <span>✏️</span>Edit BOM
                             </button>
                             {onDuplicateBOM && canDo("outward","bom") && (
@@ -10251,7 +10253,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                                           setTimeout(() => setBomActionToast(null), 3000);
                                         }
                                       }}
-                                      className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-300 hover:bg-white/[0.06] hover:text-white transition-all flex items-center gap-2">
+                                      className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center gap-2">
                                 <span>📑</span>Duplicate BOM
                               </button>
                             )}
@@ -10276,7 +10278,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                                         const info = computeBOMDeletionInfo(bomKey);
                                         setConfirmDeleteBOM({ key: bomKey, label: bom.label, info });
                                       }}
-                                      className="w-full text-left px-3 py-2 text-[11px] font-bold text-red-400 hover:bg-red-500/10 transition-all flex items-center gap-2 border-t border-white/[0.05]">
+                                      className="w-full text-left px-3 py-2 text-[11px] font-bold text-red-400 hover:bg-red-500/10 transition-all flex items-center gap-2 border-t border-slate-200">
                                 <span>🗑</span>Delete BOM
                               </button>
                             )}
@@ -10296,7 +10298,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                       })}
                       {bom.items.length > 4 && <span className="text-[9px] text-slate-600">+{bom.items.length - 4} more</span>}
                     </div>
-                    <div className="mt-3 pt-3 border-t border-white/[0.05] flex items-center justify-between gap-2">
+                    <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between gap-2">
                       <span className="text-[10px] text-slate-600">{bom.items.length} components</span>
                       {/* Capacity-blank BOMs skip the rack entirely. Surface
                           that on the card so operators know the destination
@@ -10334,7 +10336,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
         )}
 
         {/* ── Manual Outward ── */}
-        <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-6">
+        <div className="bg-[#111622] border border-slate-200 rounded-xl p-6">
           <div className="flex items-center gap-2 mb-5">
             <h2 className="text-sm font-extrabold text-white">✋ Manual Outward</h2>
             <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full">Ad-hoc Issue</span>
@@ -10418,18 +10420,18 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
 
         {/* ── Outward History ── */}
         {outwardLog && outwardLog.length > 0 && (
-          <div className="bg-[#111622] border border-white/[0.07] rounded-xl p-5">
+          <div className="bg-[#111622] border border-slate-200 rounded-xl p-5">
             <SectionHeader>📋 Outward History</SectionHeader>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead><tr className="border-b border-white/[0.06]">
+                <thead><tr className="border-b border-slate-200">
                   {["Date","Type","Ref","Details","Qty","Note"].map((h) => (
                     <th key={h} className="text-left text-[10px] font-bold text-slate-600 uppercase tracking-wide px-4 py-2">{h}</th>
                   ))}
                 </tr></thead>
                 <tbody>
                   {outwardLog.map((entry) => (
-                    <tr key={entry.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
+                    <tr key={entry.id} className="border-b border-slate-200 hover:bg-transparent transition-colors">
                       <td className="px-4 py-2 text-[10px] text-slate-500 font-mono">{entry.date}</td>
                       <td className="px-4 py-2">
                         <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
@@ -10587,19 +10589,19 @@ function AtoZMachineReport({
       <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
         <div>
           <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Started</div>
-          <div className="text-slate-200 mt-0.5">{machine.createdDate || "—"}</div>
+          <div className="text-slate-700 mt-0.5">{machine.createdDate || "—"}</div>
         </div>
         <div>
           <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Completed</div>
-          <div className="text-slate-200 mt-0.5">{machine.completedDate || "—"}</div>
+          <div className="text-slate-700 mt-0.5">{machine.completedDate || "—"}</div>
         </div>
         <div>
           <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Rack Capacity</div>
-          <div className="text-slate-200 mt-0.5">{Number(bom.rackCapacity) > 0 ? `${bom.rackCapacity} slots` : "No rack"}</div>
+          <div className="text-slate-700 mt-0.5">{Number(bom.rackCapacity) > 0 ? `${bom.rackCapacity} slots` : "No rack"}</div>
         </div>
         <div>
           <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Issue ID</div>
-          <div className="text-slate-300 mt-0.5 font-mono">{machine.issueId || "—"}</div>
+          <div className="text-slate-500 mt-0.5 font-mono">{machine.issueId || "—"}</div>
         </div>
       </div>
     </div>
@@ -10609,7 +10611,7 @@ function AtoZMachineReport({
   const Components = () => (
     <div className="rounded-xl p-4 mb-5"
          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-      <div className="text-[11px] font-black uppercase tracking-wider text-slate-300 mb-3">📋 BOM Components ({(bom.items || []).length})</div>
+      <div className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-3">📋 BOM Components ({(bom.items || []).length})</div>
       <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
         <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500"
              style={{ background: "rgba(255,255,255,0.03)" }}>
@@ -10623,13 +10625,13 @@ function AtoZMachineReport({
           const isCrit = !!(inv && inv.isCritical);
           const type = inv?.outwardInputType === "serial" ? "Serial" : "Checkbox";
           return (
-            <div key={code} className="grid grid-cols-12 gap-2 items-center px-3 py-1.5 text-[11px] border-t border-white/[0.04]">
+            <div key={code} className="grid grid-cols-12 gap-2 items-center px-3 py-1.5 text-[11px] border-t border-slate-200">
               <div className="col-span-3 font-mono text-blue-300">{code}</div>
               <div className="col-span-5">
                 <div className="text-white font-semibold truncate">{inv?.name || code}</div>
                 <div className="text-[9px] text-slate-500">{inv?.category || "—"}</div>
               </div>
-              <div className="col-span-2 text-right font-mono text-slate-200">{qty} <span className="text-slate-500">{inv?.unit || ""}</span></div>
+              <div className="col-span-2 text-right font-mono text-slate-700">{qty} <span className="text-slate-500">{inv?.unit || ""}</span></div>
               <div className="col-span-2 text-right">
                 {isCrit ? (
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
@@ -10653,7 +10655,7 @@ function AtoZMachineReport({
     return (
       <div className="rounded-xl p-4 mb-5"
            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-        <div className="text-[11px] font-black uppercase tracking-wider text-slate-300 mb-3">📤 Materials Issued ({rows.length})</div>
+        <div className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-3">📤 Materials Issued ({rows.length})</div>
         {rows.length === 0 ? (
           <div className="text-[11px] text-slate-500 italic">No BOM Outward entries linked to this machine.</div>
         ) : (
@@ -10668,17 +10670,17 @@ function AtoZMachineReport({
             {rows.map((it, idx) => {
               const ci = it.criticalInput;
               return (
-                <div key={`${it.code}-${idx}`} className="grid grid-cols-12 gap-2 items-start px-3 py-2 text-[11px] border-t border-white/[0.04]">
+                <div key={`${it.code}-${idx}`} className="grid grid-cols-12 gap-2 items-start px-3 py-2 text-[11px] border-t border-slate-200">
                   <div className="col-span-3 font-mono text-blue-300">{it.code}</div>
                   <div className="col-span-4 text-white font-semibold truncate">{it.name}</div>
-                  <div className="col-span-2 text-right font-mono text-slate-200">{it.issueQty} <span className="text-slate-500">{it.unit || ""}</span></div>
+                  <div className="col-span-2 text-right font-mono text-slate-700">{it.issueQty} <span className="text-slate-500">{it.unit || ""}</span></div>
                   <div className="col-span-3 text-[10px]">
                     {!ci ? (
                       <span className="text-slate-600">—</span>
                     ) : ci.type === "serial" ? (
                       <div>
                         <div className="font-bold text-orange-200">🔒 Serials</div>
-                        <div className="font-mono text-slate-300 break-words">{(ci.serials || []).join(", ") || "—"}</div>
+                        <div className="font-mono text-slate-500 break-words">{(ci.serials || []).join(", ") || "—"}</div>
                       </div>
                     ) : (
                       <span className="font-bold" style={{ color: ci.confirmed ? "#4ade80" : "#fca5a5" }}>
@@ -10699,7 +10701,7 @@ function AtoZMachineReport({
   const Timeline = () => (
     <div className="rounded-xl p-4 mb-5"
          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-      <div className="text-[11px] font-black uppercase tracking-wider text-slate-300 mb-3">
+      <div className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-3">
         🏭 Department Timeline ({machineHandovers.length} handover{machineHandovers.length === 1 ? "" : "s"})
       </div>
       {machineHandovers.length === 0 ? (
@@ -10739,7 +10741,7 @@ function AtoZMachineReport({
                 <div className="grid grid-cols-2 gap-3 text-[11px] mb-2">
                   <div>
                     <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Finish &amp; Transfer</div>
-                    <div className="text-slate-200 mt-0.5">
+                    <div className="text-slate-700 mt-0.5">
                       {h.sentAt ? new Date(h.sentAt).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
                     </div>
                     <div className="text-[9px] text-slate-500">
@@ -10748,7 +10750,7 @@ function AtoZMachineReport({
                   </div>
                   <div>
                     <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Accepted</div>
-                    <div className="text-slate-200 mt-0.5">
+                    <div className="text-slate-700 mt-0.5">
                       {h.acceptedAt ? new Date(h.acceptedAt).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : (h.status === "pending" ? "Waiting…" : "—")}
                     </div>
                     <div className="text-[9px] text-slate-500">
@@ -10802,7 +10804,7 @@ function AtoZMachineReport({
                         <div key={i} className="flex items-start gap-2">
                           <span className="text-[11px]">{a.checked ? "✓" : "✗"}</span>
                           <div className="flex-1">
-                            <span className="text-slate-200">{a.label}</span>
+                            <span className="text-slate-700">{a.label}</span>
                             {a.required && <span className="text-orange-300 ml-1 text-[9px]">• must-do</span>}
                             {!a.checked && a.remark && <div className="text-slate-400 italic mt-0.5">Remark: {a.remark}</div>}
                           </div>
@@ -10823,7 +10825,7 @@ function AtoZMachineReport({
                         <div key={i} className="flex items-start gap-2">
                           <span className="text-[11px]">{a.checked ? "✓" : "✗"}</span>
                           <div className="flex-1">
-                            <span className="text-slate-200">{a.label}</span>
+                            <span className="text-slate-700">{a.label}</span>
                             {a.required && <span className="text-orange-300 ml-1 text-[9px]">• must-do</span>}
                             {!a.checked && a.remark && <div className="text-slate-400 italic mt-0.5">Remark: {a.remark}</div>}
                           </div>
@@ -10845,7 +10847,7 @@ function AtoZMachineReport({
                             <span className={p.status === "resolved" ? "text-emerald-300 font-bold" : "text-orange-300 font-bold"}>
                               {p.status === "resolved" ? "✓" : "⏳"}
                             </span>
-                            <span className="text-slate-200 flex-1">{p.description}</span>
+                            <span className="text-slate-700 flex-1">{p.description}</span>
                             <span className="text-[9px] text-slate-500">raised in {p.raisedInDepartment}</span>
                           </div>
                           {p.resolutionNotes && <div className="text-slate-400 italic mt-0.5">Resolution: {p.resolutionNotes}</div>}
@@ -10866,7 +10868,7 @@ function AtoZMachineReport({
   const StageHistory = () => (
     <div className="rounded-xl p-4 mb-5"
          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-      <div className="text-[11px] font-black uppercase tracking-wider text-slate-300 mb-3">
+      <div className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-3">
         🧾 Stage History ({(machine.history || []).length})
       </div>
       <div className="relative pl-5">
@@ -10896,8 +10898,8 @@ function AtoZMachineReport({
     return (
       <div className="rounded-xl p-4 mb-5"
            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-        <div className="text-[11px] font-black uppercase tracking-wider text-slate-300 mb-3">📎 Attachments ({machineAttach.length})</div>
-        <ul className="text-[11px] text-slate-200 list-disc list-inside space-y-0.5">
+        <div className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-3">📎 Attachments ({machineAttach.length})</div>
+        <ul className="text-[11px] text-slate-700 list-disc list-inside space-y-0.5">
           {machineAttach.map((a) => (
             <li key={a.id}>
               <span className="font-semibold">{a.name || a.kind || "attachment"}</span>
@@ -11189,30 +11191,30 @@ function ReportCenterPage({
             <div>
               <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">From</div>
               <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                     className="bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-[11px] text-white outline-none" />
+                     className="bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-white outline-none" />
             </div>
             <div>
               <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">To</div>
               <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                     className="bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-[11px] text-white outline-none" />
+                     className="bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-white outline-none" />
             </div>
             <div>
               <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Machine / BOM / Serial</div>
               <input type="text" value={machineFilter} onChange={(e) => setMachineFilter(e.target.value)}
                      placeholder="e.g. BOM-ASSY-01 or S/N A-104"
-                     className="bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-[11px] text-white outline-none" />
+                     className="bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-white outline-none" />
             </div>
             <div>
               <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Department</div>
               <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}
-                      className="bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-[11px] text-white outline-none">
+                      className="bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-white outline-none">
                 <option value="">All</option>
                 {DEPARTMENT_SEQUENCE.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
             <div className="flex-1" />
             <button onClick={() => { setDateFrom(""); setDateTo(""); setMachineFilter(""); setDeptFilter(""); }}
-                    className="text-[11px] font-bold text-slate-400 px-3 py-1.5 rounded border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white">
+                    className="text-[11px] font-bold text-slate-400 px-3 py-1.5 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900">
               Reset filters
             </button>
           </div>
@@ -11222,7 +11224,7 @@ function ReportCenterPage({
         <div className="flex items-center gap-2 flex-wrap no-print">
           {tabs.map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)}
-                    className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${tab === t.id ? "bg-blue-500/15 text-blue-400 border-blue-500/30" : "text-slate-500 border-white/[0.08] hover:text-slate-300"}`}>
+                    className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${tab === t.id ? "bg-blue-500/15 text-blue-400 border-blue-500/30" : "text-slate-500 border-slate-200 hover:text-slate-500"}`}>
               {t.label}
             </button>
           ))}
@@ -11349,21 +11351,21 @@ function ReportTable({ title, rows }) {
   const columns = Object.keys(rows[0]);
   return (
     <div className="rounded-xl overflow-hidden" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
-      <div className="px-4 py-3 text-[11px] font-black text-slate-300 border-b border-white/[0.07]">{title}  ·  {rows.length} row{rows.length === 1 ? "" : "s"}</div>
+      <div className="px-4 py-3 text-[11px] font-black text-slate-500 border-b border-slate-200">{title}  ·  {rows.length} row{rows.length === 1 ? "" : "s"}</div>
       <div className="overflow-x-auto">
         <table className="w-full text-[11px]">
           <thead>
             <tr>
               {columns.map((c) => (
-                <th key={c} className="text-left px-3 py-2 font-bold text-slate-500 bg-white/[0.03] whitespace-nowrap">{c}</th>
+                <th key={c} className="text-left px-3 py-2 font-bold text-slate-500 bg-slate-50 whitespace-nowrap">{c}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={i} className="border-t border-white/[0.04]">
+              <tr key={i} className="border-t border-slate-200">
                 {columns.map((c) => (
-                  <td key={c} className="px-3 py-1.5 text-slate-300 whitespace-nowrap">{String(r[c] ?? "")}</td>
+                  <td key={c} className="px-3 py-1.5 text-slate-500 whitespace-nowrap">{String(r[c] ?? "")}</td>
                 ))}
               </tr>
             ))}
@@ -11460,13 +11462,13 @@ function SignaturePad({ onSave, onCancel, initialSvg = "", light = false }) {
       />
       <div className="flex items-center gap-2 mt-3">
         <button type="button" onClick={clear}
-                className={light ? "text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-600 border border-slate-300 bg-white hover:bg-slate-50 transition-all" : "text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all"}>
+                className={light ? "text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-600 border border-slate-300 bg-white hover:bg-slate-50 transition-all" : "text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all"}>
           Clear
         </button>
         <div className="flex-1" />
         {onCancel && (
           <button type="button" onClick={onCancel}
-                  className={light ? "text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-600 border border-slate-300 bg-white hover:bg-slate-50 transition-all" : "text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all"}>
+                  className={light ? "text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-600 border border-slate-300 bg-white hover:bg-slate-50 transition-all" : "text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all"}>
             Cancel
           </button>
         )}
@@ -11651,7 +11653,8 @@ function TcStepper({ active }) {
         <div key={s} className="flex items-center gap-2">
           <div className={"flex items-center gap-1.5 text-[11px] font-bold " + (i === active ? "text-slate-900" : "text-slate-400")}>
             <span className={"h-5 w-5 rounded-full flex items-center justify-center text-[10px] " +
-                             (i <= active ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-500")}>{i + 1}</span>
+                             (i <= active ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-500")}
+                  style={i <= active ? { color: "#fff" } : undefined}>{i + 1}</span>
             {s}
           </div>
           {i < steps.length - 1 && <div className="w-8 h-px bg-slate-300" />}
@@ -12200,7 +12203,7 @@ function TrialCertificateModal({ machine, nowTick, workflow, busy, onClose, onSu
               <button type="button" onClick={() => !busy && onClose()} disabled={busy} className={TC_BTN_GHOST}>
                 Cancel
               </button>
-              <button type="button" onClick={() => showStage("preview")} disabled={busy} className={TC_BTN_PRIMARY}>
+              <button type="button" onClick={() => showStage("preview")} disabled={busy} className={TC_BTN_PRIMARY} style={{ color: "#fff" }}>
                 Preview Certificate →
               </button>
             </div>
@@ -12222,7 +12225,7 @@ function TrialCertificateModal({ machine, nowTick, workflow, busy, onClose, onSu
               </label>
               <button type="button" onClick={handleConfirm}
                       disabled={busy || !confirmed || missing.length > 0}
-                      className={TC_BTN_PRIMARY}>
+                      className={TC_BTN_PRIMARY} style={{ color: "#fff" }}>
                 {busy ? "Saving…" : "Confirm & Transfer to Ready"}
               </button>
             </div>
@@ -12250,7 +12253,7 @@ function TrialCertificatePrintModal({ machine, onClose }) {
               {machine.bomKey}{machine.serialNo ? ` · S/N ${machine.serialNo}` : ""} · Trial date {tcFmtDate(cert.trialDate)}
             </div>
           </div>
-          <button type="button" onClick={() => printTrialCertificate(machine, cert)} className={TC_BTN_PRIMARY}>
+          <button type="button" onClick={() => printTrialCertificate(machine, cert)} className={TC_BTN_PRIMARY} style={{ color: "#fff" }}>
             🖨 Print / Save as PDF
           </button>
           <button type="button" aria-label="Close" onClick={onClose}
@@ -12690,7 +12693,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             <div className="text-xs font-bold text-white">{toast.text}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">{toast.sub}</div>
           </div>
-          <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-300 text-xs">✕</button>
+          <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-500 text-xs">✕</button>
         </div>
       )}
 
@@ -12756,7 +12759,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         </span>
                       </div>
                       <div className="text-[11px] text-slate-400 mt-1">
-                        <span className="font-semibold text-slate-300">{h.fromDepartment}</span>
+                        <span className="font-semibold text-slate-500">{h.fromDepartment}</span>
                         <span className="mx-1.5 text-slate-500">→</span>
                         <span className="font-bold text-orange-300">{h.toDepartment}</span>
                         <span className="text-slate-500 ml-2">· sent {formatDuration(sentMin)} ago</span>
@@ -12765,7 +12768,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         {h.overrunMinutes > 0 && <span className="text-yellow-300 ml-2">· work overrun {formatDuration(h.overrunMinutes)}</span>}
                       </div>
                       {h.overrunNarration && (
-                        <div className="text-[11px] text-slate-300 mt-1.5 italic">"{h.overrunNarration}"</div>
+                        <div className="text-[11px] text-slate-500 mt-1.5 italic">"{h.overrunNarration}"</div>
                       )}
                     </div>
                     {canAccept && onAcceptHandover ? (
@@ -12849,7 +12852,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               below the fold. Feature 2 of 2026-06-01h. */}
 
           {rackData.length === 0 ? (
-            <div className="bg-[#111622] border border-white/[0.07] rounded-xl py-10 text-center">
+            <div className="bg-[#111622] border border-slate-200 rounded-xl py-10 text-center">
               <div className="text-3xl mb-2">📦</div>
               <div className="text-xs font-bold text-white mb-1">No Machine Models Defined</div>
               <div className="text-[10px] text-slate-500">Create a BOM definition from <button onClick={() => onNavigate("outward")} className="text-blue-400 underline hover:text-blue-300">Outward</button> to start tracking racks.</div>
@@ -12902,7 +12905,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                               type="button"
                               onClick={(e) => { e.stopPropagation(); setRackActionsKey(rackActionsKey === r.key ? null : r.key); }}
                               title="Rack actions"
-                              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.08] transition-all"
+                              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all"
                               aria-haspopup="menu" aria-expanded={rackActionsKey === r.key}>
                               ⋮
                             </button>
@@ -12915,7 +12918,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                           setRackActionsKey(null);
                                           setEditRackModal({ key: r.key, label: r.label, capacity: r.capacity || 0 });
                                         }}
-                                        className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-300 hover:bg-white/[0.06] hover:text-white transition-all flex items-center gap-2">
+                                        className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center gap-2">
                                   <span>✏️</span>Edit Rack Capacity
                                 </button>
                                 <button type="button"
@@ -12923,7 +12926,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                           setRackActionsKey(null);
                                           setDeleteRackConfirm({ key: r.key, label: r.label, ready: r.ready });
                                         }}
-                                        className="w-full text-left px-3 py-2 text-[11px] font-bold text-red-400 hover:bg-red-500/10 transition-all flex items-center gap-2 border-t border-white/[0.05]">
+                                        className="w-full text-left px-3 py-2 text-[11px] font-bold text-red-400 hover:bg-red-500/10 transition-all flex items-center gap-2 border-t border-slate-200">
                                   <span>🗑</span>Delete Rack
                                 </button>
                               </div>
@@ -12940,7 +12943,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                       </div>
                       <div>
                         <div className="text-[9px] text-slate-600 uppercase tracking-wide">Capacity</div>
-                        <div className="text-lg font-black text-slate-300">{r.configured ? r.capacity : "—"}</div>
+                        <div className="text-lg font-black text-slate-500">{r.configured ? r.capacity : "—"}</div>
                       </div>
                       <div>
                         <div className="text-[9px] text-slate-600 uppercase tracking-wide">Empty</div>
@@ -12971,17 +12974,17 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             a direct "show everything" option. */}
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => setFilter("all")}
-                  className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${filter === "all" ? "bg-blue-500/15 text-blue-300 border-blue-500/40" : "text-slate-500 border-white/[0.08] hover:text-slate-300"}`}>
+                  className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${filter === "all" ? "bg-blue-500/15 text-blue-300 border-blue-500/40" : "text-slate-500 border-slate-200 hover:text-slate-500"}`}>
             All Machines ({started.length})
           </button>
           {filter !== "all" && (
-            <span className="text-[10px] text-slate-500">· Filtered by one of the summary cards above. Click <strong className="text-slate-300">All Machines</strong> to clear.</span>
+            <span className="text-[10px] text-slate-500">· Filtered by one of the summary cards above. Click <strong className="text-slate-500">All Machines</strong> to clear.</span>
           )}
         </div>
 
         {/* ── Empty state ── */}
         {filtered.length === 0 && (
-          <div className="bg-[#111622] border border-white/[0.07] rounded-xl py-20 text-center">
+          <div className="bg-[#111622] border border-slate-200 rounded-xl py-20 text-center">
             <div className="text-5xl mb-4">🔧</div>
             <div className="text-sm font-bold text-white mb-2">No Machines Tracked</div>
             {filter === "completed" ? (
@@ -13092,7 +13095,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         <>
                           <select value={selStage}
                                   onChange={(e) => setStageMap((p) => ({ ...p, [machine.id]: e.target.value }))}
-                                  className="bg-white/[0.04] border border-white/[0.1] rounded-lg px-2 py-1.5 text-[11px] text-slate-300 outline-none"
+                                  className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-[11px] text-slate-500 outline-none"
                                   style={{ background: "var(--surface-elevated)" }}>
                             <option value="">Update Stage</option>
                             {futureStages.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -13158,7 +13161,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         </button>
                       )}
                       <button onClick={() => setExpanded(isExpanded ? null : machine.id)}
-                              className="text-[10px] font-bold text-slate-500 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-white/[0.07] hover:border-white/20 transition-all">
+                              className="text-[10px] font-bold text-slate-500 hover:text-slate-700 px-2 py-1.5 rounded-lg border border-slate-200 hover:border-white/20 transition-all">
                         {isExpanded ? "Hide" : "History"}
                       </button>
                     </div>
@@ -13231,7 +13234,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                       <span className="text-[9px] text-slate-500">· {h.sentAt ? new Date(h.sentAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : ""}</span>
                                       {h.mainEmployeeSignatureSvg && <span title="Main Employee signed" className="text-[9px] font-bold text-yellow-300">✍ Signed</span>}
                                     </div>
-                                    <div className="text-[10px] text-slate-300 mt-0.5">
+                                    <div className="text-[10px] text-slate-500 mt-0.5">
                                       {h.workedBy.map((uid, idx) => (
                                         <span key={uid}>
                                           {idx > 0 && ", "}
@@ -13254,7 +13257,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                             <div className="space-y-1">
                               {Object.entries(ratingSummary.perDept).map(([dept, info]) => (
                                 <div key={dept} className="flex items-center gap-2 text-[11px]">
-                                  <span className="w-24 text-slate-300">{dept}</span>
+                                  <span className="w-24 text-slate-500">{dept}</span>
                                   <span className="font-black text-yellow-300" style={{ letterSpacing: "0.1em" }}>{formatRatingBadge(info.rating)}</span>
                                   {info.overridden && <span className="text-[9px] font-bold text-blue-300">(overridden)</span>}
                                 </div>
@@ -13275,7 +13278,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                               {machinePendingItems.map((p) => (
                                 <div key={p.id} className="rounded px-2 py-1.5" style={{ background: p.status === "resolved" ? "rgba(34,197,94,0.06)" : "rgba(249,115,22,0.08)", border: `1px solid ${p.status === "resolved" ? "rgba(34,197,94,0.25)" : "rgba(249,115,22,0.3)"}` }}>
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-[11px] text-slate-200 flex-1">{p.description}</span>
+                                    <span className="text-[11px] text-slate-700 flex-1">{p.description}</span>
                                     {p.status === "resolved" ? (
                                       <span className="text-[9px] font-bold text-emerald-300">✓ Resolved</span>
                                     ) : (
@@ -13376,7 +13379,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
              onClick={(e) => e.target === e.currentTarget && setEditRackModal(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
                style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
-            <div className="px-5 py-4 border-b border-white/[0.08]"
+            <div className="px-5 py-4 border-b border-slate-200"
                  style={{ background: "rgba(232,85,61,0.06)" }}>
               <div className="text-sm font-black text-blue-300">✏️ Edit Rack Capacity</div>
               <div className="text-[10px] text-slate-500 mt-0.5">
@@ -13409,10 +13412,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 <div className="text-[10px] text-slate-600 mt-1">0 = no rack tracking. The card disappears from Production Rack View when capacity drops to 0.</div>
               </div>
             </div>
-            <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-end gap-2"
+            <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-end gap-2"
                  style={{ background: "rgba(0,0,0,0.35)" }}>
               <button onClick={() => setEditRackModal(null)}
-                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all">
                 Cancel
               </button>
               <button onClick={() => {
@@ -13443,7 +13446,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
              onClick={(e) => e.target === e.currentTarget && setDeleteRackConfirm(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
                style={{ background: "var(--surface-elevated)", border: `1px solid ${deleteRackConfirm.ready > 0 ? "rgba(245,158,11,0.4)" : "rgba(239,68,68,0.4)"}`, boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
-            <div className="px-5 py-4 border-b border-white/[0.08]"
+            <div className="px-5 py-4 border-b border-slate-200"
                  style={{ background: deleteRackConfirm.ready > 0 ? "rgba(245,158,11,0.06)" : "rgba(239,68,68,0.06)" }}>
               <div className={`text-sm font-black ${deleteRackConfirm.ready > 0 ? "text-amber-300" : "text-red-400"}`}>
                 {deleteRackConfirm.ready > 0 ? "⚠ Cannot Delete Rack" : "🗑 Delete Rack?"}
@@ -13455,7 +13458,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             <div className="px-5 py-4 space-y-2 text-[11px]">
               {deleteRackConfirm.ready > 0 ? (
                 <>
-                  <div className="text-slate-300">
+                  <div className="text-slate-500">
                     This rack has <span className="font-bold text-white">{deleteRackConfirm.ready}</span> machine{deleteRackConfirm.ready === 1 ? "" : "s"} waiting on it.
                   </div>
                   <div className="text-slate-400">
@@ -13464,7 +13467,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 </>
               ) : (
                 <>
-                  <div className="text-slate-300">
+                  <div className="text-slate-500">
                     Removes the rack configuration / card only. The BOM definition stays in Outward; you can re-enable rack tracking later by editing capacity.
                   </div>
                   <ul className="space-y-1 ml-1 mt-2">
@@ -13476,10 +13479,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 </>
               )}
             </div>
-            <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-end gap-2"
+            <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-end gap-2"
                  style={{ background: "rgba(0,0,0,0.35)" }}>
               <button autoFocus onClick={() => setDeleteRackConfirm(null)}
-                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all">
                 {deleteRackConfirm.ready > 0 ? "Close" : "Cancel"}
               </button>
               {deleteRackConfirm.ready === 0 && (
@@ -13512,7 +13515,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 <div className="text-sm font-black text-white">Start Production</div>
                 <div className="text-[10px] text-slate-500 mt-0.5 truncate">{startProd.key} — {startProd.label}</div>
               </div>
-              <button onClick={() => setStartProd(null)} className="text-slate-500 hover:text-white transition-colors text-lg leading-none">✕</button>
+              <button onClick={() => setStartProd(null)} className="text-slate-500 hover:text-slate-900 transition-colors text-lg leading-none">✕</button>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -13522,7 +13525,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               </div>
               <div className="p-3 rounded-xl text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
                 <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Rack Capacity</div>
-                <div className="text-2xl font-black text-slate-300 mt-1">{startProd.configured ? startProd.capacity : "—"}</div>
+                <div className="text-2xl font-black text-slate-500 mt-1">{startProd.configured ? startProd.capacity : "—"}</div>
               </div>
             </div>
 
@@ -13551,7 +13554,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         <button
                           onClick={(e) => { e.stopPropagation(); setRemoveRackConfirm({ machineId: m.id, serialNo: m.serialNo, bomKey: m.bomKey }); }}
                           title="Remove from rack (restore materials to stock)"
-                          className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-black text-red-400 hover:text-white hover:bg-red-500/20 transition-all flex-shrink-0"
+                          className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-black text-red-400 hover:text-slate-900 hover:bg-red-500/20 transition-all flex-shrink-0"
                           style={{ border: "1px solid rgba(239,68,68,0.25)" }}>
                           🗑
                         </button>
@@ -13568,7 +13571,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
             <div className="flex gap-2">
               <button onClick={() => setStartProd(null)}
-                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-all"
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-slate-900 transition-all"
                 style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-rim)" }}>
                 Cancel
               </button>
@@ -13592,14 +13595,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
              onClick={(e) => e.target === e.currentTarget && setRemoveRackConfirm(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
                style={{ background: "var(--surface-elevated)", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.9)" }}>
-            <div className="px-5 py-4 border-b border-white/[0.08]" style={{ background: "rgba(239,68,68,0.06)" }}>
+            <div className="px-5 py-4 border-b border-slate-200" style={{ background: "rgba(239,68,68,0.06)" }}>
               <div className="text-sm font-black text-red-400">🗑 Remove Machine From Rack?</div>
               <div className="text-[10px] text-slate-500 mt-0.5">
                 {removeRackConfirm.bomKey}{removeRackConfirm.serialNo ? ` · S/N ${removeRackConfirm.serialNo}` : ""}
               </div>
             </div>
             <div className="px-5 py-4 space-y-2.5 text-[11px]">
-              <div className="text-slate-300">This will:</div>
+              <div className="text-slate-500">This will:</div>
               <ul className="space-y-1 ml-1">
                 <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Restore the issued components to inventory</span></li>
                 <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Cancel any pending material requests for this build</span></li>
@@ -13608,10 +13611,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               </ul>
               <div className="text-[10px] text-slate-500 pt-1">This action cannot be undone.</div>
             </div>
-            <div className="px-5 py-4 border-t border-white/[0.08] flex gap-2" style={{ background: "rgba(0,0,0,0.35)" }}>
+            <div className="px-5 py-4 border-t border-slate-200 flex gap-2" style={{ background: "rgba(0,0,0,0.35)" }}>
               <button autoFocus
                       onClick={() => setRemoveRackConfirm(null)}
-                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all">
                 Cancel
               </button>
               <div className="flex-1" />
@@ -13881,7 +13884,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   Cancel
                 </button>
                 <button onClick={submitFinishTransfer} disabled={transferBusy || (isOverrun && !narration.trim())}
-                        className="text-[12px] font-bold text-white bg-orange-500 hover:bg-orange-600 px-5 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        className="text-[12px] font-bold text-white bg-orange-500 hover:bg-orange-600 px-5 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" style={{ color: "#fff" }}>
                   {transferBusy ? "⏳ Sending…" : `Finish & Transfer → ${toDepartment}`}
                 </button>
               </div>
@@ -13928,7 +13931,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                onClick={(e) => e.target === e.currentTarget && !busy && setAcceptModal(null)}>
             <div className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col"
                  style={{ background: "var(--surface-elevated)", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)", maxHeight: "90vh" }}>
-              <div className="px-6 py-5 border-b border-white/[0.08] flex-shrink-0"
+              <div className="px-6 py-5 border-b border-slate-200 flex-shrink-0"
                    style={{ background: "linear-gradient(90deg,rgba(34,197,94,0.10),rgba(22,163,74,0.05))" }}>
                 <div className="text-sm font-black text-white">Accept into {handover.toDepartment}</div>
                 <div className="text-[11px] text-slate-400 mt-0.5">{handover.bomKey}{handover.serialNo ? ` · S/N ${handover.serialNo}` : ""}</div>
@@ -13942,7 +13945,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 )}
                 {needSig && (
                   <div>
-                    <div className="text-[11px] font-bold text-slate-300 mb-2">Register your signature (one-time setup)</div>
+                    <div className="text-[11px] font-bold text-slate-500 mb-2">Register your signature (one-time setup)</div>
                     <SignaturePad
                       onSave={(svg) => setField({ sigSvg: svg, needSig: false, error: "" })}
                       onCancel={() => setAcceptModal(null)}
@@ -13953,12 +13956,12 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   <>
                     {workflow.require_password_at_accept ? (
                       <div>
-                        <label className="text-[11px] font-bold text-slate-300 block mb-1.5">Confirm your password to sign this acceptance</label>
+                        <label className="text-[11px] font-bold text-slate-500 block mb-1.5">Confirm your password to sign this acceptance</label>
                         <input type="password" value={password} autoFocus
                                onChange={(e) => setField({ password: e.target.value, error: "" })}
                                onKeyDown={(e) => { if (e.key === "Enter") submitAcceptHandover(); }}
                                placeholder="Password"
-                               className="w-full bg-white/[0.04] border border-white/[0.1] rounded-lg px-3 py-2 text-[12px] text-white placeholder-slate-500 outline-none focus:border-green-500/60" />
+                               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[12px] text-white placeholder-slate-500 outline-none focus:border-green-500/60" />
                         <div className="text-[10px] text-slate-500 mt-1">Your saved signature will be attached to this acceptance record.</div>
                       </div>
                     ) : (
@@ -14009,7 +14012,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                 <input type="checkbox" checked={!!a.checked}
                                        onChange={(e) => setField({ checklistAnswers: toggleAnswer(acceptModal.checklistAnswers, i, e.target.checked), error: "" })}
                                        className="accent-emerald-500 w-4 h-4 mt-0.5" />
-                                <span className="flex-1 text-[11px] text-slate-200 leading-relaxed">
+                                <span className="flex-1 text-[11px] text-slate-700 leading-relaxed">
                                   {a.label}
                                   {a.required && <span className="ml-1 text-[9px] font-bold text-orange-300">• Must do</span>}
                                 </span>
@@ -14018,7 +14021,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                 <input type="text" value={a.remark || ""}
                                        onChange={(e) => setField({ checklistAnswers: setAnswerRemark(acceptModal.checklistAnswers, i, e.target.value), error: "" })}
                                        placeholder="Why not? (short note)"
-                                       className="mt-1 w-full bg-white/[0.03] border border-white/[0.1] rounded px-2 py-1 text-[11px] text-white placeholder-slate-500 outline-none focus:border-blue-500/60" />
+                                       className="mt-1 w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] text-white placeholder-slate-500 outline-none focus:border-blue-500/60" />
                               )}
                             </div>
                           ))}
@@ -14028,14 +14031,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
                     {/* Phase B — raise new pending items at this transfer */}
                     <div className="rounded-lg px-3 py-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                      <div className="text-[10px] font-bold text-slate-300 uppercase tracking-wide mb-1.5">Any work from {handover.fromDepartment} still pending? (optional)</div>
+                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Any work from {handover.fromDepartment} still pending? (optional)</div>
                       <div className="space-y-2">
                         {(acceptModal.pendingItemsToRaise || []).map((desc, i) => (
                           <div key={i} className="flex items-center gap-2">
                             <input type="text" value={desc}
                                    onChange={(e) => setField({ pendingItemsToRaise: (acceptModal.pendingItemsToRaise || []).map((d, idx) => idx === i ? e.target.value : d) })}
                                    placeholder={`Pending item ${i + 1} (e.g. missing fasteners, incomplete wiring)`}
-                                   className="flex-1 bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-[11px] text-white placeholder-slate-500 outline-none focus:border-orange-500/60" />
+                                   className="flex-1 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-white placeholder-slate-500 outline-none focus:border-orange-500/60" />
                             <button type="button"
                                     onClick={() => setField({ pendingItemsToRaise: (acceptModal.pendingItemsToRaise || []).filter((_, idx) => idx !== i) })}
                                     className="text-[11px] text-slate-500 hover:text-red-400 px-1">×</button>
@@ -14084,10 +14087,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   </div>
                 )}
               </div>
-              <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between flex-shrink-0"
+              <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between flex-shrink-0"
                    style={{ background: "rgba(0,0,0,0.35)" }}>
                 <button onClick={() => !busy && setAcceptModal(null)} disabled={busy}
-                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
+                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all disabled:opacity-50">
                   Cancel
                 </button>
                 {!needSig && (
@@ -14113,7 +14116,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                onClick={(e) => e.target === e.currentTarget && !busy && setDuringWorkModal(null)}>
             <div className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col"
                  style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)", maxHeight: "90vh" }}>
-              <div className="px-6 py-4 border-b border-white/[0.08] flex-shrink-0"
+              <div className="px-6 py-4 border-b border-slate-200 flex-shrink-0"
                    style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.12),rgba(204,74,51,0.05))" }}>
                 <div className="text-sm font-black text-white">📋 During-Work Checks</div>
                 <div className="text-[11px] text-slate-400 mt-0.5">{machine.bomKey}{machine.serialNo ? ` · S/N ${machine.serialNo}` : ""} · {machine.currentDepartment || machine.stage}</div>
@@ -14130,7 +14133,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                       <input type="checkbox" checked={!!a.checked}
                              onChange={(e) => setField({ answers: toggleAnswer(answers, i, e.target.checked), error: "" })}
                              className="accent-emerald-500 w-4 h-4 mt-0.5" />
-                      <span className="flex-1 text-[11px] text-slate-200 leading-relaxed">
+                      <span className="flex-1 text-[11px] text-slate-700 leading-relaxed">
                         {a.label}
                         {a.required && <span className="ml-1 text-[9px] font-bold text-orange-300">• Must do</span>}
                       </span>
@@ -14139,7 +14142,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                       <input type="text" value={a.remark || ""}
                              onChange={(e) => setField({ answers: setAnswerRemark(answers, i, e.target.value), error: "" })}
                              placeholder="Why not? (short note)"
-                             className="mt-1 w-full bg-white/[0.03] border border-white/[0.1] rounded px-2 py-1 text-[11px] text-white placeholder-slate-500 outline-none focus:border-blue-500/60" />
+                             className="mt-1 w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] text-white placeholder-slate-500 outline-none focus:border-blue-500/60" />
                     )}
                   </div>
                 ))}
@@ -14150,10 +14153,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   </div>
                 )}
               </div>
-              <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between flex-shrink-0"
+              <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between flex-shrink-0"
                    style={{ background: "rgba(0,0,0,0.35)" }}>
                 <button onClick={() => !busy && setDuringWorkModal(null)} disabled={busy}
-                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
+                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all disabled:opacity-50">
                   Cancel
                 </button>
                 <button onClick={submitDuringWork} disabled={busy}
@@ -14408,7 +14411,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                 <div className="text-[11px] text-slate-500">{bom.items.length} components</div>
               </div>
             </div>
-            <button onClick={() => setViewBOM(null)} className="text-slate-500 hover:text-white text-base transition-colors">✕</button>
+            <button onClick={() => setViewBOM(null)} className="text-slate-500 hover:text-slate-900 text-base transition-colors">✕</button>
           </div>
           <div className="p-5 max-h-[65vh] overflow-y-auto space-y-2">
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-3">Components — live stock</div>
@@ -14445,7 +14448,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
             <div className="text-xs font-bold text-white">{toast.text}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">{toast.sub}</div>
           </div>
-          <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-300 text-xs">✕</button>
+          <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-500 text-xs">✕</button>
         </div>
       )}
 
@@ -14480,7 +14483,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                           border: `1px solid ${criticalRows.length ? "rgba(249,115,22,0.5)" : "rgba(34,197,94,0.4)"}`,
                           boxShadow: "0 40px 100px rgba(0,0,0,0.92)" }}>
               {/* Header */}
-              <div className="px-6 py-4 border-b border-white/[0.08] flex items-start justify-between flex-shrink-0"
+              <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between flex-shrink-0"
                    style={{ background: criticalRows.length
                      ? "linear-gradient(90deg,rgba(249,115,22,0.14),rgba(234,88,12,0.06))"
                      : "linear-gradient(90deg,rgba(34,197,94,0.12),rgba(21,128,61,0.05))" }}>
@@ -14493,7 +14496,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                   </div>
                 </div>
                 <button onClick={() => setConfirmFulfill(null)}
-                        className="w-7 h-7 rounded-lg bg-white/[0.05] hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-xs font-bold">
+                        className="w-7 h-7 rounded-lg bg-slate-50 hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-xs font-bold">
                   ✕
                 </button>
               </div>
@@ -14537,7 +14540,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                               <input type="checkbox" checked={!!state.confirmed}
                                      onChange={(e) => setLine(entry.code, { confirmed: e.target.checked })}
                                      className="accent-emerald-500 w-4 h-4 mt-0.5" />
-                              <span className="text-[11px] text-slate-300 leading-relaxed">
+                              <span className="text-[11px] text-slate-500 leading-relaxed">
                                 I confirm this critical item has been physically verified for all {entry.canIssue} unit(s).
                               </span>
                             </label>
@@ -14560,7 +14563,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                                                setLine(entry.code, { serials: next });
                                              }}
                                              placeholder={`Serial #${idx + 1}`}
-                                             className="bg-white/[0.04] rounded-md px-2 py-1.5 text-[11px] text-white outline-none modal-input"
+                                             className="bg-slate-50 rounded-md px-2 py-1.5 text-[11px] text-white outline-none modal-input"
                                              style={{ fontFamily: "'Inter',system-ui,sans-serif",
                                                       border: (alreadyUsed || dupeInBatch) ? "1px solid rgba(239,68,68,0.7)" : "1px solid rgba(255,255,255,0.08)" }} />
                                       {alreadyUsed && <span className="text-[9px] text-red-400 font-semibold">Already issued</span>}
@@ -14618,7 +14621,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
               </div>
 
               {/* Footer */}
-              <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between flex-shrink-0"
+              <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between flex-shrink-0"
                    style={{ background: "rgba(0,0,0,0.35)" }}>
                 <div className="text-[10px] text-slate-500">
                   {criticalRows.length
@@ -14627,7 +14630,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => setConfirmFulfill(null)}
-                          className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+                          className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all">
                     Cancel
                   </button>
                   <button onClick={commitConfirm} disabled={!ready}
@@ -14667,7 +14670,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
         </div>
 
         {groups.length === 0 ? (
-          <div className="bg-[#111622] border border-white/[0.07] rounded-xl py-20 text-center" style={{ animation: "fadeIn 0.4s ease both" }}>
+          <div className="bg-[#111622] border border-slate-200 rounded-xl py-20 text-center" style={{ animation: "fadeIn 0.4s ease both" }}>
             <div className="text-5xl mb-4">✅</div>
             <div className="text-sm font-bold text-white mb-2">No Pending Materials</div>
             <div className="text-[11px] text-slate-500">All BOM issues are fully fulfilled. Issue a BOM from Outward to track shortfalls here.</div>
@@ -14707,7 +14710,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                 const bom        = bomDefs?.[group.bomKey];
 
                 return (
-                  <div key={group.key} className="bg-[#111622] border border-white/[0.07] rounded-xl overflow-hidden"
+                  <div key={group.key} className="bg-[#111622] border border-slate-200 rounded-xl overflow-hidden"
                        style={{ animation: "slideUp 0.3s ease both" }}>
 
                     {/* Group header */}
@@ -14766,7 +14769,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
-                          <tr className="border-b border-white/[0.05]">
+                          <tr className="border-b border-slate-200">
                             {["Code", "Missing Item", "Required", "Available", "Pending Qty", "Status", "Action"].map((h) => (
                               <th key={h} className="text-left text-[10px] font-bold text-slate-600 uppercase tracking-wide px-4 py-2.5">{h}</th>
                             ))}
@@ -14774,7 +14777,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                         </thead>
                         <tbody>
                           {group.items.map((entry, idx) => (
-                            <tr key={idx} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.025] transition-colors">
+                            <tr key={idx} className="border-b border-slate-200 last:border-0 hover:bg-transparent transition-colors">
                               <td className="px-4 py-3 text-[10px] font-mono font-bold text-blue-400 whitespace-nowrap">{entry.code}</td>
                               <td className="px-4 py-3">
                                 <div className="text-xs font-semibold text-white">{entry.name}</div>
@@ -14910,40 +14913,40 @@ function HRFilterBar({ search, setSearch, dateFrom, setDateFrom, dateTo, setDate
       <div className="relative">
         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs">🔍</span>
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Global search…"
-          className="bg-white/[0.04] border border-white/[0.08] rounded-lg pl-7 pr-3 py-1.5 text-xs text-slate-300 placeholder-slate-600 outline-none focus:border-blue-500/40 w-52" />
+          className="bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-3 py-1.5 text-xs text-slate-500 placeholder-slate-600 outline-none focus:border-blue-500/40 w-52" />
       </div>
       <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-        className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40" title="From date" />
+        className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40" title="From date" />
       <span className="text-slate-600 text-xs">→</span>
       <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-        className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40" title="To date" />
+        className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40" title="To date" />
       {showVendor && (
         <select value={vendorFilter} onChange={(e) => setVendorFilter(e.target.value)}
-          className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40">
+          className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40">
           <option value="">All Vendors</option>
           {vendorList.map((v) => <option key={v.id||v.name} value={v.name}>{v.name}</option>)}
         </select>
       )}
       {showItem && (
         <select value={itemFilter} onChange={(e) => setItemFilter(e.target.value)}
-          className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40">
+          className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40">
           <option value="">All Items</option>
           {allItems.map((i) => <option key={i.code} value={i.code}>{i.name} ({i.code})</option>)}
         </select>
       )}
       {showMachine && (
         <select value={machineFilter} onChange={(e) => setMachineFilter(e.target.value)}
-          className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40">
+          className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40">
           <option value="">All Machines</option>
           {[...new Set(machineLog.map((m) => m.bomKey))].map((k) => <option key={k} value={k}>{k}</option>)}
         </select>
       )}
       {showSerial && (
         <input value={serialFilter} onChange={(e) => setSerialFilter(e.target.value)} placeholder="Serial No…"
-          className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40 w-32" />
+          className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40 w-32" />
       )}
       {(search||dateFrom||dateTo||vendorFilter||itemFilter||machineFilter||serialFilter) && (
-        <button onClick={onReset} className="text-[10px] font-bold text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-white/[0.06] hover:border-white/[0.14] transition-all">✕ Reset</button>
+        <button onClick={onReset} className="text-[10px] font-bold text-slate-500 hover:text-slate-500 px-2 py-1.5 rounded-lg border border-slate-200 hover:border-slate-200 transition-all">✕ Reset</button>
       )}
     </div>
   );
@@ -14952,9 +14955,9 @@ function HRFilterBar({ search, setSearch, dateFrom, setDateFrom, dateTo, setDate
 function HRExportBar({ onCSV, onExcel, onPDF }) {
   return (
     <div className="flex items-center gap-1.5">
-      <button onClick={onCSV}   className="text-[10px] font-bold px-3 py-1.5 rounded-lg border border-white/[0.08] text-slate-400 hover:text-white hover:border-white/[0.2] transition-all">CSV</button>
-      <button onClick={onExcel} className="text-[10px] font-bold px-3 py-1.5 rounded-lg border border-white/[0.08] text-slate-400 hover:text-white hover:border-white/[0.2] transition-all">Excel</button>
-      <button onClick={onPDF}   className="text-[10px] font-bold px-3 py-1.5 rounded-lg border border-white/[0.08] text-slate-400 hover:text-white hover:border-white/[0.2] transition-all">PDF</button>
+      <button onClick={onCSV}   className="text-[10px] font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-900 hover:border-slate-300 transition-all">CSV</button>
+      <button onClick={onExcel} className="text-[10px] font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-900 hover:border-slate-300 transition-all">Excel</button>
+      <button onClick={onPDF}   className="text-[10px] font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-900 hover:border-slate-300 transition-all">PDF</button>
     </div>
   );
 }
@@ -15322,7 +15325,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                 {activityRows.map((a) => {
                   const meta = AUDIT_META[a.type] || { label: a.type, icon: "•", color: "#64748b" };
                   return (
-                    <div key={a.id} className="flex items-start gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.025] transition-all" style={CARD_STYLE}>
+                    <div key={a.id} className="flex items-start gap-3 px-4 py-3 rounded-xl hover:bg-transparent transition-all" style={CARD_STYLE}>
                       <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0 mt-0.5"
                            style={{ background: meta.color + "18", border: `1px solid ${meta.color}30` }}>
                         {meta.icon}
@@ -15388,17 +15391,17 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                         </div>
                       </div>
                       {/* Line items */}
-                      <div className="mt-3 pt-3 border-t border-white/[0.05] grid gap-1">
+                      <div className="mt-3 pt-3 border-t border-slate-200 grid gap-1">
                         {(p.lineItems||[]).map((li, i) => (
                           <div key={i} className="flex items-center justify-between text-[11px]">
                             <span className="text-slate-400"><span className="text-slate-600 font-mono mr-2">{li.code}</span>{li.name}</span>
-                            <span className="text-slate-300">{li.qty} {li.unit} @ ₹{li.rate}</span>
+                            <span className="text-slate-500">{li.qty} {li.unit} @ ₹{li.rate}</span>
                           </div>
                         ))}
                       </div>
                       {/* Timeline */}
                       {(p.activityLog||[]).length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-white/[0.05] flex flex-wrap gap-x-4 gap-y-1">
+                        <div className="mt-3 pt-3 border-t border-slate-200 flex flex-wrap gap-x-4 gap-y-1">
                           {(p.activityLog||[]).map((al, i) => (
                             <span key={i} className="text-[10px] text-slate-500">{al.action}: <span className="text-slate-400">{al.date}</span>{al.note ? ` · ${al.note}` : ""}</span>
                           ))}
@@ -15451,7 +15454,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                         </div>
                       </div>
                       {/* Stage timeline */}
-                      <div className="mt-3 pt-3 border-t border-white/[0.05]">
+                      <div className="mt-3 pt-3 border-t border-slate-200">
                         <div className="text-[10px] text-slate-600 mb-2 uppercase tracking-wider">Stage Timeline</div>
                         <div className="flex flex-wrap gap-2">
                           {(m.history||[]).map((h, i) => {
@@ -15495,13 +15498,13 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                 {invRows.map((r, i) => {
                   const isIn = r.direction === "+";
                   return (
-                    <div key={i} className="grid items-center px-4 py-2.5 text-xs hover:bg-white/[0.025] transition-all"
+                    <div key={i} className="grid items-center px-4 py-2.5 text-xs hover:bg-transparent transition-all"
                          style={{ gridTemplateColumns:"90px 130px 50px 90px 1fr 70px 60px 120px 120px", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
                       <div className="text-slate-500 text-[10px]">{r.dateRaw}</div>
                       <div><span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background:isIn?"rgba(16,185,129,0.12)":"rgba(245,158,11,0.12)", color:isIn?"#34d399":"#fbbf24" }}>{r.mvType}</span></div>
                       <div className="font-black text-base" style={{color:isIn?"#34d399":"#f87171"}}>{r.direction}</div>
                       <div className="text-slate-400 font-mono text-[10px]">{r.code}</div>
-                      <div className="text-slate-300 truncate">{r.item || r.name || r.label || "—"}</div>
+                      <div className="text-slate-500 truncate">{r.item || r.name || r.label || "—"}</div>
                       <div className="text-right font-bold text-white">{r.qty}</div>
                       <div className="text-slate-500">{r.unit}</div>
                       <div className="text-slate-400 truncate text-[10px]">{r.vendor || "—"}</div>
@@ -15538,9 +15541,9 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                   </thead>
                   <tbody>
                     {stockReportExport.map((r, i) => (
-                      <tr key={r.code || i} className="hover:bg-white/[0.025] transition-all" style={{ borderTop:"1px solid rgba(255,255,255,0.05)" }}>
+                      <tr key={r.code || i} className="hover:bg-transparent transition-all" style={{ borderTop:"1px solid rgba(255,255,255,0.05)" }}>
                         {stockReportCols.map((c) => (
-                          <td key={c.key} className={`px-3 py-2 whitespace-nowrap ${c.key==="code"?"font-mono text-slate-400 text-[10px]":"text-slate-300"}`}>
+                          <td key={c.key} className={`px-3 py-2 whitespace-nowrap ${c.key==="code"?"font-mono text-slate-400 text-[10px]":"text-slate-500"}`}>
                             {c.key === "status_label"
                               ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: r.status==="critical"?"rgba(239,68,68,0.15)":r.status==="warning"?"rgba(245,158,11,0.15)":"rgba(34,197,94,0.12)", color: r.status==="critical"?"#f87171":r.status==="warning"?"#fbbf24":"#4ade80" }}>{r[c.key]}</span>
                               : (r[c.key] ?? "—")}
@@ -15579,9 +15582,9 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                   </thead>
                   <tbody>
                     {lowStockExport.map((r, i) => (
-                      <tr key={r.code || i} className="hover:bg-white/[0.025] transition-all" style={{ borderTop:"1px solid rgba(255,255,255,0.05)" }}>
+                      <tr key={r.code || i} className="hover:bg-transparent transition-all" style={{ borderTop:"1px solid rgba(255,255,255,0.05)" }}>
                         {lowStockCols.map((c) => (
-                          <td key={c.key} className={`px-3 py-2 whitespace-nowrap ${c.key==="code"?"font-mono text-slate-400 text-[10px]":"text-slate-300"}`}>
+                          <td key={c.key} className={`px-3 py-2 whitespace-nowrap ${c.key==="code"?"font-mono text-slate-400 text-[10px]":"text-slate-500"}`}>
                             {c.key === "status_label"
                               ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: r.status==="critical"?"rgba(239,68,68,0.15)":r.status==="warning"?"rgba(245,158,11,0.15)":"rgba(251,146,60,0.15)", color: r.status==="critical"?"#f87171":r.status==="warning"?"#fbbf24":"#fb923c" }}>{r[c.key]}</span>
                               : (r[c.key] ?? "—")}
@@ -15648,7 +15651,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                         </div>
                       </div>
                       {v.itemNames.size > 0 && (
-                        <div className="mt-3 pt-3 border-t border-white/[0.05]">
+                        <div className="mt-3 pt-3 border-t border-slate-200">
                           <div className="text-[9px] text-slate-600 mb-1.5 uppercase tracking-wider">Items Purchased</div>
                           <div className="flex flex-wrap gap-1">
                             {[...v.itemNames].slice(0,6).map((n,i) => (
@@ -15685,10 +15688,10 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                   <div>Code</div><div>Item Name</div><div>BOM / Machine</div><div>Serial No</div><div className="text-right">Qty</div><div className="text-center">Status</div>
                 </div>
                 {pendingAllRows.map((p, i) => (
-                  <div key={i} className="grid items-center px-4 py-2.5 text-xs hover:bg-white/[0.025] transition-all"
+                  <div key={i} className="grid items-center px-4 py-2.5 text-xs hover:bg-transparent transition-all"
                        style={{ gridTemplateColumns:"90px 1fr 130px 110px 80px 80px", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
                     <div className="text-slate-400 font-mono text-[10px]">{p.code}</div>
-                    <div className="text-slate-300">{p.name}</div>
+                    <div className="text-slate-500">{p.name}</div>
                     <div className="text-slate-500 text-[10px]">{p.bomKey}</div>
                     <div className="text-slate-500 font-mono text-[10px]">{p.serialNo || "—"}</div>
                     <div className="text-right font-bold text-white">{p.pendingQty}</div>
@@ -15775,7 +15778,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                       </div>
                     ))}
                     {stageBreakdown.length > 0 && (
-                      <div className="pt-2 mt-2 border-t border-white/[0.05]">
+                      <div className="pt-2 mt-2 border-t border-slate-200">
                         <div className="text-[9px] text-slate-600 mb-2 uppercase tracking-wider">Active by Stage</div>
                         <div className="flex flex-wrap gap-2">
                           {stageBreakdown.map((s) => {
@@ -15801,7 +15804,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                         <div key={it.code} className="flex items-center gap-2">
                           <div className="text-[9px] text-slate-600 w-3">{i+1}</div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-[10px] text-slate-300 truncate">{it.name} <span className="text-slate-600 font-mono">{it.code}</span></div>
+                            <div className="text-[10px] text-slate-500 truncate">{it.name} <span className="text-slate-600 font-mono">{it.code}</span></div>
                             <div className="h-1 rounded-full mt-0.5 overflow-hidden" style={{background:"rgba(255,255,255,0.05)"}}>
                               <div className="h-full rounded-full" style={{width:`${(it.qty/max)*100}%`, background:`hsl(${220-i*20},70%,55%)`}} />
                             </div>
@@ -15867,10 +15870,10 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
               {outwardLog.length === 0 ? <div className="text-center text-slate-600 py-6 text-xs">No outward entries</div> : (
                 <div className="space-y-1.5">
                   {outwardLog.slice(0,10).map((e,i) => (
-                    <div key={i} className="flex items-center justify-between py-1.5 border-b border-white/[0.04] text-xs">
+                    <div key={i} className="flex items-center justify-between py-1.5 border-b border-slate-200 text-xs">
                       <div className="flex items-center gap-2">
                         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={e.type==="bom"?{background:"rgba(245,158,11,0.12)",color:"#fbbf24"}:{background:"rgba(251,146,60,0.12)",color:"#fb923c"}}>{e.type==="bom"?"BOM":"Manual"}</span>
-                        <span className="text-slate-300">{e.ref}</span>
+                        <span className="text-slate-500">{e.ref}</span>
                         {e.serialNo && <span className="text-slate-500 font-mono text-[10px]">S/N:{e.serialNo}</span>}
                       </div>
                       <div className="flex items-center gap-4 text-right">
@@ -16202,8 +16205,8 @@ function NotificationPanel({ notifications, dismissed, onClose, onNavigate, onDi
 
   return (
     <div className="fixed inset-0 z-[90]" onClick={onClose}>
-      <div className="absolute right-4 top-16 w-[360px] overflow-hidden"
-           style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-rim)", borderRadius: 14, boxShadow: "0 24px 64px rgba(0,0,0,0.8)" }}
+      <div className="absolute right-4 top-16 w-[360px] overflow-hidden dark-panel"
+           style={{ background: "#111827", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, boxShadow: "0 24px 64px rgba(0,0,0,0.8)" }}
            onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
@@ -16216,7 +16219,7 @@ function NotificationPanel({ notifications, dismissed, onClose, onNavigate, onDi
             <div className="text-[10px] text-slate-500 mt-0.5">Live alerts from ERP data</div>
           </div>
           {active.length > 0 && (
-            <button onClick={onDismissAll} className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors px-2 py-1 rounded hover:bg-white/[0.05]">Clear all</button>
+            <button onClick={onDismissAll} className="text-[10px] text-slate-500 hover:text-slate-500 transition-colors px-2 py-1 rounded hover:bg-slate-50">Clear all</button>
           )}
         </div>
 
@@ -18657,7 +18660,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden"
-         style={{ background: "var(--surface-base)", color: "var(--text)", fontFamily: "'Inter', system-ui, -apple-system, sans-serif", fontFeatureSettings: '"cv02","cv03","cv04","cv11"' }}>
+         style={{ background: "var(--surface-base)", color: "var(--text)", fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif", fontFeatureSettings: '"cv02","cv03","cv04","cv11"' }}>
 
       {/* Sidebar in its own boundary — historically the blast site (UserProfileMenu
           dereferenced currentUser.fullName, which is nullable in Supabase, blanking
@@ -18717,17 +18720,17 @@ export default function App() {
              onClick={(e) => e.target === e.currentTarget && setShowShortcuts(false)}>
           <div className="w-full max-w-2xl rounded-2xl overflow-hidden"
                style={{ background: "var(--surface-elevated)", border: "1px solid rgba(204,74,51,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
-            <div className="px-5 py-4 border-b border-white/[0.08] flex items-center justify-between"
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between"
                  style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.10),rgba(204,74,51,0.05))" }}>
               <div>
                 <div className="text-sm font-black text-white">⌨ Keyboard Shortcuts</div>
-                <div className="text-[10px] text-slate-500 mt-0.5">Press <kbd className="px-1 py-0.5 text-[9px] font-mono rounded bg-white/[0.08] border border-white/[0.1]">Esc</kbd> to close</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">Press <kbd className="px-1 py-0.5 text-[9px] font-mono rounded bg-slate-100 border border-slate-200">Esc</kbd> to close</div>
               </div>
-              <button onClick={() => setShowShortcuts(false)} className="text-slate-500 hover:text-white transition-colors text-lg leading-none">✕</button>
+              <button onClick={() => setShowShortcuts(false)} className="text-slate-500 hover:text-slate-900 transition-colors text-lg leading-none">✕</button>
             </div>
             <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-[11px]">
               <div>
-                <div className="text-[10px] font-black text-blue-300 uppercase tracking-wider mb-2">Navigation</div>
+                <div className="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-2">Navigation</div>
                 {[
                   ["Alt", "H", "Dashboard"],
                   ["Alt", "I", "Item Master"],
@@ -18737,18 +18740,18 @@ export default function App() {
                   ["Alt", "M", "Machine Tracker"],
                   ["Alt", "V", "Vendors"],
                 ].map(([m, k, label]) => (
-                  <div key={k} className="flex items-center justify-between py-1 border-b border-white/[0.04] last:border-0">
-                    <span className="text-slate-300">{label}</span>
+                  <div key={k} className="flex items-center justify-between py-1 border-b border-slate-200 last:border-0">
+                    <span className="text-slate-500">{label}</span>
                     <span className="flex items-center gap-1">
-                      <kbd className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-white/[0.08] border border-white/[0.12] text-slate-200">{m}</kbd>
+                      <kbd className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-slate-100 border border-slate-200 text-slate-700">{m}</kbd>
                       <span className="text-slate-600">+</span>
-                      <kbd className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-white/[0.08] border border-white/[0.12] text-slate-200">{k}</kbd>
+                      <kbd className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-slate-100 border border-slate-200 text-slate-700">{k}</kbd>
                     </span>
                   </div>
                 ))}
               </div>
               <div>
-                <div className="text-[10px] font-black text-purple-300 uppercase tracking-wider mb-2">Global</div>
+                <div className="text-[10px] font-black text-purple-600 uppercase tracking-wider mb-2">Global</div>
                 {[
                   [["Ctrl", "K"], "Global search (works in forms)"],
                   [["?"],         "This shortcut sheet"],
@@ -18757,13 +18760,13 @@ export default function App() {
                   [["Tab"],       "Next field"],
                   [["Shift", "Tab"], "Previous field"],
                 ].map(([keys, label], i) => (
-                  <div key={i} className="flex items-center justify-between py-1 border-b border-white/[0.04] last:border-0">
-                    <span className="text-slate-300">{label}</span>
+                  <div key={i} className="flex items-center justify-between py-1 border-b border-slate-200 last:border-0">
+                    <span className="text-slate-500">{label}</span>
                     <span className="flex items-center gap-1">
                       {keys.map((k, j) => (
                         <span key={k} className="flex items-center gap-1">
                           {j > 0 && <span className="text-slate-600">+</span>}
-                          <kbd className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-white/[0.08] border border-white/[0.12] text-slate-200">{k}</kbd>
+                          <kbd className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-slate-100 border border-slate-200 text-slate-700">{k}</kbd>
                         </span>
                       ))}
                     </span>
@@ -18771,9 +18774,9 @@ export default function App() {
                 ))}
               </div>
             </div>
-            <div className="px-5 py-3 text-[10px] text-slate-500 border-t border-white/[0.08]"
+            <div className="px-5 py-3 text-[10px] text-slate-500 border-t border-slate-200"
                  style={{ background: "rgba(0,0,0,0.25)" }}>
-              <strong className="text-slate-400">Tip:</strong> Alt-combos are ignored while you're typing in a text field, so they don't fight in-form shortcuts. Modals support <kbd className="px-1 py-0.5 text-[9px] font-mono rounded bg-white/[0.06] border border-white/[0.08]">Esc</kbd> to cancel and <kbd className="px-1 py-0.5 text-[9px] font-mono rounded bg-white/[0.06] border border-white/[0.08]">Enter</kbd> on the primary action.
+              <strong className="text-slate-400">Tip:</strong> Alt-combos are ignored while you're typing in a text field, so they don't fight in-form shortcuts. Modals support <kbd className="px-1 py-0.5 text-[9px] font-mono rounded bg-slate-50 border border-slate-200">Esc</kbd> to cancel and <kbd className="px-1 py-0.5 text-[9px] font-mono rounded bg-slate-50 border border-slate-200">Enter</kbd> on the primary action.
             </div>
           </div>
         </div>
@@ -18800,7 +18803,7 @@ export default function App() {
             <div className="text-[12px] font-bold text-red-300">Stock update rejected</div>
             <div className="text-[11px] text-slate-400 mt-0.5 break-words">{stockError}</div>
           </div>
-          <button onClick={() => setStockError(null)} className="text-slate-600 hover:text-slate-300 text-xs flex-shrink-0">✕</button>
+          <button onClick={() => setStockError(null)} className="text-slate-600 hover:text-slate-500 text-xs flex-shrink-0">✕</button>
         </div>
       )}
     </div>
