@@ -372,6 +372,8 @@ const USER_FACING_STRINGS = [
   "Check By Service Engineer",
   "Electrical Load",
   "trialCertificate",
+  // Trial Certificate preview step (2026-10-27)
+  "Preview Certificate",
 ];
 
 for (const s of USER_FACING_STRINGS) {

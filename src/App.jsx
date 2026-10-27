@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import * as XLSX from "xlsx";
 import { useAuth } from "./auth/AuthContext.jsx";
 // Migration 029 — list employees + save their department assignments.
@@ -65,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-27-trial-certificate";
+const APP_BUILD = "2026-10-27-trial-certificate-v2";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -11388,7 +11389,7 @@ const STAGE_COLORS = {
 // Minimal <canvas>-based pad. Captures mouse + touch strokes, serializes to
 // an SVG path on export. Zero third-party deps; the serialized SVG is what
 // gets persisted to employee_signatures.signature_svg.
-function SignaturePad({ onSave, onCancel, initialSvg = "" }) {
+function SignaturePad({ onSave, onCancel, initialSvg = "", light = false }) {
   const canvasRef = useRef(null);
   const [drawing, setDrawing] = useState(false);
   const [strokes, setStrokes] = useState([]);
@@ -11449,23 +11450,23 @@ function SignaturePad({ onSave, onCancel, initialSvg = "" }) {
 
   return (
     <div className="w-full">
-      <div className="text-[11px] text-slate-400 mb-2">{hint}</div>
+      <div className={"text-[11px] mb-2 " + (light ? "text-slate-500" : "text-slate-400")}>{hint}</div>
       <canvas
         ref={canvasRef}
         width={WIDTH} height={HEIGHT}
-        style={{ width: "100%", maxWidth: WIDTH, height: HEIGHT, background: "var(--surface-elevated)", border: "1px solid var(--border-rim)", borderRadius: 8, touchAction: "none", cursor: "crosshair" }}
+        style={{ width: "100%", maxWidth: WIDTH, height: HEIGHT, background: light ? "#ffffff" : "var(--surface-elevated)", border: light ? "1px solid #cbd5e1" : "1px solid var(--border-rim)", borderRadius: 8, touchAction: "none", cursor: "crosshair" }}
         onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
         onTouchStart={start} onTouchMove={move} onTouchEnd={end}
       />
       <div className="flex items-center gap-2 mt-3">
         <button type="button" onClick={clear}
-                className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+                className={light ? "text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-600 border border-slate-300 bg-white hover:bg-slate-50 transition-all" : "text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all"}>
           Clear
         </button>
         <div className="flex-1" />
         {onCancel && (
           <button type="button" onClick={onCancel}
-                  className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+                  className={light ? "text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-600 border border-slate-300 bg-white hover:bg-slate-50 transition-all" : "text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all"}>
             Cancel
           </button>
         )}
@@ -11505,9 +11506,22 @@ function AttachmentLink({ attachment }) {
   );
 }
 
-// ─── Trial Certificate — module-scope helpers + components ───────────────────
+// ─── Machine Trial Certificate — module-scope helpers + components ───────────
+// Redesigned 2026-10-27: a white A4 certificate with an explicit
+// Fill → Preview → Confirm flow. The stored shape (mkTrialCert) and every
+// checkpoint key are unchanged, so certificates already saved in
+// machine_log.trial_certificate still render and print. Preview and Print
+// never write to the database; only the explicit "Confirm & Transfer to
+// Ready" button calls onSubmit.
 
-const TC_INP = "w-full bg-white/[0.05] border border-white/[0.12] rounded-lg px-2.5 py-1.5 text-[12px] text-white placeholder-slate-500 outline-none focus:border-cyan-500/60 transition-colors";
+const TC_INP = "w-full bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-[12px] text-slate-900 placeholder-slate-400 outline-none focus:border-slate-700 focus:ring-2 focus:ring-slate-200 transition-colors";
+const TC_CELL = TC_INP + " text-center tabular-nums";
+const TC_RO = "text-[12px] font-semibold text-slate-900 bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5 min-h-[32px] break-words";
+const TC_TH = "border border-slate-300 bg-slate-100 px-2.5 py-2 text-left text-[10px] font-black uppercase tracking-wider text-slate-600";
+const TC_TD = "border border-slate-200 px-2 py-1.5 align-middle";
+const TC_CARD = "rounded-xl border border-slate-200 bg-white p-4 md:p-5";
+const TC_BTN_PRIMARY = "text-[12px] font-bold text-white bg-slate-900 hover:bg-slate-700 px-5 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+const TC_BTN_GHOST = "text-[12px] font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
 const TRIAL_CHECKPOINTS = [
   { key: "dbLevel",              label: "DB Level",                type: "cb"    },
@@ -11526,6 +11540,17 @@ const TRIAL_CHECKPOINTS = [
   { key: "oilPipeCentre",        label: "Oil Pipe Centre",         type: "cb"    },
   { key: "nutBoltMarking",       label: "Nut / Bolt Marking",      type: "cb"    },
   { key: "roastingRotateSpeed",  label: "Roasting Rotate Speed",   type: "num",  unit: "RPM" },
+];
+
+const TC_SPEEDS = [["speed1", "Speed 1"], ["speed2", "Speed 2"], ["speed3", "Speed 3"]];
+const TC_FRQ_FIELDS = [["mainFrq", "Main FRQ"], ["revFrq", "REV FRQ"], ["jogFrq", "JOG FRQ"], ["thickness", "Thickness"]];
+const TC_TIMING_FIELDS = [
+  ["cutter", "onTm",  "CUTTER — ON TM"],
+  ["cutter", "onDly", "CUTTER — ON DLY"],
+  ["cyl2",   "onTm",  "CYL-2 — ON TM"],
+  ["cyl2",   "onDly", "CYL-2 — ON DLY"],
+  ["cyl3",   "onTm",  "CYL-3 — ON TM"],
+  ["cyl3",   "onDly", "CYL-3 — ON DLY"],
 ];
 
 function mkTrialCert() {
@@ -11550,35 +11575,296 @@ function mkTrialCert() {
   };
 }
 
-function FreqTimingBlock({ label, data, onChange }) {
-  const upd = (field, val) => onChange({ ...data, [field]: val });
-  const updTable = (part, sf, val) => onChange({ ...data, [part]: { ...data[part], [sf]: val } });
-  const inp = TC_INP + " text-center";
+// Print-ready A4 styles. Shared by the in-app preview and the print window so
+// what you preview is what gets printed or saved as PDF.
+const TC_SHEET_CSS = [
+  ".tc-sheet{box-sizing:border-box;width:210mm;min-height:297mm;margin:0 auto;padding:9mm 13mm 14mm;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;font-size:10.5px;line-height:1.25;position:relative}",
+  ".tc-sheet *{box-sizing:border-box}",
+  ".tc-title{text-align:center;font-size:18px;font-weight:700;letter-spacing:.1em;margin:0 0 2.5mm}",
+  ".tc-rule{border-top:2px solid #111;margin-bottom:4mm}",
+  ".tc-head{display:grid;grid-template-columns:1fr 1fr;gap:3mm 10mm;margin-bottom:1mm}",
+  ".tc-field{display:flex;align-items:flex-end;gap:2mm;min-width:0}",
+  ".tc-field-label{font-weight:700;text-transform:uppercase;font-size:10.5px;white-space:nowrap}",
+  ".tc-field-value{flex:1;min-width:0;min-height:17px;border-bottom:1px solid #111;padding:0 2px 1px;font-weight:700;font-size:11.5px;overflow-wrap:anywhere}",
+  ".tc-sec{margin-top:3.4mm;padding:1.1mm 2.5mm;background:#e9ecef;border:1px solid #6b7280;border-bottom:none;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}",
+  ".tc-sheet table{width:100%;border-collapse:collapse;table-layout:fixed}",
+  ".tc-sheet th,.tc-sheet td{border:1px solid #6b7280;padding:.8mm 1.8mm;vertical-align:middle;overflow-wrap:anywhere}",
+  ".tc-sheet th{background:#f3f4f6;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;text-align:left}",
+  ".tc-num{text-align:center}",
+  ".tc-lbl{font-weight:700;color:#222}",
+  ".tc-val{font-weight:700;color:#111;font-variant-numeric:tabular-nums}",
+  ".tc-muted{color:#6b7280}",
+  ".tc-note{border:1px solid #6b7280;border-top:none;min-height:8mm;padding:1.6mm 2.5mm;font-size:10px;white-space:pre-wrap}",
+  ".tc-sigs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7mm;margin-top:6mm}",
+  ".tc-sigbox{text-align:center;min-width:0}",
+  ".tc-sigimg{height:14mm;display:flex;align-items:flex-end;justify-content:center;border-bottom:1px solid #111;padding-bottom:1mm}",
+  ".tc-sigimg img{max-height:15mm;max-width:100%}",
+  ".tc-sigcap{margin-top:1.5mm;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em}",
+  ".tc-signame{margin-top:1mm;min-height:4mm;font-size:10.5px}",
+  ".tc-foot{position:absolute;left:13mm;right:13mm;bottom:6mm;display:flex;justify-content:space-between;gap:4mm;border-top:1px solid #d1d5db;padding-top:1.5mm;font-size:8.5px;color:#6b7280}",
+  ".tc-form.tc-form input:not([type=checkbox]):not([type=radio]),.tc-form.tc-form textarea{background:#fff !important;color:#0f172a !important;border-color:#cbd5e1 !important}",
+  ".tc-form.tc-form input::placeholder,.tc-form.tc-form textarea::placeholder{color:#94a3b8 !important}",
+  ".tc-form.tc-form input:focus-visible,.tc-form.tc-form textarea:focus-visible{outline:none !important;box-shadow:0 0 0 3px #e2e8f0 !important;border-color:#334155 !important}",
+  ".tc-form.tc-form input[type=date]::-webkit-calendar-picker-indicator{filter:none !important;opacity:.7;cursor:pointer}",
+].join("\n");
+
+const tcGetFrq = (d, f) => (d && d[f]) || "";
+const tcGetTim = (d, p, sf) => (d && d[p] && d[p][sf]) || "";
+const tcSigSrc = (s) => {
+  // SignaturePad stores raw <svg> markup; <img src> needs a data URL.
+  if (!s) return "";
+  const t = String(s).trim();
+  if (t.startsWith("<svg")) return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(t);
+  return t;
+};
+const tcFmtDate = (iso) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : (iso || "");
+};
+const tcEsc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
+
+function TcLabel({ children }) {
+  return <div className="text-[11px] font-semibold text-slate-600 mb-1">{children}</div>;
+}
+function TcReadOnly({ label, value }) {
   return (
-    <div className="space-y-2">
-      {label && <div className="text-[11px] font-black text-slate-300 uppercase tracking-wide">{label}</div>}
-      <div className="grid grid-cols-4 gap-1.5">
-        <input value={data.mainFrq}   onChange={(e) => upd("mainFrq",   e.target.value)} placeholder="Main FRQ"  className={inp} />
-        <input value={data.revFrq}    onChange={(e) => upd("revFrq",    e.target.value)} placeholder="REV FRQ"   className={inp} />
-        <input value={data.jogFrq}    onChange={(e) => upd("jogFrq",    e.target.value)} placeholder="JOG FRQ"   className={inp} />
-        <input value={data.thickness} onChange={(e) => upd("thickness", e.target.value)} placeholder="Thickness" className={inp} />
-      </div>
-      <div>
-        <div className="grid grid-cols-3 gap-1.5 mb-1">
-          {["","ON TM","ON DLY"].map((h) => (
-            <div key={h} className="text-[10px] font-bold text-slate-500 text-center uppercase tracking-wide">{h}</div>
-          ))}
-        </div>
-        {[["cutter","CUTTER"],["cyl2","CYL-2"],["cyl3","CYL-3"]].map(([part, partLabel]) => (
-          <div key={part} className="grid grid-cols-3 gap-1.5 mb-1.5">
-            <div className="text-[11px] font-bold text-slate-300 flex items-center">{partLabel}</div>
-            <input value={data[part].onTm}  onChange={(e) => updTable(part,"onTm", e.target.value)} className={inp} />
-            <input value={data[part].onDly} onChange={(e) => updTable(part,"onDly",e.target.value)} className={inp} />
+    <div>
+      <TcLabel>{label}</TcLabel>
+      <div className={TC_RO}>{value || "—"}</div>
+    </div>
+  );
+}
+function TcSectionHead({ title }) {
+  return (
+    <div className="flex items-center gap-3 mb-3">
+      <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-700 whitespace-nowrap">{title}</div>
+      <div className="h-px flex-1 bg-slate-200" />
+    </div>
+  );
+}
+function TcStepper({ active }) {
+  const steps = ["Fill details", "Preview & confirm"];
+  return (
+    <div className="hidden lg:flex items-center gap-2">
+      {steps.map((s, i) => (
+        <div key={s} className="flex items-center gap-2">
+          <div className={"flex items-center gap-1.5 text-[11px] font-bold " + (i === active ? "text-slate-900" : "text-slate-400")}>
+            <span className={"h-5 w-5 rounded-full flex items-center justify-center text-[10px] " +
+                             (i <= active ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-500")}>{i + 1}</span>
+            {s}
           </div>
-        ))}
+          {i < steps.length - 1 && <div className="w-8 h-px bg-slate-300" />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Fits the 794px-wide A4 sheet into whatever width the modal has (tablet/phone).
+function TcPreviewFrame({ children }) {
+  const ref = useRef(null);
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const fit = () => setScale(Math.min(1, Math.max(0.4, (el.clientWidth - 16) / 794)));
+    fit();
+    let ro = null;
+    if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(fit); ro.observe(el); }
+    window.addEventListener("resize", fit);
+    return () => { if (ro) ro.disconnect(); window.removeEventListener("resize", fit); };
+  }, []);
+  return (
+    <div ref={ref} className="w-full overflow-hidden">
+      <div className="shadow-md" style={{ zoom: String(scale), width: 794, margin: "0 auto" }}>
+        {children}
       </div>
     </div>
   );
+}
+
+function TcSheetField({ label, value }) {
+  return (
+    <div className="tc-field">
+      <span className="tc-field-label">{label}</span>
+      <span className="tc-field-value">{value || ""}</span>
+    </div>
+  );
+}
+
+function TcSheetSig({ title, name, sig, showName = true }) {
+  const src = tcSigSrc(sig);
+  return (
+    <div className="tc-sigbox">
+      <div className="tc-sigimg">{src && <img src={src} alt="" />}</div>
+      <div className="tc-sigcap">{title}</div>
+      {showName && <div className="tc-signame">Name: <b>{name || ""}</b></div>}
+    </div>
+  );
+}
+
+// The printable A4 certificate. Pure render: no hooks, no state.
+function TrialCertificateSheet({ machine, cert, remarks = "" }) {
+  const c = cert || {};
+  const kh = c.khakhraMode || {};
+  const bh = c.bakhriMode || {};
+  const cps = c.checkPoints || {};
+  const el = c.electricalLoad || {};
+  const bhItems = [
+    ...TC_FRQ_FIELDS.map(([f, label]) => ({ label, v: tcGetFrq(bh, f) })),
+    ...TC_TIMING_FIELDS.map(([p, sf, label]) => ({ label, v: tcGetTim(bh, p, sf) })),
+  ];
+  const bhHalf = bhItems.length / 2;
+  const bhPairs = Array.from({ length: bhHalf }, (_, i) => [bhItems[i], bhItems[i + bhHalf]]);
+  const cpHalf = TRIAL_CHECKPOINTS.length / 2;
+
+  const cpText = (cp) => {
+    if (cp.type === "cb") return cps[cp.key] ? "✓ OK" : "Not checked";
+    if (cp.type === "range") {
+      const a = cps.thicknessWeightFrom || "", b = cps.thicknessWeightTo || "";
+      return a || b ? `${a} to ${b}${cp.unit ? " " + cp.unit : ""}` : "";
+    }
+    const v = cps[cp.key];
+    return v === undefined || v === null || v === "" ? "" : `${v}${cp.unit ? " " + cp.unit : ""}`;
+  };
+
+  const cpCells = (cp, idx) => {
+    const unchecked = cp.type === "cb" && !cps[cp.key];
+    return [
+      <td key={"n" + idx} className="tc-num">{idx + 1}</td>,
+      <td key={"l" + idx}>{cp.label}</td>,
+      <td key={"v" + idx} className={unchecked ? "tc-muted" : "tc-val"}>{cpText(cp)}</td>,
+    ];
+  };
+
+  return (
+    <div className="tc-sheet">
+      <div className="tc-title">MACHINE TRIAL CERTIFICATE</div>
+      <div className="tc-rule" />
+
+      <div className="tc-head">
+        <TcSheetField label="Equipment" value={machine.bomLabel || machine.bomKey} />
+        <TcSheetField label="Sr. No" value={machine.serialNo} />
+        <TcSheetField label="Model No" value={machine.bomKey} />
+        <TcSheetField label="Trial Date" value={tcFmtDate(c.trialDate)} />
+      </div>
+
+      <div className="tc-sec">Parameter Set Value — Khakhra Mode</div>
+      <table>
+        <colgroup><col style={{ width: "34%" }} /><col /><col /><col /></colgroup>
+        <thead>
+          <tr>
+            <th>Parameter</th>
+            {TC_SPEEDS.map(([, label]) => <th key={label} className="tc-num">{label}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {TC_FRQ_FIELDS.map(([f, label]) => (
+            <tr key={f}>
+              <td className="tc-lbl">{label}</td>
+              {TC_SPEEDS.map(([s]) => <td key={s} className="tc-num tc-val">{tcGetFrq(kh[s], f)}</td>)}
+            </tr>
+          ))}
+          {TC_TIMING_FIELDS.map(([p, sf, label]) => (
+            <tr key={p + sf}>
+              <td className="tc-lbl">{label}</td>
+              {TC_SPEEDS.map(([s]) => <td key={s} className="tc-num tc-val">{tcGetTim(kh[s], p, sf)}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div className="tc-sec">Bhakhri Mode</div>
+      <table>
+        <colgroup><col style={{ width: "30%" }} /><col style={{ width: "20%" }} /><col style={{ width: "30%" }} /><col style={{ width: "20%" }} /></colgroup>
+        <thead><tr><th>Parameter</th><th className="tc-num">Value</th><th>Parameter</th><th className="tc-num">Value</th></tr></thead>
+        <tbody>
+          {bhPairs.map((row, i) => (
+            <tr key={i}>
+              <td className="tc-lbl">{row[0].label}</td><td className="tc-num tc-val">{row[0].v}</td>
+              <td className="tc-lbl">{row[1].label}</td><td className="tc-num tc-val">{row[1].v}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div className="tc-sec">Check Points</div>
+      <table>
+        <colgroup><col style={{ width: "7%" }} /><col style={{ width: "31%" }} /><col style={{ width: "17%" }} /><col style={{ width: "7%" }} /><col style={{ width: "31%" }} /><col style={{ width: "17%" }} /></colgroup>
+        <thead><tr><th className="tc-num">No.</th><th>Check point</th><th>Result / Value</th><th className="tc-num">No.</th><th>Check point</th><th>Result / Value</th></tr></thead>
+        <tbody>
+          {Array.from({ length: cpHalf }, (_, i) => (
+            <tr key={i}>
+              {cpCells(TRIAL_CHECKPOINTS[i], i)}
+              {cpCells(TRIAL_CHECKPOINTS[i + cpHalf], i + cpHalf)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div className="tc-sec">Electrical Load (AMP)</div>
+      <table>
+        <thead><tr><th className="tc-num">R Phase</th><th className="tc-num">Y Phase</th><th className="tc-num">B Phase</th></tr></thead>
+        <tbody>
+          <tr>
+            <td className="tc-num tc-val">{el.rPhase || ""}</td>
+            <td className="tc-num tc-val">{el.yPhase || ""}</td>
+            <td className="tc-num tc-val">{el.bPhase || ""}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div className="tc-sec">Remarks</div>
+      <div className="tc-note">
+        {remarks ? <div><b>Overrun explanation:</b> {remarks}</div> : null}
+        {c.note ? <div><b>Note:</b> {c.note}</div> : null}
+      </div>
+
+      <div className="tc-sigs">
+        <TcSheetSig title="Machine Set and Trial By" name={c.trialByName} sig={c.trialBySignature} />
+        <TcSheetSig title="Check By Service Engineer" name={c.checkByName} sig={c.checkBySignature} />
+        <TcSheetSig title="SHANTA G TECHNOFOODS LLP" showName={false} />
+      </div>
+
+      <div className="tc-foot">
+        <span>SHANTAZ ERP · Machine Trial Certificate</span>
+        <span>{machine.bomKey}{machine.serialNo ? " · S/N " + machine.serialNo : ""}</span>
+      </div>
+    </div>
+  );
+}
+
+// Opens a clean print window containing only the A4 certificate. Nothing is
+// saved; the user chooses Print or "Save as PDF" in the browser dialog.
+function printTrialCertificate(machine, cert, remarks = "") {
+  const w = window.open("", "_blank", "width=960,height=1000");
+  if (!w) {
+    alert("Pop-up blocked. Allow pop-ups for this site to print or save the certificate.");
+    return;
+  }
+  const sheetHtml = renderToStaticMarkup(
+    <TrialCertificateSheet machine={machine} cert={cert} remarks={remarks} />
+  );
+  const title = "Machine Trial Certificate — " + (machine.bomKey || "");
+  w.document.open();
+  w.document.write(
+    "<!DOCTYPE html><html><head><meta charset='utf-8'/>" +
+    "<meta name='viewport' content='width=device-width,initial-scale=1'/>" +
+    "<title>" + tcEsc(title) + "</title>" +
+    "<style>" + TC_SHEET_CSS +
+      "@page{size:A4 portrait;margin:0}" +
+      "html,body{margin:0;padding:0;background:#fff}" +
+      ".tc-toolbar{display:flex;justify-content:center;gap:10px;padding:12px;background:#f1f5f9;border-bottom:1px solid #cbd5e1;font:600 13px Arial,Helvetica,sans-serif}" +
+      ".tc-toolbar button{padding:7px 18px;border:1px solid #334155;background:#fff;color:#0f172a;border-radius:6px;cursor:pointer;font:600 13px Arial,Helvetica,sans-serif}" +
+      ".tc-toolbar button.primary{background:#0f172a;color:#fff}" +
+      "@media print{.tc-toolbar{display:none}}" +
+    "</style></head><body>" +
+    "<div class='tc-toolbar'><button class='primary' onclick='window.print()'>Print / Save as PDF</button><button onclick='window.close()'>Close</button></div>" +
+    sheetHtml +
+    "</body></html>"
+  );
+  w.document.close();
 }
 
 function TrialCertificateModal({ machine, nowTick, workflow, busy, onClose, onSubmit }) {
@@ -11587,6 +11873,9 @@ function TrialCertificateModal({ machine, nowTick, workflow, busy, onClose, onSu
   const [trialSigOpen, setTrialSigOpen] = useState(false);
   const [checkSigOpen, setCheckSigOpen] = useState(false);
   const [formError, setFormError] = useState("");
+  const [stage, setStage] = useState("edit");        // "edit" | "preview"
+  const [confirmed, setConfirmed] = useState(false);
+  const bodyRef = useRef(null);
 
   const upd = (path, val) => {
     setCert((prev) => {
@@ -11601,9 +11890,6 @@ function TrialCertificateModal({ machine, nowTick, workflow, busy, onClose, onSu
       return next;
     });
   };
-  const updSpd = (mode, spdKey, newData) => setCert((prev) => ({
-    ...prev, [mode]: { ...prev[mode], [spdKey]: newData }
-  }));
 
   const fromDepartment = machine.currentDepartment || machine.stage;
   const expectedCfg = (machine.deptDurations && machine.deptDurations[fromDepartment])
@@ -11613,477 +11899,367 @@ function TrialCertificateModal({ machine, nowTick, workflow, busy, onClose, onSu
     machine.departmentEnteredAt, expectedDurationMinutes, nowTick
   );
 
-  const handleSubmit = () => {
-    if (!cert.trialByName.trim())   { setFormError("Trial By name is required."); return; }
-    if (!cert.trialBySignature)     { setFormError("Trial By signature is required — click Draw."); return; }
-    if (isOverrun && !narration.trim()) { setFormError("Overrun explanation is required."); return; }
+  const missing = [];
+  if (!String(cert.trialByName || "").trim()) missing.push("Trial By name");
+  if (!cert.trialBySignature) missing.push("Trial By signature");
+  if (isOverrun && !narration.trim()) missing.push("overrun explanation");
+
+  const showStage = (next) => {
     setFormError("");
+    setConfirmed(false);
+    setStage(next);
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
+  };
+
+  // Only this button transfers the machine. Preview and Print never do.
+  const handleConfirm = () => {
+    if (busy) return;
+    if (missing.length > 0) {
+      showStage("edit");
+      setFormError(`Complete before confirming: ${missing.join(", ")}.`);
+      return;
+    }
+    if (!confirmed) return;
     onSubmit({ cert, narration, actualDurationMinutes: actualMinutes, expectedDurationMinutes });
   };
 
-  const SecHead = ({ title, accent = "#06b6d4" }) => (
-    <div className="flex items-center gap-2 mb-3">
-      <div className="h-px flex-1" style={{ background: accent + "30" }} />
-      <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: accent }}>{title}</div>
-      <div className="h-px flex-1" style={{ background: accent + "30" }} />
-    </div>
+  const renderCpEntry = (cp) => {
+    if (cp.type === "cb") {
+      return (
+        <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+          <input type="checkbox" checked={!!cert.checkPoints[cp.key]}
+                 onChange={(e) => upd("checkPoints." + cp.key, e.target.checked)}
+                 className="h-4 w-4 accent-slate-900" />
+          <span className="text-[12px] text-slate-600">Checked / OK</span>
+        </label>
+      );
+    }
+    if (cp.type === "range") {
+      return (
+        <div className="flex items-center gap-2 flex-wrap">
+          <input value={cert.checkPoints.thicknessWeightFrom ?? ""}
+                 onChange={(e) => upd("checkPoints.thicknessWeightFrom", e.target.value)}
+                 placeholder="From" className={TC_CELL + " !w-28"} />
+          <span className="text-[12px] text-slate-400">to</span>
+          <input value={cert.checkPoints.thicknessWeightTo ?? ""}
+                 onChange={(e) => upd("checkPoints.thicknessWeightTo", e.target.value)}
+                 placeholder="To" className={TC_CELL + " !w-28"} />
+          {cp.unit && <span className="text-[11px] text-slate-500">{cp.unit}</span>}
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-2">
+        <input value={cert.checkPoints[cp.key] ?? ""}
+               onChange={(e) => upd("checkPoints." + cp.key, e.target.value)}
+               placeholder="Enter value" className={TC_CELL + " !w-40"} />
+        {cp.unit && <span className="text-[11px] text-slate-500">{cp.unit}</span>}
+      </div>
+    );
+  };
+
+  const renderSig = (field, open, setOpen, alt) => {
+    if (open) {
+      return (
+        <SignaturePad light
+          onSave={(svg) => { upd(field, svg); setOpen(false); }}
+          onCancel={() => setOpen(false)} />
+      );
+    }
+    if (cert[field]) {
+      return (
+        <div className="flex items-center gap-3">
+          <div className="rounded-md border border-slate-200 bg-white p-2">
+            <img src={tcSigSrc(cert[field])} alt={alt} className="h-10" />
+          </div>
+          <button type="button" onClick={() => { upd(field, ""); setOpen(true); }}
+                  className="text-[11px] font-semibold text-slate-600 underline underline-offset-2 hover:text-slate-900">
+            Re-draw
+          </button>
+        </div>
+      );
+    }
+    return (
+      <button type="button" onClick={() => setOpen(true)} className={TC_BTN_GHOST + " !py-1.5"}>
+        ✍ Draw signature
+      </button>
+    );
+  };
+
+  const renderEdit = () => (
+    <>
+      <section className={TC_CARD}>
+        <TcSectionHead title="Machine & Trial Details" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <TcReadOnly label="BOM Key" value={machine.bomKey} />
+          <TcReadOnly label="Serial No" value={machine.serialNo} />
+          <TcReadOnly label="BOM Label" value={machine.bomLabel} />
+          <div>
+            <TcLabel>Trial Date</TcLabel>
+            <input type="date" value={cert.trialDate}
+                   onChange={(e) => upd("trialDate", e.target.value)} className={TC_INP} />
+          </div>
+        </div>
+      </section>
+
+      <section className={TC_CARD}>
+        <TcSectionHead title="Parameter Set Value — Khakhra Mode" />
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[520px] border-collapse text-[12px]">
+            <thead>
+              <tr>
+                <th className={TC_TH}>Parameter</th>
+                {TC_SPEEDS.map(([, label]) => <th key={label} className={TC_TH + " text-center"}>{label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {TC_FRQ_FIELDS.map(([f, label]) => (
+                <tr key={f}>
+                  <td className={TC_TD + " font-semibold text-slate-700 whitespace-nowrap"}>{label}</td>
+                  {TC_SPEEDS.map(([s]) => (
+                    <td key={s} className={TC_TD}>
+                      <input value={cert.khakhraMode[s][f]}
+                             onChange={(e) => upd(`khakhraMode.${s}.${f}`, e.target.value)} className={TC_CELL} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              {TC_TIMING_FIELDS.map(([p, sf, label]) => (
+                <tr key={p + sf}>
+                  <td className={TC_TD + " font-semibold text-slate-700 whitespace-nowrap"}>{label}</td>
+                  {TC_SPEEDS.map(([s]) => (
+                    <td key={s} className={TC_TD}>
+                      <input value={cert.khakhraMode[s][p][sf]}
+                             onChange={(e) => upd(`khakhraMode.${s}.${p}.${sf}`, e.target.value)} className={TC_CELL} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className={TC_CARD}>
+        <TcSectionHead title="Bhakhri Mode" />
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[280px] max-w-xl border-collapse text-[12px]">
+            <thead>
+              <tr>
+                <th className={TC_TH}>Parameter</th>
+                <th className={TC_TH + " text-center"}>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {TC_FRQ_FIELDS.map(([f, label]) => (
+                <tr key={f}>
+                  <td className={TC_TD + " font-semibold text-slate-700 whitespace-nowrap"}>{label}</td>
+                  <td className={TC_TD}>
+                    <input value={cert.bakhriMode[f]}
+                           onChange={(e) => upd(`bakhriMode.${f}`, e.target.value)} className={TC_CELL} />
+                  </td>
+                </tr>
+              ))}
+              {TC_TIMING_FIELDS.map(([p, sf, label]) => (
+                <tr key={p + sf}>
+                  <td className={TC_TD + " font-semibold text-slate-700 whitespace-nowrap"}>{label}</td>
+                  <td className={TC_TD}>
+                    <input value={cert.bakhriMode[p][sf]}
+                           onChange={(e) => upd(`bakhriMode.${p}.${sf}`, e.target.value)} className={TC_CELL} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className={TC_CARD}>
+        <TcSectionHead title="Check Points" />
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[480px] border-collapse text-[12px]">
+            <thead>
+              <tr>
+                <th className={TC_TH + " text-center w-12"}>No.</th>
+                <th className={TC_TH}>Check point</th>
+                <th className={TC_TH}>Result / Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {TRIAL_CHECKPOINTS.map((cp, idx) => (
+                <tr key={cp.key}>
+                  <td className={TC_TD + " text-center text-slate-500 tabular-nums"}>{idx + 1}</td>
+                  <td className={TC_TD + " font-semibold text-slate-800"}>{cp.label}</td>
+                  <td className={TC_TD}>{renderCpEntry(cp)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className={TC_CARD}>
+        <TcSectionHead title="Electrical Load (AMP)" />
+        <div className="grid grid-cols-3 gap-3 max-w-md">
+          {[["rPhase", "R Phase"], ["yPhase", "Y Phase"], ["bPhase", "B Phase"]].map(([k, l]) => (
+            <div key={k}>
+              <TcLabel>{l} (AMP)</TcLabel>
+              <input value={cert.electricalLoad[k] ?? ""}
+                     onChange={(e) => upd("electricalLoad." + k, e.target.value)}
+                     placeholder="0.0" className={TC_CELL} />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {isOverrun && (
+        <section className="rounded-xl border border-amber-300 bg-amber-50 p-4 md:p-5">
+          <div className="text-[12px] font-bold text-amber-900 mb-2">
+            ⚠ Overrun by {formatDuration(overrunMinutes)} — explanation required
+          </div>
+          <textarea value={narration} onChange={(e) => setNarration(e.target.value)} rows={2}
+                    placeholder="Briefly explain why the Trial took longer than expected…"
+                    className="w-full bg-white border border-amber-300 rounded-md px-3 py-2 text-[12px] text-slate-900 placeholder-slate-400 outline-none focus:border-amber-600 resize-none" />
+        </section>
+      )}
+
+      <section className={TC_CARD}>
+        <TcSectionHead title="Sign-off" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="space-y-2">
+            <TcLabel>Machine Set and Trial By</TcLabel>
+            <input value={cert.trialByName} onChange={(e) => upd("trialByName", e.target.value)}
+                   placeholder="Name (required)" className={TC_INP} />
+            {renderSig("trialBySignature", trialSigOpen, setTrialSigOpen, "Trial By signature")}
+          </div>
+          <div className="space-y-2">
+            <TcLabel>Check By Service Engineer</TcLabel>
+            <input value={cert.checkByName} onChange={(e) => upd("checkByName", e.target.value)}
+                   placeholder="Name (optional)" className={TC_INP} />
+            {renderSig("checkBySignature", checkSigOpen, setCheckSigOpen, "Check By signature")}
+          </div>
+        </div>
+        <div className="mt-4">
+          <TcLabel>Note (optional)</TcLabel>
+          <textarea value={cert.note} onChange={(e) => upd("note", e.target.value)} rows={2}
+                    placeholder="Any additional remarks…"
+                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-[12px] text-slate-900 placeholder-slate-400 outline-none focus:border-slate-700 resize-none" />
+        </div>
+      </section>
+
+      {formError && (
+        <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-[12px] font-semibold text-red-700">
+          ⚠ {formError}
+        </div>
+      )}
+    </>
+  );
+
+  const renderPreview = () => (
+    <>
+      {missing.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-[12px] text-amber-900">
+          <b>Incomplete:</b> {missing.join(", ")}. Use “Back to Edit” to complete it before confirming.
+        </div>
+      )}
+      <div className="rounded-xl bg-slate-200/70 p-3 md:p-5">
+        <TcPreviewFrame>
+          <TrialCertificateSheet machine={machine} cert={cert} remarks={narration.trim()} />
+        </TcPreviewFrame>
+      </div>
+    </>
   );
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-3"
-         style={{ background: "rgba(4,6,12,0.95)", backdropFilter: "blur(12px)" }}
+    <div className="tc-form fixed inset-0 z-[90] flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-sm"
          onClick={(e) => e.target === e.currentTarget && !busy && onClose()}>
-      <div className="w-full rounded-2xl overflow-hidden flex flex-col"
-           style={{ maxWidth: 900, maxHeight: "96vh", background: "var(--surface-elevated)",
-                    border: "1px solid rgba(6,182,212,0.3)", boxShadow: "0 40px 80px rgba(0,0,0,0.95)" }}>
+      <style>{TC_SHEET_CSS}</style>
+      <div className="w-full bg-white text-slate-900 rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
+           style={{ maxWidth: 980, maxHeight: "94vh" }}>
 
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-white/[0.08] flex-shrink-0 flex items-center justify-between"
-             style={{ background: "linear-gradient(90deg,rgba(6,182,212,0.12),rgba(6,182,212,0.04))" }}>
-          <div>
-            <div className="text-sm font-black text-white">Machine Trial Certificate</div>
-            <div className="text-[11px] text-slate-400 mt-0.5">
+        <header className="px-5 md:px-6 py-3.5 border-b border-slate-200 bg-white flex items-center gap-4 flex-shrink-0">
+          <div className="min-w-0 flex-1">
+            <div className="text-[15px] font-black text-slate-900">Machine Trial Certificate</div>
+            <div className="text-[11px] text-slate-500 mt-0.5 truncate">
               {machine.bomKey}{machine.serialNo ? ` · S/N ${machine.serialNo}` : ""} · Trial → Ready
             </div>
           </div>
-          <button onClick={() => !busy && onClose()}
-                  className="text-slate-500 hover:text-white text-xl leading-none transition-colors">✕</button>
+          <TcStepper active={stage === "edit" ? 0 : 1} />
+          <button type="button" aria-label="Close" onClick={() => !busy && onClose()}
+                  className="text-slate-400 hover:text-slate-900 text-xl leading-none px-1 transition-colors">✕</button>
+        </header>
+
+        <div ref={bodyRef} className="flex-1 overflow-y-auto bg-slate-50 p-4 md:p-5 space-y-4">
+          {stage === "edit" ? renderEdit() : renderPreview()}
         </div>
 
-        {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-5">
-
-          {/* Machine Details */}
-          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <SecHead title="Machine Details" />
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[["BOM Key", machine.bomKey],["Serial No", machine.serialNo||"—"],["BOM Label", machine.bomLabel||"—"]].map(([l,v]) => (
-                <div key={l}>
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">{l}</div>
-                  <div className="text-[12px] font-bold text-white">{v}</div>
-                </div>
-              ))}
-              <div>
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Trial Date</div>
-                <input type="date" value={cert.trialDate} onChange={(e) => upd("trialDate", e.target.value)} className={TC_INP} />
-              </div>
+        {stage === "edit" ? (
+          <footer className="px-4 md:px-6 py-3 border-t border-slate-200 bg-white flex items-center gap-3 flex-shrink-0">
+            <div className="text-[11px] text-slate-500 hidden sm:block">Nothing is saved until you confirm the certificate.</div>
+            <div className="ml-auto flex items-center gap-2">
+              <button type="button" onClick={() => !busy && onClose()} disabled={busy} className={TC_BTN_GHOST}>
+                Cancel
+              </button>
+              <button type="button" onClick={() => showStage("preview")} disabled={busy} className={TC_BTN_PRIMARY}>
+                Preview Certificate →
+              </button>
             </div>
-          </div>
-
-          {/* Khakhra Mode */}
-          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <SecHead title="Parameter Set Value — Khakhra Mode" accent="#8b5cf6" />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {["speed1","speed2","speed3"].map((spd, i) => (
-                <div key={spd} className="rounded-lg p-3" style={{ background: "rgba(139,92,246,0.07)", border: "1px solid rgba(139,92,246,0.18)" }}>
-                  <FreqTimingBlock label={"Speed " + (i + 1)} data={cert.khakhraMode[spd]}
-                                   onChange={(d) => updSpd("khakhraMode", spd, d)} />
-                </div>
-              ))}
+          </footer>
+        ) : (
+          <footer className="px-4 md:px-6 py-3 border-t border-slate-200 bg-white flex flex-wrap items-center gap-2 flex-shrink-0">
+            <button type="button" onClick={() => showStage("edit")} disabled={busy} className={TC_BTN_GHOST}>
+              ← Back to Edit
+            </button>
+            <button type="button" onClick={() => printTrialCertificate(machine, cert, narration.trim())} className={TC_BTN_GHOST}>
+              🖨 Print / Save as PDF
+            </button>
+            <div className="ml-auto flex flex-wrap items-center gap-3">
+              <label className="inline-flex items-center gap-2 text-[12px] text-slate-700 cursor-pointer select-none">
+                <input type="checkbox" checked={confirmed} disabled={busy}
+                       onChange={(e) => setConfirmed(e.target.checked)}
+                       className="h-4 w-4 accent-slate-900" />
+                I have checked this certificate
+              </label>
+              <button type="button" onClick={handleConfirm}
+                      disabled={busy || !confirmed || missing.length > 0}
+                      className={TC_BTN_PRIMARY}>
+                {busy ? "Saving…" : "Confirm & Transfer to Ready"}
+              </button>
             </div>
-          </div>
-
-          {/* Bhakhri Mode */}
-          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <SecHead title="Bhakhri Mode" accent="#f97316" />
-            <div className="max-w-sm">
-              <FreqTimingBlock label="" data={cert.bakhriMode}
-                               onChange={(d) => setCert((prev) => ({ ...prev, bakhriMode: d }))} />
-            </div>
-          </div>
-
-          {/* Check Points */}
-          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <SecHead title="Check Points" accent="#22c55e" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-4">
-              {TRIAL_CHECKPOINTS.map((cp, idx) => {
-                if (cp.type === "cb") {
-                  const checked = !!cert.checkPoints[cp.key];
-                  return (
-                    <label key={cp.key} className="flex items-center gap-2.5 cursor-pointer group">
-                      <div className="relative flex-shrink-0">
-                        <input type="checkbox" checked={checked}
-                               onChange={(e) => upd("checkPoints." + cp.key, e.target.checked)}
-                               className="sr-only" />
-                        <div className={"w-4 h-4 rounded flex items-center justify-center transition-all " +
-                                        (checked ? "bg-green-500" : "bg-white/[0.05] border border-white/20 group-hover:border-green-500/50")}>
-                          {checked && <svg viewBox="0 0 10 8" className="w-2.5 h-2 fill-none stroke-white stroke-2"><polyline points="1,4 4,7 9,1"/></svg>}
-                        </div>
-                      </div>
-                      <span className="text-[12px] text-slate-300 group-hover:text-white transition-colors">
-                        {idx + 1}. {cp.label}
-                      </span>
-                    </label>
-                  );
-                }
-                if (cp.type === "range") {
-                  return (
-                    <div key={cp.key} className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[12px] text-slate-300 flex-shrink-0">{idx + 1}. {cp.label}</span>
-                      <input value={cert.checkPoints.thicknessWeightFrom || ""}
-                             onChange={(e) => upd("checkPoints.thicknessWeightFrom", e.target.value)}
-                             placeholder="From" className={TC_INP + " !w-16 text-center"} />
-                      <span className="text-slate-500 text-[11px]">—</span>
-                      <input value={cert.checkPoints.thicknessWeightTo || ""}
-                             onChange={(e) => upd("checkPoints.thicknessWeightTo", e.target.value)}
-                             placeholder="To" className={TC_INP + " !w-16 text-center"} />
-                      {cp.unit && <span className="text-[10px] text-slate-500">{cp.unit}</span>}
-                    </div>
-                  );
-                }
-                return (
-                  <div key={cp.key} className="flex items-center gap-2">
-                    <span className="text-[12px] text-slate-300 flex-shrink-0">{idx + 1}. {cp.label}</span>
-                    <input value={cert.checkPoints[cp.key] || ""}
-                           onChange={(e) => upd("checkPoints." + cp.key, e.target.value)}
-                           placeholder="Value" className={TC_INP + " !w-24 text-center flex-shrink-0"} />
-                    {cp.unit && <span className="text-[10px] text-slate-500 flex-shrink-0">{cp.unit}</span>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Electrical Load */}
-          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <SecHead title="Electrical Load" accent="#eab308" />
-            <div className="grid grid-cols-3 gap-3 max-w-xs">
-              {[["rPhase","R Phase"],["yPhase","Y Phase"],["bPhase","B Phase"]].map(([k,l]) => (
-                <div key={k}>
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">{l} (AMP)</div>
-                  <input value={cert.electricalLoad[k]}
-                         onChange={(e) => upd("electricalLoad." + k, e.target.value)}
-                         className={TC_INP + " text-center"} placeholder="0.0" />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Overrun narration */}
-          {isOverrun && (
-            <div className="rounded-xl p-4" style={{ background: "rgba(234,179,8,0.06)", border: "1px solid rgba(234,179,8,0.3)" }}>
-              <div className="text-[11px] font-bold text-yellow-300 mb-2">
-                ⚠ Overrun by {formatDuration(overrunMinutes)} — explanation required
-              </div>
-              <textarea value={narration} onChange={(e) => setNarration(e.target.value)} rows={2}
-                        placeholder="Briefly explain why Trial took longer than expected…"
-                        className="w-full bg-white/[0.05] border border-yellow-500/40 rounded-lg px-3 py-2 text-[12px] text-white placeholder-slate-500 outline-none focus:border-yellow-500/70 resize-none" />
-            </div>
-          )}
-
-          {/* Sign-off */}
-          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <SecHead title="Sign-off" />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* Trial By */}
-              <div className="space-y-2">
-                <div className="text-[11px] font-black text-slate-300">Machine Set and Trial By</div>
-                <input value={cert.trialByName} onChange={(e) => upd("trialByName", e.target.value)}
-                       placeholder="Name" className={TC_INP} />
-                {!trialSigOpen && !cert.trialBySignature && (
-                  <button onClick={() => setTrialSigOpen(true)}
-                          className="text-[11px] font-bold px-3 py-1.5 rounded-lg border border-white/[0.15] text-slate-300 hover:text-white hover:border-white/30 transition-all">
-                    ✍ Draw Signature
-                  </button>
-                )}
-                {!trialSigOpen && cert.trialBySignature && (
-                  <div className="flex items-center gap-2">
-                    <div className="rounded-lg p-1.5 inline-flex" style={{ background: "#fff" }}>
-                      <img src={cert.trialBySignature} alt="Trial By sig" style={{ height: 40 }} />
-                    </div>
-                    <button onClick={() => { upd("trialBySignature",""); setTrialSigOpen(true); }}
-                            className="text-[10px] font-bold text-slate-400 hover:text-white transition-colors">Re-draw</button>
-                  </div>
-                )}
-                {trialSigOpen && (
-                  <SignaturePad
-                    onSave={(svg) => { upd("trialBySignature", svg); setTrialSigOpen(false); }}
-                    onCancel={() => setTrialSigOpen(false)}
-                  />
-                )}
-              </div>
-              {/* Check By */}
-              <div className="space-y-2">
-                <div className="text-[11px] font-black text-slate-300">Check By Service Engineer</div>
-                <input value={cert.checkByName} onChange={(e) => upd("checkByName", e.target.value)}
-                       placeholder="Name (optional)" className={TC_INP} />
-                {!checkSigOpen && !cert.checkBySignature && (
-                  <button onClick={() => setCheckSigOpen(true)}
-                          className="text-[11px] font-bold px-3 py-1.5 rounded-lg border border-white/[0.15] text-slate-300 hover:text-white hover:border-white/30 transition-all">
-                    ✍ Draw Signature
-                  </button>
-                )}
-                {!checkSigOpen && cert.checkBySignature && (
-                  <div className="flex items-center gap-2">
-                    <div className="rounded-lg p-1.5 inline-flex" style={{ background: "#fff" }}>
-                      <img src={cert.checkBySignature} alt="Check By sig" style={{ height: 40 }} />
-                    </div>
-                    <button onClick={() => { upd("checkBySignature",""); setCheckSigOpen(true); }}
-                            className="text-[10px] font-bold text-slate-400 hover:text-white transition-colors">Re-draw</button>
-                  </div>
-                )}
-                {checkSigOpen && (
-                  <SignaturePad
-                    onSave={(svg) => { upd("checkBySignature", svg); setCheckSigOpen(false); }}
-                    onCancel={() => setCheckSigOpen(false)}
-                  />
-                )}
-              </div>
-            </div>
-            <div className="mt-3">
-              <div className="text-[11px] font-bold text-slate-400 mb-1">Note (optional)</div>
-              <textarea value={cert.note} onChange={(e) => upd("note", e.target.value)} rows={2}
-                        placeholder="Any additional remarks…"
-                        className="w-full bg-white/[0.05] border border-white/[0.12] rounded-lg px-3 py-2 text-[12px] text-white placeholder-slate-500 outline-none focus:border-cyan-500/60 resize-none transition-colors" />
-            </div>
-          </div>
-
-          {formError && (
-            <div className="rounded-lg px-4 py-2.5 text-[12px] font-bold text-red-300"
-                 style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)" }}>
-              ⚠ {formError}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between flex-shrink-0"
-             style={{ background: "rgba(0,0,0,0.35)" }}>
-          <button onClick={() => !busy && onClose()} disabled={busy}
-                  className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
-            Cancel
-          </button>
-          <button onClick={handleSubmit} disabled={busy}
-                  className="text-[11px] font-black text-white px-5 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ background: "linear-gradient(135deg,#06b6d4,#0891b2)", boxShadow: "0 0 12px rgba(6,182,212,0.3)" }}>
-            {busy ? "⏳ Saving…" : "Save Certificate & Transfer → Ready"}
-          </button>
-        </div>
+          </footer>
+        )}
       </div>
     </div>
   );
 }
 
+// Read-only view of an already-saved certificate. Print/PDF never saves.
 function TrialCertificatePrintModal({ machine, onClose }) {
   const cert = machine.trialCertificate;
   if (!cert) return null;
-
-  const handlePrint = () => {
-    const w = window.open("", "_blank", "width=900,height=700");
-    if (!w) return;
-    const spdHtml = (spd, lbl) => [
-      "<tr><td class='sec' colspan='8'>" + lbl + "</td></tr>",
-      "<tr><td>Main FRQ</td><td>" + (spd.mainFrq||"") + "</td>" +
-          "<td>REV FRQ</td><td>" + (spd.revFrq||"") + "</td>" +
-          "<td>JOG FRQ</td><td>" + (spd.jogFrq||"") + "</td>" +
-          "<td>Thickness</td><td>" + (spd.thickness||"") + "</td></tr>",
-      "<tr><td>CUTTER ON TM</td><td>" + (spd.cutter&&spd.cutter.onTm||"") + "</td>" +
-          "<td>CUTTER ON DLY</td><td>" + (spd.cutter&&spd.cutter.onDly||"") + "</td>" +
-          "<td>CYL-2 ON TM</td><td>" + (spd.cyl2&&spd.cyl2.onTm||"") + "</td>" +
-          "<td>CYL-2 ON DLY</td><td>" + (spd.cyl2&&spd.cyl2.onDly||"") + "</td></tr>",
-      "<tr><td>CYL-3 ON TM</td><td>" + (spd.cyl3&&spd.cyl3.onTm||"") + "</td>" +
-          "<td>CYL-3 ON DLY</td><td>" + (spd.cyl3&&spd.cyl3.onDly||"") + "</td>" +
-          "<td colspan='4'></td></tr>",
-    ].join("");
-    const cpRows = TRIAL_CHECKPOINTS.map((cp, i) => {
-      let v = cert.checkPoints[cp.key];
-      if (cp.type === "cb") v = v ? "✓ OK" : "✗";
-      else if (cp.type === "range") v = (cert.checkPoints.thicknessWeightFrom||"") + " — " + (cert.checkPoints.thicknessWeightTo||"");
-      return "<tr><td>" + (i+1) + ". " + cp.label + "</td><td>" + (v||"") + (cp.unit && cp.type !== "cb" ? " "+cp.unit : "") + "</td></tr>";
-    }).join("");
-    const sig = (svg, name) =>
-      "<div style='text-align:center;min-width:160px'>" +
-      "<div style='height:60px;border:1px solid #ccc;margin-bottom:4px;display:flex;align-items:center;justify-content:center;background:#fafafa'>" +
-      (svg ? "<img src='" + svg + "' style='max-height:56px'/>" : "") +
-      "</div><div style='font-size:11px;border-top:1px solid #333;padding-top:2px'>" + (name||"") + "</div></div>";
-    w.document.write(
-      "<!DOCTYPE html><html><head><meta charset='utf-8'/>" +
-      "<title>Trial Certificate — " + machine.bomKey + "</title>" +
-      "<style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px;color:#111}" +
-      "h2{text-align:center;margin-bottom:4px;font-size:16px}" +
-      ".sub{text-align:center;color:#555;margin-bottom:16px;font-size:11px}" +
-      "table{width:100%;border-collapse:collapse;margin-bottom:14px}" +
-      "td,th{border:1px solid #bbb;padding:3px 6px}" +
-      "th{background:#eee;font-weight:bold}" +
-      ".sec{background:#e8f4ff;font-weight:bold;font-size:11px}" +
-      ".sigs{display:flex;gap:40px;margin-top:12px}" +
-      "@media print{body{padding:0}button{display:none}}</style></head><body>" +
-      "<h2>Machine Trial Certificate</h2>" +
-      "<div class='sub'>" + (machine.bomLabel||machine.bomKey) +
-        (machine.serialNo ? " · S/N " + machine.serialNo : "") + " · Trial Date: " + (cert.trialDate||"") + "</div>" +
-      "<button onclick='window.print()' style='display:block;margin:0 auto 16px;padding:6px 20px;background:#0891b2;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px'>🖨 Print</button>" +
-      "<table><tr><th>BOM Key</th><td>" + machine.bomKey + "</td><th>Serial No</th><td>" + (machine.serialNo||"—") +
-        "</td><th>BOM Label</th><td colspan='3'>" + (machine.bomLabel||"—") + "</td></tr></table>" +
-      "<table><tr><th colspan='8'>Parameter Set Value — Khakhra Mode</th></tr>" +
-        spdHtml(cert.khakhraMode.speed1,"Speed 1") +
-        spdHtml(cert.khakhraMode.speed2,"Speed 2") +
-        spdHtml(cert.khakhraMode.speed3,"Speed 3") +
-        "<tr><th colspan='8'>Bhakhri Mode</th></tr>" +
-        spdHtml(cert.bakhriMode,"—") +
-      "</table>" +
-      "<table><tr><th>#</th><th>Check Point</th><th>Value / Status</th></tr>" + cpRows + "</table>" +
-      "<table><tr><th>R Phase (AMP)</th><td>" + (cert.electricalLoad&&cert.electricalLoad.rPhase||"") +
-        "</td><th>Y Phase (AMP)</th><td>" + (cert.electricalLoad&&cert.electricalLoad.yPhase||"") +
-        "</td><th>B Phase (AMP)</th><td>" + (cert.electricalLoad&&cert.electricalLoad.bPhase||"") + "</td></tr></table>" +
-      (cert.note ? "<p style='font-size:11px;color:#555'><b>Note:</b> " + cert.note + "</p>" : "") +
-      "<div class='sigs'>" +
-        sig(cert.trialBySignature, "Machine Set &amp; Trial By<br/><b>" + (cert.trialByName||"") + "</b>") +
-        sig(cert.checkBySignature, "Check By Service Engineer<br/><b>" + (cert.checkByName||"") + "</b>") +
-      "</div></body></html>"
-    );
-    w.document.close();
-  };
-
-  const SecHead = ({ title, accent = "#06b6d4" }) => (
-    <div className="flex items-center gap-2 mb-3">
-      <div className="h-px flex-1" style={{ background: accent + "30" }} />
-      <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: accent }}>{title}</div>
-      <div className="h-px flex-1" style={{ background: accent + "30" }} />
-    </div>
-  );
-  const Field = ({ label, value }) => (
-    <div>
-      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-0.5">{label}</div>
-      <div className="text-[12px] text-white">{value || "—"}</div>
-    </div>
-  );
-  const SpdTable = ({ spd }) => (
-    <div className="space-y-1 text-[11px]">
-      <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-400">
-        <div>Main FRQ: <span className="text-white">{spd.mainFrq||"—"}</span></div>
-        <div>REV FRQ: <span className="text-white">{spd.revFrq||"—"}</span></div>
-        <div>JOG FRQ: <span className="text-white">{spd.jogFrq||"—"}</span></div>
-        <div>Thickness: <span className="text-white">{spd.thickness||"—"}</span></div>
-      </div>
-      <table className="w-full text-[10px]" style={{ borderCollapse: "collapse" }}>
-        <thead><tr>
-          {["","ON TM","ON DLY"].map((h) => (
-            <th key={h} className="text-left py-0.5 px-1 text-slate-500 font-bold">{h}</th>
-          ))}
-        </tr></thead>
-        <tbody>
-          {[["cutter","CUTTER"],["cyl2","CYL-2"],["cyl3","CYL-3"]].map(([p,l]) => (
-            <tr key={p} style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-              <td className="py-0.5 px-1 text-slate-400 font-bold">{l}</td>
-              <td className="py-0.5 px-1 text-white">{(spd[p]&&spd[p].onTm)||"—"}</td>
-              <td className="py-0.5 px-1 text-white">{(spd[p]&&spd[p].onDly)||"—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-3"
-         style={{ background: "rgba(4,6,12,0.95)", backdropFilter: "blur(12px)" }}
+    <div className="tc-form fixed inset-0 z-[90] flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-sm"
          onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="w-full rounded-2xl overflow-hidden flex flex-col"
-           style={{ maxWidth: 900, maxHeight: "96vh", background: "var(--surface-elevated)",
-                    border: "1px solid rgba(6,182,212,0.3)", boxShadow: "0 40px 80px rgba(0,0,0,0.95)" }}>
-
-        <div className="px-6 py-4 border-b border-white/[0.08] flex-shrink-0 flex items-center justify-between"
-             style={{ background: "linear-gradient(90deg,rgba(6,182,212,0.12),rgba(6,182,212,0.04))" }}>
-          <div>
-            <div className="text-sm font-black text-white">Trial Certificate</div>
-            <div className="text-[11px] text-slate-400 mt-0.5">
-              {machine.bomKey}{machine.serialNo ? " · S/N " + machine.serialNo : ""} · {cert.trialDate||""}
+      <style>{TC_SHEET_CSS}</style>
+      <div className="w-full bg-white text-slate-900 rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
+           style={{ maxWidth: 980, maxHeight: "94vh" }}>
+        <header className="px-5 md:px-6 py-3.5 border-b border-slate-200 bg-white flex items-center gap-3 flex-shrink-0">
+          <div className="min-w-0 flex-1">
+            <div className="text-[15px] font-black text-slate-900">Machine Trial Certificate</div>
+            <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+              {machine.bomKey}{machine.serialNo ? ` · S/N ${machine.serialNo}` : ""} · Trial date {tcFmtDate(cert.trialDate)}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={handlePrint}
-                    className="text-[11px] font-black text-white px-4 py-1.5 rounded-lg transition-all"
-                    style={{ background: "linear-gradient(135deg,#0891b2,#0e7490)", boxShadow: "0 0 10px rgba(8,145,178,0.3)" }}>
-              🖨 Print / PDF
-            </button>
-            <button onClick={onClose} className="text-slate-500 hover:text-white text-xl leading-none transition-colors">✕</button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-5 space-y-5">
-          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <SecHead title="Machine Details" />
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Field label="BOM Key"    value={machine.bomKey} />
-              <Field label="Serial No"  value={machine.serialNo} />
-              <Field label="BOM Label"  value={machine.bomLabel} />
-              <Field label="Trial Date" value={cert.trialDate} />
-            </div>
-          </div>
-
-          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <SecHead title="Khakhra Mode" accent="#8b5cf6" />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {["speed1","speed2","speed3"].map((spd, i) => (
-                <div key={spd} className="rounded-lg p-3" style={{ background: "rgba(139,92,246,0.07)", border: "1px solid rgba(139,92,246,0.18)" }}>
-                  <div className="text-[10px] font-black text-violet-400 uppercase tracking-wide mb-2">Speed {i+1}</div>
-                  <SpdTable spd={cert.khakhraMode[spd]} />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <SecHead title="Bhakhri Mode" accent="#f97316" />
-            <div className="max-w-sm"><SpdTable spd={cert.bakhriMode} /></div>
-          </div>
-
-          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <SecHead title="Check Points" accent="#22c55e" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-              {TRIAL_CHECKPOINTS.map((cp, i) => {
-                let val = cert.checkPoints[cp.key];
-                if (cp.type === "cb") val = val ? "✓ OK" : "✗";
-                else if (cp.type === "range") val = (cert.checkPoints.thicknessWeightFrom||"") + " — " + (cert.checkPoints.thicknessWeightTo||"");
-                const isOk = cp.type !== "cb" || !!cert.checkPoints[cp.key];
-                return (
-                  <div key={cp.key} className="flex items-center gap-2 py-1 px-2 rounded" style={{ background: "rgba(255,255,255,0.02)" }}>
-                    <span className="text-[12px] font-bold flex-shrink-0" style={{ color: isOk ? "#22c55e" : "#ef4444" }}>
-                      {cp.type === "cb" ? (isOk ? "✓" : "✗") : "•"}
-                    </span>
-                    <span className="text-[11px] text-slate-300">{i+1}. {cp.label}</span>
-                    <span className="ml-auto text-[11px] text-white font-bold">
-                      {cp.type !== "cb" ? (val||"—") : ""}{cp.unit && cp.type !== "cb" ? " "+cp.unit : ""}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <SecHead title="Electrical Load" accent="#eab308" />
-            <div className="grid grid-cols-3 gap-3 max-w-xs">
-              <Field label="R Phase (AMP)" value={cert.electricalLoad&&cert.electricalLoad.rPhase} />
-              <Field label="Y Phase (AMP)" value={cert.electricalLoad&&cert.electricalLoad.yPhase} />
-              <Field label="B Phase (AMP)" value={cert.electricalLoad&&cert.electricalLoad.bPhase} />
-            </div>
-          </div>
-
-          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <SecHead title="Sign-off" />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {[{n:cert.trialByName,s:cert.trialBySignature,l:"Machine Set & Trial By"},
-                {n:cert.checkByName, s:cert.checkBySignature,l:"Check By Service Engineer"}].map((sg, si) => (
-                <div key={si} className="space-y-2">
-                  <div className="text-[11px] font-black text-slate-300">{sg.l}</div>
-                  <div className="text-[12px] text-white">{sg.n||"—"}</div>
-                  {sg.s
-                    ? <div className="rounded-lg p-2 inline-flex" style={{ background: "#fff" }}>
-                        <img src={sg.s} alt="sig" style={{ height: 50 }} />
-                      </div>
-                    : <div className="text-[11px] text-slate-500 italic">No signature</div>
-                  }
-                </div>
-              ))}
-            </div>
-            {cert.note && (
-              <div className="mt-3 pt-3 border-t border-white/[0.06]">
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Note</div>
-                <div className="text-[12px] text-slate-300 italic">"{cert.note}"</div>
-              </div>
-            )}
-          </div>
+          <button type="button" onClick={() => printTrialCertificate(machine, cert)} className={TC_BTN_PRIMARY}>
+            🖨 Print / Save as PDF
+          </button>
+          <button type="button" aria-label="Close" onClick={onClose}
+                  className="text-slate-400 hover:text-slate-900 text-xl leading-none px-1 transition-colors">✕</button>
+        </header>
+        <div className="flex-1 overflow-y-auto bg-slate-200/70 p-3 md:p-6">
+          <TcPreviewFrame>
+            <TrialCertificateSheet machine={machine} cert={cert} />
+          </TcPreviewFrame>
         </div>
       </div>
     </div>
