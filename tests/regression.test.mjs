@@ -333,7 +333,7 @@ const USER_FACING_STRINGS = [
   "Main / Responsible Employee",
   "Main Employee signature",
   "Workers from",
-  "+ Add worker",
+  "+ Add ERP user",
   "Workers per department",
   // BOM Edit — Checklist + Critical Items review chips (2026-10-22)
   "Critical Items in this BOM",
@@ -341,10 +341,25 @@ const USER_FACING_STRINGS = [
   "Open Inventory to edit",
   // A-to-Z Machine Report (2026-10-23)
   "A-to-Z Machine Report",
-  "A-to-Z Machine Report",
   "Department Timeline",
   "Materials Issued",
   "Stage History",
+  // Feature 1 — Responsive modals (2026-10-27)
+  "Finish & Transfer",
+  // Feature 2 — Serial number protection (2026-10-27)
+  "Already issued",
+  "Duplicate in list",
+  // Feature 3 — Employee Members (2026-10-27)
+  "Employee Members",
+  "Manage display names for factory workers",
+  "Add Employee",
+  "Active (appears in dropdowns)",
+  // Feature 4 — Transfer multi-select (2026-10-27)
+  "+ Add factory worker",
+  "factory workers without ERP logins",
+  // Feature 5 — Accept multi-select (2026-10-27)
+  "Team members present",
+  "accept-side team",
 ];
 
 for (const s of USER_FACING_STRINGS) {

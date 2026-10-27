@@ -67,6 +67,8 @@ function fromRow(r) {
     mainEmployeeId:            r.main_employee_id || null,
     mainEmployeeSignatureId:   r.main_employee_signature_id || null,
     mainEmployeeSignatureSvg:  r.main_employee_signature_svg || null,
+    // Migration 031 — accept-side team snapshot (nullable for legacy rows).
+    acceptedByTeamSnapshot:    Array.isArray(r.accepted_by_team_snapshot) ? r.accepted_by_team_snapshot : null,
   };
 }
 
@@ -162,7 +164,7 @@ export async function createHandover(h) {
 // Accept transitions status 'pending' → 'accepted' atomically.
 // The WHERE status = 'pending' makes it race-safe: a second accept returns
 // zero rows and the UI reads the latest state.
-export async function acceptHandover(id, { acceptedBy, acceptedBySignatureId }) {
+export async function acceptHandover(id, { acceptedBy, acceptedBySignatureId, acceptedByTeamSnapshot = null }) {
   console.info("[handovers:accept] start", { id, acceptedBy });
   if (!acceptedBy) return { success: false, error: "acceptedBy is required" };
   if (!isSupabaseEnabled()) {
@@ -170,24 +172,39 @@ export async function acceptHandover(id, { acceptedBy, acceptedBySignatureId }) 
     const i = all.findIndex((h) => h.id === id);
     if (i < 0) return { success: false, error: "handover not found" };
     if (all[i].status !== "pending") return { success: false, error: "already finalised" };
-    all[i] = { ...all[i], status: "accepted", acceptedBy, acceptedBySignatureId: acceptedBySignatureId || null, acceptedAt: new Date().toISOString() };
+    all[i] = { ...all[i], status: "accepted", acceptedBy, acceptedBySignatureId: acceptedBySignatureId || null,
+               acceptedByTeamSnapshot: acceptedByTeamSnapshot || null, acceptedAt: new Date().toISOString() };
     setLocal(all);
     return { success: true, handover: all[i] };
   }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
+  const updatePayload = {
+    status: "accepted",
+    accepted_by: acceptedBy,
+    accepted_by_signature_id: acceptedBySignatureId || null,
+    accepted_at: new Date().toISOString(),
+    accepted_by_team_snapshot: acceptedByTeamSnapshot || null,
+  };
   const { data, error } = await c
     .from("handover_events")
-    .update({
-      status: "accepted",
-      accepted_by: acceptedBy,
-      accepted_by_signature_id: acceptedBySignatureId || null,
-      accepted_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", id)
     .eq("status", "pending")       // race-safe
     .select()
     .maybeSingle();
-  if (error) { console.error("[handovers:accept] failed", error); return { success: false, error: error.message }; }
+  if (error) {
+    // Migration 031 may not be applied yet — retry without the new column.
+    if (isMissingColumnError(error)) {
+      console.warn("[handovers:accept] 031 column missing — retrying without team snapshot");
+      const slim = { ...updatePayload };
+      delete slim.accepted_by_team_snapshot;
+      const { data: d2, error: e2 } = await c.from("handover_events").update(slim).eq("id", id).eq("status", "pending").select().maybeSingle();
+      if (e2) { console.error("[handovers:accept] retry failed", e2); return { success: false, error: e2.message }; }
+      if (!d2) return { success: false, error: "Handover is no longer pending (someone else may have accepted it)." };
+      return { success: true, handover: fromRow(d2) };
+    }
+    console.error("[handovers:accept] failed", error); return { success: false, error: error.message };
+  }
   if (!data)  return { success: false, error: "Handover is no longer pending (someone else may have accepted it)." };
   console.info("[handovers:accept] ok", { id });
   return { success: true, handover: fromRow(data) };
