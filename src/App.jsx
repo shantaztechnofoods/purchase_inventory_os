@@ -65,7 +65,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-27-premium-dark";
+const APP_BUILD = "2026-10-27-5features";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -5695,6 +5695,7 @@ const SETTINGS_DEFAULTS = {
   whatsappAlerts:  false,
   emailAlerts:     false,
   po:              null,   // Purchase Order settings (company profiles, templates) — see utils/poTemplate
+  employeeMembers: [],     // [{ id, name, active, departments: string[] }] — display names for factory workers without ERP logins
 };
 
 // ── Phase B — Checklist admin panel (Settings tab) ───────────────────────
@@ -5962,6 +5963,167 @@ function DeptEmployeesRow({ dept, assigned, notAssigned, canConfig, onSaveUserDe
   );
 }
 
+// ── Employee Members admin panel (Settings → Employees tab) ─────────────────
+// Manages display names for factory workers who don't have ERP logins.
+// Changes are saved into settings.employeeMembers (a JSON array in the settings blob),
+// so no DB migration is needed — they're persisted via handleSaveSettings.
+function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
+  const DEPTS = ["Assembly", "Mechanical", "Electrical", "Trial"];
+  const [editing, setEditing] = useState(null);
+  const [err, setErr] = useState("");
+
+  const start = (m) => setEditing(
+    m ? { ...m, departments: Array.isArray(m.departments) ? m.departments : [] }
+      : { id: crypto.randomUUID(), name: "", active: true, departments: [] }
+  );
+
+  const save = () => {
+    if (!editing) return;
+    if (!editing.name.trim()) { setErr("Name is required."); return; }
+    const list = members.some((m) => m.id === editing.id)
+      ? members.map((m) => m.id === editing.id ? { ...editing } : m)
+      : [...members, { ...editing }];
+    setErr("");
+    onSave?.(list);
+    setEditing(null);
+  };
+
+  const remove = (id) => {
+    if (!window.confirm("Remove this employee? They won't appear in new dropdowns. Existing records are unaffected.")) return;
+    onSave?.(members.filter((m) => m.id !== id));
+  };
+
+  const toggleActive = (id) => onSave?.(members.map((m) => m.id === id ? { ...m, active: !m.active } : m));
+
+  return (
+    <Section icon="👥" title="Employee Members">
+      {!canConfig && (
+        <div className="mb-4 px-3 py-2 rounded-lg text-[11px]"
+             style={{ background: "rgba(249,115,22,0.08)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.3)" }}>
+          You can view employees but not modify them. Admin role required.
+        </div>
+      )}
+      <div className="text-[11px] text-slate-400 mb-3">
+        These display names appear alongside ERP login-accounts in the <strong className="text-white">Finish & Transfer</strong> worker picker and <strong className="text-white">Accept</strong> team picker. Use them for factory workers who don't have ERP logins.
+      </div>
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[11px] text-slate-500">{members.length} employee{members.length === 1 ? "" : "s"} configured.</div>
+        {canConfig && !editing && (
+          <button onClick={() => start(null)}
+                  className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg"
+                  style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 10px rgba(232,85,61,0.3)" }}>
+            + Add Employee
+          </button>
+        )}
+      </div>
+
+      {editing && (
+        <div className="mb-4 rounded-xl px-4 py-4 space-y-3"
+             style={{ background: "rgba(232,85,61,0.04)", border: "1px solid rgba(232,85,61,0.25)" }}>
+          <div className="text-[12px] font-bold text-slate-200">
+            {members.some((m) => m.id === editing.id) ? "Edit Employee" : "New Employee"}
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Display Name *</label>
+            <input type="text" value={editing.name}
+                   onChange={(e) => setEditing((prev) => prev ? { ...prev, name: e.target.value } : prev)}
+                   placeholder="e.g. Raju Kumar"
+                   className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-[12px] text-white placeholder-slate-600 outline-none focus:border-blue-500/40" />
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Departments</label>
+            <div className="flex flex-wrap gap-3">
+              {DEPTS.map((d) => {
+                const checked = (editing.departments || []).includes(d);
+                return (
+                  <label key={d} className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" checked={checked}
+                           onChange={() => setEditing((prev) => {
+                             if (!prev) return prev;
+                             const depts = checked
+                               ? prev.departments.filter((x) => x !== d)
+                               : [...(prev.departments || []), d];
+                             return { ...prev, departments: depts };
+                           })}
+                           className="accent-blue-500 w-3.5 h-3.5" />
+                    <span className="text-[11px] text-slate-300">{d}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" checked={!!editing.active}
+                   onChange={(e) => setEditing((prev) => prev ? { ...prev, active: e.target.checked } : prev)}
+                   className="accent-emerald-500 w-3.5 h-3.5" />
+            <span className="text-[11px] text-slate-300">Active (appears in dropdowns)</span>
+          </label>
+          {err && <div className="text-[11px] text-red-400">{err}</div>}
+          <div className="flex gap-2">
+            <button onClick={save}
+                    className="text-[11px] font-black text-white px-4 py-1.5 rounded-lg"
+                    style={{ background: "linear-gradient(135deg,#16a34a,#15803d)" }}>
+              Save
+            </button>
+            <button onClick={() => { setEditing(null); setErr(""); }}
+                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08]">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!editing && (
+        <div className="space-y-2">
+          {members.length === 0 && (
+            <div className="text-center py-6 text-[11px] text-slate-600">
+              No employees configured. Click "+ Add Employee" to add your first factory worker.
+            </div>
+          )}
+          {members.map((m) => (
+            <div key={m.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg"
+                 style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[12px] font-bold text-white">{m.name}</span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                        style={{ background: m.active ? "rgba(34,197,94,0.10)" : "rgba(255,255,255,0.04)",
+                                 border: `1px solid ${m.active ? "rgba(34,197,94,0.3)" : "rgba(255,255,255,0.08)"}`,
+                                 color: m.active ? "#4ade80" : "#64748b" }}>
+                    {m.active ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                {Array.isArray(m.departments) && m.departments.length > 0 && (
+                  <div className="text-[10px] text-slate-500 mt-0.5">{m.departments.join(", ")}</div>
+                )}
+              </div>
+              {canConfig && (
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button onClick={() => toggleActive(m.id)}
+                          className="text-[10px] font-semibold px-2 py-1 rounded-md transition-colors"
+                          style={{ color: m.active ? "#94a3b8" : "#4ade80", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.04)" }}>
+                    {m.active ? "Deactivate" : "Activate"}
+                  </button>
+                  <button onClick={() => start(m)}
+                          className="text-[10px] font-semibold px-2 py-1 rounded-md text-blue-300"
+                          style={{ border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.04)" }}>
+                    Edit
+                  </button>
+                  <button onClick={() => remove(m.id)}
+                          className="text-[10px] font-semibold px-2 py-1 rounded-md text-red-400"
+                          style={{ border: "1px solid rgba(239,68,68,0.2)", background: "rgba(239,68,68,0.04)" }}>
+                    ✕
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
 function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, isSuperAdmin = false, canDo = () => true, onRegisterSignature, currentUser = null,
   // Phase B — checklist admin props (optional)
   checklistTemplates = [], onCreateChecklistTemplate, onUpdateChecklistTemplate, onDeleteChecklistTemplate,
@@ -6062,6 +6224,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
     { id: "inventory",     label: "📦 Inventory",      desc: "Currency + low-stock rules" },
     { id: "department",    label: "🔧 Department Workflow Settings", desc: "Per-dept time limits + accept timeout" },
     { id: "checklists",    label: "📋 Department Checklists", desc: "Admin-managed per-department checklists" },
+    { id: "employees",     label: "👥 Employees",            desc: "Manage display names for factory workers" },
     { id: "notifications", label: "🔔 Notifications",  desc: "WhatsApp / email alerts" },
     { id: "data",          label: "💾 Data & Backup",  desc: "Export + backup" },
   ];
@@ -6352,6 +6515,15 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
             onCreate={onCreateChecklistTemplate}
             onUpdate={onUpdateChecklistTemplate}
             onDelete={onDeleteChecklistTemplate}
+          />
+        )}
+
+        {/* ── Employees tab ─────────────────────────────────────────────────── */}
+        {tab === "employees" && (
+          <EmployeeMembersPanel
+            members={settings.employeeMembers || []}
+            canConfig={canConfigureDept(canDo)}
+            onSave={(list) => upd("employeeMembers", list)}
           />
         )}
 
@@ -8251,6 +8423,8 @@ function BomChecklistSlots({
 // ─── BOM DRAWER ───────────────────────────────────────────────────────────────
 
 function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock, onClose, onIssue, onUpdateBOM, onRenameBOM, allBomKeys = [], onAfterRename, serialNo = "", rackReady = 0, settings = {}, checklistTemplates = [], onCreateChecklistTemplate, onUpdateChecklistTemplate, onDeleteChecklistTemplate, canConfigChecklist = false,
+  // Feature 2 — Req 2: history of outward issues for serial-number deduplication.
+  outwardLog = [],
   // 2026-10-22 — navigate to another page (e.g. Inventory from the Critical
   // Items review). Optional; falls back to a no-op so BOMDrawer still works
   // when the host page doesn't wire it in.
@@ -8296,6 +8470,19 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   const [criticalInputs,    setCriticalInputs]    = useState({});
   const [criticalErr,       setCriticalErr]       = useState("");
   const [showCriticalModal, setShowCriticalModal] = useState(false);
+  // Feature 2 — Req 2: set of all serial numbers already issued historically.
+  // Used to block reuse of the same serial across multiple outward events.
+  const usedSerials = useMemo(() => {
+    const set = new Set();
+    (outwardLog || []).forEach((rec) => {
+      (rec.items || []).forEach((line) => {
+        if (line?.criticalInput?.type === "serial") {
+          (line.criticalInput.serials || []).forEach((s) => { if (s) set.add(String(s).toLowerCase().trim()); });
+        }
+      });
+    });
+    return set;
+  }, [outwardLog]);
   // Migration 027 — per-machine department duration popup. Fires AFTER the
   // critical-item popup (or straight after Issue Stock when no critical lines
   // exist) and BEFORE doIssue commits. Default values come from the live
@@ -8375,7 +8562,10 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     if (type === "checkbox") return !!state.confirmed;
     const serials = (state.serials || []).map((s) => (s || "").trim()).filter(Boolean);
     const unique = new Set(serials.map((s) => s.toLowerCase()));
-    return serials.length === line.issueQty && unique.size === serials.length;
+    if (serials.length !== line.issueQty || unique.size !== serials.length) return false;
+    // Feature 2 — block serials already used in outward history.
+    if (serials.some((s) => usedSerials.has(s.toLowerCase()))) return false;
+    return true;
   };
   const allCriticalReady = criticalLines.every(isCriticalLineReady);
 
@@ -9142,20 +9332,29 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                           Enter one unique serial number per unit ({line.issueQty} required):
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                          {Array.from({ length: line.issueQty }).map((_, idx) => (
-                            <input key={idx}
-                                   value={(state.serials && state.serials[idx]) || ""}
-                                   onChange={(e) => {
-                                     setCriticalErr("");
-                                     const next = (state.serials || []).slice();
-                                     next[idx] = e.target.value;
-                                     setLine({ serials: next });
-                                   }}
-                                   placeholder={`Serial #${idx + 1}`}
-                                   autoFocus={idx === 0}
-                                   className="bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-blue-500/40 modal-input"
-                                   style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
-                          ))}
+                          {Array.from({ length: line.issueQty }).map((_, idx) => {
+                            const val = (state.serials && state.serials[idx]) || "";
+                            const alreadyUsed = val.trim() && usedSerials.has(val.toLowerCase().trim());
+                            const dupeInBatch = val.trim() && (state.serials || []).filter((s, i) => i !== idx && s && s.toLowerCase().trim() === val.toLowerCase().trim()).length > 0;
+                            return (
+                              <div key={idx} className="flex flex-col gap-0.5">
+                                <input value={val}
+                                       onChange={(e) => {
+                                         setCriticalErr("");
+                                         const next = (state.serials || []).slice();
+                                         next[idx] = e.target.value;
+                                         setLine({ serials: next });
+                                       }}
+                                       placeholder={`Serial #${idx + 1}`}
+                                       autoFocus={idx === 0}
+                                       className="bg-white/[0.04] rounded-md px-2 py-1.5 text-[11px] text-white outline-none modal-input"
+                                       style={{ fontFamily: "'Inter',system-ui,sans-serif",
+                                                border: (alreadyUsed || dupeInBatch) ? "1px solid rgba(239,68,68,0.7)" : "1px solid rgba(255,255,255,0.08)" }} />
+                                {alreadyUsed && <span className="text-[9px] text-red-400 font-semibold">Already issued</span>}
+                                {dupeInBatch && !alreadyUsed && <span className="text-[9px] text-orange-400 font-semibold">Duplicate in list</span>}
+                              </div>
+                            );
+                          })}
                         </div>
                       </>
                     )}
@@ -9809,6 +10008,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
           onUpdateChecklistTemplate={onUpdateChecklistTemplate}
           onDeleteChecklistTemplate={onDeleteChecklistTemplate}
           canConfigChecklist={canConfigChecklist}
+          outwardLog={outwardLog}
           onNavigate={onNavigate}
         />
       )}
@@ -11439,19 +11639,33 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         return;
       }
     }
-    // Migration 029 — validate workers + Main Employee + signature.
+    // Feature 3/4 — validate workers + Main Employee + signature.
+    // Split auth-user UUIDs from "emp:xxx" display-name worker IDs.
+    const authWorkedBy = (Array.isArray(workedBy) ? workedBy : []).filter((id) => !String(id).startsWith("emp:"));
+    const empWorkedBy  = (Array.isArray(workedBy) ? workedBy : []).filter((id) =>  String(id).startsWith("emp:"));
     if (!Array.isArray(workedBy) || workedBy.length === 0) {
       showToast("Workers required", `Pick at least one worker from ${fromDepartment}.`);
       return;
     }
     if (!mainEmployeeId || !workedBy.includes(mainEmployeeId)) {
-      showToast("Main Employee required", "Pick the Main / Responsible Employee from the selected workers.");
+      showToast("Main Employee required", "Pick the Main / Responsible Employee (must have ERP login) from the selected workers.");
       return;
     }
     if (!mainSigSvg || !String(mainSigSvg).trim()) {
       showToast("Signature required", "The Main Employee must sign to confirm this department's work.");
       return;
     }
+    // Build a full snapshot including both auth users and display-name employees.
+    // Only UUID auth workers go into the DB's worked_by uuid[] column.
+    const workedBySnapshot = workedBy.map((id) => {
+      if (String(id).startsWith("emp:")) {
+        const empId = id.slice(4);
+        const m = (settings?.employeeMembers || []).find((x) => x.id === empId);
+        return { id, type: "emp", name: m?.name || empId };
+      }
+      const u = (allUsers || []).find((x) => x.id === id);
+      return { id, type: "auth", fullName: u?.fullName || null, username: u?.username || null };
+    });
     setTransferBusy(true);
     try {
       const res = await onFinishTransfer({
@@ -11463,7 +11677,8 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         overrunNarration: narration.trim() || null,
         checklistTemplate: template || null,
         checklistAnswers:  Array.isArray(answers) ? answers : [],
-        workedBy,
+        workedBy:          authWorkedBy,   // only real UUIDs for the DB column
+        workedBySnapshot,                  // full snapshot including emp members
         mainEmployeeId,
         mainEmployeeSignatureSvg: mainSigSvg,
       });
@@ -11504,7 +11719,8 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
   const submitAcceptHandover = async () => {
     if (!acceptModal || acceptModal.busy) return;
-    const { handover, password, needSig, sigSvg, checklistTemplate, checklistAnswers } = acceptModal;
+    const { handover, password, needSig, sigSvg, checklistTemplate, checklistAnswers,
+            acceptTeamMembers = [] } = acceptModal;
     if (needSig && !sigSvg) {
       setAcceptModal((prev) => prev ? { ...prev, error: "Please register your signature first." } : prev);
       return;
@@ -11537,7 +11753,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     const res = await onAcceptHandover({ handoverId: handover.id, password, pendingItemsToRaise,
                                          // Pass through so the handler can snapshot the Before-Receive response.
                                          checklistTemplate, checklistAnswers,
-                                         stage: "before_receive", department: handover.toDepartment });
+                                         stage: "before_receive", department: handover.toDepartment,
+                                         // Feature 5 — accept-side team snapshot.
+                                         acceptTeamMembers: acceptTeamMembers.filter(Boolean) });
     if (!res || res.success === false) {
       setAcceptModal((prev) => prev ? { ...prev, busy: false, error: res?.error || "Accept failed." } : prev);
       return;
@@ -12616,14 +12834,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           <div className="fixed inset-0 z-[90] flex items-center justify-center p-4"
                style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(10px)" }}
                onClick={(e) => e.target === e.currentTarget && !transferBusy && setFinishModal(null)}>
-            <div className="w-full max-w-md rounded-2xl overflow-hidden"
-                 style={{ background: "var(--surface-elevated)", border: "1px solid rgba(249,115,22,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)" }}>
-              <div className="px-6 py-5 border-b border-white/[0.08]"
+            <div className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col"
+                 style={{ background: "var(--surface-elevated)", border: "1px solid rgba(249,115,22,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)", maxHeight: "90vh" }}>
+              <div className="px-6 py-5 border-b border-white/[0.08] flex-shrink-0"
                    style={{ background: "linear-gradient(90deg,rgba(249,115,22,0.10),rgba(234,88,12,0.05))" }}>
                 <div className="text-sm font-black text-white">Finish & Transfer</div>
                 <div className="text-[11px] text-slate-400 mt-0.5">{machine.bomKey}{machine.serialNo ? ` · S/N ${machine.serialNo}` : ""}</div>
               </div>
-              <div className="p-5 space-y-4">
+              <div className="p-5 space-y-4 flex-1 overflow-y-auto">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
                     <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">From</div>
@@ -12660,20 +12878,29 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   </div>
                 )}
 
-                {/* ── Migration 029 — Workers + Main Employee picker ──────── */}
+                {/* ── Migration 029 + Feature 3/4 — Workers + Main Employee picker ── */}
                 {(() => {
+                  // Auth users assigned to this dept (ERP login accounts)
                   const deptUsers = (allUsers || []).filter((u) => u && u.status !== "disabled"
                     && Array.isArray(u.departments) && u.departments.includes(fromDepartment));
+                  // Employee members from settings (factory workers without ERP logins)
+                  const deptEmpMembers = (settings?.employeeMembers || []).filter((m) => m && m.active
+                    && Array.isArray(m.departments) && m.departments.includes(fromDepartment));
+                  const hasAnyWorkers = deptUsers.length > 0 || deptEmpMembers.length > 0;
                   const workedBy  = Array.isArray(finishModal.workedBy) ? finishModal.workedBy : [];
                   const mainId    = finishModal.mainEmployeeId || null;
-                  const unassigned = deptUsers.filter((u) => !workedBy.includes(u.id));
+                  // unassigned auth users
+                  const unassignedUsers = deptUsers.filter((u) => !workedBy.includes(u.id));
+                  // unassigned emp members (synthetic IDs prefixed with "emp:")
+                  const unassignedEmps  = deptEmpMembers.filter((m) => !workedBy.includes(`emp:${m.id}`));
                   const addWorker = (id) => {
                     setFinishModal((prev) => {
                       if (!prev) return prev;
                       if (!id || prev.workedBy.includes(id)) return prev;
                       const nextList = [...prev.workedBy, id];
-                      // Auto-pick Main Employee when it's the first worker — one less click.
-                      const nextMain = prev.mainEmployeeId || (nextList.length === 1 ? id : null);
+                      // Auto-pick Main Employee only when it's the first AUTH-user worker (emp members can't sign).
+                      const isAuth = !id.startsWith("emp:");
+                      const nextMain = prev.mainEmployeeId || (isAuth && nextList.filter((x) => !x.startsWith("emp:")).length === 1 ? id : null);
                       return { ...prev, workedBy: nextList, mainEmployeeId: nextMain };
                     });
                   };
@@ -12681,41 +12908,49 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                     setFinishModal((prev) => {
                       if (!prev) return prev;
                       const nextList = prev.workedBy.filter((x) => x !== id);
-                      const nextMain = prev.mainEmployeeId === id ? (nextList[0] || null) : prev.mainEmployeeId;
+                      const nextMain = prev.mainEmployeeId === id ? (nextList.find((x) => !x.startsWith("emp:")) || null) : prev.mainEmployeeId;
                       return { ...prev, workedBy: nextList, mainEmployeeId: nextMain, mainSigSvg: null, mainSigNeeded: false };
                     });
                   };
                   const setMain = (id) => setFinishModal((prev) => prev ? { ...prev, mainEmployeeId: id, mainSigSvg: null, mainSigNeeded: false } : prev);
-                  const chipName = (u) => u.fullName || u.username || u.id;
+                  const chipName = (id) => {
+                    if (id.startsWith("emp:")) {
+                      const empId = id.slice(4);
+                      return (settings?.employeeMembers || []).find((m) => m.id === empId)?.name || id;
+                    }
+                    const u = (allUsers || []).find((x) => x.id === id);
+                    return u ? (u.fullName || u.username || id) : id;
+                  };
+                  // Workers eligible to be Main (auth users only — emp members can't sign)
+                  const authWorkedBy = workedBy.filter((id) => !id.startsWith("emp:"));
                   return (
                     <div className="rounded-lg px-3 py-3" style={{ background: "rgba(16,185,129,0.04)", border: "1px solid rgba(16,185,129,0.3)" }}>
                       <div className="text-[11px] font-black text-emerald-200 mb-1">
                         Workers from {fromDepartment} <span className="text-red-400 ml-0.5">*</span>
                       </div>
                       <div className="text-[10px] text-slate-400 mb-2">
-                        Pick everyone who actually worked on this machine. One of them must be the Main / Responsible Employee — their signature is captured below.
+                        Pick everyone who worked on this machine. The <span className="text-yellow-300 font-semibold">Main / Responsible Employee</span> (must have an ERP login) signs to confirm. Factory workers without logins can be added from Settings → Employees.
                       </div>
-                      {deptUsers.length === 0 ? (
+                      {!hasAnyWorkers ? (
                         <div className="rounded px-2 py-2 text-[11px] font-semibold"
                              style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
-                          ⚠ No employees are assigned to {fromDepartment} yet. Ask an admin to assign workers in Settings → Department Workflow → Department Employees.
+                          ⚠ No employees are assigned to {fromDepartment} yet. Ask an admin to assign workers in Settings → Department Workflow or add display names in Settings → Employees.
                         </div>
                       ) : (
                         <>
                           {workedBy.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 mb-2">
                               {workedBy.map((id) => {
-                                const u = deptUsers.find((x) => x.id === id) || (allUsers || []).find((x) => x.id === id);
-                                if (!u) return null;
-                                const isMain = mainId === id;
+                                const isEmp  = id.startsWith("emp:");
+                                const isMain = !isEmp && mainId === id;
                                 return (
                                   <span key={id}
                                         className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full"
-                                        style={{ background: isMain ? "rgba(234,179,8,0.12)" : "rgba(34,197,94,0.08)",
-                                                 border: `1px solid ${isMain ? "rgba(234,179,8,0.5)" : "rgba(34,197,94,0.35)"}`,
-                                                 color: isMain ? "#fde68a" : "#86efac" }}>
-                                    {isMain ? "⭐" : ""}
-                                    {chipName(u)}
+                                        style={{ background: isMain ? "rgba(234,179,8,0.12)" : isEmp ? "rgba(99,102,241,0.10)" : "rgba(34,197,94,0.08)",
+                                                 border: `1px solid ${isMain ? "rgba(234,179,8,0.5)" : isEmp ? "rgba(99,102,241,0.4)" : "rgba(34,197,94,0.35)"}`,
+                                                 color: isMain ? "#fde68a" : isEmp ? "#a5b4fc" : "#86efac" }}>
+                                    {isMain ? "⭐" : isEmp ? "👤" : ""}
+                                    {chipName(id)}
                                     <button onClick={() => removeWorker(id)}
                                             title="Remove worker"
                                             className="ml-0.5 text-slate-400 hover:text-red-300">×</button>
@@ -12724,29 +12959,38 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                               })}
                             </div>
                           )}
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <select value="" onChange={(e) => { if (e.target.value) addWorker(e.target.value); }}
-                                    disabled={unassigned.length === 0}
-                                    className="flex-1 min-w-[180px] bg-white/[0.04] border border-white/[0.1] rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-emerald-500/60 disabled:opacity-50"
-                                    style={{ background: "var(--surface-input)", color: "var(--text)" }}>
-                              <option value="">
-                                {unassigned.length === 0 ? "— All dept employees added —" : "+ Add worker…"}
-                              </option>
-                              {unassigned.map((u) => (
-                                <option key={u.id} value={u.id}>{chipName(u)}{u.username && u.fullName ? ` (${u.username})` : ""}</option>
-                              ))}
-                            </select>
+                          <div className="flex flex-wrap gap-2">
+                            {unassignedUsers.length > 0 && (
+                              <select value="" onChange={(e) => { if (e.target.value) addWorker(e.target.value); }}
+                                      className="flex-1 min-w-[160px] bg-white/[0.04] border border-white/[0.1] rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-emerald-500/60"
+                                      style={{ background: "var(--surface-input)", color: "var(--text)" }}>
+                                <option value="">+ Add ERP user…</option>
+                                {unassignedUsers.map((u) => (
+                                  <option key={u.id} value={u.id}>{u.fullName || u.username}{u.username && u.fullName ? ` (${u.username})` : ""}</option>
+                                ))}
+                              </select>
+                            )}
+                            {unassignedEmps.length > 0 && (
+                              <select value="" onChange={(e) => { if (e.target.value) addWorker(`emp:${e.target.value}`); }}
+                                      className="flex-1 min-w-[160px] bg-white/[0.04] border border-indigo-500/30 rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-indigo-500/60"
+                                      style={{ background: "var(--surface-input)", color: "var(--text)" }}>
+                                <option value="">+ Add factory worker…</option>
+                                {unassignedEmps.map((m) => (
+                                  <option key={m.id} value={m.id}>{m.name}</option>
+                                ))}
+                              </select>
+                            )}
                           </div>
-                          {workedBy.length > 1 && (
+                          {authWorkedBy.length > 1 && (
                             <div className="mt-2">
-                              <div className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Main / Responsible Employee</div>
+                              <div className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Main / Responsible Employee (must sign)</div>
                               <select value={mainId || ""} onChange={(e) => setMain(e.target.value)}
                                       className="w-full bg-white/[0.04] border border-yellow-500/40 rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-yellow-500/70"
                                       style={{ background: "var(--surface-input)", color: "var(--text)" }}>
                                 <option value="">— Pick the main employee —</option>
-                                {workedBy.map((id) => {
+                                {authWorkedBy.map((id) => {
                                   const u = (allUsers || []).find((x) => x.id === id);
-                                  return <option key={id} value={id}>{u ? chipName(u) : id}</option>;
+                                  return <option key={id} value={id}>{u ? (u.fullName || u.username) : id}</option>;
                                 })}
                               </select>
                             </div>
@@ -12822,7 +13066,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   <div className="text-[10px] text-slate-500">No checklist template configured for {fromDepartment}. Admins can add one in Settings → Department Checklists.</div>
                 )}
               </div>
-              <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between"
+              <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between flex-shrink-0"
                    style={{ background: "rgba(0,0,0,0.35)" }}>
                 <button onClick={() => !transferBusy && setFinishModal(null)} disabled={transferBusy}
                         className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
@@ -12843,18 +13087,28 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       {acceptModal && (() => {
         const { handover, password, needSig, sigSvg, busy, error } = acceptModal;
         const setField = (patch) => setAcceptModal((prev) => prev ? { ...prev, ...patch } : prev);
+        // Feature 5 — team members from Settings → Employees active in toDepartment.
+        const acceptDeptEmps = (settings?.employeeMembers || []).filter((m) => m && m.active
+          && Array.isArray(m.departments) && m.departments.includes(handover.toDepartment));
+        const selectedTeam = Array.isArray(acceptModal.acceptTeamMembers) ? acceptModal.acceptTeamMembers : [];
+        const toggleTeamMember = (name) => {
+          const next = selectedTeam.includes(name)
+            ? selectedTeam.filter((n) => n !== name)
+            : [...selectedTeam, name];
+          setField({ acceptTeamMembers: next });
+        };
         return (
           <div className="fixed inset-0 z-[90] flex items-center justify-center p-4"
                style={{ background: "rgba(4,6,12,0.92)", backdropFilter: "blur(10px)" }}
                onClick={(e) => e.target === e.currentTarget && !busy && setAcceptModal(null)}>
-            <div className="w-full max-w-md rounded-2xl overflow-hidden"
-                 style={{ background: "var(--surface-elevated)", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)", maxHeight: "90vh", overflowY: "auto" }}>
-              <div className="px-6 py-5 border-b border-white/[0.08]"
+            <div className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col"
+                 style={{ background: "var(--surface-elevated)", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(0,0,0,0.92)", maxHeight: "90vh" }}>
+              <div className="px-6 py-5 border-b border-white/[0.08] flex-shrink-0"
                    style={{ background: "linear-gradient(90deg,rgba(34,197,94,0.10),rgba(22,163,74,0.05))" }}>
                 <div className="text-sm font-black text-white">Accept into {handover.toDepartment}</div>
                 <div className="text-[11px] text-slate-400 mt-0.5">{handover.bomKey}{handover.serialNo ? ` · S/N ${handover.serialNo}` : ""}</div>
               </div>
-              <div className="p-5 space-y-4">
+              <div className="p-5 space-y-4 flex-1 overflow-y-auto">
                 {handover.overrunNarration && (
                   <div className="rounded-lg px-3 py-2" style={{ background: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.3)" }}>
                     <div className="text-[10px] font-bold text-yellow-300 uppercase tracking-wide mb-0.5">Sender's note on overrun</div>
@@ -12970,6 +13224,32 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                       </div>
                       <div className="text-[10px] text-slate-500 mt-1.5">Non-empty items are saved and shown in reports until marked completed.</div>
                     </div>
+                    {/* Feature 5 — team members present at acceptance */}
+                    {acceptDeptEmps.length > 0 && (
+                      <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.25)" }}>
+                        <div className="text-[10px] font-bold text-indigo-200 uppercase tracking-wide mb-1.5">
+                          👥 Team members present (optional)
+                        </div>
+                        <div className="text-[10px] text-slate-400 mb-2">
+                          Select factory workers who were present at this acceptance. For record-keeping only.
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {acceptDeptEmps.map((m) => {
+                            const sel = selectedTeam.includes(m.name);
+                            return (
+                              <button key={m.id} type="button"
+                                      onClick={() => toggleTeamMember(m.name)}
+                                      className="text-[11px] font-semibold px-2.5 py-1 rounded-full transition-all"
+                                      style={{ background: sel ? "rgba(99,102,241,0.18)" : "rgba(255,255,255,0.04)",
+                                               border: `1px solid ${sel ? "rgba(99,102,241,0.5)" : "rgba(255,255,255,0.1)"}`,
+                                               color: sel ? "#a5b4fc" : "#94a3b8" }}>
+                                {sel ? "✓ " : ""}{m.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
                 {error && (
@@ -12979,7 +13259,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   </div>
                 )}
               </div>
-              <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between"
+              <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between flex-shrink-0"
                    style={{ background: "rgba(0,0,0,0.35)" }}>
                 <button onClick={() => !busy && setAcceptModal(null)} disabled={busy}
                         className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-50">
@@ -13067,7 +13347,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
 // ─── PENDING PAGE ────────────────────────────────────────────────────────────
 
-function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGroup, items, bomDefs, machineLog = [], handleUpdateStock, onNavigate = () => {}, canDo = () => true }) {
+function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGroup, items, bomDefs, machineLog = [], handleUpdateStock, onNavigate = () => {}, canDo = () => true, outwardLog = [] }) {
   const [viewBOM,  setViewBOM]  = useState(null);
   const [toast,    setToast]    = useState(null);
   // Pending-fulfill confirmation modal (2026-10-20). All three issue actions
@@ -13193,6 +13473,19 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
     });
   };
 
+  // Feature 2 — set of all serial numbers already issued historically.
+  const usedSerialsInHistory = useMemo(() => {
+    const set = new Set();
+    (outwardLog || []).forEach((rec) => {
+      (rec.items || []).forEach((line) => {
+        if (line?.criticalInput?.type === "serial") {
+          (line.criticalInput.serials || []).forEach((s) => { if (s) set.add(String(s).toLowerCase().trim()); });
+        }
+      });
+    });
+    return set;
+  }, [outwardLog]);
+
   // Validate a single critical row in the modal.
   const isCriticalRowReady = (entry, state) => {
     const type = entry.outwardInputType === "serial" ? "serial" : "checkbox";
@@ -13200,7 +13493,10 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
     if (type === "checkbox") return !!s.confirmed;
     const serials = (s.serials || []).map((x) => (x || "").trim()).filter(Boolean);
     const unique  = new Set(serials.map((x) => x.toLowerCase()));
-    return serials.length === entry.canIssue && unique.size === serials.length;
+    if (serials.length !== entry.canIssue || unique.size !== serials.length) return false;
+    // Feature 2 — block serials already used in outward history.
+    if (serials.some((x) => usedSerialsInHistory.has(x.toLowerCase()))) return false;
+    return true;
   };
   const criticalRowsOf = (cf) => (cf?.entries || []).filter((e) => e.isCritical);
   const allCriticalReady = (cf) => criticalRowsOf(cf).every((e) => isCriticalRowReady(e, (cf.criticalInputs || {})[e.code]));
@@ -13426,18 +13722,27 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                                 Enter one unique serial number per unit ({entry.canIssue} required):
                               </div>
                               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                                {Array.from({ length: entry.canIssue }).map((_, idx) => (
-                                  <input key={idx}
-                                         value={(state.serials && state.serials[idx]) || ""}
-                                         onChange={(e) => {
-                                           const next = (state.serials || []).slice();
-                                           next[idx] = e.target.value;
-                                           setLine(entry.code, { serials: next });
-                                         }}
-                                         placeholder={`Serial #${idx + 1}`}
-                                         className="bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-blue-500/40 modal-input"
-                                         style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
-                                ))}
+                                {Array.from({ length: entry.canIssue }).map((_, idx) => {
+                                  const val = (state.serials && state.serials[idx]) || "";
+                                  const alreadyUsed = val.trim() && usedSerialsInHistory.has(val.toLowerCase().trim());
+                                  const dupeInBatch = val.trim() && (state.serials || []).filter((s, i) => i !== idx && s && s.toLowerCase().trim() === val.toLowerCase().trim()).length > 0;
+                                  return (
+                                    <div key={idx} className="flex flex-col gap-0.5">
+                                      <input value={val}
+                                             onChange={(e) => {
+                                               const next = (state.serials || []).slice();
+                                               next[idx] = e.target.value;
+                                               setLine(entry.code, { serials: next });
+                                             }}
+                                             placeholder={`Serial #${idx + 1}`}
+                                             className="bg-white/[0.04] rounded-md px-2 py-1.5 text-[11px] text-white outline-none modal-input"
+                                             style={{ fontFamily: "'Inter',system-ui,sans-serif",
+                                                      border: (alreadyUsed || dupeInBatch) ? "1px solid rgba(239,68,68,0.7)" : "1px solid rgba(255,255,255,0.08)" }} />
+                                      {alreadyUsed && <span className="text-[9px] text-red-400 font-semibold">Already issued</span>}
+                                      {dupeInBatch && !alreadyUsed && <span className="text-[9px] text-orange-400 font-semibold">Duplicate in list</span>}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </>
                           )}
@@ -16832,6 +17137,9 @@ export default function App() {
     checklistTemplate, checklistAnswers,
     // Migration 029 — department-wise employees + Main Employee signature.
     workedBy = [], mainEmployeeId = null, mainEmployeeSignatureSvg = null,
+    // Feature 3/4 — pre-built snapshot from submitFinishTransfer that includes
+    // both auth users and emp-member display names. If absent, compute from allUsers.
+    workedBySnapshot: workedBySnapshotArg = null,
   }) => {
     if (!currentUser?.id) return { success: false, error: "Not authenticated" };
     const machine = machineLog.find((m) => m.id === machineId);
@@ -16843,12 +17151,14 @@ export default function App() {
     // Migration 029 — snapshot the workers + Main Employee so future user
     // renames / deactivations never corrupt historical reads.
     const safeWorkedBy = Array.isArray(workedBy) ? workedBy.filter(Boolean) : [];
-    const workedBySnapshot = safeWorkedBy.length
-      ? safeWorkedBy.map((uid) => {
-          const u = (allUsers || []).find((x) => x.id === uid) || null;
-          return { id: uid, fullName: u?.fullName || null, username: u?.username || null };
-        })
-      : null;
+    const workedBySnapshot = workedBySnapshotArg
+      ? workedBySnapshotArg
+      : (safeWorkedBy.length
+          ? safeWorkedBy.map((uid) => {
+              const u = (allUsers || []).find((x) => x.id === uid) || null;
+              return { id: uid, fullName: u?.fullName || null, username: u?.username || null };
+            })
+          : null);
 
     // When the Main Employee IS the current user, their signature is also
     // persisted to employee_signatures (keeps the user's stored sig fresh);
@@ -16960,7 +17270,7 @@ export default function App() {
   // main session), attach the operator's signature, flip status to accepted,
   // promote the machine to the new department. Password re-auth is required
   // by design — a saved signature alone is not proof of authorization.
-  const handleAcceptHandover = async ({ handoverId, password, pendingItemsToRaise = [], checklistTemplate = null, checklistAnswers = null, stage = null, department = null }) => {
+  const handleAcceptHandover = async ({ handoverId, password, pendingItemsToRaise = [], checklistTemplate = null, checklistAnswers = null, stage = null, department = null, acceptTeamMembers = [] }) => {
     if (!currentUser?.id) return { success: false, error: "Not authenticated" };
     const handover = handovers.find((h) => h.id === handoverId);
     if (!handover) return { success: false, error: "Handover not found" };
@@ -16991,9 +17301,14 @@ export default function App() {
     if (!sigRes.signature) return { success: false, error: "Register your signature before accepting a handover." };
 
     // Step 3: atomic UPDATE to status='accepted' (RLS: status='pending' guard).
+    // Feature 5 — include accept-team snapshot (nullable; migration 031).
+    const acceptedByTeamSnapshot = Array.isArray(acceptTeamMembers) && acceptTeamMembers.length > 0
+      ? acceptTeamMembers.map((name) => ({ name }))
+      : null;
     const accRes = await handoverAccept(handoverId, {
       acceptedBy: currentUser.id,
       acceptedBySignatureId: sigRes.signature.id,
+      acceptedByTeamSnapshot,
     });
     if (!accRes.success) return accRes;
 
@@ -17439,6 +17754,7 @@ export default function App() {
                               onFulfillGroup={handleFulfillGroup}
                               handleUpdateStock={handleUpdateStock}
                               onClearPending={handleClearPending}
+                              outwardLog={outwardLog}
                               onNavigate={setActivePage} canDo={canDo} />,
     pipeline:  <OrderPipelinePage
                               items={items} pos={pos} vendorList={vendorList} followUps={followUps}
