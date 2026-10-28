@@ -173,6 +173,10 @@ const PAGE_COMPONENTS = [
   "ReportCenterPage",
   "ReportKPI",
   "ReportTable",
+  // BOM "Paste from Excel" — the bulk add-component surface shared by
+  // BOMDrawer Edit and the Create BOM modal. Losing it silently sends the
+  // operator back to adding forty BOM lines one at a time.
+  "BOMPasteLines",
 ];
 
 for (const name of PAGE_COMPONENTS) {
@@ -401,6 +405,22 @@ const USER_FACING_STRINGS = [
   "trialCertificate",
   // Trial Certificate preview step (2026-10-27)
   "Preview Certificate",
+  // BOM "Paste from Excel" (2026-10-29). The bulk add-component path in both
+  // BOM editors: chip → textarea → preview → commit. Each string below is one
+  // of the three things the preview has to be able to tell the operator
+  // (lines that will be added, rows that matched no item, rows with a bad
+  // quantity) or the copy that explains the accepted paste format. Deleting
+  // any of them would leave the paste flow silently unexplained.
+  "Paste from Excel",
+  "A header row is skipped.",
+  "ready to add",
+  "already in this BOM",
+  "merged from rows",
+  "Nothing to add from this paste.",
+  "Not found in Item Master",
+  "Correct the code in Excel and paste again.",
+  "Bad quantity (",
+  "Quantity must be more than 0.",
 ];
 
 for (const s of USER_FACING_STRINGS) {
@@ -452,6 +472,40 @@ for (const { file, exports: names } of STORE_SURFACE) {
     });
   }
 }
+
+// ─── BOM "Paste from Excel" wiring ──────────────────────────────────────────
+// The parser is unit-tested separately in tests/bomPaste.test.mjs. These
+// checks guard the wiring, which no unit test can see: App.jsx must still
+// import the parser, both BOM editors must still own a commit handler, and
+// the shared preview component must still be mounted in both of them.
+
+test("regression: App.jsx imports the BOM paste parser", () => {
+  const src = read(APP_JSX);
+  assert.ok(
+    /import\s*\{[^}]*parseBomPaste[^}]*\}\s*from\s*["']\.\/utils\/bomPaste\.js["']/.test(src),
+    "App.jsx no longer imports parseBomPaste from ./utils/bomPaste.js — the BOM Paste-from-Excel flow is dead."
+  );
+});
+
+for (const name of ["applyPastedBOMLines", "applyPastedCreateItems"]) {
+  test(`regression: src/App.jsx still defines ${name}`, () => {
+    const src = read(APP_JSX);
+    assert.ok(
+      new RegExp(`const\\s+${name}\\s*=`).test(src),
+      `App.jsx no longer defines ${name} — a pasted BOM block would have nowhere to commit to.`
+    );
+  });
+}
+
+test("regression: BOMPasteLines is mounted in both BOM editors", () => {
+  const src = read(APP_JSX);
+  const mounts = src.match(/<BOMPasteLines\b/g) || [];
+  assert.ok(
+    mounts.length >= 2,
+    `<BOMPasteLines> is mounted ${mounts.length} time(s) — expected at least 2 ` +
+    `(BOMDrawer Edit mode + the Create BOM modal).`
+  );
+});
 
 // ─── Auth imports (prevent silent-lockout regression recurrence) ────────────
 
