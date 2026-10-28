@@ -34,7 +34,7 @@ import { getMySignature, saveMySignature, reauthenticateByPassword } from "./sto
 import {
   DEPARTMENT_SEQUENCE, DEFAULT_DEPT_DURATIONS, DEFAULT_ACCEPT_TIMEOUT_MINUTES,
   readDeptWorkflowSettings, writeDeptWorkflowSettings,
-  nextDepartment, computeElapsedMinutes, computeOverrun, isHoldOverdue, heldMinutes,
+  nextDepartment, computeElapsedMinutes, computeOverrun, isHoldOverdue, heldMinutes, RACK_RELEASE_HOPS,
   formatDuration, canAcceptHandover, canFinishTransfer, canConfigureDept,
 } from "./utils/handoverLogic.js";
 // Phase B
@@ -12308,7 +12308,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   allUsers = [],
   // Phase 1 — raise a pending item mid-work (Trial finds a fault that belongs
   // to an earlier department). Optional: the button hides when absent.
-  onRaisePendingItem }) {
+  onRaisePendingItem,
+  // Migration 036 — a production head releases a machine off the rack.
+  onReleaseHandover }) {
   const [filter,   setFilter]   = useState("active");
   const [expanded, setExpanded] = useState(null);
   const [stageMap, setStageMap] = useState({});
@@ -12667,7 +12669,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     String(p.machineId) === String(m.id) && p.status === "open"
     && (kind === "owed" ? p.kind === "owed" : p.kind !== "owed")
     && myDepartments.includes(p.assignedDepartment));
-  const myTakeIn  = startedAll.filter((m) => m.status !== "completed" && handoverToMine(m));
+  // "Take in" means the machine is actually waiting on this department. One
+  // parked on the rack has not been released yet, so it is not theirs to pick
+  // up and it stays out of this list until the production head says so.
+  const myTakeIn  = startedAll.filter((m) => {
+    if (m.status === "completed" || !handoverToMine(m)) return false;
+    const h = (handovers || []).find((x) => x.id === m.pendingHandoverId && x.status === "pending");
+    return !isAwaitingRelease(h);
+  });
   const myWorking = startedAll.filter((m) => m.status !== "completed" && !m.pendingHandoverId && inMyDept(m));
   const myToFix   = startedAll.filter((m) => m.status !== "completed" && openItemsFor(m, "fault").length > 0);
   const myOwed    = startedAll.filter((m) => m.status !== "completed" && openItemsFor(m, "owed").length > 0);
@@ -12965,6 +12974,40 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             })()}
           </div>
         )}
+
+        {/* ── Migration 036 — released off the rack, waiting to be picked up ──
+            The production head has named this machine. It is the clearest
+            instruction on the floor, so it sits above everything else. */}
+        {scopeMine && (() => {
+          const justReleased = startedAll.filter((m) => {
+            if (m.status === "completed") return false;
+            const h = (handovers || []).find((x) => x.id === m.pendingHandoverId && x.status === "pending");
+            return h && h.releaseRequired && h.releasedAt && myDepartments.includes(h.toDepartment);
+          });
+          if (!justReleased.length) return null;
+          return (
+            <div className="rounded-2xl p-5"
+                 style={{ background: "rgba(99,102,241,0.07)", border: "2px solid rgba(99,102,241,0.45)" }}>
+              <div className="text-[11px] font-bold uppercase tracking-[0.1em] mb-2" style={{ color: "#4f46e5" }}>
+                Pick up from the rack
+              </div>
+              <div className="space-y-2">
+                {justReleased.map((m) => (
+                  <button key={m.id} type="button" onClick={() => setExpanded(expanded === m.id ? null : m.id)}
+                          className="w-full text-left rounded-xl px-4 py-3 transition-all hover:brightness-95"
+                          style={{ background: "var(--surface-raised)", border: "1px solid rgba(99,102,241,0.3)" }}>
+                    <div className="text-[15px] font-black text-slate-800">
+                      {m.bomKey}{m.serialNo ? ` · ${m.serialNo}` : ""}
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      Assembled and on the rack — the production head has released it to you
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── Phase 1 — My Work buckets ──
             Four plain questions, in the order they matter: is anyone blocked
@@ -13497,6 +13540,34 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                       )}
                       {machine.pendingHandoverId && (() => {
                         const h = (handovers || []).find((x) => x.id === machine.pendingHandoverId && x.status === "pending");
+                        // Migration 036 — parked on the rack. Nobody has been
+                        // asked to accept it yet, so no clock and no alarm;
+                        // the production head decides when it moves.
+                        if (h && isAwaitingRelease(h)) {
+                          return (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-black px-2 py-1 rounded-lg"
+                                    style={{ background: "rgba(99,102,241,0.12)", color: "#4f46e5", border: "1px solid rgba(99,102,241,0.4)" }}>
+                                On rack · assembled
+                              </span>
+                              {canDo("machines", "release") && onReleaseHandover && (
+                                <button onClick={async () => {
+                                          const r = await onReleaseHandover(h.id);
+                                          if (r && r.success === false) showToast("Could not release", r.error || "");
+                                          else showToast(`${machine.bomKey}${machine.serialNo ? ` — ${machine.serialNo}` : ""}`, `${h.toDepartment} can now pick it up`);
+                                        }}
+                                        className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
+                                        style={{ background: "linear-gradient(135deg,#6366f1,#4f46e5)", boxShadow: "0 0 10px rgba(99,102,241,0.3)" }}
+                                        title={`Tell ${h.toDepartment} to pick this machine up off the rack`}>
+                                  Send to {h.toDepartment} →
+                                </button>
+                              )}
+                              {!canDo("machines", "release") && (
+                                <span className="text-[10px] text-slate-500">waiting for the production head</span>
+                              )}
+                            </div>
+                          );
+                        }
                         const machineOverdue = h && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
                         return machineOverdue ? (
                           <span className="text-[10px] font-black px-2 py-1 rounded-lg"
@@ -18606,6 +18677,14 @@ export default function App() {
       mainEmployeeSignatureSvg: mainEmployeeSignatureSvg || null,
     };
 
+    // Migration 036 — the rack hop. Assembly puts the assembled machine back
+    // on the rack and it waits there until a production head releases it, so
+    // this handover is created parked rather than pushed. Which hop that is
+    // comes from settings, defaulting to the one Shantaz described.
+    payload.releaseRequired = RACK_RELEASE_HOPS.some(
+      (hop) => hop.from === fromDepartment && hop.to === toDepartment
+    );
+
     const res = await handoverCreate(payload);
     if (!res.success) return res;
 
@@ -19021,6 +19100,28 @@ export default function App() {
     return res;
   };
 
+  // Migration 036 — a production head takes a machine off the rack and tells
+  // the waiting department to pick it up. Does not touch the machine's stage:
+  // the department still accepts it properly, with its checklist and
+  // signature, exactly as on any other hop.
+  const handleReleaseHandover = async (handoverId) => {
+    if (!currentUser?.id) return { success: false, error: "Not authenticated" };
+    const h = (handovers || []).find((x) => x.id === handoverId);
+    const res = await releaseHandover(handoverId, { releasedBy: currentUser.id });
+    if (!res.success) return res;
+    setHandovers((prev) => prev.map((x) => x.id === handoverId
+      ? { ...x, releasedAt: res.handover?.releasedAt || new Date().toISOString(), releasedBy: currentUser.id }
+      : x));
+    const machine = machineLog.find((m) => String(m.id) === String(h?.machineId));
+    logAudit({
+      type: "handover_released", module: "Machine",
+      action: `Released from rack to ${h?.toDepartment || "next dept"}: ${machine?.bomKey || ""}${machine?.serialNo ? ` [${machine.serialNo}]` : ""}`,
+      ref: machine?.bomKey || "", serialNo: machine?.serialNo || "",
+      details: { handoverId, machineId: h?.machineId, toDepartment: h?.toDepartment },
+    });
+    return res;
+  };
+
   const handleResolvePendingItem = async (id, { notes }) => {
     const machine = (() => {
       const p = pendingHandoverItems.find((x) => x.id === id);
@@ -19267,6 +19368,8 @@ export default function App() {
                               onResolvePendingItem={handleResolvePendingItem}
                               /* Phase 1 — raise a fault mid-work */
                               onRaisePendingItem={handleRaisePendingItem}
+                              /* Migration 036 — release a machine off the rack */
+                              onReleaseHandover={handleReleaseHandover}
                               /* Migration 028 */
                               onSubmitDuringWorkChecklist={handleSubmitDuringWorkChecklist}
                               /* Migration 029 */
