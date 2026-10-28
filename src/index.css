@@ -833,12 +833,52 @@ aside nav button {
 }
 
 /* ── Print ────────────────────────────────────────────────────────────────────── */
+/* The app shell is a fixed-height flex row (`h-screen overflow-hidden`) with the
+   page body in its own `overflow-y-auto` column. On screen that is what we want.
+   On paper it meant the browser saw exactly one viewport-worth of content and
+   printed a single truncated page — with the navigation sidebar occupying a third
+   of it. Both facts were reported from the shop floor on 2026-10-29 while printing
+   an A-to-Z machine report.
+
+   So at print time we flatten the shell: nothing scrolls, nothing is clipped, and
+   the page grows to whatever the report needs. Screen rendering is untouched. */
 @media print {
-  aside, .glass, .glass-strong {
+  @page { size: A4 portrait; margin: 12mm; }
+
+  /* Chrome that has no business on paper: the nav rail, the page Topbar with its
+     live clock, filter bars, export buttons. Pages opt in by tagging an element
+     `no-print`; the sidebar and Topbar are tagged at their roots. */
+  .no-print { display: none !important; }
+
+  /* Unclip every scroll container between <html> and the report. */
+  html, body, #root {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  .app-shell {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+  .page-scroll {
+    flex: none !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .glass, .glass-strong {
     background: #fff !important;
     backdrop-filter: none !important;
     border-color: #ccc !important;
     box-shadow: none !important;
     color: #000 !important;
   }
+
+  /* Keep a handover card, a signature or a checklist from splitting across a
+     page break mid-row. `avoid` is a hint, not a guarantee, but it is enough for
+     blocks this size. */
+  .print-block { break-inside: avoid; page-break-inside: avoid; }
 }
