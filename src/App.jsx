@@ -66,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-27-full-light-redesign";
+const APP_BUILD = "2026-10-28-premium-ui";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -404,24 +404,24 @@ const buildInitialHistory = (trend) => {
 };
 
 const statusConfig = {
-  critical: { label: "CRITICAL",  bg: "", text: "", border: "", dot: "#F87171",   style: { background: "rgba(248,113,113,0.10)", color: "#F87171",  border: "1px solid rgba(248,113,113,0.28)" } },
-  warning:  { label: "WARNING",   bg: "", text: "", border: "", dot: "#FCD34D",   style: { background: "rgba(252,211,77,0.09)",  color: "#FCD34D",  border: "1px solid rgba(252,211,77,0.28)" } },
-  safe:     { label: "SAFE",      bg: "", text: "", border: "", dot: "#4ADE80",   style: { background: "rgba(74,222,128,0.09)",  color: "#4ADE80",  border: "1px solid rgba(74,222,128,0.26)" } },
-  approved: { label: "APPROVED",  bg: "", text: "", border: "",                   style: { background: "rgba(74,222,128,0.09)",  color: "#4ADE80",  border: "1px solid rgba(74,222,128,0.26)" } },
-  pending:  { label: "PENDING",   bg: "", text: "", border: "",                   style: { background: "rgba(252,211,77,0.09)",  color: "#FCD34D",  border: "1px solid rgba(252,211,77,0.26)" } },
-  review:   { label: "IN REVIEW", bg: "", text: "", border: "",                   style: { background: "rgba(96,165,250,0.09)",  color: "#60A5FA",  border: "1px solid rgba(96,165,250,0.26)" } },
-  overdue:  { label: "OVERDUE",   bg: "", text: "", border: "",                   style: { background: "rgba(248,113,113,0.10)", color: "#F87171",  border: "1px solid rgba(248,113,113,0.28)" } },
-  preferred:{ label: "PREFERRED", bg: "", text: "text-emerald-400", border: "",  style: { background: "rgba(52,211,153,0.09)",  color: "#34D399",  border: "1px solid rgba(52,211,153,0.26)" } },
-  active:   { label: "ACTIVE",    bg: "", text: "", border: "",                   style: { background: "rgba(96,165,250,0.09)",  color: "#60A5FA",  border: "1px solid rgba(96,165,250,0.26)" } },
-  poor:     { label: "POOR",      bg: "", text: "", border: "",                   style: { background: "rgba(248,113,113,0.10)", color: "#F87171",  border: "1px solid rgba(248,113,113,0.28)" } },
-  draft:    { label: "DRAFT",     bg: "", text: "", border: "",                   style: { background: "rgba(15,20,28,0.04)",  color: "#64748b",  border: "1px solid rgba(15,20,28,0.12)" } },
-  ordered:  { label: "ORDERED",   bg: "", text: "", border: "",                   style: { background: "rgba(192,132,252,0.09)", color: "#C084FC",  border: "1px solid rgba(192,132,252,0.26)" } },
-  received: { label: "RECEIVED",  bg: "", text: "", border: "",                   style: { background: "rgba(74,222,128,0.09)",  color: "#4ADE80",  border: "1px solid rgba(74,222,128,0.26)" } },
-  rejected: { label: "REJECTED",  bg: "", text: "", border: "",                   style: { background: "rgba(248,113,113,0.10)", color: "#F87171",  border: "1px solid rgba(248,113,113,0.28)" } },
-  "fu-pending":  { label: "PENDING",   bg: "", text: "", border: "", style: { background: "rgba(252,211,77,0.09)",  color: "#FCD34D", border: "1px solid rgba(252,211,77,0.26)" } },
-  "fu-due":      { label: "DUE TODAY", bg: "", text: "", border: "", style: { background: "rgba(252,211,77,0.12)",  color: "#FBBF24", border: "1px solid rgba(252,211,77,0.32)" } },
-  "fu-overdue":  { label: "OVERDUE",   bg: "", text: "", border: "", style: { background: "rgba(248,113,113,0.10)", color: "#F87171", border: "1px solid rgba(248,113,113,0.28)" } },
-  "fu-done":     { label: "DONE",      bg: "", text: "", border: "", style: { background: "rgba(74,222,128,0.09)",  color: "#4ADE80", border: "1px solid rgba(74,222,128,0.26)" } },
+  critical: { label: "CRITICAL",  bg: "", text: "", border: "", dot: "#dc2626",   style: { background: "rgba(220,38,38,0.08)",   color: "#dc2626", border: "1px solid rgba(220,38,38,0.22)" } },
+  warning:  { label: "WARNING",   bg: "", text: "", border: "", dot: "#d97706",   style: { background: "rgba(217,119,6,0.08)",   color: "#b45309", border: "1px solid rgba(217,119,6,0.22)" } },
+  safe:     { label: "SAFE",      bg: "", text: "", border: "", dot: "#16a34a",   style: { background: "rgba(22,163,74,0.08)",   color: "#15803d", border: "1px solid rgba(22,163,74,0.22)" } },
+  approved: { label: "APPROVED",  bg: "", text: "", border: "",                   style: { background: "rgba(22,163,74,0.08)",   color: "#15803d", border: "1px solid rgba(22,163,74,0.22)" } },
+  pending:  { label: "PENDING",   bg: "", text: "", border: "",                   style: { background: "rgba(217,119,6,0.08)",   color: "#b45309", border: "1px solid rgba(217,119,6,0.22)" } },
+  review:   { label: "IN REVIEW", bg: "", text: "", border: "",                   style: { background: "rgba(37,99,235,0.08)",   color: "#2563eb", border: "1px solid rgba(37,99,235,0.22)" } },
+  overdue:  { label: "OVERDUE",   bg: "", text: "", border: "",                   style: { background: "rgba(220,38,38,0.08)",   color: "#dc2626", border: "1px solid rgba(220,38,38,0.22)" } },
+  preferred:{ label: "PREFERRED", bg: "", text: "text-emerald-700", border: "",  style: { background: "rgba(5,150,105,0.08)",   color: "#047857", border: "1px solid rgba(5,150,105,0.22)" } },
+  active:   { label: "ACTIVE",    bg: "", text: "", border: "",                   style: { background: "rgba(37,99,235,0.08)",   color: "#2563eb", border: "1px solid rgba(37,99,235,0.22)" } },
+  poor:     { label: "POOR",      bg: "", text: "", border: "",                   style: { background: "rgba(220,38,38,0.08)",   color: "#dc2626", border: "1px solid rgba(220,38,38,0.22)" } },
+  draft:    { label: "DRAFT",     bg: "", text: "", border: "",                   style: { background: "rgba(15,20,28,0.05)",    color: "#64748b", border: "1px solid rgba(15,20,28,0.14)" } },
+  ordered:  { label: "ORDERED",   bg: "", text: "", border: "",                   style: { background: "rgba(124,58,237,0.08)",  color: "#6d28d9", border: "1px solid rgba(124,58,237,0.22)" } },
+  received: { label: "RECEIVED",  bg: "", text: "", border: "",                   style: { background: "rgba(22,163,74,0.08)",   color: "#15803d", border: "1px solid rgba(22,163,74,0.22)" } },
+  rejected: { label: "REJECTED",  bg: "", text: "", border: "",                   style: { background: "rgba(220,38,38,0.08)",   color: "#dc2626", border: "1px solid rgba(220,38,38,0.22)" } },
+  "fu-pending":  { label: "PENDING",   bg: "", text: "", border: "", style: { background: "rgba(217,119,6,0.08)",   color: "#b45309", border: "1px solid rgba(217,119,6,0.22)" } },
+  "fu-due":      { label: "DUE TODAY", bg: "", text: "", border: "", style: { background: "rgba(217,119,6,0.10)",   color: "#92400e", border: "1px solid rgba(217,119,6,0.28)" } },
+  "fu-overdue":  { label: "OVERDUE",   bg: "", text: "", border: "", style: { background: "rgba(220,38,38,0.08)",   color: "#dc2626", border: "1px solid rgba(220,38,38,0.22)" } },
+  "fu-done":     { label: "DONE",      bg: "", text: "", border: "", style: { background: "rgba(22,163,74,0.08)",   color: "#15803d", border: "1px solid rgba(22,163,74,0.22)" } },
 };
 
 const StatusBadge = ({ status }) => {
@@ -720,7 +720,7 @@ function MetricCard({ label, value, delta, deltaUp, icon, barPct, barColor, valu
       </div>
       {delta && (
         <div className={`text-[10px] font-bold flex items-center gap-1 mt-1 ${
-          deltaUp !== undefined ? (deltaUp ? "text-emerald-400" : "text-red-400") : ""
+          deltaUp !== undefined ? (deltaUp ? "text-emerald-600" : "text-red-600") : ""
         }`} style={deltaUp === undefined ? { color: "var(--text-muted)" } : {}}>
           {deltaUp !== undefined && (deltaUp ? "▲ " : "▼ ")}{delta}
         </div>
@@ -745,7 +745,7 @@ function SectionHeader({ children, tag }) {
     <div className="flex items-center gap-2.5 mb-4">
       <h2 className="text-[13px] font-semibold tracking-tight" style={{ color: "var(--text-strong)" }}>{children}</h2>
       {tag && <span className="text-[10px] font-medium px-2 py-0.5 rounded-full tracking-wide"
-                     style={{ background: "rgba(96,165,250,0.10)", color: "#60a5fa", border: "1px solid rgba(96,165,250,0.22)" }}>{tag}</span>}
+                     style={{ background: "var(--status-info-bg)", color: "var(--status-info-color)", border: "1px solid var(--status-info-border)" }}>{tag}</span>}
     </div>
   );
 }
@@ -809,7 +809,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
   const EmptyState = ({ icon, title, sub }) => (
     <div className="py-10 text-center">
       <div className="text-3xl mb-2">{icon}</div>
-      <div className="text-sm font-bold text-green-400">{title}</div>
+      <div className="text-sm font-bold text-green-700">{title}</div>
       <div className="text-[11px] text-slate-500 mt-1">{sub}</div>
     </div>
   );
@@ -847,12 +847,12 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
           <div className="bg-white border border-slate-200 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-[12px] font-semibold text-white">🔴 Critical Stock — Order Now</span>
+                <span className="text-[12px] font-semibold" style={{ color: "var(--text-strong)" }}>🔴 Critical Stock — Order Now</span>
                 {criticalN > 0 && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#ef444422", color: "#ef4444", border: "1px solid #ef444444" }}>{criticalN}</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(220,38,38,0.08)", color: "#dc2626", border: "1px solid rgba(220,38,38,0.22)" }}>{criticalN}</span>
                 )}
               </div>
-              <button onClick={() => onNavigate?.("inventory")} className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors">View All →</button>
+              <button onClick={() => onNavigate?.("inventory")} className="text-[10px] text-blue-600 hover:text-blue-800 transition-colors">View All →</button>
             </div>
             {criticalItems.length === 0 ? (
               <EmptyState icon="✅" title="All stock levels safe" sub="No critical items right now." />
@@ -865,25 +865,25 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                       <div className="flex items-start justify-between gap-3 mb-2">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-bold text-white truncate">{item.name}</span>
+                            <span className="text-xs font-bold truncate" style={{ color: "var(--text-strong)" }}>{item.name}</span>
                             <span className="text-[9px] font-mono text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded flex-shrink-0">{item.code}</span>
                           </div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            Stock: <span className="text-red-400 font-bold">{item.stock} {item.unit}</span>
-                            {" · "}Min: <span className="text-white font-bold">{item.min} {item.unit}</span>
-                            {item.vendor && item.vendor !== "—" && <span className="text-slate-500"> · {item.vendor}</span>}
+                          <div className="text-[10px] text-slate-500 mt-0.5">
+                            Stock: <span className="text-red-600 font-bold">{item.stock} {item.unit}</span>
+                            {" · "}Min: <span className="font-bold" style={{ color: "var(--text-strong)" }}>{item.min} {item.unit}</span>
+                            {item.vendor && item.vendor !== "—" && <span className="text-slate-400"> · {item.vendor}</span>}
                           </div>
                         </div>
                         <Btn variant="primary" size="xs" onClick={() => onNavigate?.("pipeline")}>🛒 Order</Btn>
                       </div>
-                      <div className="h-1 bg-slate-50 rounded-full overflow-hidden">
+                      <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(220,38,38,0.12)" }}>
                         <div className="h-full rounded-full bg-red-500" style={{ width: `${pct}%` }} />
                       </div>
                     </div>
                   );
                 })}
                 {criticalItems.length > 4 && (
-                  <button onClick={() => onNavigate?.("inventory")} className="w-full text-[10px] text-slate-500 hover:text-blue-400 transition-colors py-1">
+                  <button onClick={() => onNavigate?.("inventory")} className="w-full text-[10px] text-slate-400 hover:text-blue-600 transition-colors py-1">
                     +{criticalItems.length - 4} more critical items →
                   </button>
                 )}
@@ -895,12 +895,12 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
           <div className="bg-white border border-slate-200 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-[12px] font-semibold text-white">📋 Pending PO Approvals</span>
+                <span className="text-[12px] font-semibold" style={{ color: "var(--text-strong)" }}>📋 Pending PO Approvals</span>
                 {pendingPOs.length > 0 && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#f9731622", color: "#f97316", border: "1px solid #f9731644" }}>{pendingPOs.length}</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(217,119,6,0.08)", color: "#b45309", border: "1px solid rgba(217,119,6,0.22)" }}>{pendingPOs.length}</span>
                 )}
               </div>
-              <button onClick={() => onNavigate?.("pipeline")} className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors">Open Pipeline →</button>
+              <button onClick={() => onNavigate?.("pipeline")} className="text-[10px] text-blue-600 hover:text-blue-800 transition-colors">Open Pipeline →</button>
             </div>
             {pendingPOs.length === 0 ? (
               <EmptyState icon="✅" title="No approvals pending" sub="All POs are up to date." />
@@ -911,14 +911,14 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[11px] font-bold text-white">{po.id}</span>
+                          <span className="text-[11px] font-bold" style={{ color: "var(--text-strong)" }}>{po.id}</span>
                           <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded tracking-wide flex-shrink-0 ${
-                            po.status === "draft"  ? "bg-slate-500/20 text-slate-400" :
-                            po.status === "review" ? "bg-blue-500/20 text-blue-400"  :
-                                                     "bg-orange-500/20 text-orange-400"
+                            po.status === "draft"  ? "bg-slate-100 text-slate-500" :
+                            po.status === "review" ? "bg-blue-50 text-blue-600"   :
+                                                     "bg-orange-50 text-orange-600"
                           }`}>{po.status}</span>
                         </div>
-                        <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                        <div className="text-[10px] text-slate-500 mt-0.5 truncate">
                           {po.vendor} · ₹{(po.amount || 0).toLocaleString("en-IN")} · {(po.lineItems || []).length} item{(po.lineItems || []).length !== 1 ? "s" : ""}
                         </div>
                       </div>
@@ -927,7 +927,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                   </div>
                 ))}
                 {pendingPOs.length > 4 && (
-                  <button onClick={() => onNavigate?.("pipeline")} className="w-full text-[10px] text-slate-500 hover:text-blue-400 transition-colors py-1">
+                  <button onClick={() => onNavigate?.("pipeline")} className="w-full text-[10px] text-slate-400 hover:text-blue-600 transition-colors py-1">
                     +{pendingPOs.length - 4} more pending →
                   </button>
                 )}
@@ -939,12 +939,12 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
           <div className="bg-white border border-slate-200 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-[12px] font-semibold text-white">⏳ Materials Blocking Production</span>
+                <span className="text-[12px] font-semibold" style={{ color: "var(--text-strong)" }}>⏳ Materials Blocking Production</span>
                 {blockingMaterials.length > 0 && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#f9731622", color: "#f97316", border: "1px solid #f9731644" }}>{blockingMaterials.length}</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(217,119,6,0.08)", color: "#b45309", border: "1px solid rgba(217,119,6,0.22)" }}>{blockingMaterials.length}</span>
                 )}
               </div>
-              <button onClick={() => onNavigate?.("pending")} className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors">View Pending →</button>
+              <button onClick={() => onNavigate?.("pending")} className="text-[10px] text-blue-600 hover:text-blue-800 transition-colors">View Pending →</button>
             </div>
             {blockingMaterials.length === 0 ? (
               <EmptyState icon="✅" title="All materials available" sub="No production blockers right now." />
@@ -958,15 +958,15 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[11px] font-bold text-white truncate">{p.name || p.code}</span>
-                            <span className="text-[9px] font-mono text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded flex-shrink-0">{p.code}</span>
+                            <span className="text-[11px] font-bold truncate" style={{ color: "var(--text-strong)" }}>{p.name || p.code}</span>
+                            <span className="text-[9px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded flex-shrink-0">{p.code}</span>
                           </div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            Need: <span className="text-white font-bold">{p.pendingQty} {p.unit}</span>
-                            {" · "}Have: <span className={liveStock > 0 ? "text-orange-400 font-bold" : "text-red-400 font-bold"}>{liveStock} {p.unit}</span>
-                            {" · "}<span className="text-red-400">Short {shortage}</span>
+                          <div className="text-[10px] text-slate-500 mt-0.5">
+                            Need: <span className="font-bold" style={{ color: "var(--text-strong)" }}>{p.pendingQty} {p.unit}</span>
+                            {" · "}Have: <span className={liveStock > 0 ? "text-orange-600 font-bold" : "text-red-600 font-bold"}>{liveStock} {p.unit}</span>
+                            {" · "}<span className="text-red-600">Short {shortage}</span>
                           </div>
-                          {p.bomKey && <div className="text-[9px] text-slate-600 mt-0.5">{p.bomKey}{p.serialNo ? ` · ${p.serialNo}` : ""}</div>}
+                          {p.bomKey && <div className="text-[9px] text-slate-400 mt-0.5">{p.bomKey}{p.serialNo ? ` · ${p.serialNo}` : ""}</div>}
                         </div>
                         <Btn variant="primary" size="xs" onClick={() => onNavigate?.("pipeline")}>+ PO</Btn>
                       </div>
@@ -974,7 +974,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                   );
                 })}
                 {pendingLog.filter((p) => (allItems.find((it) => it.code === p.code)?.stock ?? 0) < p.pendingQty).length > 5 && (
-                  <button onClick={() => onNavigate?.("pending")} className="w-full text-[10px] text-slate-500 hover:text-blue-400 transition-colors py-1">
+                  <button onClick={() => onNavigate?.("pending")} className="w-full text-[10px] text-slate-400 hover:text-blue-600 transition-colors py-1">
                     +{pendingLog.filter((p) => (allItems.find((it) => it.code === p.code)?.stock ?? 0) < p.pendingQty).length - 5} more blocking →
                   </button>
                 )}
@@ -986,12 +986,12 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
           <div className="bg-white border border-slate-200 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-[12px] font-semibold text-white">⚙️ Machines — Next Stage</span>
+                <span className="text-[12px] font-semibold" style={{ color: "var(--text-strong)" }}>⚙️ Machines — Next Stage</span>
                 {activeMachines.length > 0 && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#CC4A3322", color: "#CC4A33", border: "1px solid #CC4A3344" }}>{activeMachines.length}</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(217,32,40,0.08)", color: "#d92028", border: "1px solid rgba(217,32,40,0.22)" }}>{activeMachines.length}</span>
                 )}
               </div>
-              <button onClick={() => onNavigate?.("machines")} className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors">View Tracker →</button>
+              <button onClick={() => onNavigate?.("machines")} className="text-[10px] text-blue-600 hover:text-blue-800 transition-colors">View Tracker →</button>
             </div>
             {activeMachines.length === 0 ? (
               <EmptyState icon="🔧" title="No active builds" sub="Start a machine from the rack (Machine Tracker) to begin a build." />
@@ -1006,14 +1006,14 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[11px] font-bold text-white truncate">{m.bomLabel || m.bomKey}</span>
-                            {m.serialNo && <span className="text-[9px] font-mono text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded flex-shrink-0">{m.serialNo}</span>}
+                            <span className="text-[11px] font-bold truncate" style={{ color: "var(--text-strong)" }}>{m.bomLabel || m.bomKey}</span>
+                            {m.serialNo && <span className="text-[9px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded flex-shrink-0">{m.serialNo}</span>}
                           </div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            Stage <span className="text-white font-bold">{stageN}</span>
-                            {lastStage && <span className="text-slate-500"> · {lastStage.stage || lastStage.note || "In progress"}</span>}
+                          <div className="text-[10px] text-slate-500 mt-0.5">
+                            Stage <span className="font-bold" style={{ color: "var(--text-strong)" }}>{stageN}</span>
+                            {lastStage && <span className="text-slate-400"> · {lastStage.stage || lastStage.note || "In progress"}</span>}
                           </div>
-                          {m.createdDate && <div className="text-[9px] text-slate-600 mt-0.5">Started {m.createdDate}</div>}
+                          {m.createdDate && <div className="text-[9px] text-slate-400 mt-0.5">Started {m.createdDate}</div>}
                         </div>
                         <Btn variant="primary" size="xs" onClick={() => onNavigate?.("machines")}>Update →</Btn>
                       </div>
@@ -1021,7 +1021,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                   );
                 })}
                 {machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").length > 4 && (
-                  <button onClick={() => onNavigate?.("machines")} className="w-full text-[10px] text-slate-500 hover:text-blue-400 transition-colors py-1">
+                  <button onClick={() => onNavigate?.("machines")} className="w-full text-[10px] text-slate-400 hover:text-blue-600 transition-colors py-1">
                     +{machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").length - 4} more active builds →
                   </button>
                 )}
@@ -1035,12 +1035,12 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
         <div className="bg-white border border-slate-200 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <span className="text-[12px] font-semibold text-white">🔄 Recent Stock Movements</span>
+              <span className="text-[12px] font-semibold" style={{ color: "var(--text-strong)" }}>🔄 Recent Stock Movements</span>
               {recentMoves.length > 0 && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#E8553D22", color: "#F18A75", border: "1px solid #E8553D44" }}>{recentMoves.length}</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(217,32,40,0.08)", color: "#d92028", border: "1px solid rgba(217,32,40,0.22)" }}>{recentMoves.length}</span>
               )}
             </div>
-            <button onClick={() => onNavigate?.("history")} className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors">Full Ledger →</button>
+            <button onClick={() => onNavigate?.("history")} className="text-[10px] text-blue-600 hover:text-blue-800 transition-colors">Full Ledger →</button>
           </div>
           {recentMoves.length === 0 ? (
             <EmptyState icon="📒" title="No movements recorded yet" sub="Stock changes appear here in real time (Supabase mode)." />
@@ -1054,19 +1054,19 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: meta.color }} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[11px] font-bold text-white truncate">{m.itemName || m.itemCode}</span>
-                        <span className="text-[9px] font-mono text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded flex-shrink-0">{m.itemCode}</span>
+                        <span className="text-[11px] font-bold truncate" style={{ color: "var(--text-strong)" }}>{m.itemName || m.itemCode}</span>
+                        <span className="text-[9px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded flex-shrink-0">{m.itemCode}</span>
                       </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5 truncate">
+                      <div className="text-[10px] text-slate-400 mt-0.5 truncate">
                         <span style={{ color: meta.color }}>{meta.label}</span>
                         {m.createdByName ? ` · ${m.createdByName}` : ""}
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="text-[11px] font-black font-mono" style={{ color: isIn ? "#4ade80" : "#f87171", fontVariantNumeric: "tabular-nums" }}>
+                      <div className="text-[11px] font-black font-mono" style={{ color: isIn ? "#16a34a" : "#dc2626", fontVariantNumeric: "tabular-nums" }}>
                         {isIn ? "+" : ""}{m.qty}
                       </div>
-                      <div className="text-[9px] text-slate-600">→ {m.afterStock}</div>
+                      <div className="text-[9px] text-slate-400">→ {m.afterStock}</div>
                     </div>
                   </div>
                 );
@@ -1317,16 +1317,16 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
             {/* Reserved / Available — live from the inventory engine (Supabase mode) */}
             {item.reservedStock != null && (
               <div className="grid grid-cols-2 gap-2 mt-3">
-                <div className="px-3 py-2 rounded-lg text-center" style={{ background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.18)" }}>
-                  <div className="text-[9px] font-black uppercase tracking-[0.06em] text-violet-400 mb-0.5">Reserved</div>
-                  <div className="text-sm font-black text-violet-300" style={{ fontVariantNumeric: "tabular-nums" }}>
-                    {item.reservedStock} <span className="text-[10px] text-slate-600">{item.unit}</span>
+                <div className="px-3 py-2 rounded-lg text-center" style={{ background: "rgba(124,58,237,0.07)", border: "1px solid rgba(124,58,237,0.20)" }}>
+                  <div className="text-[9px] font-black uppercase tracking-[0.06em] text-violet-600 mb-0.5">Reserved</div>
+                  <div className="text-sm font-black text-violet-700" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    {item.reservedStock} <span className="text-[10px] text-slate-500">{item.unit}</span>
                   </div>
                 </div>
-                <div className="px-3 py-2 rounded-lg text-center" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.18)" }}>
-                  <div className="text-[9px] font-black uppercase tracking-[0.06em] text-emerald-400 mb-0.5">Available</div>
-                  <div className="text-sm font-black text-emerald-300" style={{ fontVariantNumeric: "tabular-nums" }}>
-                    {item.availableStock} <span className="text-[10px] text-slate-600">{item.unit}</span>
+                <div className="px-3 py-2 rounded-lg text-center" style={{ background: "rgba(22,163,74,0.07)", border: "1px solid rgba(22,163,74,0.20)" }}>
+                  <div className="text-[9px] font-black uppercase tracking-[0.06em] text-emerald-600 mb-0.5">Available</div>
+                  <div className="text-sm font-black text-emerald-700" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    {item.availableStock} <span className="text-[10px] text-slate-500">{item.unit}</span>
                   </div>
                 </div>
               </div>
@@ -1336,7 +1336,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
             {item.reorderLevel > 0 && (item.availableStock ?? item.stock) <= item.reorderLevel && (
               <div className="mt-3 px-3 py-2 rounded-lg flex items-center gap-2" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)" }}>
                 <span className="text-sm">⚠️</span>
-                <span className="text-[11px] font-bold text-red-300">Below reorder level ({item.reorderLevel} {item.unit}) — reorder recommended</span>
+                <span className="text-[11px] font-bold text-red-700">Below reorder level ({item.reorderLevel} {item.unit}) — reorder recommended</span>
               </div>
             )}
           </div>
@@ -1354,9 +1354,9 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
             ].map(({ label, value, mono, full, highlight }) => (
               <div key={label} className={`px-3.5 py-3 rounded-xl ${full ? "col-span-2" : ""}`}
                    style={{ background: highlight ? "rgba(34,197,94,0.04)" : "rgba(15,20,28,0.03)", border: highlight ? "1px solid rgba(34,197,94,0.18)" : "1px solid rgba(15,20,28,0.06)" }}>
-                <div className="text-[9px] font-black uppercase tracking-[0.06em] mb-1" style={{ color: highlight ? "#4ade80" : "#475569" }}>{label}</div>
-                <div className={`text-xs font-semibold ${highlight ? "text-green-400" : "text-[#f0f6ff]"} ${mono ? "font-mono" : ""}`}
-                     style={mono ? { fontFamily: "'Inter','SF Pro Text',system-ui,sans-serif", letterSpacing: "0.04em" } : {}}>
+                <div className="text-[9px] font-black uppercase tracking-[0.06em] mb-1" style={{ color: highlight ? "#16a34a" : "#64748b" }}>{label}</div>
+                <div className={`text-xs font-semibold ${highlight ? "text-green-700" : ""} ${mono ? "font-mono" : ""}`}
+                     style={{ ...(mono ? { fontFamily: "'Inter','SF Pro Text',system-ui,sans-serif", letterSpacing: "0.04em" } : {}), ...(!highlight ? { color: "var(--text-strong)" } : {}) }}>
                   {value}
                 </div>
               </div>
@@ -1389,7 +1389,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                         <span className="text-[12px] mt-0.5 flex-shrink-0">{roleIcon(link.role)}</span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-xs font-bold text-white">{link.vendorName}</span>
+                            <span className="text-xs font-bold" style={{ color: "var(--text-strong)" }}>{link.vendorName}</span>
                             <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full"
                                   style={{ color: rc, background: `${rc}18`, border: `1px solid ${rc}30` }}>
                               {link.role}
@@ -1415,7 +1415,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
           {/* Stock adjustment panel */}
           {adjustMode && (
             <div className="p-4 rounded-xl" style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.3)" }}>
-              <div className="text-[9px] font-black text-blue-400 uppercase tracking-[0.08em] mb-3">
+              <div className="text-[9px] font-black text-blue-600 uppercase tracking-[0.08em] mb-3">
                 {adjustMode === "add" ? "Add Stock" : "Remove Stock"}
               </div>
               <div className="flex gap-2">
@@ -1460,8 +1460,8 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                       <td className="px-3 py-2 text-[10px] text-slate-400">{h.event}</td>
                       <td className="px-3 py-2 text-[10px] font-mono font-bold">
                         {h.change === 0 ? <span className="text-slate-600">—</span>
-                          : h.change > 0 ? <span className="text-green-400">+{h.change}</span>
-                          : <span className="text-red-400">{h.change}</span>}
+                          : h.change > 0 ? <span className="text-green-700">+{h.change}</span>
+                          : <span className="text-red-600">{h.change}</span>}
                       </td>
                       <td className="px-3 py-2 text-[10px] font-mono font-bold text-slate-500">{h.qty}</td>
                     </tr>
@@ -1810,8 +1810,8 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                     const totalOut = filtered.reduce((s, m) => s + m.qtyOut, 0);
                     return (
                       <>
-                        {totalIn  > 0 && <span className="text-green-400 font-mono font-bold">+{totalIn} {item.unit}</span>}
-                        {totalOut > 0 && <span className="text-red-400   font-mono font-bold">-{totalOut} {item.unit}</span>}
+                        {totalIn  > 0 && <span className="text-green-700 font-mono font-bold">+{totalIn} {item.unit}</span>}
+                        {totalOut > 0 && <span className="text-red-600   font-mono font-bold">-{totalOut} {item.unit}</span>}
                       </>
                     );
                   })()}
@@ -1844,10 +1844,10 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                               </td>
                               <td className="px-2.5 py-2 text-[10px] font-mono text-slate-400 max-w-[80px] truncate" title={m.ref}>{m.ref}</td>
                               <td className="px-2.5 py-2 text-[10px] font-mono font-bold">
-                                {m.qtyIn > 0 ? <span className="text-green-400">+{m.qtyIn}</span> : <span className="text-slate-700">—</span>}
+                                {m.qtyIn > 0 ? <span className="text-green-700">+{m.qtyIn}</span> : <span className="text-slate-500">—</span>}
                               </td>
                               <td className="px-2.5 py-2 text-[10px] font-mono font-bold">
-                                {m.qtyOut > 0 ? <span className="text-red-400">-{m.qtyOut}</span> : <span className="text-slate-700">—</span>}
+                                {m.qtyOut > 0 ? <span className="text-red-600">-{m.qtyOut}</span> : <span className="text-slate-500">—</span>}
                               </td>
                               <td className="px-2.5 py-2 text-[10px] font-mono font-bold text-slate-500 tabular-nums">{m.balance} {item.unit}</td>
                             </tr>
@@ -2114,14 +2114,14 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
               <input ref={nameRef} value={form.name} onChange={(e) => set("name", e.target.value)}
                      onKeyDown={onEnter(codeRef)}
                      placeholder="e.g. Hydraulic Oil ISO 46" className={inp(errors.name)} />
-              {errors.name && <div className="text-[10px] text-red-400 mt-1.5">{errors.name}</div>}
+              {errors.name && <div className="text-[10px] text-red-600 mt-1.5">{errors.name}</div>}
             </div>
             <div>
               <Label text="Item Code" req />
               <input ref={codeRef} value={form.code} onChange={(e) => set("code", e.target.value)}
                      onKeyDown={onEnter(stockRef)}
                      placeholder="e.g. OIL-HYD46" className={inp(errors.code)} />
-              {errors.code && <div className="text-[10px] text-red-400 mt-1.5">{errors.code}</div>}
+              {errors.code && <div className="text-[10px] text-red-600 mt-1.5">{errors.code}</div>}
             </div>
           </div>
 
@@ -2136,7 +2136,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
                      style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "0.04em", opacity: isEdit ? 0.6 : 1, cursor: isEdit ? "not-allowed" : "text" }} />
               {isEdit
                 ? <div className="text-[10px] text-slate-500 mt-1.5">Stock is engine-managed — use <span className="text-blue-400 font-semibold">+ Add / − Remove Stock</span> to change it (creates a ledger entry).</div>
-                : errors.stock && <div className="text-[10px] text-red-400 mt-1.5">{errors.stock}</div>}
+                : errors.stock && <div className="text-[10px] text-red-600 mt-1.5">{errors.stock}</div>}
             </div>
             <div>
               <Label text="Unit of Measure" req />
@@ -2221,7 +2221,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
             <input ref={minRef} type="number" min="0" value={form.min} onChange={(e) => set("min", e.target.value)}
                    onKeyDown={onEnter(rateRef)}
                    placeholder="Alert triggered when stock falls below this level" className={inp(errors.min)} />
-            {errors.min && <div className="text-[10px] text-red-400 mt-1.5">{errors.min}</div>}
+            {errors.min && <div className="text-[10px] text-red-600 mt-1.5">{errors.min}</div>}
           </div>
 
           {/* Live status preview */}
@@ -2411,7 +2411,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
             </div>
             {form.lastPurchaseRate && Number(form.stock) > 0 && !isNaN(Number(form.lastPurchaseRate)) && (
               <div className="text-[10px] text-slate-500 mt-1.5">
-                Inventory value: <span className="text-green-400 font-bold">₹{(Number(form.stock) * Number(form.lastPurchaseRate)).toLocaleString("en-IN")}</span>
+                Inventory value: <span className="text-green-700 font-bold">₹{(Number(form.stock) * Number(form.lastPurchaseRate)).toLocaleString("en-IN")}</span>
               </div>
             )}
           </div>
@@ -2638,7 +2638,7 @@ function ItemImportModal({ items, onImport, onClose }) {
           </div>
 
           {error && (
-            <div className="text-[11px] text-red-400 px-4 py-3 rounded-xl"
+            <div className="text-[11px] text-red-600 px-4 py-3 rounded-xl"
                  style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>{error}</div>
           )}
 
@@ -2651,7 +2651,7 @@ function ItemImportModal({ items, onImport, onClose }) {
               <div className="flex items-center justify-between mb-3">
                 <div className="text-[11px] font-semibold text-slate-500">{rows.length} row{rows.length !== 1 ? "s" : ""} detected</div>
                 <div className="flex items-center gap-3 text-[10px]">
-                  {readyCount  > 0 && <span className="font-bold text-green-400">{readyCount} new</span>}
+                  {readyCount  > 0 && <span className="font-bold text-green-700">{readyCount} new</span>}
                   {updateCount > 0 && <span className="font-bold text-yellow-300">{updateCount} existing — missing fields will be filled in</span>}
                 </div>
               </div>
@@ -2670,11 +2670,11 @@ function ItemImportModal({ items, onImport, onClose }) {
                         <tr key={i} style={{ borderTop: "1px solid rgba(15,20,28,0.04)" }}>
                           <td className="px-3 py-2.5 whitespace-nowrap">
                             {r._status === "ready"
-                              ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-green-400" style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.25)" }}>✓ New</span>
+                              ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-green-700" style={{ background: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.22)" }}>✓ New</span>
                               : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-yellow-300" style={{ background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.25)" }}>↻ Update Existing</span>}
                           </td>
                           <td className="px-3 py-2.5 text-[11px] font-semibold text-white whitespace-nowrap max-w-[280px] truncate">{r.name}</td>
-                          <td className="px-3 py-2.5 text-[11px] font-mono text-blue-400 whitespace-nowrap">{r.code || <span className="text-slate-700">— auto —</span>}</td>
+                          <td className="px-3 py-2.5 text-[11px] font-mono text-blue-600 whitespace-nowrap">{r.code || <span className="text-slate-700">— auto —</span>}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2864,7 +2864,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
   const SortIcon = ({ col }) =>
     sortCol !== col
       ? <span className="ml-0.5 text-slate-700 text-[9px]">⇅</span>
-      : <span className="ml-0.5 text-blue-400 text-[9px]">{sortDir === "asc" ? "↑" : "↓"}</span>;
+      : <span className="ml-0.5 text-blue-600 text-[9px]">{sortDir === "asc" ? "↑" : "↓"}</span>;
 
   const handleAddItem = async (machine, newItem) => {
     if (onCreateItem) {
@@ -3014,7 +3014,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
 
             {/* Header */}
             <div className="px-5 py-4 border-b border-slate-200" style={{ background: "rgba(239,68,68,0.06)" }}>
-              <div className="text-sm font-black text-red-400">🗑️ Delete Item</div>
+              <div className="text-sm font-black text-red-600">🗑️ Delete Item</div>
               <div className="text-[10px] text-slate-500 mt-0.5">{deleteModal.item.name} · {deleteModal.item.code}</div>
             </div>
 
@@ -3083,11 +3083,11 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
         {/* Metric cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard label="Total SKUs"    value={totalSKUs.toLocaleString("en-IN")} barPct={totalSKUs ? Math.round((safeCount / totalSKUs) * 100) : 0} barColor="#E8553D" icon="📦" />
-          <MetricCard label="Critical"      value={String(criticalCount)} valueColor="text-red-400" icon="🚨"
+          <MetricCard label="Critical"      value={String(criticalCount)} valueColor="#dc2626" icon="🚨"
                       barPct={totalSKUs ? Math.round((criticalCount / totalSKUs) * 100) : 0} barColor="#ef4444" />
-          <MetricCard label="Low Stock"     value={String(warningCount)}  valueColor="text-orange-400" icon="⚠️"
+          <MetricCard label="Low Stock"     value={String(warningCount)}  valueColor="#d97706" icon="⚠️"
                       barPct={totalSKUs ? Math.round((warningCount / totalSKUs) * 100) : 0} barColor="#f97316" />
-          <MetricCard label="Safe"          value={String(safeCount)} valueColor="text-green-400" icon="✅"
+          <MetricCard label="Safe"          value={String(safeCount)} valueColor="#15803d" icon="✅"
                       barPct={totalSKUs ? Math.round((safeCount / totalSKUs) * 100) : 0} barColor="#22c55e" />
         </div>
 
@@ -3108,9 +3108,9 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                     onClick={() => setSelectedItem({ item: { ...i }, category: i.category })}
                     className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-lg transition-all hover:opacity-80 flex-shrink-0"
                     style={{
-                      background: i.status === "critical" ? "rgba(239,68,68,0.12)" : "rgba(249,115,22,0.1)",
-                      border: i.status === "critical" ? "1px solid rgba(239,68,68,0.28)" : "1px solid rgba(249,115,22,0.22)",
-                      color: i.status === "critical" ? "#f87171" : "#fb923c",
+                      background: i.status === "critical" ? "rgba(220,38,38,0.08)" : "rgba(217,119,6,0.08)",
+                      border: i.status === "critical" ? "1px solid rgba(220,38,38,0.22)" : "1px solid rgba(217,119,6,0.22)",
+                      color: i.status === "critical" ? "#dc2626" : "#b45309",
                     }}>
               {i.code} · {i.stock} {i.unit}
             </button>
@@ -3125,8 +3125,8 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                 aria-controls="erp-attention-body"
                 className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-transparent rounded-xl"
                 style={{ minHeight: 48 }}>
-                <span className="text-[10px] font-black text-red-400 uppercase tracking-[0.08em] flex-shrink-0">⚠ Attention</span>
-                <span className="text-[11px] font-bold text-white">({summary})</span>
+                <span className="text-[10px] font-black text-red-600 uppercase tracking-[0.08em] flex-shrink-0">⚠ Attention</span>
+                <span className="text-[11px] font-bold" style={{ color: "var(--text-strong)" }}>({summary})</span>
                 {/* Preview: first 10 chips inline when collapsed, +N more badge */}
                 {!attentionOpen && (
                   <div className="hidden md:flex items-center gap-1.5 overflow-hidden flex-1 min-w-0">
@@ -3160,10 +3160,10 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex gap-0.5 bg-slate-50 rounded-lg p-0.5 border border-slate-200">
             {[
-              { key: "all",      label: `All (${totalSKUs})`,              active: "bg-blue-500/20 text-blue-400 border border-blue-500/30"    },
-              { key: "critical", label: `Critical (${criticalCount})`,     active: "bg-red-500/20 text-red-400 border border-red-500/30"       },
-              { key: "warning",  label: `Low (${warningCount})`,           active: "bg-orange-500/20 text-orange-400 border border-orange-500/30" },
-              { key: "safe",     label: `Safe (${safeCount})`,             active: "bg-green-500/20 text-green-400 border border-green-500/30" },
+              { key: "all",      label: `All (${totalSKUs})`,              active: "bg-blue-50 text-blue-700 border border-blue-200"       },
+              { key: "critical", label: `Critical (${criticalCount})`,     active: "bg-red-50 text-red-700 border border-red-200"             },
+              { key: "warning",  label: `Low (${warningCount})`,           active: "bg-orange-50 text-orange-700 border border-orange-200"   },
+              { key: "safe",     label: `Safe (${safeCount})`,             active: "bg-green-50 text-green-700 border border-green-200"      },
             ].map(({ key, label, active }) => (
               <button key={key} onClick={() => setStatusFilter(key)}
                       className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-all ${statusFilter === key ? active : "text-slate-500 hover:text-slate-500"}`}>
@@ -3214,7 +3214,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                   <tr>
                     <td colSpan={11} className="px-4 py-12 text-center text-xs text-slate-600">
                       No items match your filters.
-                      {filtersActive && <button onClick={clearFilters} className="text-blue-400 font-bold ml-1 hover:underline">Clear filters</button>}
+                      {filtersActive && <button onClick={clearFilters} className="text-blue-600 font-bold ml-1 hover:underline">Clear filters</button>}
                     </td>
                   </tr>
                 ) : sorted.map((item) => {
@@ -3227,8 +3227,8 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                     <tr key={`${item.category}-${item.code}`}
                         onClick={() => setSelectedItem({ item: { ...item }, category: item.category })}
                         className={`border-b border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors ${isCrit ? "bg-red-500/[0.025]" : ""} ${lastAddedCode === item.code ? "bg-blue-500/[0.08]" : ""}`}>
-                      <td className="px-4 py-4 text-xs font-mono font-bold text-blue-400 whitespace-nowrap">{item.code}</td>
-                      <td className="px-4 py-4 text-xs font-semibold text-white max-w-[160px]">
+                      <td className="px-4 py-4 text-xs font-mono font-bold text-blue-600 whitespace-nowrap">{item.code}</td>
+                      <td className="px-4 py-4 text-xs font-semibold max-w-[160px]" style={{ color: "var(--text-strong)" }}>
                         <div className="truncate">{item.name}</div>
                       </td>
                       <td className="px-4 py-4">
@@ -3300,7 +3300,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
             </div>
             <div className="text-[10px] text-slate-500 tabular-nums">
               Inventory Value:{" "}
-              <span className="text-blue-400 font-bold">₹{filteredVal.toLocaleString("en-IN")}</span>
+              <span className="text-blue-700 font-bold">₹{filteredVal.toLocaleString("en-IN")}</span>
               {filtersActive && <span className="text-slate-700 ml-1">(filtered)</span>}
             </div>
           </div>
@@ -3583,7 +3583,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
             {linkedVendors.length > 0 && (
               <div className="col-span-2">
                 <PLabel text="Select Vendor" req />
-                {vendorErr && <div className="text-[11px] text-red-400 mb-1.5">Please select a vendor before saving.</div>}
+                {vendorErr && <div className="text-[11px] text-red-600 mb-1.5">Please select a vendor before saving.</div>}
                 <div className="flex gap-2 overflow-x-auto pb-1.5 -mx-1 px-1">
                   {linkedVendors.map((v) => {
                     const isSelected = form.vendor === v.name;
@@ -3606,7 +3606,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                               {v.linkRole}
                             </span>
                           )}
-                          {isSelected && <span className="ml-auto text-[8px] font-black text-blue-400">✓ SELECTED</span>}
+                          {isSelected && <span className="ml-auto text-[8px] font-black text-blue-700">✓ SELECTED</span>}
                         </div>
                         <div className="text-[11px] font-bold text-white truncate max-w-[130px] mb-1" title={v.name}>{v.name}</div>
                         {v.contactPerson && <div className="text-[9px] text-slate-500 mb-1">👤 {v.contactPerson}</div>}
@@ -3650,7 +3650,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                   )}
                 </div>
 
-                {vendorErr && <div className="text-[11px] text-red-400 mb-1.5">Please select a vendor before saving.</div>}
+                {vendorErr && <div className="text-[11px] text-red-600 mb-1.5">Please select a vendor before saving.</div>}
 
                 {/* Search input — shown only when item filter is active */}
                 {addCode && itemLinkedVendors.length > 0 && (
@@ -3784,7 +3784,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                         <span className="text-[11px] font-bold text-white truncate flex-1">{it.name}</span>
                         <span className="text-[9px] font-mono text-slate-600 flex-shrink-0">{it.code}</span>
                         <span className="text-[9px] text-slate-500 flex-shrink-0">stock {it.stock}/{it.min} {it.unit}</span>
-                        {shortage > 0 && <span className="text-[9px] font-bold text-orange-300 flex-shrink-0">need {shortage}+</span>}
+                        {shortage > 0 && <span className="text-[9px] font-bold text-orange-700 flex-shrink-0">need {shortage}+</span>}
                         <span className="text-[10px] font-bold text-emerald-300 flex-shrink-0">+ Add</span>
                       </button>
                     );
@@ -3850,7 +3850,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
               );
             })()}
 
-            {addErr && <div className="text-[10px] text-red-400 mb-2">⚠ {addErr}</div>}
+            {addErr && <div className="text-[10px] text-red-600 mb-2">⚠ {addErr}</div>}
 
             {form.lineItems.length > 0 ? (
               <div className="rounded-xl overflow-hidden border border-slate-200">
@@ -3871,7 +3871,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                         </td>
                         <td className="px-3 py-2 text-xs font-mono text-slate-500 text-right">{li.qty}</td>
                         <td className="px-3 py-2 text-xs font-mono text-slate-500 text-right">{li.rate.toLocaleString("en-IN")}</td>
-                        <td className="px-3 py-2 text-xs font-bold font-mono text-green-400 text-right">₹{li.amount.toLocaleString("en-IN")}</td>
+                        <td className="px-3 py-2 text-xs font-bold font-mono text-green-700 text-right">₹{li.amount.toLocaleString("en-IN")}</td>
                         {/* Phase 3 — per-line "Attach Design" checkbox. Enabled only when the
                             item has a design file; disabled+tooltip otherwise. Unchecked = no
                             extra PDF page produced for this line, preserving today's PDF. */}
@@ -3934,22 +3934,22 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                 <>
                   <div className="flex justify-between text-[11px]">
                     <span className="text-slate-400">CGST{purchaseTypeMeta.rate ? ` (${purchaseTypeMeta.rate / 2}%)` : ""}</span>
-                    <span className="font-mono font-bold text-orange-300">₹{cgst.toLocaleString("en-IN")}</span>
+                    <span className="font-mono font-bold text-orange-700">₹{cgst.toLocaleString("en-IN")}</span>
                   </div>
                   <div className="flex justify-between text-[11px]">
                     <span className="text-slate-400">SGST{purchaseTypeMeta.rate ? ` (${purchaseTypeMeta.rate / 2}%)` : ""}</span>
-                    <span className="font-mono font-bold text-orange-300">₹{sgst.toLocaleString("en-IN")}</span>
+                    <span className="font-mono font-bold text-orange-700">₹{sgst.toLocaleString("en-IN")}</span>
                   </div>
                 </>
               ) : (
                 <div className="flex justify-between text-[11px]">
                   <span className="text-slate-400">IGST{purchaseTypeMeta?.rate ? ` (${purchaseTypeMeta.rate}%)` : ""}</span>
-                  <span className="font-mono font-bold text-orange-300">₹{igst.toLocaleString("en-IN")}</span>
+                  <span className="font-mono font-bold text-orange-700">₹{igst.toLocaleString("en-IN")}</span>
                 </div>
               )}
               <div className="flex justify-between text-sm border-t border-slate-200 pt-2">
                 <span className="font-bold text-white">Total</span>
-                <span className="font-mono font-black text-green-400">₹{total.toLocaleString("en-IN")}</span>
+                <span className="font-mono font-black text-green-700">₹{total.toLocaleString("en-IN")}</span>
               </div>
             </div>
           )}
@@ -4008,7 +4008,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
               <span className="text-slate-600">·</span>
               <StatusBadge status={po.status} />
               <span className="text-slate-600">·</span>
-              <span className={`text-[10px] font-bold uppercase ${po.priority === "urgent" ? "text-red-400" : po.priority === "high" ? "text-orange-400" : "text-slate-500"}`}>{po.priority}</span>
+              <span className={`text-[10px] font-bold uppercase ${po.priority === "urgent" ? "text-red-600" : po.priority === "high" ? "text-orange-700" : "text-slate-500"}`}>{po.priority}</span>
             </div>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-sm font-bold flex-shrink-0">✕</button>
@@ -4022,10 +4022,10 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
                 <div className="flex flex-col items-center">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black border transition-all ${
                     i < cur ? "bg-blue-500 border-blue-500 text-white" :
-                    i === cur ? "bg-blue-500/20 border-blue-500/60 text-blue-400" :
+                    i === cur ? "bg-blue-100 border-blue-400 text-blue-700" :
                     "bg-slate-50 border-slate-200 text-slate-600 opacity-40"
                   }`} style={i < cur ? { color: "#fff" } : undefined}>{i < cur ? "✓" : i + 1}</div>
-                  <div className={`text-[8px] mt-1 font-bold ${i === cur ? "text-blue-400" : i < cur ? "text-slate-400" : "text-slate-700"}`}>{s}</div>
+                  <div className={`text-[8px] mt-1 font-bold ${i === cur ? "text-blue-700" : i < cur ? "text-slate-400" : "text-slate-500"}`}>{s}</div>
                 </div>
                 {i < steps.length - 1 && (
                   <div className={`flex-1 h-px mx-1 mb-4 ${i < cur ? "bg-blue-500" : "bg-slate-50"}`} />
@@ -4076,7 +4076,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
                         </td>
                         <td className="px-3 py-2 text-[11px] font-mono text-slate-500">{li.qty} {li.unit}</td>
                         <td className="px-3 py-2 text-[11px] font-mono text-slate-400">₹{li.rate.toLocaleString("en-IN")}</td>
-                        <td className="px-3 py-2 text-[11px] font-bold font-mono text-green-400">₹{li.amount.toLocaleString("en-IN")}</td>
+                        <td className="px-3 py-2 text-[11px] font-bold font-mono text-green-700">₹{li.amount.toLocaleString("en-IN")}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -4084,21 +4084,21 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
               </div>
               <div className="mt-2 px-3 flex justify-between text-[10px]">
                 <span className="text-slate-500">GST (18%): ₹{(po.gst || 0).toLocaleString("en-IN")}</span>
-                <span className="font-bold text-green-400">Total: ₹{po.amount.toLocaleString("en-IN")}</span>
+                <span className="font-bold text-green-700">Total: ₹{po.amount.toLocaleString("en-IN")}</span>
               </div>
             </div>
           )}
 
           {po.status === "received" && po.receivedDate && (
             <div className="px-3.5 py-3 rounded-xl" style={{ background: "rgba(34,197,94,0.05)", border: "1px solid rgba(34,197,94,0.25)" }}>
-              <div className="text-[9px] font-black text-green-400 uppercase tracking-[0.06em] mb-1">✅ Received</div>
+              <div className="text-[9px] font-black text-green-700 uppercase tracking-[0.06em] mb-1">✅ Received</div>
               <div className="text-xs text-slate-400">Stock updated on {po.receivedDate}. GRN recorded.</div>
             </div>
           )}
 
           {confirmReceive && (
             <div className="p-4 rounded-xl" style={{ background: "rgba(34,197,94,0.05)", border: "1px solid rgba(34,197,94,0.35)" }}>
-              <div className="text-xs font-bold text-green-400 mb-1">📦 Confirm GRN — Mark as Received?</div>
+              <div className="text-xs font-bold text-green-700 mb-1">📦 Confirm GRN — Mark as Received?</div>
               <div className="text-[10px] text-slate-500 mb-3">All line item quantities will be added to inventory stock automatically.</div>
               <div className="flex gap-2">
                 <button onClick={onMarkReceived} className="px-4 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: "rgba(34,197,94,0.8)", border: "1px solid rgba(34,197,94,0.5)", color: "#fff" }}>✅ Confirm Received</button>
@@ -4109,7 +4109,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
 
           {confirmDelete && (
             <div className="p-4 rounded-xl" style={{ background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.35)" }}>
-              <div className="text-xs font-bold text-red-400 mb-1">Delete this PO?</div>
+              <div className="text-xs font-bold text-red-600 mb-1">Delete this PO?</div>
               <div className="text-[10px] text-slate-500 mb-3">This cannot be undone.</div>
               <div className="flex gap-2">
                 <button onClick={onDelete} className="px-4 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: "rgba(239,68,68,0.8)", border: "1px solid rgba(239,68,68,0.5)", color: "#fff" }}>Yes, Delete</button>
@@ -4175,7 +4175,7 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
   const pendingN  = pos.filter((p) => ["pending","review","draft"].includes(p.status)).length;
 
   const priorityChip = (p) => {
-    const cfg = { urgent: "bg-red-500/10 text-red-400", high: "bg-orange-500/10 text-orange-400", normal: "bg-slate-50 text-slate-500", low: "bg-slate-50 text-slate-600" };
+    const cfg = { urgent: "bg-red-50 text-red-700", high: "bg-orange-50 text-orange-700", normal: "bg-slate-50 text-slate-500", low: "bg-slate-50 text-slate-600" };
     return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${cfg[p] || cfg.normal}`}>{p}</span>;
   };
 
@@ -4238,11 +4238,11 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
       <div className="p-6 space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard label="Total POs"  value={String(pos.length)} barPct={100} barColor="#E8553D" />
-          <MetricCard label="Open Value" value={`₹${(totalAmt / 100000).toFixed(1)}L`} valueColor="text-orange-400"
+          <MetricCard label="Open Value" value={`₹${(totalAmt / 100000).toFixed(1)}L`} valueColor="#d97706"
                       barPct={pos.length ? Math.round((pendingN / pos.length) * 100) : 0} barColor="#f97316" />
-          <MetricCard label="Received"   value={String(receivedN)} valueColor="text-green-400"
+          <MetricCard label="Received"   value={String(receivedN)} valueColor="#15803d"
                       barPct={pos.length ? Math.round((receivedN / pos.length) * 100) : 0} barColor="#22c55e" />
-          <MetricCard label="Overdue"    value={String(overdueN)}  valueColor="text-red-400"
+          <MetricCard label="Overdue"    value={String(overdueN)}  valueColor="#dc2626"
                       barPct={pos.length ? Math.round((overdueN / pos.length) * 100) : 0} barColor="#ef4444" />
         </div>
 
@@ -4253,7 +4253,7 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
               {["all","draft","pending","approved","ordered","received","overdue"].map((f) => (
                 <button key={f} onClick={() => setFilter(f)}
                   className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${
-                    filter === f ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "text-slate-600 hover:text-slate-400"
+                    filter === f ? "bg-blue-50 text-blue-700 border border-blue-200" : "text-slate-600 hover:text-slate-700"
                   }`}>{f}</button>
               ))}
             </div>
@@ -4282,14 +4282,14 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
                       onClick={() => setDetailPO(po)}
                       className={`border-b border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer ${po.status === "overdue" ? "bg-red-500/[0.02]" : ""}`}>
                     <td className="px-4 py-3">
-                      <span className="text-[10px] font-mono font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-md">{po.id}</span>
+                      <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">{po.id}</span>
                     </td>
                     <td className="px-4 py-3 text-[11px] text-slate-500 whitespace-nowrap">{po.date}</td>
                     <td className="px-4 py-3 text-xs font-semibold text-white max-w-[140px]">
                       <div className="truncate">{po.vendor}</div>
                     </td>
                     <td className="px-4 py-3 text-[11px] text-slate-500 tabular-nums">{po.lineItems?.length || 0}</td>
-                    <td className="px-4 py-3 text-xs font-bold font-mono text-green-400 tabular-nums whitespace-nowrap">₹{po.amount.toLocaleString("en-IN")}</td>
+                    <td className="px-4 py-3 text-xs font-bold font-mono text-green-700 tabular-nums whitespace-nowrap">₹{po.amount.toLocaleString("en-IN")}</td>
                     <td className="px-4 py-3">{priorityChip(po.priority)}</td>
                     <td className="px-4 py-3"><StatusBadge status={po.status} /></td>
                     <td className="px-4 py-3 text-[11px] font-mono text-slate-500 whitespace-nowrap">{po.delivery || "—"}</td>
@@ -4444,7 +4444,7 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
           </div>
 
           {error && (
-            <div className="text-[11px] text-red-400 px-4 py-3 rounded-xl"
+            <div className="text-[11px] text-red-600 px-4 py-3 rounded-xl"
                  style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>{error}</div>
           )}
 
@@ -4457,7 +4457,7 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
               <div className="flex items-center justify-between mb-3">
                 <div className="text-[11px] font-semibold text-slate-500">{rows.length} row{rows.length !== 1 ? "s" : ""} detected</div>
                 <div className="flex items-center gap-3 text-[10px]">
-                  {readyCount  > 0 && <span className="font-bold text-green-400">{readyCount} new</span>}
+                  {readyCount  > 0 && <span className="font-bold text-green-700">{readyCount} new</span>}
                   {updateCount > 0 && <span className="font-bold text-yellow-300">{updateCount} existing — missing fields will be filled in</span>}
                 </div>
               </div>
@@ -4476,7 +4476,7 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
                         <tr key={i} style={{ borderTop: "1px solid rgba(15,20,28,0.04)" }}>
                           <td className="px-3 py-2.5 whitespace-nowrap">
                             {r._status === "ready"
-                              ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-green-400" style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.25)" }}>✓ New</span>
+                              ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-green-700" style={{ background: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.22)" }}>✓ New</span>
                               : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-yellow-300" style={{ background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.25)" }}>↻ Update existing</span>}
                           </td>
                           <td className="px-3 py-2.5 text-[11px] font-semibold text-white whitespace-nowrap">{r.name}</td>
@@ -4580,7 +4580,7 @@ function VendorModal({ initialVendor, onSave, onClose }) {
             <div className="col-span-2">
               <ILabel text="Vendor / Company Name" req />
               <input value={form.name} onChange={upd("name")} placeholder="e.g. Bharat Lubricants Pvt Ltd" className={inpCls(errors.name)} />
-              {errors.name && <div className="text-[10px] text-red-400 mt-1">{errors.name}</div>}
+              {errors.name && <div className="text-[10px] text-red-600 mt-1">{errors.name}</div>}
             </div>
             <div>
               <ILabel text="Contact Person" />
@@ -4597,7 +4597,7 @@ function VendorModal({ initialVendor, onSave, onClose }) {
             <div>
               <ILabel text="Phone" req />
               <input value={form.phone} onChange={upd("phone")} placeholder="+91 98765 43210" className={inpCls(errors.phone)} />
-              {errors.phone && <div className="text-[10px] text-red-400 mt-1">{errors.phone}</div>}
+              {errors.phone && <div className="text-[10px] text-red-600 mt-1">{errors.phone}</div>}
             </div>
             <div>
               <ILabel text="Email" />
@@ -4850,9 +4850,9 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
         {/* Stats — driven by active (non-archived) vendors */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <MetricCard label="Total Vendors"  value={activeVendors.length.toString()} icon="🏭" barPct={100} barColor="#E8553D" />
-          <MetricCard label="Preferred"      value={activeVendors.filter((v) => v.status === "preferred").length.toString()} icon="⭐" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "preferred").length / activeVendors.length) * 100) : 0} barColor="#22c55e" valueColor="text-green-400" />
-          <MetricCard label="Under Review"   value={activeVendors.filter((v) => v.status === "review").length.toString()} icon="🔍" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "review").length / activeVendors.length) * 100) : 0} barColor="#f97316" valueColor="text-orange-400" />
-          <MetricCard label="Poor"           value={activeVendors.filter((v) => v.status === "poor").length.toString()} icon="⚠️" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "poor").length / activeVendors.length) * 100) : 0} barColor="#ef4444" valueColor="text-red-400" />
+          <MetricCard label="Preferred"      value={activeVendors.filter((v) => v.status === "preferred").length.toString()} icon="⭐" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "preferred").length / activeVendors.length) * 100) : 0} barColor="#22c55e" valueColor="#15803d" />
+          <MetricCard label="Under Review"   value={activeVendors.filter((v) => v.status === "review").length.toString()} icon="🔍" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "review").length / activeVendors.length) * 100) : 0} barColor="#f97316" valueColor="#d97706" />
+          <MetricCard label="Poor"           value={activeVendors.filter((v) => v.status === "poor").length.toString()} icon="⚠️" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "poor").length / activeVendors.length) * 100) : 0} barColor="#ef4444" valueColor="#dc2626" />
         </div>
 
         <div className={`grid gap-4 ${profileVendor ? "grid-cols-1 xl:grid-cols-3" : "grid-cols-1"}`}>
@@ -5185,9 +5185,9 @@ function ApprovalsPage({ pos, onUpdatePO }) {
 
       <div className="p-6 space-y-6">
         <div className="grid grid-cols-3 gap-4">
-          <MetricCard label="Awaiting Approval" value={pendingItems.length.toString()}  valueColor="text-orange-400" />
-          <MetricCard label="Approved POs"       value={approvedItems.length.toString()} valueColor="text-green-400" />
-          <MetricCard label="Total POs"          value={pos.length.toString()}           valueColor="text-blue-400" />
+          <MetricCard label="Awaiting Approval" value={pendingItems.length.toString()}  valueColor="#d97706" />
+          <MetricCard label="Approved POs"       value={approvedItems.length.toString()} valueColor="#15803d" />
+          <MetricCard label="Total POs"          value={pos.length.toString()}           valueColor="#2563eb" />
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-5">
@@ -5212,7 +5212,7 @@ function ApprovalsPage({ pos, onUpdatePO }) {
                   }`}>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-xs font-mono font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded">{po.id}</span>
+                        <span className="text-xs font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">{po.id}</span>
                         <span className="text-xs font-bold text-white truncate">{po.vendor}</span>
                       </div>
                       <div className="text-[11px] text-slate-500">
@@ -5962,7 +5962,7 @@ function DeptEmployeesRow({ dept, assigned, notAssigned, canConfig, onSaveUserDe
           </button>
         </div>
       )}
-      {err && <div className="text-[10px] text-red-400 mt-1">⚠ {err}</div>}
+      {err && <div className="text-[10px] text-red-600 mt-1">⚠ {err}</div>}
     </div>
   );
 }
@@ -7176,7 +7176,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               {approvalPOs.map(po => (
                 <div key={po.id} className={`${card} border-orange-500/20`} style={{ background: "var(--surface-elevated)" }}>
                   <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <span className="text-[10px] font-mono font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded">{po.id}</span>
+                    <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">{po.id}</span>
                     <StatusBadge status={po.status} />
                   </div>
                   <div className="text-[11px] font-bold text-white truncate mb-0.5">{po.vendor}</div>
@@ -7210,7 +7210,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                 return (
                   <div key={po.id} className={`${card} border-blue-500/20`} style={{ background: "var(--surface-elevated)" }}>
                     <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <span className="text-[10px] font-mono font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded">{po.id}</span>
+                      <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">{po.id}</span>
                       <StatusBadge status={po.status} />
                     </div>
                     <div className="text-[11px] font-bold text-white truncate mb-0.5">{po.vendor}</div>
@@ -7682,7 +7682,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               <textarea value={reverseReason} onChange={e => { setReverseReason(e.target.value); setReverseErr(""); }} rows={3}
                 placeholder="e.g. Received by mistake / Wrong vendor / Test entry…"
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 outline-none resize-none" />
-              {reverseErr && <div className="text-[10px] text-red-400 mt-1">{reverseErr}</div>}
+              {reverseErr && <div className="text-[10px] text-red-600 mt-1">{reverseErr}</div>}
             </div>
             <div className="flex gap-2">
               <Btn variant="ghost" size="sm" onClick={() => { setReverseModal(null); setReverseReason(""); setReverseErr(""); }}>Cancel</Btn>
@@ -7713,7 +7713,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               <textarea value={rejectReason} onChange={e=>{setRejectReason(e.target.value);setRejectErr(false);}} rows={3}
                         placeholder="Enter reason for rejection..."
                         className={`w-full bg-slate-50 border rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 outline-none resize-none modal-input ${rejectErr?"border-red-500/60":"border-slate-200"}`} />
-              {rejectErr && <div className="text-[10px] text-red-400 mt-1">Reason is required</div>}
+              {rejectErr && <div className="text-[10px] text-red-600 mt-1">Reason is required</div>}
             </div>
             <div className="flex gap-2">
               <Btn variant="ghost" size="sm" onClick={()=>{setRejectModal(null);setRejectReason("");setRejectErr(false);}}>Cancel</Btn>
@@ -7972,7 +7972,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
                 onChange={setSelectedCode}
                 showStock={true}
               />
-              {errors.item && <div className="text-[10px] text-red-400 mt-1">{errors.item}</div>}
+              {errors.item && <div className="text-[10px] text-red-600 mt-1">{errors.item}</div>}
             </div>
 
             {/* Qty */}
@@ -7982,7 +7982,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
                      onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
                      placeholder="Enter quantity" className={inpCls(errors.qty)}
                      style={{ fontVariantNumeric: "tabular-nums", fontFamily: "'Inter',system-ui,sans-serif" }} />
-              {errors.qty && <div className="text-[10px] text-red-400 mt-1">{errors.qty}</div>}
+              {errors.qty && <div className="text-[10px] text-red-600 mt-1">{errors.qty}</div>}
             </div>
 
             {/* Notes */}
@@ -10340,7 +10340,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
         <div className="bg-white border border-slate-200 rounded-xl p-6">
           <div className="flex items-center gap-2 mb-5">
             <h2 className="text-sm font-extrabold text-white">✋ Manual Outward</h2>
-            <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full">Ad-hoc Issue</span>
+            <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">Ad-hoc Issue</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -13567,7 +13567,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               <div className="text-[10px] text-slate-500 mt-1.5">
                 {startSel.size} selected · will move from rack → Assembly stage.
               </div>
-              {startErr && <div className="text-[10px] text-red-400 mt-1">{startErr}</div>}
+              {startErr && <div className="text-[10px] text-red-600 mt-1">{startErr}</div>}
             </div>
 
             <div className="flex gap-2">

@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SHANTAZ ERP — Complete Light Design System  (2026-10-27)
+   SHANTAZ ERP — Premium Light Design System  (2026-10-28)
    Warm off-white canvas · crimson #D92028 · light sidebar · Plus Jakarta Sans
    One consistent light theme across sidebar, main content, modals, tables.
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -46,10 +46,12 @@
   --border-brand:       rgba(217, 32, 40, 0.28);
 
   /* ── Shadows (light-mode) ────────────────────────────────────────────────── */
+  --shadow-xs:   0 1px 2px rgba(15, 20, 28, 0.04);
   --shadow-sm:   0 1px 2px rgba(15, 20, 28, 0.06), 0 1px 3px rgba(15, 20, 28, 0.04);
   --shadow-md:   0 4px 16px rgba(15, 20, 28, 0.08), 0 2px 4px rgba(15, 20, 28, 0.05);
   --shadow-lg:   0 12px 32px rgba(15, 20, 28, 0.10), 0 4px 8px rgba(15, 20, 28, 0.06);
   --shadow-xl:   0 24px 48px rgba(15, 20, 28, 0.12), 0 8px 16px rgba(15, 20, 28, 0.08);
+  --shadow-2xl:  0 40px 80px rgba(15, 20, 28, 0.16), 0 16px 32px rgba(15, 20, 28, 0.10);
   --shadow-glow-primary:   0 0 20px rgba(217, 32, 40, 0.18);
   --shadow-glow-secondary: 0 0 20px rgba(22, 163, 74, 0.14);
   --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.70);
@@ -70,6 +72,19 @@
   --status-purple-color:    #7c3aed;
   --status-purple-bg:       rgba(124, 58, 237, 0.07);
   --status-purple-border:   rgba(124, 58, 237, 0.18);
+
+  /* ── Radius tokens ──────────────────────────────────────────────────────── */
+  --radius-xs:   4px;
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   14px;
+  --radius-xl:   18px;
+  --radius-2xl:  24px;
+  --radius-full: 9999px;
+
+  /* ── Surface muted (zebra rows, code chips, subtle fills) ────────────────── */
+  --surface-muted:  rgba(15, 20, 28, 0.032);
+  --surface-muted2: rgba(15, 20, 28, 0.058);
 
   /* ── Nav (sidebar — LIGHT) ──────────────────────────────────────────────── */
   --nav-surface:        #ffffff;
@@ -259,6 +274,116 @@ tbody tr { transition: background-color 0.08s ease; }
   transform: translateY(-2px);
   border-color: rgba(15, 20, 28, 0.18) !important;
   box-shadow: var(--shadow-md);
+}
+
+/* ── Section card ───────────────────────────────────────────────────────── */
+.section-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Page header bar ────────────────────────────────────────────────────── */
+.page-header {
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+/* ── ERP table ──────────────────────────────────────────────────────────── */
+.erp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.erp-table thead th {
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+  text-align: left;
+}
+.erp-table tbody tr {
+  border-bottom: 1px solid var(--border-subtle);
+}
+.erp-table tbody tr:last-child { border-bottom: none; }
+.erp-table tbody tr:hover { background: var(--surface-muted); }
+.erp-table tbody td {
+  padding: 10px 12px;
+  color: var(--text);
+  vertical-align: middle;
+}
+
+/* ── Code chips / monospace snippets ──────────────────────────────────── */
+.code-chip {
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  font-size: 11px;
+  background: var(--surface-muted2);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 1px 6px;
+  letter-spacing: -0.01em;
+}
+
+/* ── Status dot ─────────────────────────────────────────────────────────── */
+.status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+/* ── Interactive row lift ───────────────────────────────────────────────── */
+.row-hover {
+  transition: background-color 0.08s ease, box-shadow 0.12s ease;
+}
+.row-hover:hover {
+  background: var(--surface-muted) !important;
+}
+
+/* ── Modal backdrop ─────────────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 20, 28, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  animation: fadeIn 0.15s ease both;
+}
+.modal-panel {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-rim);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-2xl);
+  animation: slideUp 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Tooltip ────────────────────────────────────────────────────────────── */
+.erp-tooltip {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-rim);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text);
+  pointer-events: none;
 }
 
 /* ── Print ───────────────────────────────────────────────────────────────── */
