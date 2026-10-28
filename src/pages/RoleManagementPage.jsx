@@ -156,15 +156,15 @@ export default function RoleManagementPage({ canDo }) {
     });
   };
 
-  const inputCls = "w-full px-3 py-2 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all";
-  const inputStyle = { background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" };
+  const inputCls = "w-full px-3 py-2 rounded-lg text-sm placeholder-slate-400 outline-none transition-all";
+  const inputStyle = { background: "#ffffff", border: "1px solid rgba(26,31,46,0.14)", color: "#111827" };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid rgba(26,31,46,0.06)" }}>
         <div>
-          <div className="text-base font-bold text-white">Role Management</div>
+          <div className="text-base font-bold" style={{ color: "var(--text-strong)" }}>Role Management</div>
           <div className="text-xs text-slate-500 mt-0.5">{Object.keys(roles).length} role{Object.keys(roles).length !== 1 ? "s" : ""} configured</div>
         </div>
         <div className="flex items-center gap-2.5">
@@ -194,7 +194,7 @@ export default function RoleManagementPage({ canDo }) {
               <div className="flex items-center gap-3">
                 <span className="text-2xl">🔑</span>
                 <div>
-                  <div className="font-bold text-white text-sm">Super Admin</div>
+                  <div className="font-bold text-sm" style={{ color: "var(--text-strong)" }}>Super Admin</div>
                   <div className="text-[10px] mt-0.5" style={{ color: "#ec4899" }}>Full System Access</div>
                 </div>
               </div>
@@ -209,7 +209,7 @@ export default function RoleManagementPage({ canDo }) {
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{role.icon}</span>
                   <div>
-                    <div className="font-bold text-white text-sm">{role.label}</div>
+                    <div className="font-bold text-sm" style={{ color: "var(--text-strong)" }}>{role.label}</div>
                     <div className="text-[10px] mt-0.5" style={{ color: role.color }}>{role.badge}</div>
                   </div>
                 </div>
@@ -223,7 +223,7 @@ export default function RoleManagementPage({ canDo }) {
                   )}
                   {canDelete && (
                     <button onClick={() => setDeleteConfirm(key)}
-                      className="px-2.5 py-1 rounded-lg text-[10px] font-medium text-red-400 hover:text-red-300 transition-all"
+                      className="px-2.5 py-1 rounded-lg text-[10px] font-medium text-red-700 hover:text-red-900 transition-all"
                       style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
                       Delete
                     </button>
@@ -249,33 +249,33 @@ export default function RoleManagementPage({ canDo }) {
           <div className="w-full max-w-2xl rounded-2xl flex flex-col mx-4" style={{ background: "#ffffff", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(15,20,28,0.18)", maxHeight: "90vh" }}>
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: "1px solid rgba(26,31,46,0.07)" }}>
-              <h3 className="font-bold text-white text-sm">{isNew ? "New Role" : `Edit: ${editForm.label}`}</h3>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-900 transition-colors text-lg leading-none">✕</button>
+              <h3 className="font-bold text-sm" style={{ color: "var(--text-strong)" }}>{isNew ? "New Role" : `Edit: ${editForm.label}`}</h3>
+              <button onClick={() => setShowModal(false)} className="text-slate-600 hover:text-slate-900 transition-colors text-lg leading-none">✕</button>
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-4">
               {/* Basic Info */}
               <div className="grid grid-cols-2 gap-3 mb-5">
                 <div className="col-span-2">
-                  <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Role Label *</label>
+                  <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Role Label *</label>
                   <input value={editForm.label} onChange={(e) => setEditForm((f) => ({ ...f, label: e.target.value }))}
                     placeholder="e.g. Purchase Manager" className={inputCls} style={inputStyle} />
                 </div>
                 {isNew && (
                   <div className="col-span-2">
-                    <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Role Key (unique) *</label>
+                    <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Role Key (unique) *</label>
                     <input value={newRoleKey} onChange={(e) => { setNewRoleKey(e.target.value); setKeyErr(""); }}
                       placeholder="e.g. Purchase Manager" className={inputCls} style={inputStyle} />
-                    {keyErr && <div className="text-red-400 text-[10px] mt-1">{keyErr}</div>}
+                    {keyErr && <div className="text-red-600 text-[10px] mt-1">{keyErr}</div>}
                   </div>
                 )}
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Badge Text</label>
+                  <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Badge Text</label>
                   <input value={editForm.badge} onChange={(e) => setEditForm((f) => ({ ...f, badge: e.target.value }))}
                     placeholder="e.g. Full Access" className={inputCls} style={inputStyle} />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Icon</label>
+                  <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Icon</label>
                   <div className="flex gap-1.5 flex-wrap">
                     {ICONS.map((ic) => (
                       <button key={ic} onClick={() => setEditForm((f) => ({ ...f, icon: ic }))}
@@ -287,7 +287,7 @@ export default function RoleManagementPage({ canDo }) {
                   </div>
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Color</label>
+                  <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Color</label>
                   <div className="flex gap-1.5">
                     {COLORS.map((c) => (
                       <button key={c} onClick={() => setEditForm((f) => ({ ...f, color: c }))}
@@ -326,7 +326,7 @@ export default function RoleManagementPage({ canDo }) {
                 <div className="space-y-4">
                   {ALL_MODULES.map((mod) => (
                     <div key={mod.key} className="rounded-xl p-4" style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.06)" }}>
-                      <div className="text-xs font-semibold text-white mb-3">{mod.label}</div>
+                      <div className="text-xs font-semibold mb-3" style={{ color: "var(--text-strong)" }}>{mod.label}</div>
                       <div className="flex flex-wrap gap-2">
                         {mod.actions.map((action) => {
                           const checked = editForm.actions?.[mod.key]?.[action] ?? false;
@@ -369,8 +369,8 @@ export default function RoleManagementPage({ canDo }) {
           <div className="w-full max-w-sm rounded-2xl p-6 mx-4" style={{ background: "#ffffff", border: "1px solid rgba(239,68,68,0.25)", boxShadow: "0 32px 80px rgba(15,20,28,0.18)" }}>
             <div className="text-center">
               <div className="text-3xl mb-3">⚠️</div>
-              <h3 className="font-bold text-white text-sm mb-2">Delete Role?</h3>
-              <p className="text-xs text-slate-400">Delete role <span className="text-white font-semibold">{roles[deleteConfirm]?.label}</span>? Users with this role will lose access.</p>
+              <h3 className="font-bold text-sm mb-2" style={{ color: "var(--text-strong)" }}>Delete Role?</h3>
+              <p className="text-xs text-slate-600">Delete role <span className="font-semibold" style={{ color: "var(--text-strong)" }}>{roles[deleteConfirm]?.label}</span>? Users with this role will lose access.</p>
             </div>
             <div className="flex gap-2.5 mt-6">
               <button onClick={() => setDeleteConfirm(null)}

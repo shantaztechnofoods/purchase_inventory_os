@@ -66,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-28-ui-phase4";
+const APP_BUILD = "2026-10-28-ui-final";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -1159,7 +1159,7 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
                    onChange={(e) => setQty(e.target.value)}
                    onKeyDown={(e) => e.key === "Enter" && confirm()}
                    placeholder="Enter quantity"
-                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-[#f0f6ff] placeholder-slate-600 outline-none leading-relaxed modal-input"
+                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold placeholder-slate-400 outline-none leading-relaxed modal-input"
                    style={{ fontVariantNumeric: "tabular-nums", fontFamily: "'Inter','SF Pro Text',system-ui,sans-serif" }} />
           </div>
 
@@ -2282,7 +2282,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
                       ? "Click to select vendors from Vendor Master…"
                       : unlinkedVendors.length > 0 ? "Add more vendors…" : ""
                   }
-                  className="flex-1 min-w-[140px] bg-transparent outline-none text-xs text-[#f0f6ff] placeholder-slate-600"
+                  className="flex-1 min-w-[140px] bg-transparent outline-none text-xs placeholder-slate-400"
                 />
                 <span className="text-slate-700 text-[9px] flex-shrink-0 pointer-events-none select-none ml-1">
                   {dropOpen ? "▲" : "▼"}
@@ -8883,7 +8883,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             <div className="relative flex-1 min-w-[180px]">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 text-xs">🔍</span>
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search items, codes..."
-                     className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-3 py-1.5 text-xs text-slate-500 placeholder-slate-600 outline-none focus:border-blue-500/30" />
+                     className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-3 py-1.5 text-xs text-slate-700 placeholder-slate-400 outline-none focus:border-blue-500/30" />
             </div>
             {["all","green","orange","red"].map((f) => (
               <button key={f} onClick={() => setFilterStatus(f)}
@@ -9215,7 +9215,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
           <div className="px-6 pt-3">
             <input value={issueNote} onChange={(e) => setIssueNote(e.target.value)}
                    placeholder="Issue reference / note (optional)..."
-                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-xs text-slate-500 placeholder-slate-600 outline-none focus:border-blue-500/30" />
+                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-xs text-slate-700 placeholder-slate-400 outline-none focus:border-blue-500/30" />
             {/* The inline destination radio was removed (2026-06-02c) because
                 operators couldn't see it. The destination choice now appears as
                 a dedicated popup at commit time — see "Destination popup" below
@@ -14937,7 +14937,7 @@ function HRFilterBar({ search, setSearch, dateFrom, setDateFrom, dateTo, setDate
       <div className="relative">
         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs">🔍</span>
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Global search…"
-          className="bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-3 py-1.5 text-xs text-slate-500 placeholder-slate-600 outline-none focus:border-blue-500/40 w-52" />
+          className="bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-3 py-1.5 text-xs text-slate-700 placeholder-slate-400 outline-none focus:border-blue-500/40 w-52" />
       </div>
       <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
         className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40" title="From date" />

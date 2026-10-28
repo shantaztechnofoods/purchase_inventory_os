@@ -239,8 +239,8 @@ export default function UserManagementPage({ canDo }) {
     try { return new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return iso; }
   };
 
-  const inputCls = "w-full px-3 py-2 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all";
-  const inputStyle = { background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" };
+  const inputCls = "w-full px-3 py-2 rounded-lg text-sm placeholder-slate-400 outline-none transition-all";
+  const inputStyle = { background: "#ffffff", border: "1px solid rgba(26,31,46,0.14)", color: "#111827" };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -261,12 +261,12 @@ export default function UserManagementPage({ canDo }) {
       {/* Header */}
       <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid rgba(26,31,46,0.06)" }}>
         <div>
-          <div className="text-base font-bold text-white">User Management</div>
+          <div className="text-base font-bold" style={{ color: "var(--text-strong)" }}>User Management</div>
           <div className="text-xs text-slate-500 mt-0.5">{users.length} user{users.length !== 1 ? "s" : ""} in the system</div>
         </div>
         <div className="flex items-center gap-3">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users…"
-            className="px-3 py-1.5 rounded-lg text-xs text-white placeholder-slate-600 outline-none w-44"
+            className="px-3 py-1.5 rounded-lg text-xs placeholder-slate-400 outline-none w-44"
             style={inputStyle} />
           {(isSuperAdmin || canDo?.("users", "create")) && (
             <button onClick={openAdd}
@@ -284,12 +284,12 @@ export default function UserManagementPage({ canDo }) {
           <table className="w-full text-xs">
             <thead>
               <tr style={{ background: "rgba(26,31,46,0.04)", borderBottom: "1px solid rgba(26,31,46,0.07)" }}>
-                <th className="px-4 py-3 text-left font-semibold text-slate-400">Username</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-400">Mobile</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-400">Role</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-400">Status</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-400">Last Login</th>
-                <th className="px-4 py-3 text-right font-semibold text-slate-400">Actions</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-600">Username</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-600">Mobile</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-600">Role</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-600">Status</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-600">Last Login</th>
+                <th className="px-4 py-3 text-right font-semibold text-slate-600">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -308,7 +308,7 @@ export default function UserManagementPage({ canDo }) {
                              style={{ background: `linear-gradient(135deg,${rColor}80,${rColor}40)` }}>
                           {user.username.slice(0, 2).toUpperCase()}
                         </div>
-                        <div className="font-mono font-semibold text-white">{user.username}</div>
+                        <div className="font-mono font-semibold" style={{ color: "var(--text-strong)" }}>{user.username}</div>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-slate-600">{user.mobile || "—"}</td>
@@ -333,7 +333,7 @@ export default function UserManagementPage({ canDo }) {
                         )}
                         {(isSuperAdmin || canDo?.("users", "edit")) && (
                           <button onClick={() => openReset(user)}
-                            className="px-2.5 py-1 rounded-lg text-[10px] font-medium text-blue-400 hover:text-blue-300 transition-all"
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-medium text-blue-700 hover:text-blue-900 transition-all"
                             style={{ background: "rgba(232,85,61,0.08)", border: "1px solid rgba(232,85,61,0.2)" }}>
                             Reset PW
                           </button>
@@ -341,7 +341,7 @@ export default function UserManagementPage({ canDo }) {
                         {!isSelf && !isSA && (isSuperAdmin || canDo?.("users", "edit")) && (
                           <button onClick={() => handleToggleStatus(user)}
                             disabled={statusBusyId === user.id}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all ${user.status === "active" ? "text-amber-400 hover:text-amber-300" : "text-emerald-400 hover:text-emerald-300"}`}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all ${user.status === "active" ? "text-amber-700 hover:text-amber-900" : "text-emerald-700 hover:text-emerald-900"}`}
                             style={{
                               background: user.status === "active" ? "rgba(251,191,36,0.08)" : "rgba(52,211,153,0.08)",
                               border: `1px solid ${user.status === "active" ? "rgba(251,191,36,0.2)" : "rgba(52,211,153,0.2)"}`,
@@ -354,7 +354,7 @@ export default function UserManagementPage({ canDo }) {
                         )}
                         {!isSelf && !isSA && (isSuperAdmin || canDo?.("users", "delete")) && (
                           <button onClick={() => setDeleteConfirm(user)}
-                            className="px-2.5 py-1 rounded-lg text-[10px] font-medium text-red-400 hover:text-red-300 transition-all"
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-medium text-red-700 hover:text-red-900 transition-all"
                             style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
                             Delete
                           </button>
@@ -379,34 +379,34 @@ export default function UserManagementPage({ canDo }) {
           <div className="w-full max-w-md rounded-2xl p-6 mx-4" style={{ background: "#ffffff", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(15,20,28,0.18)" }}>
             <div className="flex items-center justify-between mb-5">
               <h3 className="font-bold text-sm" style={{ color: "#0f141c" }}>{editUser ? "Edit User" : "Add New User"}</h3>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-900 transition-colors text-lg leading-none">✕</button>
+              <button onClick={() => setShowModal(false)} className="text-slate-600 hover:text-slate-900 transition-colors text-lg leading-none">✕</button>
             </div>
 
             <form onSubmit={(ev) => { ev.preventDefault(); if (!submitting) handleSave(); }} className="space-y-3.5">
               <div>
-                <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Username *</label>
+                <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Username *</label>
                 <input value={form.username} autoFocus
                   onChange={(e) => setForm((f) => ({ ...f, username: e.target.value.toLowerCase().replace(/[^a-z0-9_.\-]/g, "") }))}
                   placeholder="e.g. mihir or john_doe" className={inputCls + " font-mono"} style={inputStyle}
                   disabled={!!editUser} />
                 {editUser && <div className="text-[10px] text-slate-600 mt-1">Username cannot be changed after creation</div>}
-                {errors.username && <div className="text-red-400 text-[10px] mt-1">{errors.username}</div>}
+                {errors.username && <div className="text-red-600 text-[10px] mt-1">{errors.username}</div>}
               </div>
               <div>
-                <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Mobile Number</label>
+                <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Mobile Number</label>
                 <input value={form.mobile} onChange={(e) => setForm((f) => ({ ...f, mobile: e.target.value }))}
                   placeholder="e.g. 9876543210" className={inputCls} style={inputStyle} />
               </div>
               <div>
-                <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">
+                <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
                   {editUser ? "New Password (leave blank to keep current)" : "Password *"}
                 </label>
                 <input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
                   placeholder={editUser ? "Leave blank to keep current" : "Enter password"} className={inputCls} style={inputStyle} />
-                {errors.password && <div className="text-red-400 text-[10px] mt-1">{errors.password}</div>}
+                {errors.password && <div className="text-red-600 text-[10px] mt-1">{errors.password}</div>}
               </div>
               <div>
-                <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Role *</label>
+                <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Role *</label>
                 <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
                   className={inputCls} style={inputStyle}>
                   {roleOptions.map((r) => (
@@ -415,7 +415,7 @@ export default function UserManagementPage({ canDo }) {
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Status</label>
+                <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Status</label>
                 <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
                   className={inputCls} style={inputStyle}>
                   <option value="active" style={{ background: "#ffffff" }}>Active</option>
@@ -452,24 +452,24 @@ export default function UserManagementPage({ canDo }) {
           <div className="w-full max-w-sm rounded-2xl p-6 mx-4" style={{ background: "#ffffff", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(15,20,28,0.18)" }}>
             <div className="flex items-center justify-between mb-5">
               <h3 className="font-bold text-sm" style={{ color: "#0f141c" }}>Reset Password</h3>
-              <button onClick={() => !resetSubmitting && setShowResetModal(false)} className="text-slate-400 hover:text-slate-900 transition-colors text-lg leading-none">✕</button>
+              <button onClick={() => !resetSubmitting && setShowResetModal(false)} className="text-slate-600 hover:text-slate-900 transition-colors text-lg leading-none">✕</button>
             </div>
             <form onSubmit={(ev) => { ev.preventDefault(); ev.stopPropagation(); if (!resetSubmitting) handleResetPassword(); }} className="space-y-3.5">
               <div>
-                <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">New Password</label>
+                <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">New Password</label>
                 <input type="password" autoFocus value={resetPw.pw}
                   onChange={(e) => setResetPw((r) => ({ ...r, pw: e.target.value }))}
                   disabled={resetSubmitting}
                   placeholder="Enter new password" className={inputCls} style={inputStyle} />
               </div>
               <div>
-                <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Confirm Password</label>
+                <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Confirm Password</label>
                 <input type="password" value={resetPw.confirm}
                   onChange={(e) => setResetPw((r) => ({ ...r, confirm: e.target.value }))}
                   disabled={resetSubmitting}
                   placeholder="Repeat password" className={inputCls} style={inputStyle} />
                 {resetPw.confirm && resetPw.pw !== resetPw.confirm && (
-                  <div className="text-red-400 text-[10px] mt-1">Passwords do not match</div>
+                  <div className="text-red-600 text-[10px] mt-1">Passwords do not match</div>
                 )}
               </div>
               <div className="flex gap-2.5 pt-2">
@@ -517,8 +517,8 @@ export default function UserManagementPage({ canDo }) {
           <div className="w-full max-w-sm rounded-2xl p-6 mx-4" style={{ background: "#ffffff", border: "1px solid rgba(239,68,68,0.25)", boxShadow: "0 32px 80px rgba(15,20,28,0.18)" }}>
             <div className="text-center">
               <div className="text-3xl mb-3">⚠️</div>
-              <h3 className="font-bold text-white text-sm mb-2">Delete User?</h3>
-              <p className="text-xs text-slate-400">Delete <span className="text-white font-mono font-semibold">{deleteConfirm.username}</span>? This cannot be undone.</p>
+              <h3 className="font-bold text-sm mb-2" style={{ color: "var(--text-strong)" }}>Delete User?</h3>
+              <p className="text-xs text-slate-600">Delete <span className="font-mono font-semibold" style={{ color: "var(--text-strong)" }}>{deleteConfirm.username}</span>? This cannot be undone.</p>
             </div>
             <div className="flex gap-2.5 mt-6">
               <button

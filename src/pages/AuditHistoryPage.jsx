@@ -240,10 +240,10 @@ export default function AuditHistoryPage() {
       {/* Header */}
       <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid rgba(26,31,46,0.06)" }}>
         <div>
-          <div className="text-base font-bold text-white">Audit Trail</div>
+          <div className="text-base font-bold" style={{ color: "var(--text-strong)" }}>Audit Trail</div>
           <div className="text-xs text-slate-500 mt-0.5">
             {sorted.length.toLocaleString("en-IN")} of {logs.length.toLocaleString("en-IN")} entries
-            {sorted.length !== logs.length && <span className="text-amber-400 ml-1">· filtered</span>}
+            {sorted.length !== logs.length && <span className="text-amber-700 ml-1">· filtered</span>}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -253,7 +253,7 @@ export default function AuditHistoryPage() {
             📥 CSV
           </button>
           <button onClick={() => exportExcel(sorted)}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-all"
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 hover:text-emerald-900 transition-all"
             style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)" }}>
             📊 Excel
           </button>
@@ -266,39 +266,41 @@ export default function AuditHistoryPage() {
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs">🔍</span>
           <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }}
             placeholder="Search action, ref, user, item…"
-            className="bg-white/[0.04] border border-white/[0.08] rounded-lg pl-7 pr-3 py-1.5 text-xs text-slate-300 placeholder-slate-600 outline-none focus:border-blue-500/40 w-56" />
+            className="bg-white border border-slate-200 rounded-lg pl-7 pr-3 py-1.5 text-xs placeholder-slate-400 outline-none focus:border-blue-500/40 w-56"
+            style={{ color: "var(--text-strong)" }} />
         </div>
 
         <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0); }}
-          className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40" title="From date" />
+          className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500/40" title="From date" />
         <span className="text-slate-600 text-xs">→</span>
         <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0); }}
-          className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40" title="To date" />
+          className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500/40" title="To date" />
 
         <select value={userFilter} onChange={(e) => { setUserFilter(e.target.value); setPage(0); }}
-          className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40">
+          className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500/40">
           <option value="">All Users</option>
           {allUsers.map((u) => <option key={u} value={u}>{u}</option>)}
         </select>
 
         <select value={moduleFilter} onChange={(e) => { setModuleFilter(e.target.value); setPage(0); }}
-          className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40">
+          className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500/40">
           <option value="">All Modules</option>
           {allModules.map((m) => <option key={m} value={m}>{MODULE_LABELS[m] || m}</option>)}
         </select>
 
         <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(0); }}
-          className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40">
+          className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500/40">
           <option value="">All Action Types</option>
           {allTypes.map((t) => <option key={t} value={t}>{TYPE_META[t]?.label || t}</option>)}
         </select>
 
         <input value={poFilter} onChange={(e) => { setPoFilter(e.target.value); setPage(0); }}
           placeholder="PO # / Ref"
-          className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-slate-400 placeholder-slate-600 outline-none focus:border-blue-500/40 w-28" />
+          className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs placeholder-slate-400 outline-none focus:border-blue-500/40 w-28"
+          style={{ color: "var(--text-strong)" }} />
 
         <select value={vendorFilter} onChange={(e) => { setVendorFilter(e.target.value); setPage(0); }}
-          className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40">
+          className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500/40">
           <option value="">All Vendors</option>
           {allVendors.map((v) => <option key={v} value={v}>{v}</option>)}
         </select>
@@ -320,9 +322,9 @@ export default function AuditHistoryPage() {
               <Th col="user"   w={140}>User</Th>
               <Th col="module" w={120}>Module</Th>
               <Th col="type"   w={140}>Action Type</Th>
-              <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wide">Description</th>
+              <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-600 uppercase tracking-wide">Description</th>
               <Th col="ref"    w={110}>Reference</Th>
-              <th className="px-3 py-2.5 text-center text-[10px] font-bold text-slate-400 uppercase tracking-wide" style={{ width: 60 }}></th>
+              <th className="px-3 py-2.5 text-center text-[10px] font-bold text-slate-600 uppercase tracking-wide" style={{ width: 60 }}></th>
             </tr>
           </thead>
           <tbody>
@@ -337,12 +339,12 @@ export default function AuditHistoryPage() {
                   <tr style={{ borderBottom: "1px solid rgba(26,31,46,0.05)" }}
                       onMouseEnter={(e) => e.currentTarget.style.background = "rgba(26,31,46,0.04)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = ""}>
-                    <td className="px-3 py-2.5 text-slate-400 font-mono text-[10.5px]">{fmtTs(r.ts)}</td>
+                    <td className="px-3 py-2.5 text-slate-600 font-mono text-[10.5px]">{fmtTs(r.ts)}</td>
                     <td className="px-3 py-2.5">
-                      <div className="text-white font-semibold text-[11px]">{r.user || "System"}</div>
+                      <div className="font-semibold text-[11px]" style={{ color: "var(--text-strong)" }}>{r.user || "System"}</div>
                       {r.role && <div className="text-slate-600 text-[9px]">{r.role}</div>}
                     </td>
-                    <td className="px-3 py-2.5 text-slate-400">{MODULE_LABELS[r.module] || r.module}</td>
+                    <td className="px-3 py-2.5 text-slate-600">{MODULE_LABELS[r.module] || r.module}</td>
                     <td className="px-3 py-2.5">
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold"
                             style={{ background: meta.color + "20", color: meta.color }}>
@@ -354,7 +356,7 @@ export default function AuditHistoryPage() {
                     <td className="px-3 py-2.5 text-center">
                       {(r.oldValue || r.newValue || r.details) && (
                         <button onClick={() => setExpanded(isExpanded ? null : r.id)}
-                          className="text-slate-400 hover:text-slate-900 transition-colors text-[11px]">
+                          className="text-slate-600 hover:text-slate-900 transition-colors text-[11px]">
                           {isExpanded ? "▲" : "▼"}
                         </button>
                       )}
@@ -393,7 +395,7 @@ export default function AuditHistoryPage() {
                               {r.vendor   && <span><span className="text-slate-500">Vendor:</span> <span className="text-slate-700">{r.vendor}</span></span>}
                               {r.serialNo && <span><span className="text-slate-500">S/N:</span> <span className="text-slate-700 font-mono">{r.serialNo}</span></span>}
                               {r.qty      ? <span><span className="text-slate-500">Qty:</span> <span className="text-slate-700">{r.qty}</span></span> : null}
-                              {r.amount   ? <span><span className="text-slate-600">Amount:</span> <span className="text-green-400 font-mono">₹{r.amount.toLocaleString("en-IN")}</span></span> : null}
+                              {r.amount   ? <span><span className="text-slate-600">Amount:</span> <span className="text-green-700 font-mono">₹{r.amount.toLocaleString("en-IN")}</span></span> : null}
                             </div>
                           )}
                         </div>
@@ -412,7 +414,7 @@ export default function AuditHistoryPage() {
         <div className="flex items-center gap-3 text-[11px] text-slate-500">
           <span>Rows per page:</span>
           <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}
-            className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 py-1 text-xs text-slate-300 outline-none">
+            className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 outline-none">
             {[10, 25, 50, 100, 250].map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
           <span>·</span>
@@ -425,7 +427,7 @@ export default function AuditHistoryPage() {
           <button onClick={() => setPage(Math.max(0, safePage - 1))} disabled={safePage === 0}
             className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             style={{ background: "rgba(26,31,46,0.05)" }}>◀</button>
-          <span className="px-3 py-1 text-xs text-slate-400">Page {safePage + 1} / {totalPages}</span>
+          <span className="px-3 py-1 text-xs text-slate-600">Page {safePage + 1} / {totalPages}</span>
           <button onClick={() => setPage(Math.min(totalPages - 1, safePage + 1))} disabled={safePage >= totalPages - 1}
             className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             style={{ background: "rgba(26,31,46,0.05)" }}>▶</button>
