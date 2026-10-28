@@ -32,17 +32,39 @@
   --surface-glass-strong: rgba(255, 255, 255, 0.97);
   --surface-input:      #ffffff;
 
-  /* ── Text (WCAG-AA on #ffffff / #f8f9fb) ─────────────────────────────────── */
-  --text:               #374151;
-  --text-strong:        #111827;
-  --text-muted:         #4b5563;
-  --text-dim:           #6b7280;
-  --text-faint:         #9ca3af;
-  --text-disabled:      #d1d5db;
+  /* ── Text ────────────────────────────────────────────────────────────────
+     A five-step ladder, each step measured rather than guessed. Ratios below
+     are against --surface-card (#ffffff) and --surface-page (#f8f9fb); the
+     third number is the worst tinted card surface actually rendered anywhere
+     in the app (rgb(247,231,233), relative luminance 0.828), which costs every
+     value a fixed 0.836x. Even the faintest step clears AA body text there.
 
-  /* ── Borders ────────────────────────────────────────────────────────────── */
-  --border-subtle:      rgba(17, 24, 39, 0.09);
-  --border-rim:         rgba(17, 24, 39, 0.14);
+       token            hex       #fff    #f8f9fb   worst tint   role
+       --text-strong    #111827   17.74    16.84      14.83      headings, KPI values
+       --text           #1f2937   14.68    13.93      12.27      body copy
+       --text-muted     #374151   10.31     9.78       8.62      secondary body, table headers
+       --text-dim       #45505f    8.18     7.77       6.84      labels, meta
+       --text-faint     #55606f    6.39     6.06       5.34      de-emphasised meta
+       --text-disabled  #9ca3af    2.54      —          —        disabled controls only (exempt)
+
+     The steps stay visibly apart (6.4 / 8.2 / 10.3 / 14.7 / 17.7) so this is a
+     legibility lift, not a flattening into one grey. --text-placeholder is
+     deliberately lighter than --text-dim: a placeholder that reads as dark as
+     a real value makes an empty field look filled. ─────────────────────────── */
+  --text:               #1f2937;
+  --text-strong:        #111827;
+  --text-muted:         #374151;
+  --text-dim:           #45505f;
+  --text-faint:         #55606f;
+  --text-disabled:      #9ca3af;
+  --text-placeholder:   #6b7280;   /* 4.83:1 — readable, clearly not a value */
+
+  /* ── Borders ──────────────────────────────────────────────────────────────
+     Nudged up a little. At 0.09 a card edge on #f8f9fb was close to invisible,
+     so cards read as floating text rather than as objects; the fix for that is
+     a border you can see, not a grey fill behind everything. */
+  --border-subtle:      rgba(17, 24, 39, 0.12);
+  --border-rim:         rgba(17, 24, 39, 0.17);
   --border-rim-strong:  rgba(17, 24, 39, 0.22);
   --border-brand:       rgba(215, 25, 32, 0.32);
   --border-brand-strong: rgba(215, 25, 32, 0.55);
@@ -61,20 +83,34 @@
   --ease-swift:  cubic-bezier(0.22, 1, 0.36, 1);
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* ── Status ──────────────────────────────────────────────────────────────── */
-  --status-critical-color:  #dc2626;
+  /* ── Status ──────────────────────────────────────────────────────────────
+     The -color values are what status TEXT is painted in, and they were set at
+     the 500/600 tier, which is a fill colour, not a text colour. Measured on
+     white they ran 3.19-5.70:1, and status text is almost always sitting on the
+     matching pale tint (-bg), which costs another ~15% — "Pending Machines" in
+     amber on amber measured 2.84:1. Each -color drops one step darker so the
+     text clears AA on its own tint. The -bg and -border values are untouched:
+     they are fills, they carry no text, and moving them would mute the status
+     colour-coding the floor reads at a glance.
+
+       critical  #dc2626 -> #b91c1c   4.83 -> 6.47
+       warning   #d97706 -> #b45309   3.19 -> 5.02   (amber, kept clear of brand red)
+       safe      #16a34a -> #15803d   3.30 -> 5.02
+       info      #2563eb -> #1d4ed8   5.17 -> 6.70
+       purple    #7c3aed -> #6d28d9   5.70 -> 7.10                            */
+  --status-critical-color:  #b91c1c;
   --status-critical-bg:     rgba(220, 38, 38, 0.07);
   --status-critical-border: rgba(220, 38, 38, 0.18);
-  --status-warning-color:   #d97706;
+  --status-warning-color:   #b45309;
   --status-warning-bg:      rgba(217, 119, 6, 0.07);
   --status-warning-border:  rgba(217, 119, 6, 0.18);
-  --status-safe-color:      #16a34a;
+  --status-safe-color:      #15803d;
   --status-safe-bg:         rgba(22, 163, 74, 0.07);
   --status-safe-border:     rgba(22, 163, 74, 0.18);
-  --status-info-color:      #2563eb;
+  --status-info-color:      #1d4ed8;
   --status-info-bg:         rgba(37, 99, 235, 0.07);
   --status-info-border:     rgba(37, 99, 235, 0.18);
-  --status-purple-color:    #7c3aed;
+  --status-purple-color:    #6d28d9;
   --status-purple-bg:       rgba(124, 58, 237, 0.07);
   --status-purple-border:   rgba(124, 58, 237, 0.18);
 
@@ -96,9 +132,12 @@
   --nav-rim:           rgba(17, 24, 39, 0.08);
   --nav-active-bg:     rgba(215, 25, 32, 0.08);
   --nav-active-border: rgba(215, 25, 32, 0.30);
-  --nav-text:          #475569;
-  --nav-text-active:   #d71920;
-  --nav-text-muted:    #94a3b8;
+  --nav-text:          #3f4854;   /*  9.27:1 — resting nav label */
+  --nav-text-active:   #d71920;   /*  5.19:1 — brand red, active item only */
+  /* The sidebar section captions (OVERVIEW / TRANSACTIONS / OPERATIONS ...)
+     were #94a3b8 = 2.56:1. They are the map of the whole app and they were the
+     faintest text in it. */
+  --nav-text-muted:    #5a6472;   /*  6.00:1 */
 
   /* ── Typography scale ────────────────────────────────────────────────────── */
   --type-label:   11px;   /* labels, badges, meta */
@@ -142,16 +181,24 @@ html, body, #root {
 }
 ::-webkit-scrollbar-corner { background: transparent; }
 
-/* ── Keyboard focus ──────────────────────────────────────────────────────────── */
+/* ── Keyboard focus ────────────────────────────────────────────────────────────
+   A focus ring has to survive two hostile backgrounds: the white card and the
+   brand-red button it might be sitting on. A single red ring disappears into the
+   second. Pairing the red outline with a white outer ring (drawn as a box-shadow
+   so it does not affect layout) keeps it visible on both, and reads as a
+   deliberate halo rather than a browser default. Opacity goes to 1 — at 0.75 on
+   white the ring was a pink suggestion. */
 :focus { outline: none; }
 *:focus-visible {
-  outline: 2px solid rgba(var(--brand-rgb), 0.75);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
   border-radius: 6px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
 }
 button:focus-visible, [role="button"]:focus-visible, a:focus-visible {
-  outline: 2px solid rgba(var(--brand-rgb), 0.75);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
 }
 input:focus-visible, textarea:focus-visible, select:focus-visible {
   outline: none;
@@ -172,7 +219,7 @@ select {
   border-color: rgba(17, 24, 39, 0.18) !important;
 }
 input::placeholder, textarea::placeholder {
-  color: #9ca3af !important;
+  color: var(--text-placeholder) !important;
 }
 input[type="date"]::-webkit-calendar-picker-indicator {
   filter: none;
@@ -252,7 +299,7 @@ button:active:not(:disabled) { transform: scale(0.975); }
   border-color: rgba(var(--brand-rgb), 0.45);
   box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.10);
 }
-.erp-input::placeholder { color: var(--text-faint); }
+.erp-input::placeholder { color: var(--text-placeholder); }
 textarea.erp-input {
   height: auto;
   padding: 10px 12px;
@@ -284,14 +331,57 @@ aside {
    added later, so the pattern stays available without a global rule. ─────────── */
 .dark-panel .text-white { color: rgba(255, 255, 255, 0.92); }
 
-/* ── Pale Tailwind text classes → darker readable tones on white canvas ──────── */
-body .text-slate-300, body .text-gray-300 { color: var(--text-dim); }
-body .text-slate-400, body .text-gray-400 { color: var(--text-muted); }
+/* ── Pale Tailwind text classes → darker readable tones on white canvas ────────
+   Tailwind's grey ramp is built for a white-on-dark interface. On this near-white
+   canvas the 300-500 steps are decoration, not text: slate-500 alone is used ~550
+   times, mostly for the labels and meta lines that carry the actual information.
+
+   Two things changed here. The values moved down a step, because the previous
+   mapping still left the commonest class at 7.56:1 while the owner was reading it
+   on a tablet under factory lighting and calling the result washed out. And 400
+   and 500 no longer resolve to the SAME token — they did, which silently welded
+   two distinct tiers into one and removed the designer's ability to say "this line
+   matters less than that one".
+
+   Measured on #ffffff / #f8f9fb / worst tinted card (x0.836):
+
+     class         was                 now                       ratio (white)
+     slate-300     --text-dim  4.83    --text-faint   #55606f     4.83 -> 6.39
+     slate-400     --text-muted 7.56   --text-dim     #45505f     7.56 -> 8.18
+     slate-500     --text-muted 7.56   --text-muted   #374151     7.56 -> 10.31
+     slate-600     --text      10.31   --text         #1f2937    10.31 -> 14.68
+     slate-700     --text      10.31   --text         #1f2937    10.31 -> 14.68
+     slate-800/900 --text-strong       --text-strong  #111827           17.74
+
+   Every tier clears AA (4.5:1) on all three surfaces, and the ladder still reads
+   as a ladder: 6.4 / 8.2 / 10.3 / 14.7 / 17.7.
+
+   Scope: these are `body .text-*` (0,1,1), so they beat Tailwind's own (0,1,0)
+   but lose to anything more specific and to inline styles — which is why the
+   remaining faint text in this app is inline `style={{ color }}` in the JSX and
+   cannot be reached from here. It is listed in the handover notes instead.
+   Nothing here touches text on a dark or brand fill: every element carrying one
+   of these classes was checked against its own composited background and all 175
+   of them sit on a light surface (darkest measured: rgb(247,231,233)). The
+   `.dark-panel` opt-out below stays wired up for surfaces added later. ───────── */
+body .text-slate-300, body .text-gray-300 { color: var(--text-faint); }
+body .text-slate-400, body .text-gray-400 { color: var(--text-dim); }
 body .text-slate-500, body .text-gray-500 { color: var(--text-muted); }
 body .text-slate-600, body .text-gray-600 { color: var(--text); }
 body .text-slate-700, body .text-gray-700 { color: var(--text); }
 body .text-slate-800, body .text-gray-800 { color: var(--text-strong); }
 body .text-slate-900, body .text-gray-900 { color: var(--text-strong); }
+
+/* Opacity-modifier variants (`text-slate-500/60`) are a DIFFERENT generated
+   class, so the rules above never see them — Tailwind emits
+   `.text-slate-500\/60 { color: rgb(100 116 139 / 0.6) }`. Measured in situ at
+   1.63:1. Matching on the class attribute catches the whole family at once;
+   the alpha is dropped deliberately, since a translucent label on a tinted card
+   has no predictable contrast at all. */
+body [class*="text-slate-300/"], body [class*="text-gray-300/"],
+body [class*="text-slate-400/"], body [class*="text-gray-400/"] { color: var(--text-dim) !important; }
+body [class*="text-slate-500/"], body [class*="text-gray-500/"],
+body [class*="text-slate-600/"], body [class*="text-gray-600/"] { color: var(--text-muted) !important; }
 
 /* Restore pale tones inside explicit dark panels */
 body .dark-panel .text-slate-300,
@@ -301,26 +391,73 @@ body .dark-panel .text-gray-400  { color: rgba(255,255,255,0.64); }
 body .dark-panel .text-slate-500,
 body .dark-panel .text-gray-500  { color: rgba(255,255,255,0.56); }
 
-/* Placeholders */
+/* Placeholders — a shade lighter than --text-dim on purpose, so an empty field
+   does not read as a filled one. 4.83:1, still comfortably legible. */
 body input::placeholder,
-body textarea::placeholder { color: #94a3b8 !important; }
+body textarea::placeholder { color: var(--text-placeholder) !important; }
 
-/* ── Pale chromatic Tailwind overrides — WCAG-AA on white/f8f9fb ─────────────── */
-body .text-blue-300, body .text-blue-400, body .text-indigo-300   { color: #2563eb; }
+/* ── Pale chromatic Tailwind overrides — WCAG-AA on white/f8f9fb ───────────────
+   Same argument as the greys: Tailwind's 300/400 chromatic steps are fills.
+   These were already handled; the 500 and 600 steps were NOT, and that was the
+   gap doing the visible damage. Status text is nearly always set on its own pale
+   tint, which is the worst case for a mid-tone hue. Measured in situ, before:
+
+     text-green-500  on pale green   2.06:1   "Can Issue Now"
+     text-amber-600  on pale amber   2.84:1   "Pending Machines"
+     text-red-500    on pale red     3.31:1   "Missing Items"
+     text-pink-500   on white        3.53:1   "Super Admin"
+     text-indigo-500 on pale indigo  3.85:1   "On Rack"
+     text-blue-300   on blue-500/20  3.94:1   "Pipeline"
+
+   Each hue now resolves to its 700/800 step, which clears 4.5:1 on white and on
+   its own tint while staying unmistakably green / amber / blue. Amber and orange
+   stay well clear of the brand red so a warning never reads as an error. */
+body .text-blue-300, body .text-blue-400, body .text-blue-500, body .text-blue-600,
+body .text-indigo-300, body .text-indigo-400                       { color: #1d4ed8; }
 body .text-blue-200                                                { color: #1d4ed8; }
-body .text-red-300,  body .text-red-400                           { color: #dc2626; }
+body .text-indigo-500, body .text-indigo-600                       { color: #4338ca; }
+body .text-red-300,  body .text-red-400, body .text-red-500, body .text-red-600 { color: #b91c1c; }
 body .text-red-200                                                 { color: #b91c1c; }
-body .text-green-300, body .text-green-400                        { color: #15803d; }
+body .text-green-300, body .text-green-400,
+body .text-green-500, body .text-green-600                        { color: #15803d; }
 body .text-green-200                                               { color: #15803d; }
-body .text-emerald-300, body .text-emerald-400                    { color: #047857; }
-body .text-yellow-300, body .text-yellow-400                      { color: #b45309; }
-body .text-amber-300,  body .text-amber-400                       { color: #b45309; }
-body .text-orange-300, body .text-orange-400                      { color: #c2410c; }
-body .text-purple-300, body .text-purple-400, body .text-violet-300 { color: #6d28d9; }
-body .text-teal-300,   body .text-teal-400                        { color: #0d9488; }
-body .text-cyan-300,   body .text-cyan-400                        { color: #0e7490; }
-body .text-rose-300,   body .text-rose-400                        { color: #be123c; }
-body .text-pink-300,   body .text-pink-400                        { color: #be185d; }
+body .text-emerald-300, body .text-emerald-400,
+body .text-emerald-500, body .text-emerald-600                    { color: #047857; }
+body .text-yellow-300, body .text-yellow-400, body .text-yellow-500 { color: #b45309; }
+body .text-amber-300,  body .text-amber-400,  body .text-amber-500  { color: #b45309; }
+body .text-orange-300, body .text-orange-400,
+body .text-orange-500,  body .text-orange-600                     { color: #c2410c; }
+body .text-purple-300, body .text-purple-400, body .text-violet-300,
+body .text-purple-500,  body .text-purple-600, body .text-violet-500 { color: #6d28d9; }
+body .text-teal-300,   body .text-teal-400,
+body .text-teal-500,    body .text-teal-600                       { color: #0f766e; }
+body .text-cyan-300,   body .text-cyan-400,
+body .text-cyan-500,    body .text-cyan-600                       { color: #155e75; }
+body .text-rose-300,   body .text-rose-400,
+body .text-rose-500,    body .text-rose-600                       { color: #be123c; }
+body .text-pink-300,   body .text-pink-400,
+body .text-pink-500,    body .text-pink-600                       { color: #be185d; }
+
+/* Amber is the exception in the ramp. Its 600 and 700 steps are both lighter
+   than the equivalent step in every other hue (#d97706 / #b45309), and amber is
+   used 55+ times, almost always on `bg-amber-500/10` — the worst case for a
+   warm mid-tone. Measured on that tint: amber-600 4.48:1, amber-700 4.43:1,
+   i.e. both land just under AA, which is how the warning colour ended up being
+   the hardest status to read. Both drop to #92400e: 7.09:1 on white, 5.9:1 on
+   its own tint, still unmistakably amber and still clearly not the brand red. */
+body .text-amber-600, body .text-amber-700,
+body .text-yellow-600, body .text-yellow-700 { color: #92400e; }
+
+/* Chromatic opacity-modifier variants — `text-orange-400/60` measured 1.63:1,
+   `text-red-500/60` 2.28:1. Again a separate generated class, so the rules above
+   never match it. Alpha dropped for the same reason as the greys. */
+body [class*="text-red-400/"],    body [class*="text-red-500/"]    { color: #b91c1c !important; }
+body [class*="text-green-400/"],  body [class*="text-green-500/"]  { color: #15803d !important; }
+body [class*="text-amber-400/"],  body [class*="text-amber-500/"],
+body [class*="text-yellow-400/"], body [class*="text-yellow-500/"] { color: #b45309 !important; }
+body [class*="text-orange-400/"], body [class*="text-orange-500/"] { color: #c2410c !important; }
+body [class*="text-blue-400/"],   body [class*="text-blue-500/"]   { color: #1d4ed8 !important; }
+body [class*="text-purple-400/"], body [class*="text-purple-500/"] { color: #6d28d9 !important; }
 /* Preserve pale shades inside explicit dark panels */
 body .dark-panel .text-blue-300,   body .dark-panel .text-green-300,
 body .dark-panel .text-yellow-300, body .dark-panel .text-red-300,
@@ -358,6 +495,18 @@ tbody tr { transition: background-color 0.08s ease; }
 @keyframes scaleIn {
   from { opacity: 0; transform: scale(0.96) translateY(4px); }
   to   { opacity: 1; transform: scale(1)    translateY(0);   }
+}
+/* The overlay dim and its blur arrive together rather than the blur being on
+   from the first frame, which read as a hard cut behind a fading panel. */
+@keyframes backdropIn {
+  from { opacity: 0; backdrop-filter: blur(0px);  -webkit-backdrop-filter: blur(0px);  }
+  to   { opacity: 1; backdrop-filter: blur(4px);  -webkit-backdrop-filter: blur(4px);  }
+}
+/* Drawer backdrop: same idea, lighter blur — the panel sliding over the content
+   is the main event and a heavy blur behind it competes with the motion. */
+@keyframes navBackdropIn {
+  from { opacity: 0; backdrop-filter: blur(0px);  -webkit-backdrop-filter: blur(0px);  }
+  to   { opacity: 1; backdrop-filter: blur(3px);  -webkit-backdrop-filter: blur(3px);  }
 }
 @keyframes slideDownFade {
   from { opacity: 0; transform: translateY(-6px); }
@@ -854,15 +1003,35 @@ button:not(:disabled):active {
 button { transition: transform 0.08s ease, filter 0.08s ease, background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease; }
 
 /* Where did this come from. A panel that scales up from 96% at the click point
-   reads as opening; one that appears fully formed reads as a page change. */
-.modal-backdrop { animation: fadeIn 0.16s ease both; }
+   reads as opening; one that appears fully formed reads as a page change.
+
+   The backdrop now leads the panel by a frame: the dim lands first and the panel
+   arrives into an already-darkened room, which is what makes an overlay feel
+   deliberate rather than snapped-on. Both run on --ease-swift, the decelerating
+   curve the rest of the system uses, so a modal and the drawer settle the same
+   way. The panel's blur ramps with it instead of being on from frame one, which
+   is what was reading as a hard cut. */
+.modal-backdrop {
+  animation: backdropIn 0.20s var(--ease-smooth) both;
+  will-change: opacity;
+}
 /* The panel is always the backdrop's direct child in this codebase, so one
    class on the backdrop animates both halves without touching 36 call sites. */
-.modal-backdrop > div { animation: scaleIn 0.16s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.modal-backdrop > div {
+  animation: scaleIn 0.22s var(--ease-swift) both;
+  animation-delay: 0.04s;
+  will-change: transform, opacity;
+}
 
 /* Which row am I on. Rows already have a background transition; this adds the
-   hairline lift that makes a long table feel navigable rather than printed. */
-tbody tr:hover { background-color: rgba(17, 24, 39, 0.025); }
+   hairline lift that makes a long table feel navigable rather than printed.
+   160ms out / 60ms in: the highlight follows the pointer instantly but releases
+   softly, so dragging down a long table does not strobe. */
+tbody tr { transition: background-color 0.16s var(--ease-smooth); }
+tbody tr:hover {
+  background-color: rgba(17, 24, 39, 0.030);
+  transition-duration: 0.06s;
+}
 
 /* Cards that can be opened say so by lifting a little under the pointer. No
    translate on touch devices, where there is no pointer and the transform would
@@ -893,9 +1062,17 @@ tbody tr:hover { background-color: rgba(17, 24, 39, 0.025); }
   position: fixed;
   inset: 0;
   z-index: 55;
-  background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(2px);
-  animation: fadeIn 0.18s ease both;
+  background: rgba(15, 23, 42, 0.48);
+  /* Base value, so the dim is correct even if the keyframes never run (reduced
+     motion, or a browser without animated backdrop-filter). */
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  /* Runs for the same 260ms as the panel, on the same curve, so the room dims
+     at exactly the rate the drawer arrives. Previously the dim finished in
+     180ms while the panel was still travelling, which is what made the open
+     read as two separate events. */
+  animation: navBackdropIn 0.26s var(--ease-smooth) both;
+  will-change: opacity;
 }
 @media (min-width: 768px) {
   .nav-backdrop { display: none; }
@@ -908,7 +1085,14 @@ tbody tr:hover { background-color: rgba(17, 24, 39, 0.025); }
 
 @media (max-width: 767.98px) {
   /* Off-canvas. Transform rather than width so the slide is composited on the
-     GPU and the links inside do not reflow as it moves. */
+     GPU and the links inside do not reflow as it moves.
+
+     The JSX puts Tailwind's `transition-all duration-300` on this element for
+     the desktop collapse. Left alone that animates every property for 300ms,
+     including the box-shadow and the width — expensive, and it is what the
+     "janky snap" was. Naming `transform` explicitly confines the drawer to the
+     one property that can be composited, and 260ms on --ease-swift gives it a
+     decisive arrival instead of a linear slide that stops dead. */
   .app-sidebar {
     position: fixed;
     top: 0;
@@ -917,18 +1101,204 @@ tbody tr:hover { background-color: rgba(17, 24, 39, 0.025); }
     z-index: 60;
     width: 16rem !important;        /* overrides the w-16 / w-60 Tailwind pair */
     transform: translateX(-100%);
-    transition: transform 0.22s cubic-bezier(0.22, 0.61, 0.36, 1);
-    box-shadow: 0 0 40px rgba(15, 23, 42, 0.25);
+    transition: transform 0.26s var(--ease-swift) !important;
+    will-change: transform;
+    box-shadow: 8px 0 32px rgba(15, 23, 42, 0.18), 1px 0 0 rgba(17, 24, 39, 0.06);
+    /* The drawer is its own scroll region; without this a long nav list scrolls
+       the page underneath it instead of itself. */
+    overscroll-behavior: contain;
   }
   .app-sidebar.is-open { transform: translateX(0); }
 
-  /* A phone has no room for ornament: tighten the page gutters and let wide
-     tables scroll inside their own box rather than stretching the document. */
-  .page-scroll > div { padding-left: 0.875rem; padding-right: 0.875rem; }
-  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  /* A phone has no room for ornament, but 14px gutters made every card look
+     like it was falling off the screen. 16px each side, held by the shell so
+     page bodies do not have to agree with each other. */
+  .page-scroll > div { padding-left: 1rem; padding-right: 1rem; }
 
-  /* Modals go near-full-width instead of sitting in a narrow centred column. */
+  /* Wide tables scroll inside their own box rather than stretching the document.
+     `display:block` is what makes that work, and it also means the table no
+     longer honours its own column widths — so give it a floor, or the columns
+     concertina into unreadable slivers at 390px. The shadow on the right edge
+     is the only cue that there is more table off-screen. */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    min-width: 100%;
+    width: max-content;
+    max-width: 100%;
+  }
+  .erp-table tbody td, .erp-table thead th { white-space: nowrap; }
+
+  /* Modals go near-full-width instead of sitting in a narrow centred column,
+     and are capped so a long form scrolls inside the panel rather than running
+     off the bottom of the phone with its action buttons unreachable. */
   .modal-shell { width: calc(100vw - 1.5rem) !important; max-width: none !important; }
+  .modal-backdrop { padding: 0.75rem; align-items: flex-start; }
+  .modal-backdrop > div {
+    max-height: calc(100dvh - 1.5rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin-top: 0.75rem;
+  }
+
+  /* ── The Topbar ────────────────────────────────────────────────────────────
+     This was the structural failure on a phone, and it is worth describing
+     because it is invisible to a horizontal-scroll check.
+
+     The bar is one nowrap flex row: [burger] [title+subtitle] [clock] [actions].
+     The title block is `flex-1 min-w-0` and the action cluster is
+     `flex-shrink-0`. At 390px the actions (search + Import + Add Vendor) need
+     ~340px on their own, so the only child allowed to shrink absorbed the whole
+     deficit and was computed to **width: 0** — measured, not inferred. Its text
+     then overflowed its own zero-width box and ran underneath the buttons, the
+     bar's scrollWidth went to 454 against a 390 client width, and the primary
+     action was clipped off the right edge. That is the "everything is
+     overlapping, it is not structured at all" report, and no amount of colour
+     work would have touched it.
+
+     The document never grew, because an ancestor is `overflow-y-auto` (which
+     makes overflow-x `auto` too) and simply clipped the result — which is why
+     the page passes a horizontal-scroll test while looking broken.
+
+     The fix is to let the bar wrap and give the actions their own row. There is
+     no class on the Topbar to hook, but it is the only element in the app with
+     `.nav-menu-btn` as a direct child, so `:has()` identifies it exactly. In a
+     browser without `:has()` the selector is simply dropped and the layout is
+     no worse than it is today. */
+  div:has(> .nav-menu-btn) {
+    flex-wrap: wrap;
+    row-gap: 10px;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    align-items: flex-start;
+  }
+  /* Row one: burger + title, title now free to use the space that is left. */
+  div:has(> .nav-menu-btn) > .flex-1 {
+    flex: 1 1 0%;
+    min-width: 0;
+    align-self: center;
+  }
+  /* Row two: the action cluster, full width, wrapping, left-aligned so the
+     primary button lands where a thumb already is rather than off-screen. */
+  div:has(> .nav-menu-btn) > div:last-child {
+    flex: 1 0 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    row-gap: 8px;
+  }
+  /* A search field in that cluster takes the row it is on; the buttons beside
+     it keep their intrinsic width instead of being crushed by it. */
+  div:has(> .nav-menu-btn) > div:last-child .search-field,
+  div:has(> .nav-menu-btn) > div:last-child input[type="text"],
+  div:has(> .nav-menu-btn) > div:last-child input:not([type]) {
+    flex: 1 1 100%;
+    min-width: 0;
+    width: 100%;
+  }
+  div:has(> .nav-menu-btn) > div:last-child > button { flex: 0 1 auto; }
+
+  /* The page header stacks its own content at this width; 24px of side padding
+     on a 390px screen left almost nothing for the title. */
+  .page-header { padding: 12px 16px; gap: 12px; flex-wrap: wrap; row-gap: 10px; }
+  .page-canvas { padding: 16px; }
+  .page-canvas-tight { padding: 12px 16px; }
+
+  /* One column. `metric-grid` is auto-fit at 180px, which at 390px minus
+     gutters yields two 170px columns and a KPI value that wraps mid-number. */
+  .metric-grid { grid-template-columns: 1fr; gap: 12px; }
+}
+
+/* ── KPI tiles: the caption running under its own icon ────────────────────────
+   A second genuine overlap, and the same shape of bug as the Topbar: a tile
+   places a 36px icon absolutely in its top-right corner (`absolute top-4
+   right-4 w-9 h-9`) but reserves no room for it, so the caption is laid out
+   across the tile's full content width and the icon is painted on top.
+
+   Measured on Vendors at 390px: tile 163px wide, `p-5` leaves a 121px content
+   column at x=45..166, icon occupies x=134..170 — a 32px collision. "PREFERRED"
+   and "TOTAL VENDORS" happen to be short enough to look survivable; "UNDER
+   REVIEW" runs straight under the icon. Nothing notices at desktop width
+   because the tile is twice as wide.
+
+   Reserving the icon's column on the caption is the whole fix. It is scoped to
+   the caption (`.uppercase`) rather than every child, so the value and the
+   progress bar below still use the tile's full width — they sit clear of the
+   icon vertically and do not need it. Applied up to 1180px, because the tablet
+   lays these out three- and four-up and hits the same wall. */
+@media (max-width: 1180px) {
+  .hover-lift:has(> .absolute.top-4.right-4) > .uppercase,
+  .card-hover:has(> .absolute.top-4.right-4) > .uppercase {
+    padding-right: 42px;
+  }
+}
+
+/* ── Tablet: 768-1180px ───────────────────────────────────────────────────────
+   The primary device, and until now the one width with no rules of its own —
+   it inherited the desktop layout wholesale. The sidebar is a permanent column
+   again here (the drawer rules stop at 767.98px), so the usable canvas is the
+   viewport minus 240px: at 768px that leaves 528px, narrower than the phone
+   breakpoint is designed for, while being styled as a desktop.
+
+   Everything below is about giving that canvas back. */
+@media (min-width: 768px) and (max-width: 1180px) {
+  .page-canvas { padding: 18px; }
+  .page-canvas-tight { padding: 14px 18px; }
+  .page-header { padding: 12px 18px; }
+
+  /* 180px minimum columns against a 528px canvas produce two columns and a wide
+     gutter of dead space; 150px produces three that are actually readable. */
+  .metric-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+
+  /* Same reasoning as the phone: let the table scroll in its own box rather
+     than forcing the shell wider than the viewport. */
+  .erp-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; width: max-content; min-width: 100%; max-width: 100%; }
+  .erp-table thead th, .erp-table tbody td { white-space: nowrap; }
+
+  .modal-shell { width: min(calc(100vw - 4rem), 760px) !important; max-width: none !important; }
+  .modal-backdrop > div { max-height: calc(100dvh - 4rem); overflow-y: auto; }
+}
+
+/* ── Touch ────────────────────────────────────────────────────────────────────
+   Keyed on the pointer, not the width, because the thing that matters is whether
+   a finger is doing the pointing — the floor tablet at 1180px landscape needs
+   this as much as a phone does, and a 1180px laptop must not get it.
+
+   Apple and Google both land on ~44px for a comfortable target; this app is
+   operated with work gloves on, which makes the effective fingertip larger, not
+   smaller. 44px on standalone controls, 36px inside table rows — a table row is
+   a dense list where a 44px button would push the row past a thumb's reach and
+   halve the number of visible records, and the row itself is usually the target
+   anyway. Padding is added rather than height alone so the label stays centred. */
+@media (pointer: coarse) {
+  button, [role="button"], select, a.btn, .filter-tab {
+    min-height: 44px;
+  }
+  .icon-btn { width: 44px; height: 44px; }
+  .filter-tab { padding-left: 16px; padding-right: 16px; }
+  .erp-input, .modal-input, input, select, textarea { min-height: 44px; }
+  textarea.erp-input { min-height: 72px; }
+  .search-field { height: 44px; }
+
+  /* Checkboxes at 13px are a coin-flip with a glove on. */
+  input[type="checkbox"], input[type="radio"] { width: 20px; height: 20px; }
+
+  /* Dense contexts opt back down — see the note above. */
+  .erp-table td button, .erp-table td [role="button"], table td button,
+  .erp-table td .icon-btn, table td .icon-btn { min-height: 36px; }
+  .erp-table td .icon-btn, table td .icon-btn { width: 36px; height: 36px; }
+
+  /* Rows get a little more vertical room to be tappable without changing the
+     type size, which is the constraint that matters here. */
+  .erp-table tbody td { padding-top: 14px; padding-bottom: 14px; }
+
+  /* There is no hover on a touch screen, so the only confirmation a tap landed
+     is the press state. Make it slightly more pronounced than the mouse one. */
+  button:not(:disabled):active { transform: translateY(1px) scale(0.985); }
+
+  /* A 2px focus ring read as a hairline on a glossy tablet at arm's length. */
+  *:focus-visible { outline-width: 3px; outline-offset: 3px; }
 }
 
 /* Wall display. At this size the screen is read from across a room, so scale
@@ -993,12 +1363,36 @@ tbody tr:hover { background-color: rgba(17, 24, 39, 0.025); }
   .print-block { break-inside: avoid; page-break-inside: avoid; }
 }
 
-/* ── Reduced motion ───────────────────────────────────────────────────────────── */
+/* ── Reduced motion ───────────────────────────────────────────────────────────
+   Last word in the file, deliberately. Everything added above is neutralised
+   here: the drawer and modal transitions collapse to an instant state change,
+   the backdrop keyframes land on their final frame (they are `both`-filled, so
+   the dim and blur still apply — the overlay stays legible, it just does not
+   travel), and the press/lift transforms stop moving.
+
+   `animation-delay` is zeroed too. The modal panel is deliberately delayed 40ms
+   behind its backdrop; without this line that delay survives the duration being
+   zeroed, and a reduced-motion user gets 40ms of invisible panel — a flicker,
+   which is the exact thing the setting exists to prevent. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
+    animation-delay: 0ms !important;
+    transition-delay: 0ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* The universal selector above is specificity (0,0,0). Any rule that needed
+     `!important` to beat a Tailwind utility — the drawer does, to stop
+     `transition-all duration-300` animating width and box-shadow — is at least
+     (0,1,0) and therefore outranks it, !important on both sides. That is not
+     theoretical: the drawer kept its 260ms slide under `prefers-reduced-motion:
+     reduce` until a test asserted otherwise. Any future rule in this file that
+     uses `!important` on a transition or animation needs a line here too. */
+  .app-sidebar {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
   }
 }
