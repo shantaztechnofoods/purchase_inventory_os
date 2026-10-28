@@ -419,9 +419,9 @@ function ChangePasswordModal({ user, onClose, onLocalSave, onSupabaseSaved }) {
     if (/[A-Z]/.test(newPw) && /[a-z]/.test(newPw)) s++;
     if (/[0-9]/.test(newPw)) s++;
     if (/[^A-Za-z0-9]/.test(newPw)) s++;
-    if (s <= 1) return { score: 1, label: "Weak",   color: "#ef4444" };
-    if (s <= 3) return { score: 2, label: "Medium", color: "#f59e0b" };
-    return                  { score: 3, label: "Strong", color: "#22c55e" };
+    if (s <= 1) return { score: 1, label: "Weak",   color: "#b91c1c" };
+    if (s <= 3) return { score: 2, label: "Medium", color: "#b45309" };
+    return                  { score: 3, label: "Strong", color: "#15803d" };
   })();
 
   const handleSave = async () => {
@@ -484,7 +484,7 @@ function ChangePasswordModal({ user, onClose, onLocalSave, onSupabaseSaved }) {
         {success ? (
           <div className="px-5 py-10 text-center">
             <div className="text-4xl mb-3">✅</div>
-            <div className="text-sm font-bold mb-1" style={{ color: "#16a34a" }}>Password Changed</div>
+            <div className="text-sm font-bold mb-1" style={{ color: "#15803d" }}>Password Changed</div>
             <div className="text-[10px]" style={{ color: "#64748b" }}>Your password has been updated successfully</div>
           </div>
         ) : (
