@@ -151,7 +151,7 @@ export default function VendorSearchSelect({
                     style={{ background: active ? "rgba(204,74,51,0.18)" : "transparent", borderBottom: "1px solid rgba(26,31,46,0.04)" }}>
                     {v.category && (
                       <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide flex-shrink-0"
-                            style={{ background: "rgba(26,31,46,0.06)", color: "#94a3b8" }}>{v.category}</span>
+                            style={{ background: "rgba(26,31,46,0.06)", color: "#6b7280" }}>{v.category}</span>
                     )}
                     <span className="text-[11px] text-white truncate flex-1">{highlight(v.name, effectiveQuery)}</span>
                     {v.phone && <span className="text-[9.5px] text-slate-500 font-mono flex-shrink-0 ml-2">{highlight(v.phone, effectiveQuery)}</span>}

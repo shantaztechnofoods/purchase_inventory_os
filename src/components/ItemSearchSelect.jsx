@@ -210,7 +210,7 @@ export default function ItemSearchSelect({
                   >
                     {showCategory && it.category && (
                       <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide flex-shrink-0"
-                            style={{ background: "rgba(26,31,46,0.06)", color: "#94a3b8" }}>
+                            style={{ background: "rgba(26,31,46,0.06)", color: "#6b7280" }}>
                         {it.category}
                       </span>
                     )}

@@ -66,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-28-premium-ui-v2";
+const APP_BUILD = "2026-10-28-premium-ui-v3";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -530,7 +530,7 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
               <button onClick={onSearchOpen}
                 className="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] transition-all"
                 style={{ background: "#f8f9fb", border: "1px solid var(--border-rim)", color: "#64748b" }}>
-                <span className="text-xs">🔍</span><span className="flex-1" style={{ color: "#94a3b8" }}>Search</span>
+                <span className="text-xs">🔍</span><span className="flex-1" style={{ color: "#6b7280" }}>Search</span>
                 <kbd className="text-[9px] px-1 rounded" style={{ background: "#ffffff", color: "#64748b", border: "1px solid var(--border-rim)" }}>⌘K</kbd>
               </button>
               <button onClick={onNotifsOpen}
@@ -576,7 +576,7 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
             <div key={item.id}>
               {item.section && !collapsed && (
                 <div className="px-2 pt-5 pb-1 text-[9px] font-bold tracking-[0.12em] uppercase"
-                     style={{ color: "#94a3b8" }}>{item.section}</div>
+                     style={{ color: "#6b7280" }}>{item.section}</div>
               )}
               <button onClick={() => setActivePage(item.id)}
                 className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-all duration-150 relative group`}
@@ -618,9 +618,9 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
         <UserProfileMenu collapsed={collapsed} />
         <button onClick={() => setCollapsed(!collapsed)}
           className="mt-1 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg transition-all text-[9px] font-bold tracking-[0.08em] uppercase"
-          style={{ color: "#94a3b8" }}
+          style={{ color: "#6b7280" }}
           onMouseEnter={(e) => { e.currentTarget.style.background = "#f1f3f6"; e.currentTarget.style.color = "#475569"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = ""; e.currentTarget.style.color = "#94a3b8"; }}>
+          onMouseLeave={(e) => { e.currentTarget.style.background = ""; e.currentTarget.style.color = "#6b7280"; }}>
           {collapsed ? "▶" : <><span>◀</span><span>Collapse</span></>}
         </button>
       </div>
@@ -1365,7 +1365,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
 
           {/* Linked Vendors */}
           {(() => {
-            const roleColor = (r) => r === "Preferred" ? "#fbbf24" : r === "Approved" ? "#34d399" : "#94a3b8";
+            const roleColor = (r) => r === "Preferred" ? "#fbbf24" : r === "Approved" ? "#34d399" : "#6b7280";
             const roleIcon  = (r) => r === "Preferred" ? "⭐" : r === "Approved" ? "✅" : "🔘";
             const links = item.vendorLinks?.length
               ? [...item.vendorLinks].sort((a, b) => {
@@ -2075,7 +2075,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
     </div>
   );
 
-  const roleColor = (r) => r === "Preferred" ? "#fbbf24" : r === "Approved" ? "#34d399" : "#94a3b8";
+  const roleColor = (r) => r === "Preferred" ? "#fbbf24" : r === "Approved" ? "#34d399" : "#6b7280";
   const roleIcon  = (r) => r === "Preferred" ? "⭐" : r === "Approved" ? "✅" : "🔘";
   const selectStyle = { background: "var(--surface-input)", color: "var(--text)" };
 
@@ -3587,7 +3587,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                 <div className="flex gap-2 overflow-x-auto pb-1.5 -mx-1 px-1">
                   {linkedVendors.map((v) => {
                     const isSelected = form.vendor === v.name;
-                    const pColor = v.linkRole === "Preferred" ? "#fbbf24" : v.linkRole === "Approved" ? "#34d399" : v.linkRole === "Backup" ? "#94a3b8" : "#64748b";
+                    const pColor = v.linkRole === "Preferred" ? "#fbbf24" : v.linkRole === "Approved" ? "#34d399" : v.linkRole === "Backup" ? "#6b7280" : "#64748b";
                     const pIcon  = v.linkRole === "Preferred" ? "⭐" : v.linkRole === "Approved" ? "✅" : v.linkRole === "Backup" ? "🔘" : "🏭";
                     return (
                       <button key={v.id} onClick={() => selectVendor(v.name, v.lastRate)}
@@ -3883,7 +3883,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                               className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-md transition-all"
                               style={{
                                 background:  li.attachDesign ? "rgba(139,92,246,0.18)" : "rgba(17,24,39,0.04)",
-                                color:       li.attachDesign ? "#c4b5fd" : "#94a3b8",
+                                color:       li.attachDesign ? "#c4b5fd" : "#6b7280",
                                 border:      `1px solid ${li.attachDesign ? "rgba(139,92,246,0.45)" : "rgba(17,24,39,0.10)"}`,
                               }}>
                               <span className="w-3 h-3 rounded-sm flex items-center justify-center"
@@ -4873,7 +4873,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                     {v.priority && (
                       <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full border"
                             style={{
-                              color: v.priority === "Preferred" ? "#fbbf24" : v.priority === "Approved" ? "#34d399" : "#94a3b8",
+                              color: v.priority === "Preferred" ? "#fbbf24" : v.priority === "Approved" ? "#34d399" : "#6b7280",
                               background: v.priority === "Preferred" ? "rgba(251,191,36,0.08)" : v.priority === "Approved" ? "rgba(52,211,153,0.08)" : "rgba(148,163,184,0.08)",
                               borderColor: v.priority === "Preferred" ? "rgba(251,191,36,0.3)" : v.priority === "Approved" ? "rgba(52,211,153,0.3)" : "rgba(148,163,184,0.25)",
                             }}>
@@ -4950,7 +4950,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
             });
 
             const recentPOs  = sortedByDate.slice(0, 8);
-            const roleColor  = (r) => r === "Preferred" ? "#fbbf24" : r === "Approved" ? "#34d399" : r === "Backup" ? "#94a3b8" : "#64748b";
+            const roleColor  = (r) => r === "Preferred" ? "#fbbf24" : r === "Approved" ? "#34d399" : r === "Backup" ? "#6b7280" : "#64748b";
 
             return (
               <div className="bg-white border border-blue-500/20 rounded-xl p-5 space-y-5 self-start sticky top-4 overflow-y-auto max-h-[calc(100vh-120px)]">
@@ -6105,7 +6105,7 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   <button onClick={() => toggleActive(m.id)}
                           className="text-[10px] font-semibold px-2 py-1 rounded-md transition-colors"
-                          style={{ color: m.active ? "#94a3b8" : "#4ade80", border: "1px solid rgba(17,24,39,0.12)", background: "rgba(17,24,39,0.03)" }}>
+                          style={{ color: m.active ? "#6b7280" : "#4ade80", border: "1px solid rgba(17,24,39,0.12)", background: "rgba(17,24,39,0.03)" }}>
                     {m.active ? "Deactivate" : "Activate"}
                   </button>
                   <button onClick={() => start(m)}
@@ -6275,7 +6275,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
               <button key={t.id} onClick={() => setTab(t.id)}
                       className="text-[12px] font-bold px-3.5 py-2.5 -mb-px transition-all whitespace-nowrap"
                       style={{
-                        color:       sel ? "#fff" : "#94a3b8",
+                        color:       sel ? "#fff" : "#6b7280",
                         background:  sel ? "rgba(232,85,61,0.10)" : "transparent",
                         borderBottom: `2px solid ${sel ? "#E8553D" : "transparent"}`,
                       }}>
@@ -6660,10 +6660,10 @@ function POSearchCenter({
   };
 
   const statusColor = (s) => ({
-    draft:    "#94a3b8", pending:  "#f59e0b", approved: "#E8553D",
+    draft:    "#6b7280", pending:  "#f59e0b", approved: "#E8553D",
     ordered:  "#8b5cf6", received: "#22c55e", overdue:  "#ef4444",
     rejected: "#ef4444", review:   "#f97316",
-  }[s] || "#94a3b8");
+  }[s] || "#6b7280");
 
   return (
     <div className="flex-1 overflow-y-auto p-5 space-y-4">
@@ -7121,7 +7121,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                         ? [...item.vendorLinks].sort((a, b) => (roleOrder[a.role] ?? 3) - (roleOrder[b.role] ?? 3))
                         : (item.vendor && item.vendor !== "—" ? [{ vendorName: item.vendor, role: "Preferred" }] : []);
                       if (!links.length) return null;
-                      const roleCol = (r) => r === "Preferred" ? "#fbbf24" : r === "Approved" ? "#34d399" : "#94a3b8";
+                      const roleCol = (r) => r === "Preferred" ? "#fbbf24" : r === "Approved" ? "#34d399" : "#6b7280";
                       return (
                         <div className="mb-1.5">
                           {links.length === 1 ? (
@@ -7818,7 +7818,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               <div className="px-5 pt-4 grid grid-cols-2 gap-2">
                 {[
                   { label: "Current Stock", value: `${item.stock} ${item.unit}`, color: item.status === "critical" ? "#ef4444" : "#f97316" },
-                  { label: "Min Stock",     value: `${item.min} ${item.unit}`,   color: "#94a3b8" },
+                  { label: "Min Stock",     value: `${item.min} ${item.unit}`,   color: "#6b7280" },
                   { label: "Shortage",      value: `${shortage} ${item.unit}`,   color: "#f97316" },
                   { label: "Recommended",   value: `${recommendedQty} ${item.unit}`, color: "#E8553D" },
                 ].map(s => (
@@ -8965,7 +8965,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                   </div>
                   {criticalItemsInBom.length === 0 ? (
                     <div className="rounded-lg px-3 py-2.5 text-[11px]"
-                         style={{ background: "rgba(17,24,39,0.03)", color: "#94a3b8", border: "1px dashed rgba(17,24,39,0.10)" }}>
+                         style={{ background: "rgba(17,24,39,0.03)", color: "#6b7280", border: "1px dashed rgba(17,24,39,0.10)" }}>
                       No components in this BOM are flagged <strong>Critical</strong>. To mark one, open <strong>Inventory → Edit Item</strong> and set <em>Critical Item = Yes</em>.
                     </div>
                   ) : (
@@ -11606,7 +11606,7 @@ const TC_SHEET_CSS = [
   ".tc-signame{margin-top:1mm;min-height:4mm;font-size:10.5px}",
   ".tc-foot{position:absolute;left:13mm;right:13mm;bottom:6mm;display:flex;justify-content:space-between;gap:4mm;border-top:1px solid #d1d5db;padding-top:1.5mm;font-size:8.5px;color:#6b7280}",
   ".tc-form.tc-form input:not([type=checkbox]):not([type=radio]),.tc-form.tc-form textarea{background:#fff !important;color:#0f172a !important;border-color:#cbd5e1 !important}",
-  ".tc-form.tc-form input::placeholder,.tc-form.tc-form textarea::placeholder{color:#94a3b8 !important}",
+  ".tc-form.tc-form input::placeholder,.tc-form.tc-form textarea::placeholder{color:#6b7280 !important}",
   ".tc-form.tc-form input:focus-visible,.tc-form.tc-form textarea:focus-visible{outline:none !important;box-shadow:0 0 0 3px #e2e8f0 !important;border-color:#334155 !important}",
   ".tc-form.tc-form input[type=date]::-webkit-calendar-picker-indicator{filter:none !important;opacity:.7;cursor:pointer}",
 ].join("\n");
@@ -13036,7 +13036,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                             {machine.stage}
                           </span>
                           <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
-                                style={{ background: "rgba(17,24,39,0.04)", color: "#94a3b8", border: "1px solid var(--border-rim)" }}>
+                                style={{ background: "rgba(17,24,39,0.04)", color: "#6b7280", border: "1px solid var(--border-rim)" }}>
                             {curIdx + 1}/{MACHINE_STAGES.length} — {pct}%
                           </span>
                           {isComplete && (
@@ -13104,7 +13104,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           <button onClick={() => handleStageUpdate(machine)}
                                   disabled={!selStage}
                                   className="text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                                  style={{ background: selStage ? "linear-gradient(135deg,#E8553D,#CC4A33)" : "transparent", borderColor: selStage ? "rgba(232,85,61,0.4)" : "rgba(17,24,39,0.10)", color: selStage ? "white" : "#94a3b8" }}>
+                                  style={{ background: selStage ? "linear-gradient(135deg,#E8553D,#CC4A33)" : "transparent", borderColor: selStage ? "rgba(232,85,61,0.4)" : "rgba(17,24,39,0.10)", color: selStage ? "white" : "#6b7280" }}>
                             Update
                           </button>
                         </>
@@ -14071,7 +14071,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                       className="text-[11px] font-semibold px-2.5 py-1 rounded-full transition-all"
                                       style={{ background: sel ? "rgba(99,102,241,0.18)" : "rgba(17,24,39,0.03)",
                                                border: `1px solid ${sel ? "rgba(99,102,241,0.5)" : "rgba(17,24,39,0.12)"}`,
-                                               color: sel ? "#a5b4fc" : "#94a3b8" }}>
+                                               color: sel ? "#a5b4fc" : "#6b7280" }}>
                                 {sel ? "✓ " : ""}{m.name}
                               </button>
                             );
@@ -14895,7 +14895,7 @@ function hrExportPDF(title, rows, cols) {
   w.document.write(`<!DOCTYPE html><html><head><title>${title}</title><style>
     *{box-sizing:border-box}body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#1e293b;margin:24px}
     h2{font-size:18px;font-weight:700;margin-bottom:4px;color:#0f172a}
-    .meta{font-size:10px;color:#94a3b8;margin-bottom:16px}
+    .meta{font-size:10px;color:#6b7280;margin-bottom:16px}
     table{border-collapse:collapse;width:100%;margin-top:8px}
     th{background:#0f172a;color:#fff;padding:9px 12px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.04em}
     td{padding:7px 12px;border-bottom:1px solid #e2e8f0;font-size:11px;vertical-align:top}
@@ -15656,7 +15656,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                           <div className="text-[9px] text-slate-600 mb-1.5 uppercase tracking-wider">Items Purchased</div>
                           <div className="flex flex-wrap gap-1">
                             {[...v.itemNames].slice(0,6).map((n,i) => (
-                              <span key={i} className="text-[9px] px-1.5 py-0.5 rounded" style={{ background:"rgba(17,24,39,0.04)", color:"#94a3b8" }}>{n}</span>
+                              <span key={i} className="text-[9px] px-1.5 py-0.5 rounded" style={{ background:"rgba(17,24,39,0.04)", color:"#6b7280" }}>{n}</span>
                             ))}
                             {v.itemNames.size > 6 && <span className="text-[9px] text-slate-600">+{v.itemNames.size-6} more</span>}
                           </div>
@@ -16155,7 +16155,7 @@ function GlobalSearch({ items, pos, vendorList, machineLog, onClose, onNavigate 
                             </div>
                             <div className="text-[10px] text-slate-500 truncate mt-0.5">{r.sub}</div>
                           </div>
-                          <span className="text-[10px] flex-shrink-0 transition-colors" style={{ color: isActive ? "#94a3b8" : "transparent" }}>↵</span>
+                          <span className="text-[10px] flex-shrink-0 transition-colors" style={{ color: isActive ? "#6b7280" : "transparent" }}>↵</span>
                         </button>
                       );
                     })}

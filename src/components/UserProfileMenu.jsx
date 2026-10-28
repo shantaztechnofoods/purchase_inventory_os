@@ -96,7 +96,7 @@ export default function UserProfileMenu({ collapsed = false }) {
             </div>
             <span
               className="text-[9px] flex-shrink-0 transition-transform duration-200"
-              style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", color: "#94a3b8" }}
+              style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", color: "#6b7280" }}
             >
               ▲
             </span>
@@ -285,10 +285,10 @@ function MenuItem({ icon, label, desc, onClick, danger = false }) {
         <div className="text-[12px] font-semibold leading-tight" style={{ color: danger ? "#dc2626" : "#0f141c" }}>
           {label}
         </div>
-        <div className="text-[9px] mt-0.5 leading-tight truncate" style={{ color: "#94a3b8" }}>{desc}</div>
+        <div className="text-[9px] mt-0.5 leading-tight truncate" style={{ color: "#6b7280" }}>{desc}</div>
       </div>
       <span className="text-[10px] flex-shrink-0 transition-transform group-hover:translate-x-0.5"
-            style={{ color: danger ? "#dc2626" : "#94a3b8" }}>
+            style={{ color: danger ? "#dc2626" : "#6b7280" }}>
         →
       </span>
     </button>
@@ -320,7 +320,7 @@ function ProfileModal({ user, roleLabel, roleColor, onClose, onSave }) {
         <div className="p-5" style={{ background: `linear-gradient(135deg,${roleColor}12,${roleColor}04)`, borderBottom: "1px solid rgba(15,20,28,0.08)" }}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-sm" style={{ color: "#0f141c" }}>My Profile</h3>
-            <button onClick={onClose} className="text-lg leading-none transition-colors" style={{ color: "#94a3b8" }}>✕</button>
+            <button onClick={onClose} className="text-lg leading-none transition-colors" style={{ color: "#6b7280" }}>✕</button>
           </div>
           <div className="flex items-center gap-3">
             <div className="w-14 h-14 rounded-full flex items-center justify-center text-base font-black"
@@ -351,13 +351,13 @@ function ProfileModal({ user, roleLabel, roleColor, onClose, onSave }) {
             <label className="block text-[10px] font-semibold mb-1.5 uppercase tracking-wide" style={{ color: "#64748b" }}>Username</label>
             <input value={user.username} disabled className={inputCls}
                    style={{ ...inputStyle, opacity: 0.6, cursor: "not-allowed" }} />
-            <div className="text-[10px] mt-1" style={{ color: "#94a3b8" }}>Username cannot be changed</div>
+            <div className="text-[10px] mt-1" style={{ color: "#6b7280" }}>Username cannot be changed</div>
           </div>
           <div>
             <label className="block text-[10px] font-semibold mb-1.5 uppercase tracking-wide" style={{ color: "#64748b" }}>Role</label>
             <input value={roleLabel} disabled className={inputCls}
                    style={{ ...inputStyle, opacity: 0.6, cursor: "not-allowed" }} />
-            <div className="text-[10px] mt-1" style={{ color: "#94a3b8" }}>Contact admin to change role</div>
+            <div className="text-[10px] mt-1" style={{ color: "#6b7280" }}>Contact admin to change role</div>
           </div>
         </div>
 
@@ -477,7 +477,7 @@ function ChangePasswordModal({ user, onClose, onLocalSave, onSupabaseSaved }) {
                 <p className="text-[10px] mt-0.5" style={{ color: "#64748b" }}>Update your account password</p>
               </div>
             </div>
-            <button onClick={onClose} className="text-lg leading-none transition-colors" style={{ color: "#94a3b8" }}>✕</button>
+            <button onClick={onClose} className="text-lg leading-none transition-colors" style={{ color: "#6b7280" }}>✕</button>
           </div>
         </div>
 

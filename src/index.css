@@ -32,11 +32,12 @@
   --surface-glass-strong: rgba(255, 255, 255, 0.97);
   --surface-input:      #ffffff;
 
-  /* ── Text ───────────────────────────────────────────────────────────────── */
-  --text:               #4b5563;   /* body text */
+  /* ── Text (WCAG-AA on #ffffff / #f8f9fb) ─────────────────────────────────── */
+  --text:               #374151;   /* body text — darker gray-700 */
   --text-strong:        #111827;   /* headings and primary values */
-  --text-muted:         #6b7280;   /* secondary labels */
-  --text-dim:           #9ca3af;   /* timestamps, quiet data */
+  --text-muted:         #4b5563;   /* secondary labels — gray-600 (readable) */
+  --text-dim:           #6b7280;   /* timestamps, quiet data — gray-500 */
+  --text-faint:         #9ca3af;   /* truly non-essential ornament only */
   --text-disabled:      #d1d5db;
 
   /* ── Borders ────────────────────────────────────────────────────────────── */
@@ -233,6 +234,30 @@ aside {
       dark panels. (Sidebar is no longer dark.) ───────────────────────────── */
 body .text-white { color: var(--text-strong); }
 body .dark-panel .text-white { color: rgba(255, 255, 255, 0.92); }
+
+/* ── Readability overrides: Tailwind's pale text classes become darker, more
+      readable tones on our light surfaces. Keeps hierarchy but lifts contrast
+      everywhere Tailwind utilities are used. Preserves semantic colors (red,
+      amber, green, blue) because those classes aren't matched here. ──────── */
+body .text-slate-300, body .text-gray-300 { color: var(--text-dim); }
+body .text-slate-400, body .text-gray-400 { color: var(--text-muted); }
+body .text-slate-500, body .text-gray-500 { color: var(--text-muted); }
+body .text-slate-600, body .text-gray-600 { color: var(--text); }
+body .text-slate-700, body .text-gray-700 { color: var(--text); }
+body .text-slate-800, body .text-gray-800 { color: var(--text-strong); }
+body .text-slate-900, body .text-gray-900 { color: var(--text-strong); }
+
+/* But in explicit dark panels, keep the pale tones for contrast */
+body .dark-panel .text-slate-300,
+body .dark-panel .text-gray-300  { color: rgba(255,255,255,0.72); }
+body .dark-panel .text-slate-400,
+body .dark-panel .text-gray-400  { color: rgba(255,255,255,0.64); }
+body .dark-panel .text-slate-500,
+body .dark-panel .text-gray-500  { color: rgba(255,255,255,0.56); }
+
+/* Placeholders — slightly darker so inputs don't look empty */
+body input::placeholder,
+body textarea::placeholder { color: #94a3b8 !important; }
 
 /* ── Table rows ─────────────────────────────────────────────────────────── */
 tbody tr { transition: background-color 0.08s ease; }
@@ -579,6 +604,16 @@ kbd.erp-kbd {
 .transition-fast { transition: all 0.12s ease; }
 .transition-med  { transition: all 0.20s ease; }
 .transition-slow { transition: all 0.30s ease; }
+
+/* ── Reduced motion ──────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 /* ── Print ───────────────────────────────────────────────────────────────── */
 @media print {
