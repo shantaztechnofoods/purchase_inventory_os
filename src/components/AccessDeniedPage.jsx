@@ -5,14 +5,14 @@ export default function AccessDeniedPage({ onNavigateHome }) {
     <div className="flex-1 flex flex-col items-center justify-center text-center px-6"
          style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}>
       <div className="text-5xl mb-4" style={{ opacity: 0.35 }}>🔒</div>
-      <h2 className="text-base font-bold text-white mb-2">Access Denied</h2>
+      <h2 className="text-base font-bold text-slate-900 mb-2">Access Denied</h2>
       <p className="text-xs text-slate-500 max-w-xs leading-relaxed mb-6">
         You don't have permission to view this page. Contact your administrator if you believe this is an error.
       </p>
       {onNavigateHome && (
         <button onClick={onNavigateHome}
           className="px-4 py-2 rounded-xl text-xs font-semibold text-white transition-all"
-          style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 12px rgba(204,74,51,0.35)" }}>
+          style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 4px 12px rgba(176, 18, 24,0.35)" }}>
           Go to Dashboard
         </button>
       )}

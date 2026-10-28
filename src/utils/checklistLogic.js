@@ -29,6 +29,33 @@ export function toggleAnswer(answers, idx, value) {
   );
 }
 
+// Tick or untick every answer at once.
+//
+// Why this exists: a 20-item checklist was 20 taps, at every department, on
+// every machine, on a tablet. The overwhelming majority of steps pass, so the
+// cheap order is "all OK, then untick the exceptions" rather than "tick twenty
+// things". This does NOT weaken the record: validateChecklistAnswers still
+// demands a written reason for every unticked item, so the exceptions are
+// exactly as well documented as before — and now they are the only rows the
+// operator had to think about.
+//
+// Ticking clears remarks, matching toggleAnswer. Unticking preserves them, so
+// "All OK" followed by "Clear" does not destroy a reason already typed.
+export function setAllAnswers(answers, value) {
+  const checked = !!value;
+  return (answers || []).map((a) => ({
+    ...a,
+    checked,
+    remark: checked ? "" : a.remark,
+  }));
+}
+
+// How many answers are ticked. Used for the "8 / 20 ticked" counter next to
+// the All OK control.
+export function countChecked(answers) {
+  return (answers || []).filter((a) => a && a.checked).length;
+}
+
 // Update a single answer's remark text.
 export function setAnswerRemark(answers, idx, remark) {
   return (answers || []).map((a, i) => i === idx ? { ...a, remark: String(remark || "") } : a);

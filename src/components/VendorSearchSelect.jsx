@@ -9,7 +9,7 @@ function highlight(text, query) {
   return (
     <>
       {text.slice(0, idx)}
-      <mark style={{ background: "rgba(204,74,51,0.45)", color: "#1A1F2E", padding: "0 1px", borderRadius: 2 }}>
+      <mark style={{ background: "rgba(176, 18, 24,0.45)", color: "#1A1F2E", padding: "0 1px", borderRadius: 2 }}>
         {text.slice(idx, idx + query.length)}
       </mark>
       {text.slice(idx + query.length)}
@@ -117,13 +117,13 @@ export default function VendorSearchSelect({
         disabled={disabled}
         autoComplete="off"
         spellCheck={false}
-        className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 pr-8 text-xs text-white placeholder-slate-500 outline-none focus:border-blue-500/40 transition-all"
+        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 pr-8 text-xs text-slate-900 placeholder-slate-400 outline-none focus:border-blue-500/40 transition-all"
         style={{ fontFamily: "'Inter',system-ui,sans-serif", opacity: disabled ? 0.55 : 1, cursor: disabled ? "not-allowed" : "text" }}
       />
       {!open && value && !disabled && (
         <button type="button" tabIndex={-1}
           onClick={(e) => { e.stopPropagation(); onChange("", null); setQuery(""); inputRef.current?.focus(); }}
-          className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/[0.08] text-[11px] transition-all"
+          className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-900/[0.08] text-[11px] transition-all"
           title="Clear">✕</button>
       )}
       {!open && !value && !disabled && (
@@ -148,12 +148,12 @@ export default function VendorSearchSelect({
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => pick(v)}
                     className="w-full text-left px-3 py-2 transition-colors flex items-center gap-2"
-                    style={{ background: active ? "rgba(204,74,51,0.18)" : "transparent", borderBottom: "1px solid rgba(26,31,46,0.04)" }}>
+                    style={{ background: active ? "rgba(176, 18, 24,0.18)" : "transparent", borderBottom: "1px solid rgba(26,31,46,0.04)" }}>
                     {v.category && (
                       <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide flex-shrink-0"
                             style={{ background: "rgba(26,31,46,0.06)", color: "#6b7280" }}>{v.category}</span>
                     )}
-                    <span className="text-[11px] text-white truncate flex-1">{highlight(v.name, effectiveQuery)}</span>
+                    <span className="text-[11px] text-slate-900 truncate flex-1">{highlight(v.name, effectiveQuery)}</span>
                     {v.phone && <span className="text-[9.5px] text-slate-500 font-mono flex-shrink-0 ml-2">{highlight(v.phone, effectiveQuery)}</span>}
                     {v.city && <span className="text-[9px] text-slate-600 flex-shrink-0">{highlight(v.city, effectiveQuery)}</span>}
                   </button>
@@ -161,7 +161,7 @@ export default function VendorSearchSelect({
               })
             )}
             {filtered.length >= maxVisible && (
-              <div className="px-3 py-1.5 text-center text-[9px] text-slate-700 border-t border-white/[0.05]">
+              <div className="px-3 py-1.5 text-center text-[9px] text-slate-700 border-t border-slate-200">
                 Showing first {maxVisible} matches — refine search to narrow further
               </div>
             )}

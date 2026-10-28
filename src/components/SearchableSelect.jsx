@@ -176,9 +176,9 @@ export default function SearchableSelect({
             onMouseEnter={() => setHi(i)}
             className="w-full text-left px-3 py-2 text-[11px] flex items-center gap-2 transition-colors"
             style={{
-              background: isHi ? "rgba(232,85,61,0.18)" : "transparent",
+              background: isHi ? "rgba(215, 25, 32,0.18)" : "transparent",
               color:      isSel ? "#bfdbfe" : "#e5e7eb",
-              borderLeft: `2px solid ${isHi ? "#E8553D" : "transparent"}`,
+              borderLeft: `2px solid ${isHi ? "#D71920" : "transparent"}`,
             }}>
             <span className="flex-1 truncate">{o.label}</span>
             {isSel && <span className="text-[9px] font-black text-blue-300">✓</span>}
@@ -204,7 +204,7 @@ export default function SearchableSelect({
         aria-expanded={open}
         autoComplete="off"
         spellCheck={false}
-        className={`w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input ${inputClassName}`}
+        className={`w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 placeholder-slate-400 outline-none modal-input ${inputClassName}`}
       />
       {open && (
         <div
@@ -215,7 +215,7 @@ export default function SearchableSelect({
             top: "100%",
             maxHeight: 280,
             background: "linear-gradient(180deg,#FFFFFF,#090c14)",
-            border: "1px solid rgba(232,85,61,0.45)",
+            border: "1px solid rgba(215, 25, 32,0.45)",
             boxShadow: "0 20px 50px rgba(0,0,0,0.85)",
           }}>
           {renderList()}

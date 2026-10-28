@@ -442,7 +442,7 @@ export function AuthProvider({ children }) {
   }, [setUsers, SUPA]);
 
   const roleLabel = currentUser ? getRoleLabel(currentUser, roles) : "";
-  const roleColor = currentUser ? getRoleColor(currentUser, roles) : "#CC4A33";
+  const roleColor = currentUser ? getRoleColor(currentUser, roles) : "#B01218";
   const roleIcon  = currentUser ? getRoleIcon(currentUser, roles)  : "👤";
 
   return (

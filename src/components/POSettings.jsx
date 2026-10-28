@@ -108,8 +108,8 @@ export default function POSettings({ value, onChange, onPersist, isSuperAdmin = 
   // ── access gate ──────────────────────────────────────────────────────────
   if (!isSuperAdmin) {
     return (
-      <div className="px-3.5 py-3 rounded-xl" style={{ background: "rgba(249,115,22,0.06)", border: "1px solid rgba(249,115,22,0.18)" }}>
-        <div className="text-[12px] font-bold text-orange-700">🔒 Restricted</div>
+      <div className="px-3.5 py-3 rounded-xl" style={{ background: "rgba(217, 119, 6,0.06)", border: "1px solid rgba(217, 119, 6,0.18)" }}>
+        <div className="text-[12px] font-bold text-amber-700">🔒 Restricted</div>
         <div className="text-[11px] text-slate-500 mt-1">Only a Super Admin can edit company profiles and Purchase Order templates.</div>
       </div>
     );
@@ -211,14 +211,14 @@ export default function POSettings({ value, onChange, onPersist, isSuperAdmin = 
               <button key={c.id} onClick={() => setEditId(c.id)}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all"
                       style={{
-                        background: sel ? "rgba(232,85,61,0.10)" : "rgba(26,31,46,0.04)",
-                        border:     `1px solid ${sel ? "rgba(232,85,61,0.40)" : "rgba(26,31,46,0.07)"}`,
+                        background: sel ? "rgba(215, 25, 32,0.10)" : "rgba(26,31,46,0.04)",
+                        border:     `1px solid ${sel ? "rgba(215, 25, 32,0.40)" : "rgba(26,31,46,0.07)"}`,
                       }}>
                 {c.logo
                   ? <img src={c.logo} alt="" className="w-9 h-9 rounded object-contain bg-white/5 flex-shrink-0" />
                   : <div className="w-9 h-9 rounded flex items-center justify-center bg-white/5 flex-shrink-0 text-base">🏭</div>}
                 <div className="min-w-0 flex-1">
-                  <div className="text-[12px] font-bold text-white truncate">{c.name || "(unnamed)"}</div>
+                  <div className="text-[12px] font-bold text-slate-900 truncate">{c.name || "(unnamed)"}</div>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     {isActv
                       ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">● ACTIVE</span>
@@ -239,7 +239,7 @@ export default function POSettings({ value, onChange, onPersist, isSuperAdmin = 
              style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.07)" }}>
           <div className="min-w-0">
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.08em]">Editing</div>
-            <div className="text-[13px] font-black text-white truncate">{active.name || "(unnamed)"}</div>
+            <div className="text-[13px] font-black text-slate-900 truncate">{active.name || "(unnamed)"}</div>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             {/* Per-company explicit Save — calls parent.handleSave(po) directly so the
@@ -248,7 +248,7 @@ export default function POSettings({ value, onChange, onPersist, isSuperAdmin = 
               <button onClick={() => onPersist(po)}
                       title="Save all companies to Supabase"
                       className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-white border border-blue-500/50 transition-all"
-                      style={{ background: "linear-gradient(135deg,#E8553D,#A33E2A)", boxShadow: "0 0 10px rgba(232,85,61,0.30)" }}>
+                      style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 10px rgba(215, 25, 32,0.30)" }}>
                 💾 Save Company
               </button>
             )}
