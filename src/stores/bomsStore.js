@@ -57,8 +57,19 @@ export async function updateBOM(key, def) {
   const c = getSupabase();
   if (!c) return { success: false, error: "no client" };
   const row = toRow(key, def); delete row.key;
-  const { error } = await c.from("bom_definitions").update(row).eq("key", key);
+  // `.select("key")` is load-bearing: without it PostgREST answers an UPDATE
+  // that matched ZERO rows with no error and no data, and this function
+  // reported success for a write that never happened. `key` is the primary
+  // key of bom_definitions (migration 002), so zero rows means either no such
+  // BOM or an RLS policy hiding it from this user. Same trap as
+  // machinesStore.updateMachine. Note the table has no `id` column.
+  const { data, error } = await c.from("bom_definitions").update(row).eq("key", key).select("key");
   if (error) { console.error("[boms:update] failed", error); return { success: false, error: error.message }; }
+  if (!Array.isArray(data) || data.length === 0) {
+    const msg = `BOM ${key} was not updated — no such row, or it is not visible to this user`;
+    console.error("[boms:update] matched no rows", { key });
+    return { success: false, error: msg, noRows: true };
+  }
   console.info("[boms:update] ok");
   return { success: true };
 }
@@ -72,8 +83,18 @@ export async function renameBOM(oldKey, newKey, newLabel) {
   }
   const c = getSupabase();
   if (!c) return { success: false, error: "no client" };
-  const { error } = await c.from("bom_definitions").update({ key: newKey, label: newLabel }).eq("key", oldKey);
+  // Zero-row check matters most here: App.jsx fires the machine / outward /
+  // pending cascades right after this resolves, so a rename that silently
+  // touched nothing would still rewrite every child row to a BOM key that
+  // does not exist. `.select("key")` returns the NEW key; only the row count
+  // is checked.
+  const { data, error } = await c.from("bom_definitions").update({ key: newKey, label: newLabel }).eq("key", oldKey).select("key");
   if (error) { console.error("[boms:rename] failed", error); return { success: false, error: error.message }; }
+  if (!Array.isArray(data) || data.length === 0) {
+    const msg = `BOM ${oldKey} was not renamed — no such row, or it is not visible to this user`;
+    console.error("[boms:rename] matched no rows", { oldKey, newKey });
+    return { success: false, error: msg, noRows: true };
+  }
   console.info("[boms:rename] ok");
   return { success: true };
 }
@@ -83,8 +104,16 @@ export async function deleteBOM(key) {
   if (!isSupabaseEnabled()) { const g = getLocal(); delete g[key]; setLocal(g); return { success: true }; }
   const c = getSupabase();
   if (!c) return { success: false, error: "no client" };
-  const { error } = await c.from("bom_definitions").delete().eq("key", key);
+  // Same zero-row trap: a DELETE matching nothing is not an error to
+  // PostgREST, so a safe-delete that hit an RLS wall would report success and
+  // the BOM would reappear on the next reload.
+  const { data, error } = await c.from("bom_definitions").delete().eq("key", key).select("key");
   if (error) { console.error("[boms:delete] failed", error); return { success: false, error: error.message }; }
+  if (!Array.isArray(data) || data.length === 0) {
+    const msg = `BOM ${key} was not deleted — no such row, or it is not visible to this user`;
+    console.error("[boms:delete] matched no rows", { key });
+    return { success: false, error: msg, noRows: true };
+  }
   console.info("[boms:delete] ok");
   return { success: true };
 }

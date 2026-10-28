@@ -77,6 +77,11 @@ export async function deleteInwardByPO(poId) {
   console.info("[inward:deleteByPO] start", { poId });
   if (!isSupabaseEnabled()) { setLocal(getLocal().filter((e) => e.fromPO !== poId)); return { success: true }; }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
+  // NO zero-row check here, deliberately. This is a PO-delete cascade keyed on
+  // from_po, not on a row id: it legitimately deletes MANY rows, and ZERO when
+  // the PO was never received against — which is the common case for a PO
+  // being deleted. Making that an error would report a failure on most PO
+  // deletions.
   const { error } = await c.from("inward_log").delete().eq("from_po", poId);
   if (error) { console.error("[inward:deleteByPO] failed", error); return { success: false, error: error.message }; }
   console.info("[inward:deleteByPO] ok");

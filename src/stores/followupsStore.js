@@ -70,8 +70,18 @@ export async function updateFollowUp(id, updates) {
   if (updates.nextFollowUp != null) row.next_follow_up = toIsoDate(updates.nextFollowUp);
   if (updates.lastFollowUp != null) row.last_follow_up = toIsoDate(updates.lastFollowUp);
   if (updates.frequency    != null) row.frequency      = Number(updates.frequency);
-  const { error } = await c.from("follow_ups").update(row).eq("id", id);
+  // `.select("id")` is load-bearing: without it PostgREST answers an UPDATE
+  // that matched ZERO rows with no error and no data, and this function
+  // reported success for a write that never happened. Zero rows means either
+  // no such id or an RLS policy hiding the row from this user — both are
+  // failures the caller must see. Same trap as machinesStore.updateMachine.
+  const { data, error } = await c.from("follow_ups").update(row).eq("id", id).select("id");
   if (error) { console.error("[followups:update] failed", error); return { success: false, error: error.message }; }
+  if (!Array.isArray(data) || data.length === 0) {
+    const msg = `follow-up ${id} was not updated — no such row, or it is not visible to this user`;
+    console.error("[followups:update] matched no rows", { id });
+    return { success: false, error: msg, noRows: true };
+  }
   console.info("[followups:update] ok");
   return { success: true };
 }
@@ -80,6 +90,10 @@ export async function deleteFollowUpsByPO(poId) {
   console.info("[followups:deleteByPO] start", { poId });
   if (!isSupabaseEnabled()) { setLocal(getLocal().filter((f) => f.poId !== poId)); return { success: true }; }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
+  // NO zero-row check here, deliberately. This is a PO-delete cascade keyed on
+  // po_id, not on a row id: it legitimately deletes MANY rows, and ZERO when
+  // the PO never had a follow-up scheduled — which is the common case. Making
+  // that an error would report a failure on most PO deletions.
   const { error } = await c.from("follow_ups").delete().eq("po_id", poId);
   if (error) { console.error("[followups:deleteByPO] failed", error); return { success: false, error: error.message }; }
   console.info("[followups:deleteByPO] ok");

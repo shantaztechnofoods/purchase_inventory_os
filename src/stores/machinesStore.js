@@ -115,6 +115,11 @@ export async function updateMachineBomKey(oldKey, newKey, newLabel) {
     return { success: true };
   }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
+  // NO zero-row check here, deliberately — unlike updateMachine below. This is
+  // a BOM-rename cascade keyed on bom_key, not on a row id: it legitimately
+  // updates MANY rows, and ZERO when the renamed BOM has no machines built
+  // against it yet. Treating that as an error would make every rename of a
+  // fresh BOM report a failure.
   const { error } = await c.from("machine_log").update({ bom_key: newKey, bom_label: newLabel }).eq("bom_key", oldKey);
   if (error) { console.error("[machines:updateBomKey] failed", error); return { success: false, error: error.message }; }
   console.info("[machines:updateBomKey] ok");

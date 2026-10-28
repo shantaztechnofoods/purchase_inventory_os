@@ -139,19 +139,34 @@ export async function updatePO(id, updates) {
   if (updates.sgst         !== undefined) row.sgst          = updates.sgst || null;
   if (updates.igst         !== undefined) row.igst          = updates.igst || null;
 
-  let { error } = await c.from("purchase_orders").update(row).eq("id", id);
+  // `.select("id")` is load-bearing: without it PostgREST answers an UPDATE
+  // that matched ZERO rows with no error and no data, and this function
+  // reported success for a write that never happened. Zero rows means either
+  // no such id or an RLS policy hiding the row from this user — both are
+  // failures the caller must see. Same trap as machinesStore.updateMachine.
+  //
+  // Every tier of the strip-and-retry below carries the .select() too: the
+  // retry is the call that actually lands on a pre-018 / pre-015 schema, so
+  // dropping it there would reintroduce the silent-success bug for exactly
+  // the operators running an unmigrated database.
+  let { data, error } = await c.from("purchase_orders").update(row).eq("id", id).select("id");
   if (error && isMissingColumnError(error)) {
     console.warn("[pos:update] migration 018 columns missing — stripping purchase_type/gst_type/po_date/cgst/sgst/igst");
     delete row.purchase_type; delete row.gst_type; delete row.po_date;
     delete row.cgst; delete row.sgst; delete row.igst;
-    ({ error } = await c.from("purchase_orders").update(row).eq("id", id));
+    ({ data, error } = await c.from("purchase_orders").update(row).eq("id", id).select("id"));
   }
   if (error && isMissingColumnError(error)) {
     console.warn("[pos:update] migration 015 columns missing — stripping company_id/template");
     delete row.company_id; delete row.template;
-    ({ error } = await c.from("purchase_orders").update(row).eq("id", id));
+    ({ data, error } = await c.from("purchase_orders").update(row).eq("id", id).select("id"));
   }
   if (error) { console.error("[pos:update] failed", error); return { success: false, error: error.message }; }
+  if (!Array.isArray(data) || data.length === 0) {
+    const msg = `PO ${id} was not updated — no such row, or it is not visible to this user`;
+    console.error("[pos:update] matched no rows", { id });
+    return { success: false, error: msg, noRows: true };
+  }
   console.info("[pos:update] ok");
   return { success: true };
 }
@@ -163,8 +178,16 @@ export async function deletePO(id) {
   console.info("[pos:delete] start", { id });
   if (!isSupabaseEnabled()) { setLocal(getLocal().filter((p) => p.id !== id)); return { success: true }; }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
-  const { error } = await c.from("purchase_orders").delete().eq("id", id);
+  // Same zero-row trap as updatePO: a DELETE matching nothing is not an error
+  // to PostgREST. The App layer cascades the follow-up and inward cleanups off
+  // this call, so a silent no-op would strip a PO's children and leave the PO.
+  const { data, error } = await c.from("purchase_orders").delete().eq("id", id).select("id");
   if (error) { console.error("[pos:delete] failed", error); return { success: false, error: error.message }; }
+  if (!Array.isArray(data) || data.length === 0) {
+    const msg = `PO ${id} was not deleted — no such row, or it is not visible to this user`;
+    console.error("[pos:delete] matched no rows", { id });
+    return { success: false, error: msg, noRows: true };
+  }
   console.info("[pos:delete] ok");
   return { success: true };
 }

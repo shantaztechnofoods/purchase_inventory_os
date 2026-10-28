@@ -121,13 +121,25 @@ export async function updateTemplate(id, patch) {
   // Fetch current version to bump
   const { data: cur } = await c.from("checklist_templates").select("version").eq("id", id).maybeSingle();
   row.version = (cur?.version || 1) + 1;
-  let { error } = await c.from("checklist_templates").update(row).eq("id", id);
+  // `.select("id")` is load-bearing: without it PostgREST answers an UPDATE
+  // that matched ZERO rows with no error and no data, and this function
+  // reported success for a write that never happened. Zero rows means either
+  // no such id or an RLS policy hiding the row from this user — both are
+  // failures the caller must see. Same trap as machinesStore.updateMachine.
+  // The 028 retry below carries the .select() too, since that retry is the
+  // call that actually lands on a pre-028 schema.
+  let { data, error } = await c.from("checklist_templates").update(row).eq("id", id).select("id");
   if (error && isMissingColumnError(error)) {
     console.warn("[checklists:update] migration 028 columns missing — retrying without bom_key/stage");
     const slim = { ...row }; delete slim.bom_key; delete slim.stage;
-    ({ error } = await c.from("checklist_templates").update(slim).eq("id", id));
+    ({ data, error } = await c.from("checklist_templates").update(slim).eq("id", id).select("id"));
   }
   if (error) { console.error("[checklists:update] failed", error); return { success: false, error: error.message }; }
+  if (!Array.isArray(data) || data.length === 0) {
+    const msg = `checklist template ${id} was not updated — no such row, or it is not visible to this user`;
+    console.error("[checklists:update] matched no rows", { id });
+    return { success: false, error: msg, noRows: true };
+  }
   return { success: true };
 }
 
@@ -137,8 +149,16 @@ export async function deleteTemplate(id) {
     return { success: true };
   }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
-  const { error } = await c.from("checklist_templates").delete().eq("id", id);
+  // Same zero-row trap as updateTemplate: a DELETE matching nothing is not an
+  // error to PostgREST, so a template the operator lacks rights to remove
+  // would vanish from the UI and reappear on the next reload.
+  const { data, error } = await c.from("checklist_templates").delete().eq("id", id).select("id");
   if (error) { console.error("[checklists:delete] failed", error); return { success: false, error: error.message }; }
+  if (!Array.isArray(data) || data.length === 0) {
+    const msg = `checklist template ${id} was not deleted — no such row, or it is not visible to this user`;
+    console.error("[checklists:delete] matched no rows", { id });
+    return { success: false, error: msg, noRows: true };
+  }
   return { success: true };
 }
 

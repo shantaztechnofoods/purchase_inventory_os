@@ -62,6 +62,10 @@ export async function updateOutwardRef(oldRef, newRef, newLabel) {
     return { success: true };
   }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
+  // NO zero-row check here, deliberately. This is a BOM-rename cascade keyed
+  // on ref, not on a row id: it legitimately updates MANY rows, and ZERO when
+  // the renamed BOM has never been issued. Treating that as an error would
+  // make every rename of a never-issued BOM report a failure.
   const { error } = await c.from("outward_log").update({ ref: newRef, label: newLabel }).eq("ref", oldRef);
   if (error) { console.error("[outward:updateRef] failed", error); return { success: false, error: error.message }; }
   console.info("[outward:updateRef] ok");
@@ -88,8 +92,20 @@ export async function deleteOutwardByIssueId(issueId) {
     return { success: true };
   }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
-  const { error } = await c.from("outward_log").delete().eq("issue_id", issueId);
+  // Zero rows IS an error here, unlike the ref cascade above. issue_id
+  // identifies one issue event, the caller only reaches this line when
+  // machine.issueId is set, and that id came from the outward row itself — so
+  // nothing matching means the row is gone from Postgres while local state
+  // still showed it, or RLS is hiding it. A silent no-op leaves the issued qty
+  // in the outward log after the stock has already been reversed, which
+  // double-counts the material in every report.
+  const { data, error } = await c.from("outward_log").delete().eq("issue_id", issueId).select("id");
   if (error) { console.error("[outward:deleteByIssueId] failed", error); return { success: false, error: error.message }; }
+  if (!Array.isArray(data) || data.length === 0) {
+    const msg = `outward entry for issue ${issueId} was not deleted — no such row, or it is not visible to this user`;
+    console.error("[outward:deleteByIssueId] matched no rows", { issueId });
+    return { success: false, error: msg, noRows: true };
+  }
   console.info("[outward:deleteByIssueId] ok");
   return { success: true };
 }
