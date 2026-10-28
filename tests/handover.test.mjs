@@ -5,7 +5,7 @@ import {
   DEPARTMENT_SEQUENCE, DEFAULT_DEPT_DURATIONS, DEFAULT_ACCEPT_TIMEOUT_MINUTES,
   readDeptWorkflowSettings, writeDeptWorkflowSettings,
   nextDepartment, computeElapsedMinutes, computeOverrun, isHoldOverdue, heldMinutes,
-  formatDuration, canAcceptHandover, canFinishTransfer, canConfigureDept,
+  formatDuration, canAcceptHandover, canFinishTransfer, canConfigureDept, workerIdsOf,
 } from "../src/utils/handoverLogic.js";
 
 // ─── nextDepartment ────────────────────────────────────────────────────────
@@ -222,4 +222,52 @@ test("canFinishTransfer / canConfigureDept guard against missing canDo", () => {
   assert.equal(canFinishTransfer(() => true), true);
   assert.equal(canConfigureDept(null), false);
   assert.equal(canConfigureDept((m, a) => m === "machines" && a === "configDept"), true);
+});
+
+// ─── workerIdsOf ───────────────────────────────────────────────────────────
+// Regression guard for the 2026-10-29 "Workers · 1" bug: the A-to-Z report and
+// the Machine Tracker card both read handover_events.worked_by, a uuid[] that
+// by definition cannot hold the "emp:" factory workers, so every man without an
+// ERP login vanished from the machine's record.
+
+test("workerIdsOf prefers the snapshot, which is the only complete list", () => {
+  const handover = {
+    workedBy: ["uuid-head"],                       // uuid[] column: logins only
+    workedBySnapshot: [
+      { id: "uuid-head", type: "auth", username: "mechanical" },
+      { id: "emp:a1", type: "emp", name: "Mahesh Solanki" },
+      { id: "emp:b2", type: "emp", name: "Dinesh Chauhan" },
+    ],
+  };
+  assert.deepEqual(workerIdsOf(handover), ["uuid-head", "emp:a1", "emp:b2"]);
+});
+
+test("workerIdsOf falls back to the column for pre-snapshot handovers", () => {
+  assert.deepEqual(workerIdsOf({ workedBy: ["uuid-a", "uuid-b"] }), ["uuid-a", "uuid-b"]);
+  assert.deepEqual(workerIdsOf({ workedBy: ["uuid-a"], workedBySnapshot: [] }), ["uuid-a"]);
+});
+
+test("workerIdsOf survives missing, malformed and empty input", () => {
+  assert.deepEqual(workerIdsOf(null), []);
+  assert.deepEqual(workerIdsOf(undefined), []);
+  assert.deepEqual(workerIdsOf({}), []);
+  assert.deepEqual(workerIdsOf({ workedBy: null, workedBySnapshot: null }), []);
+  assert.deepEqual(workerIdsOf({ workedBy: ["a", null, "b"] }), ["a", "b"]);
+  // A snapshot of bare id strings (not objects) is tolerated rather than
+  // yielding a list of undefineds that render as blank worker names.
+  assert.deepEqual(workerIdsOf({ workedBySnapshot: ["emp:x", "emp:y"] }), ["emp:x", "emp:y"]);
+});
+
+test("workerIdsOf keeps the main employee in the list, not separate from it", () => {
+  // The UI stars the main employee inside this list, so dropping them here
+  // would silently un-name the one person who signed.
+  const h = {
+    mainEmployeeId: "uuid-head",
+    workedBySnapshot: [
+      { id: "emp:a1", type: "emp", name: "Ramesh Patel" },
+      { id: "uuid-head", type: "auth", username: "assembly" },
+    ],
+  };
+  assert.ok(workerIdsOf(h).includes("uuid-head"));
+  assert.equal(workerIdsOf(h).length, 2);
 });

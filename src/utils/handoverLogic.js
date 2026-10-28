@@ -155,6 +155,25 @@ export function formatDuration(minutes) {
   return `${days}d ${remHours}h ${remMin}m`;
 }
 
+// Everyone who worked on a handover, in display order.
+//
+// Two fields hold this, and only one of them is complete. `worked_by` is a
+// Postgres uuid[], so it can only ever contain ERP logins; Finish & Transfer
+// filters the "emp:" factory workers out of it and writes the full list — logins
+// and factory workers together — to `worked_by_snapshot`. Read the column and a
+// machine built by a department head and two fitters reports one worker.
+//
+// The snapshot wins whenever it exists. The column is the fallback for handovers
+// recorded before snapshots were introduced, where it is the only record there is.
+export function workerIdsOf(handover) {
+  if (!handover) return [];
+  const snap = handover.workedBySnapshot;
+  if (Array.isArray(snap) && snap.length > 0) {
+    return snap.map((w) => (w && w.id ? w.id : w)).filter(Boolean);
+  }
+  return Array.isArray(handover.workedBy) ? handover.workedBy.filter(Boolean) : [];
+}
+
 // Does this user have the receiving-department role for the given to_department?
 // Phase A policy: anyone with canDo("machines","updateStage") can accept — the
 // existing permission is auto-mapped (design doc §5.5 / §12.2). A future phase

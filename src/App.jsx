@@ -35,7 +35,7 @@ import {
   DEPARTMENT_SEQUENCE, DEFAULT_DEPT_DURATIONS, DEFAULT_ACCEPT_TIMEOUT_MINUTES,
   readDeptWorkflowSettings, writeDeptWorkflowSettings,
   nextDepartment, computeElapsedMinutes, computeOverrun, isHoldOverdue, heldMinutes, RACK_RELEASE_HOPS,
-  formatDuration, canAcceptHandover, canFinishTransfer, canConfigureDept,
+  formatDuration, canAcceptHandover, canFinishTransfer, canConfigureDept, workerIdsOf,
 } from "./utils/handoverLogic.js";
 // Phase B
 import { fetchTemplates, createTemplate, updateTemplate, deleteTemplate, fetchResponses, createResponse } from "./stores/checklistsStore.js";
@@ -5998,29 +5998,50 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
   const DEPTS = ["Assembly", "Mechanical", "Electrical", "Trial"];
   const [editing, setEditing] = useState(null);
   const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const start = (m) => setEditing(
     m ? { ...m, departments: Array.isArray(m.departments) ? m.departments : [] }
       : { id: crypto.randomUUID(), name: "", active: true, departments: [] }
   );
 
-  const save = () => {
-    if (!editing) return;
+  // Every mutation here round-trips to the database before the editor closes.
+  // If the write fails the row stays open with the reason on it, so nobody
+  // walks away believing a worker was added when they weren't.
+  const commit = async (list) => {
+    setBusy(true);
+    try {
+      const res = await onSave?.(list);
+      if (res && res.success === false) {
+        setErr(res.error || "Could not save. Nothing was changed — please retry.");
+        return false;
+      }
+      setErr("");
+      return true;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = async () => {
+    if (!editing || busy) return;
     if (!editing.name.trim()) { setErr("Name is required."); return; }
     const list = members.some((m) => m.id === editing.id)
       ? members.map((m) => m.id === editing.id ? { ...editing } : m)
       : [...members, { ...editing }];
-    setErr("");
-    onSave?.(list);
-    setEditing(null);
+    if (await commit(list)) setEditing(null);
   };
 
-  const remove = (id) => {
+  const remove = async (id) => {
+    if (busy) return;
     if (!window.confirm("Remove this employee? They won't appear in new dropdowns. Existing records are unaffected.")) return;
-    onSave?.(members.filter((m) => m.id !== id));
+    await commit(members.filter((m) => m.id !== id));
   };
 
-  const toggleActive = (id) => onSave?.(members.map((m) => m.id === id ? { ...m, active: !m.active } : m));
+  const toggleActive = async (id) => {
+    if (busy) return;
+    await commit(members.map((m) => m.id === id ? { ...m, active: !m.active } : m));
+  };
 
   return (
     <Section icon="👥" title="Employee Members">
@@ -6031,8 +6052,15 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
         </div>
       )}
       <div className="text-[11px] text-slate-400 mb-3">
-        These display names appear alongside ERP login-accounts in the <strong className="text-white">Finish & Transfer</strong> worker picker and <strong className="text-white">Accept</strong> team picker. Use them for factory workers who don't have ERP logins.
+        These display names appear alongside ERP login-accounts in the <strong className="text-white">Finish &amp; Transfer</strong> worker picker and <strong className="text-white">Accept</strong> team picker. Use them for factory workers who don't have ERP logins.
+        <span className="block mt-1 text-slate-500">Each employee saves on its own — you don't need the Save Changes button at the top.</span>
       </div>
+      {!editing && err && (
+        <div className="text-[11px] mb-3 px-3 py-2 rounded-lg"
+             style={{ background: "rgba(239,68,68,0.08)", color: "#b91c1c", border: "1px solid rgba(239,68,68,0.3)" }}>
+          ⚠ {err}
+        </div>
+      )}
       <div className="flex items-center justify-between mb-3">
         <div className="text-[11px] text-slate-500">{members.length} employee{members.length === 1 ? "" : "s"} configured.</div>
         {canConfig && !editing && (
@@ -6085,15 +6113,20 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
                    className="accent-emerald-500 w-3.5 h-3.5" />
             <span className="text-[11px] text-slate-500">Active (appears in dropdowns)</span>
           </label>
-          {err && <div className="text-[11px] text-red-400">{err}</div>}
+          {err && (
+            <div className="text-[11px] px-3 py-2 rounded-lg"
+                 style={{ background: "rgba(239,68,68,0.08)", color: "#b91c1c", border: "1px solid rgba(239,68,68,0.3)" }}>
+              ⚠ {err}
+            </div>
+          )}
           <div className="flex gap-2">
-            <button onClick={save}
-                    className="text-[11px] font-black text-white px-4 py-1.5 rounded-lg"
+            <button onClick={save} disabled={busy}
+                    className="text-[11px] font-black text-white px-4 py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ background: "linear-gradient(135deg,#16a34a,#15803d)" }}>
-              Save
+              {busy ? "Saving…" : "Save"}
             </button>
-            <button onClick={() => { setEditing(null); setErr(""); }}
-                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100">
+            <button onClick={() => { setEditing(null); setErr(""); }} disabled={busy}
+                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 disabled:opacity-50">
               Cancel
             </button>
           </div>
@@ -6195,6 +6228,31 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
     lastSavedSnapshotRef.current = JSON.stringify(next);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
+  };
+
+  // Persist ONE settings key straight away, without waiting for the page-level
+  // "Save Changes" button.
+  //
+  // Most of this page is a form: you type a GST number, you scan the rest, you
+  // press Save. Leaving on a half-typed field should lose it. But a few panels
+  // are not forms — each row is a finished record. Adding eight factory workers
+  // and watching the list say "8 employees configured", each with an Active
+  // badge, reads as saved. It wasn't: the per-row Save only touched local state,
+  // and a reload dropped all eight (found 2026-10-29). That is data loss, not a
+  // forgotten draft, so those panels persist per row and say so.
+  const persistPatch = async (key, value) => {
+    setSaveError("");
+    const next = { ...settings, [key]: value };
+    setSettings(next);
+    const res = await onSave?.(next);
+    if (res && res.success === false) {
+      setSaveError(res.error || "Save failed. Please retry.");
+      return { success: false, error: res.error };
+    }
+    lastSavedSnapshotRef.current = JSON.stringify(next);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+    return { success: true };
   };
 
   const handleBackup = () => {
@@ -6553,7 +6611,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
           <EmployeeMembersPanel
             members={settings.employeeMembers || []}
             canConfig={canConfigureDept(canDo)}
-            onSave={(list) => upd("employeeMembers", list)}
+            onSave={(list) => persistPatch("employeeMembers", list)}
           />
         )}
 
@@ -10535,7 +10593,7 @@ function AtoZMachineReport({
   machineId,
   machineLog = [], bomDefs = {}, handovers = [], pendingHandoverItems = [],
   deptRatings = [], checklistResponses = [], outwardLog = [], items = {},
-  attachments = [], settings = {},
+  attachments = [], settings = {}, auditLog = [],
 }) {
   const machine = (machineLog || []).find((m) => String(m.id) === String(machineId)) || null;
   if (!machine) {
@@ -10631,95 +10689,120 @@ function AtoZMachineReport({
     </div>
   );
 
-  // ── Section 2: BOM components ─────────────────────────────────────────
-  const Components = () => (
-    <div className="rounded-xl p-4 mb-5"
-         style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
-      <div className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-3">📋 BOM Components ({(bom.items || []).length})</div>
-      <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(17,24,39,0.08)" }}>
-        <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500"
-             style={{ background: "rgba(17,24,39,0.03)" }}>
-          <div className="col-span-3">Code</div>
-          <div className="col-span-5">Name</div>
-          <div className="col-span-2 text-right">Qty / Unit</div>
-          <div className="col-span-2 text-right">Critical?</div>
-        </div>
-        {(bom.items || []).map(({ code, qty }) => {
-          const inv = findInv(code);
-          const isCrit = !!(inv && inv.isCritical);
-          const type = inv?.outwardInputType === "serial" ? "Serial" : "Checkbox";
-          return (
-            <div key={code} className="grid grid-cols-12 gap-2 items-center px-3 py-1.5 text-[11px] border-t border-slate-200">
-              <div className="col-span-3 font-mono text-blue-300">{code}</div>
-              <div className="col-span-5">
-                <div className="text-white font-semibold truncate">{inv?.name || code}</div>
-                <div className="text-[9px] text-slate-500">{inv?.category || "—"}</div>
-              </div>
-              <div className="col-span-2 text-right font-mono text-slate-700">{qty} <span className="text-slate-500">{inv?.unit || ""}</span></div>
-              <div className="col-span-2 text-right">
-                {isCrit ? (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                        style={{ background: "rgba(249,115,22,0.15)", color: "#fed7aa", border: "1px solid rgba(249,115,22,0.3)" }}>
-                    🔒 {type}
-                  </span>
-                ) : (
-                  <span className="text-[9px] text-slate-600">—</span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+  // ── Section 2: Critical parts fitted ──────────────────────────────────
+  // Replaces the old "BOM Components" + "Materials Issued" pair.
+  //
+  // The full BOM already lives on the BOM screen; reprinting all 40 lines here
+  // made the report long without making it more useful. What a reader actually
+  // needs from this page is the audited part of the build: which controlled
+  // parts went into THIS machine, which serial numbers, and who confirmed them.
+  // Everything else is summarised in one line so nothing looks hidden.
+  //
+  // Two sources are merged, because material reaches a machine two ways:
+  //   1. the BOM Outward at issue time        → outward_log.items[].criticalInput
+  //   2. a later hand-out from Pending Stock  → audit_log details.criticalInput
+  // Only (1) was shown before, so a part issued late read as never fitted.
+  const criticalRows = (() => {
+    const issuedFromOutward = machineOutward.flatMap((entry) =>
+      (entry.items || []).map((it) => ({
+        code: it.code, name: it.name, unit: it.unit,
+        qty: Number(it.issueQty) || 0,
+        criticalInput: it.criticalInput || null,
+        when: entry.date, via: "Issued with BOM",
+      })));
 
-  // ── Section 3: Materials issued (actual outward entries) ──────────────
-  const MaterialsIssued = () => {
-    const rows = machineOutward.flatMap((entry) => (entry.items || []).map((it) => ({ ...it, _entryDate: entry.date, _entryRef: entry.ref })));
-    return (
-      <div className="rounded-xl p-4 mb-5"
-           style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
-        <div className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-3">📤 Materials Issued ({rows.length})</div>
-        {rows.length === 0 ? (
-          <div className="text-[11px] text-slate-500 italic">No BOM Outward entries linked to this machine.</div>
-        ) : (
-          <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(17,24,39,0.08)" }}>
-            <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500"
-                 style={{ background: "rgba(17,24,39,0.03)" }}>
-              <div className="col-span-3">Code</div>
-              <div className="col-span-4">Name</div>
-              <div className="col-span-2 text-right">Issued</div>
-              <div className="col-span-3">Critical Confirmation</div>
-            </div>
-            {rows.map((it, idx) => {
-              const ci = it.criticalInput;
-              return (
-                <div key={`${it.code}-${idx}`} className="grid grid-cols-12 gap-2 items-start px-3 py-2 text-[11px] border-t border-slate-200">
-                  <div className="col-span-3 font-mono text-blue-300">{it.code}</div>
-                  <div className="col-span-4 text-white font-semibold truncate">{it.name}</div>
-                  <div className="col-span-2 text-right font-mono text-slate-700">{it.issueQty} <span className="text-slate-500">{it.unit || ""}</span></div>
-                  <div className="col-span-3 text-[10px]">
-                    {!ci ? (
-                      <span className="text-slate-600">—</span>
-                    ) : ci.type === "serial" ? (
-                      <div>
-                        <div className="font-bold text-orange-200">🔒 Serials</div>
-                        <div className="font-mono text-slate-500 break-words">{(ci.serials || []).join(", ") || "—"}</div>
-                      </div>
-                    ) : (
-                      <span className="font-bold" style={{ color: ci.confirmed ? "#15803d" : "#dc2626" }}>
-                        {ci.confirmed ? "✓ Checkbox confirmed" : "✗ Unconfirmed"}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+    const issuedFromPending = (auditLog || [])
+      .filter((a) => a.type === "pending_fulfilled"
+                  && machine.serialNo && String(a.serialNo || "") === String(machine.serialNo))
+      .map((a) => ({
+        code: a.itemCode, name: a.itemName, unit: "",
+        qty: Number(a.qty) || 0,
+        criticalInput: (a.details && a.details.criticalInput) || null,
+        when: a.date || (a.createdAt ? String(a.createdAt).slice(0, 10) : ""),
+        via: "Given later from Pending Stock",
+      }));
+
+    const all = [...issuedFromOutward, ...issuedFromPending];
+    // A part counts as critical if the Item Master says so now, or if a
+    // confirmation was actually captured for it at the time. The second test
+    // matters for history: an item later un-flagged still had its serials
+    // recorded, and that record should not quietly vanish from old reports.
+    return all.filter((r) => {
+      const inv = findInv(r.code);
+      return (inv && inv.isCritical) || !!r.criticalInput;
+    });
+  })();
+
+  const bomLineCount  = (bom.items || []).length;
+  const criticalCodes = new Set(criticalRows.map((r) => r.code));
+  const otherLines    = Math.max(0, bomLineCount - criticalCodes.size);
+
+  const CriticalParts = () => (
+    <div className="rounded-xl p-4 mb-5 print-block"
+         style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
+      <div className="flex items-baseline gap-2 flex-wrap mb-3">
+        <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+          🔒 Critical Parts Fitted ({criticalRows.length})
+        </div>
+        {otherLines > 0 && (
+          <div className="text-[10px] text-slate-500">
+            · plus {otherLines} other part{otherLines === 1 ? "" : "s"} as per BOM {machine.bomKey}
           </div>
         )}
       </div>
-    );
-  };
+
+      {criticalRows.length === 0 ? (
+        <div className="text-[11px] text-slate-500 italic">
+          No critical parts recorded for this machine.
+        </div>
+      ) : (
+        <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(17,24,39,0.08)" }}>
+          <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500"
+               style={{ background: "rgba(17,24,39,0.03)" }}>
+            <div className="col-span-3">Part</div>
+            <div className="col-span-1 text-right">Qty</div>
+            <div className="col-span-5">Serial numbers / verification</div>
+            <div className="col-span-3">When &amp; how</div>
+          </div>
+          {criticalRows.map((r, idx) => {
+            const ci = r.criticalInput;
+            const serials = ci && ci.type === "serial" ? (ci.serials || []).filter(Boolean) : [];
+            return (
+              <div key={`${r.code}-${idx}`} className="grid grid-cols-12 gap-2 items-start px-3 py-2 text-[11px] border-t border-slate-200">
+                <div className="col-span-3">
+                  <div className="text-white font-semibold truncate">{r.name || r.code}</div>
+                  <div className="text-[9px] font-mono text-blue-300">{r.code}</div>
+                </div>
+                <div className="col-span-1 text-right font-mono text-slate-700">{r.qty}</div>
+                <div className="col-span-5 text-[10px]">
+                  {serials.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {serials.map((s) => (
+                        <span key={s} className="font-mono px-1.5 py-0.5 rounded"
+                              style={{ background: "rgba(249,115,22,0.10)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.3)" }}>
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  ) : ci && ci.type === "checkbox" ? (
+                    <span className="font-bold" style={{ color: ci.confirmed ? "#15803d" : "#dc2626" }}>
+                      {ci.confirmed ? "✓ Physically verified for all units" : "✗ Not confirmed"}
+                    </span>
+                  ) : (
+                    <span className="text-slate-500 italic">No confirmation recorded</span>
+                  )}
+                </div>
+                <div className="col-span-3 text-[10px] text-slate-500">
+                  <div>{r.when || "—"}</div>
+                  <div className="text-[9px]">{r.via}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 
   // ── Section 4: Department-by-department timeline ──────────────────────
   const Timeline = () => (
@@ -10737,7 +10820,13 @@ function AtoZMachineReport({
             const bdDispatch = machineResponses.find((cr) => String(cr.handoverId) === String(h.id) && cr.stage === "before_dispatch");
             const rating     = machineRatings.find((r) => String(r.handoverId) === String(h.id));
             const relatedPending = machinePending.filter((p) => String(p.raisedInHandoverId) === String(h.id));
-            const workers = Array.isArray(h.workedBy) ? h.workedBy : [];
+            // Read the SNAPSHOT, not the column — see workerIdsOf. This section
+            // read handover_events.worked_by, a uuid[] that cannot hold factory
+            // workers, so a handover done by a department head plus two fitters
+            // printed as "Workers · 1" with only the head named: the two men who
+            // actually built the machine were missing from its record.
+            // Found 2026-10-29 while running a full trial build through the ERP.
+            const workers = workerIdsOf(h);
             return (
               <div key={h.id} className="rounded-lg p-3 print-block"
                    style={{ background: "rgba(16,185,129,0.04)", border: "1px solid rgba(16,185,129,0.25)" }}>
@@ -10939,12 +11028,34 @@ function AtoZMachineReport({
     );
   };
 
+  // ── Section 6: Machine Trial Certificate ──────────────────────────────
+  // Trial fills a long parameter sheet and two people sign it before the
+  // machine can go Ready. It was stored on the machine row and shown only in
+  // its own print window, so the one report meant to tell the whole story
+  // stopped just short of the document that proves the machine works.
+  // Reuses TrialCertificateSheet so this page and the standalone print-out can
+  // never drift apart.
+  const TrialCertificate = () => {
+    if (!machine.trialCertificate) return null;
+    return (
+      <div className="rounded-xl p-4 mb-5 print-block"
+           style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
+        <div className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-3">
+          🧾 Machine Trial Certificate
+        </div>
+        <div style={{ background: "#fff", borderRadius: 8, padding: 12, border: "1px solid rgba(17,24,39,0.08)" }}>
+          <TrialCertificateSheet machine={machine} cert={machine.trialCertificate} />
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-0">
       <Hdr />
-      <Components />
-      <MaterialsIssued />
+      <CriticalParts />
       <Timeline />
+      <TrialCertificate />
       <StageHistory />
       <AttachmentsList />
       <div className="text-[9px] text-slate-600 mt-2 text-center">
@@ -10958,6 +11069,10 @@ function ReportCenterPage({
   machineLog = [], handovers = [], pendingHandoverItems = [], deptRatings = [],
   attachments = [], checklistResponses = [], bomDefs = {}, settings = {},
   outwardLog = [], inwardLog = [], pos = [], items = {}, canDo = () => true,
+  // Material handed over later from Pending Stock never reaches outward_log —
+  // handleFulfillPending moves stock and writes an audit row, nothing else. The
+  // A-to-Z report needs those rows or a machine's critical parts come out short.
+  auditLog = [],
 }) {
   const [tab, setTab] = useState("machine");
   const [dateFrom,    setDateFrom]    = useState("");
@@ -11351,6 +11466,7 @@ function ReportCenterPage({
                 deptRatings={deptRatings}
                 checklistResponses={checklistResponses}
                 outwardLog={outwardLog}
+                auditLog={auditLog}
                 items={items}
                 attachments={attachments}
                 settings={settings}
@@ -13755,9 +13871,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                             Historical snapshot is in `workedBySnapshot` so
                             renames / deactivations don't break the display. */}
                         {(() => {
+                          // Same snapshot-over-column rule as the A-to-Z report:
+                          // worked_by is a uuid[] and drops factory workers, so a
+                          // handover done entirely by non-login workers would have
+                          // looked like no handover at all here.
                           const machineHandovers = (handovers || []).filter((h) =>
                             String(h.machineId) === String(machine.id)
-                            && Array.isArray(h.workedBy) && h.workedBy.length > 0);
+                            && workerIdsOf(h).length > 0);
                           if (!machineHandovers.length) return null;
                           const nameOf = (uid, snapshot) => {
                             if (Array.isArray(snapshot)) {
@@ -13781,7 +13901,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                       {h.mainEmployeeSignatureSvg && <span title="Main Employee signed" className="text-[9px] font-bold text-yellow-300">✍ Signed</span>}
                                     </div>
                                     <div className="text-[10px] text-slate-500 mt-0.5">
-                                      {h.workedBy.map((uid, idx) => (
+                                      {workerIdsOf(h).map((uid, idx) => (
                                         <span key={uid}>
                                           {idx > 0 && ", "}
                                           {uid === h.mainEmployeeId && <span className="text-yellow-300">⭐ </span>}
@@ -19406,6 +19526,7 @@ export default function App() {
                               checklistResponses={checklistResponses}
                               bomDefs={bomDefs} settings={settings}
                               outwardLog={outwardLog} inwardLog={inwardLog} pos={pos} items={items}
+                              auditLog={auditLog}
                               canDo={canDo} />,
     settings:  <SettingsPage settings={settings} onSave={handleSaveSettings} isSuperAdmin={currentUser?.role === "super_admin"} canDo={canDo} onRegisterSignature={handleRegisterSignature} currentUser={currentUser}
                               checklistTemplates={checklistTemplates}

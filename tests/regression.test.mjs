@@ -352,8 +352,17 @@ const USER_FACING_STRINGS = [
   "A-to-Z Machine Report",
   "One machine",
   "Department Timeline",
-  "Materials Issued",
   "Stage History",
+  // 2026-10-29 report rework. "BOM Components" and "Materials Issued" were
+  // deliberately removed: the full BOM already lives on the BOM screen, and
+  // reprinting every line made the report long without making it more useful.
+  // They are replaced by one audited section plus the trial certificate, which
+  // the report never showed at all. These assertions take their place so the
+  // sections cannot quietly disappear the way the old ones were meant not to.
+  "Critical Parts Fitted",
+  "Serial numbers / verification",
+  "Given later from Pending Stock",
+  "Machine Trial Certificate",
   // Feature 1 — Responsive modals (2026-10-27)
   "Finish & Transfer",
   // Feature 2 — Serial number protection (2026-10-27)
