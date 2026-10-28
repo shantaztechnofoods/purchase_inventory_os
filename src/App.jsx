@@ -35,14 +35,14 @@ import {
   DEPARTMENT_SEQUENCE, DEFAULT_DEPT_DURATIONS, DEFAULT_ACCEPT_TIMEOUT_MINUTES,
   readDeptWorkflowSettings, writeDeptWorkflowSettings,
   nextDepartment, computeElapsedMinutes, computeOverrun, isHoldOverdue, heldMinutes, RACK_RELEASE_HOPS,
-  formatDuration, canAcceptHandover, canFinishTransfer, canConfigureDept,
+  formatDuration, canAcceptHandover, canFinishTransfer, canConfigureDept, workerIdsOf,
 } from "./utils/handoverLogic.js";
 // Phase B
 import { fetchTemplates, createTemplate, updateTemplate, deleteTemplate, fetchResponses, createResponse } from "./stores/checklistsStore.js";
 import { fetchPendingItems, createPendingItem, resolvePendingItem } from "./stores/pendingItemsStore.js";
 import { fetchAllAttachments, fetchAttachmentsForMachine, uploadAttachment, signedUrlFor, deleteAttachment } from "./stores/attachmentsStore.js";
 import { fetchRatings, createRating, overrideRating } from "./stores/ratingsStore.js";
-import { computeDepartmentRating, formatRatingBadge, summarizeMachineRatings } from "./utils/ratingLogic.js";
+import { computeDepartmentRating, formatRatingBadge, summarizeMachineRatings, buildDepartmentScoreboard } from "./utils/ratingLogic.js";
 import { startChecklistResponse, toggleAnswer, setAnswerRemark, validateChecklistAnswers, snapshotResponse, pickTemplate, duplicateTemplateItems } from "./utils/checklistLogic.js";
 import { useRealtimeTables } from "./realtime/useRealtimeTables.js";
 import { fetchRecentMovements, MOVEMENT_META } from "./stores/stockMovementsStore.js";
@@ -66,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-29-print-fix";
+const APP_BUILD = "2026-10-29-reliability";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -5998,29 +5998,50 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
   const DEPTS = ["Assembly", "Mechanical", "Electrical", "Trial"];
   const [editing, setEditing] = useState(null);
   const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const start = (m) => setEditing(
     m ? { ...m, departments: Array.isArray(m.departments) ? m.departments : [] }
       : { id: crypto.randomUUID(), name: "", active: true, departments: [] }
   );
 
-  const save = () => {
-    if (!editing) return;
+  // Every mutation here round-trips to the database before the editor closes.
+  // If the write fails the row stays open with the reason on it, so nobody
+  // walks away believing a worker was added when they weren't.
+  const commit = async (list) => {
+    setBusy(true);
+    try {
+      const res = await onSave?.(list);
+      if (res && res.success === false) {
+        setErr(res.error || "Could not save. Nothing was changed — please retry.");
+        return false;
+      }
+      setErr("");
+      return true;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = async () => {
+    if (!editing || busy) return;
     if (!editing.name.trim()) { setErr("Name is required."); return; }
     const list = members.some((m) => m.id === editing.id)
       ? members.map((m) => m.id === editing.id ? { ...editing } : m)
       : [...members, { ...editing }];
-    setErr("");
-    onSave?.(list);
-    setEditing(null);
+    if (await commit(list)) setEditing(null);
   };
 
-  const remove = (id) => {
+  const remove = async (id) => {
+    if (busy) return;
     if (!window.confirm("Remove this employee? They won't appear in new dropdowns. Existing records are unaffected.")) return;
-    onSave?.(members.filter((m) => m.id !== id));
+    await commit(members.filter((m) => m.id !== id));
   };
 
-  const toggleActive = (id) => onSave?.(members.map((m) => m.id === id ? { ...m, active: !m.active } : m));
+  const toggleActive = async (id) => {
+    if (busy) return;
+    await commit(members.map((m) => m.id === id ? { ...m, active: !m.active } : m));
+  };
 
   return (
     <Section icon="👥" title="Employee Members">
@@ -6031,8 +6052,15 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
         </div>
       )}
       <div className="text-[11px] text-slate-400 mb-3">
-        These display names appear alongside ERP login-accounts in the <strong className="text-white">Finish & Transfer</strong> worker picker and <strong className="text-white">Accept</strong> team picker. Use them for factory workers who don't have ERP logins.
+        These display names appear alongside ERP login-accounts in the <strong className="text-white">Finish &amp; Transfer</strong> worker picker and <strong className="text-white">Accept</strong> team picker. Use them for factory workers who don't have ERP logins.
+        <span className="block mt-1 text-slate-500">Each employee saves on its own — you don't need the Save Changes button at the top.</span>
       </div>
+      {!editing && err && (
+        <div className="text-[11px] mb-3 px-3 py-2 rounded-lg"
+             style={{ background: "rgba(239,68,68,0.08)", color: "#b91c1c", border: "1px solid rgba(239,68,68,0.3)" }}>
+          ⚠ {err}
+        </div>
+      )}
       <div className="flex items-center justify-between mb-3">
         <div className="text-[11px] text-slate-500">{members.length} employee{members.length === 1 ? "" : "s"} configured.</div>
         {canConfig && !editing && (
@@ -6085,15 +6113,20 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
                    className="accent-emerald-500 w-3.5 h-3.5" />
             <span className="text-[11px] text-slate-500">Active (appears in dropdowns)</span>
           </label>
-          {err && <div className="text-[11px] text-red-400">{err}</div>}
+          {err && (
+            <div className="text-[11px] px-3 py-2 rounded-lg"
+                 style={{ background: "rgba(239,68,68,0.08)", color: "#b91c1c", border: "1px solid rgba(239,68,68,0.3)" }}>
+              ⚠ {err}
+            </div>
+          )}
           <div className="flex gap-2">
-            <button onClick={save}
-                    className="text-[11px] font-black text-white px-4 py-1.5 rounded-lg"
+            <button onClick={save} disabled={busy}
+                    className="text-[11px] font-black text-white px-4 py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ background: "linear-gradient(135deg,#16a34a,#15803d)" }}>
-              Save
+              {busy ? "Saving…" : "Save"}
             </button>
-            <button onClick={() => { setEditing(null); setErr(""); }}
-                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100">
+            <button onClick={() => { setEditing(null); setErr(""); }} disabled={busy}
+                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 disabled:opacity-50">
               Cancel
             </button>
           </div>
@@ -6195,6 +6228,31 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
     lastSavedSnapshotRef.current = JSON.stringify(next);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
+  };
+
+  // Persist ONE settings key straight away, without waiting for the page-level
+  // "Save Changes" button.
+  //
+  // Most of this page is a form: you type a GST number, you scan the rest, you
+  // press Save. Leaving on a half-typed field should lose it. But a few panels
+  // are not forms — each row is a finished record. Adding eight factory workers
+  // and watching the list say "8 employees configured", each with an Active
+  // badge, reads as saved. It wasn't: the per-row Save only touched local state,
+  // and a reload dropped all eight (found 2026-10-29). That is data loss, not a
+  // forgotten draft, so those panels persist per row and say so.
+  const persistPatch = async (key, value) => {
+    setSaveError("");
+    const next = { ...settings, [key]: value };
+    setSettings(next);
+    const res = await onSave?.(next);
+    if (res && res.success === false) {
+      setSaveError(res.error || "Save failed. Please retry.");
+      return { success: false, error: res.error };
+    }
+    lastSavedSnapshotRef.current = JSON.stringify(next);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+    return { success: true };
   };
 
   const handleBackup = () => {
@@ -6553,7 +6611,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
           <EmployeeMembersPanel
             members={settings.employeeMembers || []}
             canConfig={canConfigureDept(canDo)}
-            onSave={(list) => upd("employeeMembers", list)}
+            onSave={(list) => persistPatch("employeeMembers", list)}
           />
         )}
 
@@ -10535,7 +10593,7 @@ function AtoZMachineReport({
   machineId,
   machineLog = [], bomDefs = {}, handovers = [], pendingHandoverItems = [],
   deptRatings = [], checklistResponses = [], outwardLog = [], items = {},
-  attachments = [], settings = {},
+  attachments = [], settings = {}, auditLog = [],
 }) {
   const machine = (machineLog || []).find((m) => String(m.id) === String(machineId)) || null;
   if (!machine) {
@@ -10631,95 +10689,120 @@ function AtoZMachineReport({
     </div>
   );
 
-  // ── Section 2: BOM components ─────────────────────────────────────────
-  const Components = () => (
-    <div className="rounded-xl p-4 mb-5"
-         style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
-      <div className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-3">📋 BOM Components ({(bom.items || []).length})</div>
-      <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(17,24,39,0.08)" }}>
-        <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500"
-             style={{ background: "rgba(17,24,39,0.03)" }}>
-          <div className="col-span-3">Code</div>
-          <div className="col-span-5">Name</div>
-          <div className="col-span-2 text-right">Qty / Unit</div>
-          <div className="col-span-2 text-right">Critical?</div>
-        </div>
-        {(bom.items || []).map(({ code, qty }) => {
-          const inv = findInv(code);
-          const isCrit = !!(inv && inv.isCritical);
-          const type = inv?.outwardInputType === "serial" ? "Serial" : "Checkbox";
-          return (
-            <div key={code} className="grid grid-cols-12 gap-2 items-center px-3 py-1.5 text-[11px] border-t border-slate-200">
-              <div className="col-span-3 font-mono text-blue-300">{code}</div>
-              <div className="col-span-5">
-                <div className="text-white font-semibold truncate">{inv?.name || code}</div>
-                <div className="text-[9px] text-slate-500">{inv?.category || "—"}</div>
-              </div>
-              <div className="col-span-2 text-right font-mono text-slate-700">{qty} <span className="text-slate-500">{inv?.unit || ""}</span></div>
-              <div className="col-span-2 text-right">
-                {isCrit ? (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                        style={{ background: "rgba(249,115,22,0.15)", color: "#fed7aa", border: "1px solid rgba(249,115,22,0.3)" }}>
-                    🔒 {type}
-                  </span>
-                ) : (
-                  <span className="text-[9px] text-slate-600">—</span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+  // ── Section 2: Critical parts fitted ──────────────────────────────────
+  // Replaces the old "BOM Components" + "Materials Issued" pair.
+  //
+  // The full BOM already lives on the BOM screen; reprinting all 40 lines here
+  // made the report long without making it more useful. What a reader actually
+  // needs from this page is the audited part of the build: which controlled
+  // parts went into THIS machine, which serial numbers, and who confirmed them.
+  // Everything else is summarised in one line so nothing looks hidden.
+  //
+  // Two sources are merged, because material reaches a machine two ways:
+  //   1. the BOM Outward at issue time        → outward_log.items[].criticalInput
+  //   2. a later hand-out from Pending Stock  → audit_log details.criticalInput
+  // Only (1) was shown before, so a part issued late read as never fitted.
+  const criticalRows = (() => {
+    const issuedFromOutward = machineOutward.flatMap((entry) =>
+      (entry.items || []).map((it) => ({
+        code: it.code, name: it.name, unit: it.unit,
+        qty: Number(it.issueQty) || 0,
+        criticalInput: it.criticalInput || null,
+        when: entry.date, via: "Issued with BOM",
+      })));
 
-  // ── Section 3: Materials issued (actual outward entries) ──────────────
-  const MaterialsIssued = () => {
-    const rows = machineOutward.flatMap((entry) => (entry.items || []).map((it) => ({ ...it, _entryDate: entry.date, _entryRef: entry.ref })));
-    return (
-      <div className="rounded-xl p-4 mb-5"
-           style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
-        <div className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-3">📤 Materials Issued ({rows.length})</div>
-        {rows.length === 0 ? (
-          <div className="text-[11px] text-slate-500 italic">No BOM Outward entries linked to this machine.</div>
-        ) : (
-          <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(17,24,39,0.08)" }}>
-            <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500"
-                 style={{ background: "rgba(17,24,39,0.03)" }}>
-              <div className="col-span-3">Code</div>
-              <div className="col-span-4">Name</div>
-              <div className="col-span-2 text-right">Issued</div>
-              <div className="col-span-3">Critical Confirmation</div>
-            </div>
-            {rows.map((it, idx) => {
-              const ci = it.criticalInput;
-              return (
-                <div key={`${it.code}-${idx}`} className="grid grid-cols-12 gap-2 items-start px-3 py-2 text-[11px] border-t border-slate-200">
-                  <div className="col-span-3 font-mono text-blue-300">{it.code}</div>
-                  <div className="col-span-4 text-white font-semibold truncate">{it.name}</div>
-                  <div className="col-span-2 text-right font-mono text-slate-700">{it.issueQty} <span className="text-slate-500">{it.unit || ""}</span></div>
-                  <div className="col-span-3 text-[10px]">
-                    {!ci ? (
-                      <span className="text-slate-600">—</span>
-                    ) : ci.type === "serial" ? (
-                      <div>
-                        <div className="font-bold text-orange-200">🔒 Serials</div>
-                        <div className="font-mono text-slate-500 break-words">{(ci.serials || []).join(", ") || "—"}</div>
-                      </div>
-                    ) : (
-                      <span className="font-bold" style={{ color: ci.confirmed ? "#15803d" : "#dc2626" }}>
-                        {ci.confirmed ? "✓ Checkbox confirmed" : "✗ Unconfirmed"}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+    const issuedFromPending = (auditLog || [])
+      .filter((a) => a.type === "pending_fulfilled"
+                  && machine.serialNo && String(a.serialNo || "") === String(machine.serialNo))
+      .map((a) => ({
+        code: a.itemCode, name: a.itemName, unit: "",
+        qty: Number(a.qty) || 0,
+        criticalInput: (a.details && a.details.criticalInput) || null,
+        when: a.date || (a.createdAt ? String(a.createdAt).slice(0, 10) : ""),
+        via: "Given later from Pending Stock",
+      }));
+
+    const all = [...issuedFromOutward, ...issuedFromPending];
+    // A part counts as critical if the Item Master says so now, or if a
+    // confirmation was actually captured for it at the time. The second test
+    // matters for history: an item later un-flagged still had its serials
+    // recorded, and that record should not quietly vanish from old reports.
+    return all.filter((r) => {
+      const inv = findInv(r.code);
+      return (inv && inv.isCritical) || !!r.criticalInput;
+    });
+  })();
+
+  const bomLineCount  = (bom.items || []).length;
+  const criticalCodes = new Set(criticalRows.map((r) => r.code));
+  const otherLines    = Math.max(0, bomLineCount - criticalCodes.size);
+
+  const CriticalParts = () => (
+    <div className="rounded-xl p-4 mb-5 print-block"
+         style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
+      <div className="flex items-baseline gap-2 flex-wrap mb-3">
+        <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+          🔒 Critical Parts Fitted ({criticalRows.length})
+        </div>
+        {otherLines > 0 && (
+          <div className="text-[10px] text-slate-500">
+            · plus {otherLines} other part{otherLines === 1 ? "" : "s"} as per BOM {machine.bomKey}
           </div>
         )}
       </div>
-    );
-  };
+
+      {criticalRows.length === 0 ? (
+        <div className="text-[11px] text-slate-500 italic">
+          No critical parts recorded for this machine.
+        </div>
+      ) : (
+        <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(17,24,39,0.08)" }}>
+          <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500"
+               style={{ background: "rgba(17,24,39,0.03)" }}>
+            <div className="col-span-3">Part</div>
+            <div className="col-span-1 text-right">Qty</div>
+            <div className="col-span-5">Serial numbers / verification</div>
+            <div className="col-span-3">When &amp; how</div>
+          </div>
+          {criticalRows.map((r, idx) => {
+            const ci = r.criticalInput;
+            const serials = ci && ci.type === "serial" ? (ci.serials || []).filter(Boolean) : [];
+            return (
+              <div key={`${r.code}-${idx}`} className="grid grid-cols-12 gap-2 items-start px-3 py-2 text-[11px] border-t border-slate-200">
+                <div className="col-span-3">
+                  <div className="text-white font-semibold truncate">{r.name || r.code}</div>
+                  <div className="text-[9px] font-mono text-blue-300">{r.code}</div>
+                </div>
+                <div className="col-span-1 text-right font-mono text-slate-700">{r.qty}</div>
+                <div className="col-span-5 text-[10px]">
+                  {serials.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {serials.map((s) => (
+                        <span key={s} className="font-mono px-1.5 py-0.5 rounded"
+                              style={{ background: "rgba(249,115,22,0.10)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.3)" }}>
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  ) : ci && ci.type === "checkbox" ? (
+                    <span className="font-bold" style={{ color: ci.confirmed ? "#15803d" : "#dc2626" }}>
+                      {ci.confirmed ? "✓ Physically verified for all units" : "✗ Not confirmed"}
+                    </span>
+                  ) : (
+                    <span className="text-slate-500 italic">No confirmation recorded</span>
+                  )}
+                </div>
+                <div className="col-span-3 text-[10px] text-slate-500">
+                  <div>{r.when || "—"}</div>
+                  <div className="text-[9px]">{r.via}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 
   // ── Section 4: Department-by-department timeline ──────────────────────
   const Timeline = () => (
@@ -10737,7 +10820,13 @@ function AtoZMachineReport({
             const bdDispatch = machineResponses.find((cr) => String(cr.handoverId) === String(h.id) && cr.stage === "before_dispatch");
             const rating     = machineRatings.find((r) => String(r.handoverId) === String(h.id));
             const relatedPending = machinePending.filter((p) => String(p.raisedInHandoverId) === String(h.id));
-            const workers = Array.isArray(h.workedBy) ? h.workedBy : [];
+            // Read the SNAPSHOT, not the column — see workerIdsOf. This section
+            // read handover_events.worked_by, a uuid[] that cannot hold factory
+            // workers, so a handover done by a department head plus two fitters
+            // printed as "Workers · 1" with only the head named: the two men who
+            // actually built the machine were missing from its record.
+            // Found 2026-10-29 while running a full trial build through the ERP.
+            const workers = workerIdsOf(h);
             return (
               <div key={h.id} className="rounded-lg p-3 print-block"
                    style={{ background: "rgba(16,185,129,0.04)", border: "1px solid rgba(16,185,129,0.25)" }}>
@@ -10939,12 +11028,34 @@ function AtoZMachineReport({
     );
   };
 
+  // ── Section 6: Machine Trial Certificate ──────────────────────────────
+  // Trial fills a long parameter sheet and two people sign it before the
+  // machine can go Ready. It was stored on the machine row and shown only in
+  // its own print window, so the one report meant to tell the whole story
+  // stopped just short of the document that proves the machine works.
+  // Reuses TrialCertificateSheet so this page and the standalone print-out can
+  // never drift apart.
+  const TrialCertificate = () => {
+    if (!machine.trialCertificate) return null;
+    return (
+      <div className="rounded-xl p-4 mb-5 print-block"
+           style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
+        <div className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-3">
+          🧾 Machine Trial Certificate
+        </div>
+        <div style={{ background: "#fff", borderRadius: 8, padding: 12, border: "1px solid rgba(17,24,39,0.08)" }}>
+          <TrialCertificateSheet machine={machine} cert={machine.trialCertificate} />
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-0">
       <Hdr />
-      <Components />
-      <MaterialsIssued />
+      <CriticalParts />
       <Timeline />
+      <TrialCertificate />
       <StageHistory />
       <AttachmentsList />
       <div className="text-[9px] text-slate-600 mt-2 text-center">
@@ -10958,6 +11069,10 @@ function ReportCenterPage({
   machineLog = [], handovers = [], pendingHandoverItems = [], deptRatings = [],
   attachments = [], checklistResponses = [], bomDefs = {}, settings = {},
   outwardLog = [], inwardLog = [], pos = [], items = {}, canDo = () => true,
+  // Material handed over later from Pending Stock never reaches outward_log —
+  // handleFulfillPending moves stock and writes an audit row, nothing else. The
+  // A-to-Z report needs those rows or a machine's critical parts come out short.
+  auditLog = [],
 }) {
   const [tab, setTab] = useState("machine");
   const [dateFrom,    setDateFrom]    = useState("");
@@ -11301,6 +11416,11 @@ function ReportCenterPage({
             tables stacked in the order you would ask them. */}
         {tab === "stuck" && (
           <div className="space-y-5">
+            <DepartmentScoreboard
+              rows={buildDepartmentScoreboard(filteredHandovers, filteredRatings)}
+              openIssues={filteredPending.filter((p) => p.status === "open")}
+              waitingNow={filteredHandovers.filter((h) => h.status === "pending")}
+            />
             <ReportTable title="Took longer than allowed" rows={delayRows} />
             <ReportTable title="Accepted late — the next department left it waiting" rows={holdRows} />
             <ReportTable title="Issues raised and still open" rows={pendingRows} />
@@ -11351,6 +11471,7 @@ function ReportCenterPage({
                 deptRatings={deptRatings}
                 checklistResponses={checklistResponses}
                 outwardLog={outwardLog}
+                auditLog={auditLog}
                 items={items}
                 attachments={attachments}
                 settings={settings}
@@ -11368,6 +11489,89 @@ function ReportCenterPage({
             <ReportTable title="Customer Progress Report" rows={customerRows} />
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// The scoreboard itself. Worst department first, because the first thing on
+// the page should be the thing that needs attention.
+function DepartmentScoreboard({ rows = [], openIssues = [], waitingNow = [] }) {
+  if (!rows.length) {
+    return (
+      <div className="rounded-xl py-14 text-center" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.10)" }}>
+        <div className="text-sm font-bold text-slate-400 mb-1">Department scoreboard</div>
+        <div className="text-[11px] text-slate-600">No handovers match the current filters.</div>
+      </div>
+    );
+  }
+
+  const issuesFor  = (dept) => openIssues.filter((p) => p.raisedInDepartment === dept).length;
+  const waitingFor = (dept) => waitingNow.filter((h) => h.toDepartment === dept).length;
+  const mins = (m) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`);
+
+  // Colour the on-time figure rather than every cell — one signal, read in a
+  // glance, instead of a wall of traffic lights.
+  const onTimeColor = (pct) => (pct === null ? "#64748b" : pct >= 90 ? "#15803d" : pct >= 70 ? "#c2410c" : "#dc2626");
+
+  return (
+    <div className="rounded-xl p-4" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.10)" }}>
+      <div className="flex items-baseline gap-2 flex-wrap mb-1">
+        <div className="text-sm font-bold text-slate-700">Department scoreboard</div>
+        <div className="text-[10px] text-slate-500">worst first · within the selected dates</div>
+      </div>
+      <div className="text-[11px] text-slate-500 mb-3">
+        Each row is the work that department handed on. Time is charged to whoever owned it:
+        running over is the sender's, keeping the next department waiting is the receiver's.
+      </div>
+
+      <div className="rounded-lg overflow-x-auto" style={{ border: "1px solid rgba(17,24,39,0.08)" }}>
+        <table className="w-full min-w-[640px]">
+          <thead>
+            <tr style={{ background: "rgba(17,24,39,0.03)" }}>
+              {["Department", "Handed on", "On time", "Avg overrun", "Made others wait", "Open issues", "Stars"].map((h, i) => (
+                <th key={h} className={`px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500 ${i === 0 ? "text-left" : "text-right"}`}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const issues  = issuesFor(r.department);
+              const waiting = waitingFor(r.department);
+              return (
+                <tr key={r.department} className="border-t border-slate-200">
+                  <td className="px-3 py-2 text-[12px] font-bold" style={{ color: STAGE_COLORS[r.department] || "#334155" }}>
+                    {r.department}
+                    {waiting > 0 && (
+                      <span className="ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full align-middle"
+                            style={{ background: "rgba(249,115,22,0.12)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.3)" }}>
+                        {waiting} waiting now
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-[11px] text-right font-mono text-slate-600">{r.handovers}</td>
+                  <td className="px-3 py-2 text-[12px] text-right font-black" style={{ color: onTimeColor(r.onTimePct) }}>
+                    {r.onTimePct === null ? "—" : `${r.onTimePct}%`}
+                  </td>
+                  <td className="px-3 py-2 text-[11px] text-right font-mono text-slate-600">
+                    {r.overran ? mins(r.avgOverrun) : "—"}
+                    {r.overran > 0 && <span className="text-slate-400"> ×{r.overran}</span>}
+                  </td>
+                  <td className="px-3 py-2 text-[11px] text-right font-mono text-slate-600">
+                    {r.heldCount ? `${mins(r.avgHeld)} ×${r.heldCount}` : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-[11px] text-right font-mono"
+                      style={{ color: issues > 0 ? "#dc2626" : "#64748b" }}>
+                    {issues || "—"}
+                  </td>
+                  <td className="px-3 py-2 text-[11px] text-right font-bold text-yellow-600" style={{ letterSpacing: "0.06em" }}>
+                    {r.avgRating === null ? "—" : `${formatRatingBadge(r.avgRating)} ${r.avgRating}`}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -13755,9 +13959,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                             Historical snapshot is in `workedBySnapshot` so
                             renames / deactivations don't break the display. */}
                         {(() => {
+                          // Same snapshot-over-column rule as the A-to-Z report:
+                          // worked_by is a uuid[] and drops factory workers, so a
+                          // handover done entirely by non-login workers would have
+                          // looked like no handover at all here.
                           const machineHandovers = (handovers || []).filter((h) =>
                             String(h.machineId) === String(machine.id)
-                            && Array.isArray(h.workedBy) && h.workedBy.length > 0);
+                            && workerIdsOf(h).length > 0);
                           if (!machineHandovers.length) return null;
                           const nameOf = (uid, snapshot) => {
                             if (Array.isArray(snapshot)) {
@@ -13781,7 +13989,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                       {h.mainEmployeeSignatureSvg && <span title="Main Employee signed" className="text-[9px] font-bold text-yellow-300">✍ Signed</span>}
                                     </div>
                                     <div className="text-[10px] text-slate-500 mt-0.5">
-                                      {h.workedBy.map((uid, idx) => (
+                                      {workerIdsOf(h).map((uid, idx) => (
                                         <span key={uid}>
                                           {idx > 0 && ", "}
                                           {uid === h.mainEmployeeId && <span className="text-yellow-300">⭐ </span>}
@@ -17079,6 +17287,33 @@ export default function App() {
     if (stockErrTimer.current) clearTimeout(stockErrTimer.current);
     stockErrTimer.current = setTimeout(() => setStockError(null), 6000);
   }, []);
+
+  // ── Writes that did not reach the database ────────────────────────────────
+  //
+  // Most Supabase mirrors in this file are fire-and-forget: the local state
+  // updates, the write goes off on its own, and a failure only ever reached
+  // console.warn. The operator saw a success toast either way. Two confirmed
+  // production incidents came out of that on 2026-10-29 — a machine that moved
+  // stage on screen but not in Postgres, and stock that read as issued while it
+  // was still on the shelf. Nobody could have known; nothing was shown.
+  //
+  // This is the channel for those. Unlike flashStockError it does NOT
+  // auto-dismiss — a lost write is not a transient notice, and the operator has
+  // usually moved on by the time it resolves. It holds a list, because a BOM
+  // issue is a batch and the one-slot design would hide all but the last
+  // failure. Entries stay until dismissed by hand.
+  const [saveErrors, setSaveErrors] = useState([]);
+  const flashSaveError = useCallback((what, detail) => {
+    setSaveErrors((prev) => {
+      // Collapse an identical repeat rather than stacking it — a retry loop
+      // should not bury the screen.
+      if (prev.some((e) => e.what === what && e.detail === detail)) return prev;
+      return [...prev, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, what, detail, at: new Date() }];
+    });
+  }, []);
+  const dismissSaveError = useCallback((id) => {
+    setSaveErrors((prev) => prev.filter((e) => e.id !== id));
+  }, []);
   // In-flight PO-receive guard — blocks duplicate movement writes from rapid double-clicks
   // before the optimistic status flip to "received" has rendered.
   const receivingRef = useRef(new Set());
@@ -18363,12 +18598,30 @@ export default function App() {
   };
   const handleAddOutward = (entry, pending) => {
     setOutwardLog((prev) => [entry, ...prev]);
-    if (isSupabaseEnabled()) createOutward(entry).then((r) => { if (!r.success) console.warn("[App] Outward Supabase failed:", r.error); });
+    // The stock has already left by the time we get here, and this row is the
+    // only record of where it went. Lose it and inventory shows an unexplained
+    // drop that nothing in the ERP can account for.
+    if (isSupabaseEnabled()) createOutward(entry).then((r) => {
+      if (!r.success) {
+        console.warn("[App] Outward Supabase failed:", r.error);
+        flashSaveError("Outward record",
+          `${entry.ref}${entry.serialNo ? ` · ${entry.serialNo}` : ""}: stock was issued but the outward entry was not saved — ${r.error || "unknown error"}`);
+      }
+    });
     if (pending && pending.length > 0) {
       const issueId = entry.id;
       const rows = pending.map((p) => ({ ...p, bomKey: entry.ref, bomLabel: entry.label, date: entry.date, issueId, serialNo: entry.serialNo || "" }));
       setPendingLog((prev) => [...rows, ...prev]);
-      if (isSupabaseEnabled()) bulkCreatePending(rows).then((r) => { if (!r.success) console.warn("[App] Pending bulk-create Supabase failed:", r.error); });
+      // Losing these leaves the Pending Stock page empty after a reload, so the
+      // shortfall is never chased and the machine sits blocked with no visible
+      // reason why.
+      if (isSupabaseEnabled()) bulkCreatePending(rows).then((r) => {
+        if (!r.success) {
+          console.warn("[App] Pending bulk-create Supabase failed:", r.error);
+          flashSaveError("Pending Stock shortfall",
+            `${entry.ref}: ${rows.length} shortfall line${rows.length === 1 ? "" : "s"} were not saved — ${r.error || "unknown error"}`);
+        }
+      });
     }
     if (entry.type === "bom") {
       // Migration 026 — surface critical-item confirmations in the audit so a
@@ -18443,7 +18696,34 @@ export default function App() {
       deptDurations:       deptDurations || null,
     };
     setMachineLog((prev) => [newMachine, ...prev]);
-    if (isSupabaseEnabled()) machineCreate(newMachine).then((r) => { if (!r.success) console.warn("[App] Machine create Supabase failed:", r.error); });
+    // Adopt the id Postgres assigned.
+    //
+    // `machine_log.id` is a bigserial. The `Date.now()` above is a placeholder
+    // so the optimistic row has a React key, nothing more — the database picks
+    // its own id on insert. machineCreate has always returned that row, and we
+    // used to throw it away. Every later write addressed the machine by the
+    // placeholder: `.eq("id", 1761700000000)` is type-valid and matches nothing,
+    // and a zero-row UPDATE reports no error, so Start Production, stage
+    // changes, Accept and Finish & Transfer could all "succeed" against a row
+    // that does not exist.
+    //
+    // It looked intermittent because machine_log has a realtime subscription:
+    // if a refetch landed first, the placeholder had already been replaced by
+    // the real row and everything worked. If the operator was quick, or the
+    // channel was slow, the write vanished. Found 2026-10-29.
+    if (isSupabaseEnabled()) {
+      machineCreate(newMachine).then((r) => {
+        if (!r.success) {
+          console.warn("[App] Machine create Supabase failed:", r.error);
+          flashSaveError("Machine not saved", `${bomKey}${serialNo ? ` · ${serialNo}` : ""}: ${r.error || "unknown error"}`);
+          return;
+        }
+        const realId = r.machine && r.machine.id;
+        if (realId != null && String(realId) !== String(newMachine.id)) {
+          setMachineLog((prev) => prev.map((m) => (m.id === newMachine.id ? { ...m, id: realId } : m)));
+        }
+      });
+    }
   };
 
   const handleUpdateMachineStage = (machineId, newStage) => {
@@ -18473,7 +18753,13 @@ export default function App() {
         history: [...(machine.history || []), { stage: newStage, date: dateStr }],
         currentDepartment:   newStage,
         departmentEnteredAt: nowIso,
-      }).then((r) => { if (!r.success) console.warn("[App] Machine stage Supabase failed:", r.error); });
+      }).then((r) => {
+        if (!r.success) {
+          console.warn("[App] Machine stage Supabase failed:", r.error);
+          flashSaveError(`stage change to ${newStage}`,
+            `${machine.bomKey}${machine.serialNo ? ` · ${machine.serialNo}` : ""}: ${r.error || "unknown error"}`);
+        }
+      });
     }
   };
 
@@ -18509,8 +18795,21 @@ export default function App() {
           departmentEnteredAt: nowIso,
         })
       )).then((results) => {
+        // This is the exact call that lost a Start Production on 2026-10-29:
+        // the UI moved the machine to Assembly, Postgres kept it at BOM Issued,
+        // and the only trace was a console.warn nobody was watching — in fact
+        // not even that, because updateMachine was reporting success for an
+        // UPDATE that matched no rows. Both halves are fixed now; this half
+        // makes sure the operator is told.
         const failed = results.filter((r) => !r.success);
-        if (failed.length) console.warn("[App] handleStartProduction: Supabase machine updates failed", failed);
+        if (failed.length) {
+          console.warn("[App] handleStartProduction: Supabase machine updates failed", failed);
+          failed.forEach((r, i) => {
+            const m = targets[results.indexOf(r)] || targets[i];
+            flashSaveError("Start Production",
+              `${m?.serialNo || m?.bomKey || "machine"}: ${r.error || "unknown error"}`);
+          });
+        }
       });
     }
     const serials = targets.map((m) => m.serialNo).filter(Boolean);
@@ -18723,7 +19022,17 @@ export default function App() {
         history: [...(machine.history || []), { stage: machine.stage, date: dateStr, note: historyNote }],
       };
       if (trialCertificate) machUpd.trialCertificate = trialCertificate;
-      machineUpdate(machineId, machUpd).then((r) => { if (!r.success) console.warn("[App] handleFinishTransfer: machine update failed", r.error); });
+      machineUpdate(machineId, machUpd).then((r) => {
+        if (!r.success) {
+          console.warn("[App] handleFinishTransfer: machine update failed", r.error);
+          // The handover row itself is already committed and checked above. If
+          // this half is lost the machine does not point at it, so the receiving
+          // department never sees the machine and the sender can raise a second
+          // handover for the same unit. Worth shouting about.
+          flashSaveError("Finish & Transfer",
+            `${machine.bomKey}${machine.serialNo ? ` · ${machine.serialNo}` : ""}: the handover was recorded but the machine was not linked to it — ${r.error || "unknown error"}`);
+        }
+      });
     }
 
     // Refresh handovers list locally — realtime will catch up but immediate
@@ -18888,7 +19197,17 @@ export default function App() {
         currentDepartment:   newStage,
         departmentEnteredAt: nowIso,
         pendingHandoverId:   null,
-      }).then((r) => { if (!r.success) console.warn("[App] handleAcceptHandover: machine promote failed", r.error); });
+      }).then((r) => {
+        if (!r.success) {
+          console.warn("[App] handleAcceptHandover: machine promote failed", r.error);
+          // handover_events is already flipped to accepted and that write WAS
+          // checked. Losing this one deadlocks the machine: it sits in the old
+          // department with pending_handover_id still set, so Finish & Transfer
+          // refuses with "Handover already in progress" and nothing can move it.
+          flashSaveError(`Accept into ${newStage}`,
+            `${machine.bomKey}${machine.serialNo ? ` · ${machine.serialNo}` : ""}: the acceptance was recorded but the machine was not moved — ${r.error || "unknown error"}`);
+        }
+      });
     }
 
     // Refresh handovers list locally.
@@ -19406,6 +19725,7 @@ export default function App() {
                               checklistResponses={checklistResponses}
                               bomDefs={bomDefs} settings={settings}
                               outwardLog={outwardLog} inwardLog={inwardLog} pos={pos} items={items}
+                              auditLog={auditLog}
                               canDo={canDo} />,
     settings:  <SettingsPage settings={settings} onSave={handleSaveSettings} isSuperAdmin={currentUser?.role === "super_admin"} canDo={canDo} onRegisterSignature={handleRegisterSignature} currentUser={currentUser}
                               checklistTemplates={checklistTemplates}
@@ -19575,6 +19895,33 @@ export default function App() {
             <div className="text-[11px] text-slate-400 mt-0.5 break-words">{stockError}</div>
           </div>
           <button onClick={() => setStockError(null)} className="text-slate-600 hover:text-slate-500 text-xs flex-shrink-0">✕</button>
+        </div>
+      )}
+
+      {/* Writes that did not reach the database.
+          Deliberately persistent and deliberately loud: it sits above the stock
+          toast, it does not time out, and each entry must be dismissed by hand.
+          The operator needs to know the machine they just moved is not actually
+          moved, and they need to still know it a minute later. */}
+      {saveErrors.length > 0 && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[150] w-[min(94vw,640px)] space-y-2 no-print">
+          {saveErrors.map((e) => (
+            <div key={e.id} className="flex items-start gap-3 px-4 py-3 rounded-xl shadow-2xl"
+                 style={{ background: "linear-gradient(180deg,#2a1216,#1a0c0e)", border: "1px solid rgba(239,68,68,0.55)", animation: "slideUp 0.2s ease both" }}>
+              <span className="text-lg leading-none mt-0.5">🚫</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[12px] font-bold text-red-300">
+                  Not saved to the database — {e.what}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-0.5 break-words">{e.detail}</div>
+                <div className="text-[10px] text-slate-500 mt-1">
+                  What you see on screen has not been stored. Reload to see the real state, then try again.
+                </div>
+              </div>
+              <button onClick={() => dismissSaveError(e.id)}
+                      className="text-slate-500 hover:text-slate-300 text-xs flex-shrink-0 px-1">✕</button>
+            </div>
+          ))}
         </div>
       )}
     </div>

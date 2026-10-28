@@ -137,16 +137,30 @@ export async function updateMachine(id, updates) {
   // Migration 032 — Trial Certificate payload (optional; strip on retry if schema not yet applied).
   if (updates.trialCertificate      !== undefined) row.trial_certificate     = updates.trialCertificate     || null;
 
-  let { error } = await c.from("machine_log").update(row).eq("id", id);
+  // `.select()` is not decoration. Without it, PostgREST answers an UPDATE that
+  // matched ZERO rows with no error and no data, and this function reported
+  // success for a write that never happened. That is how a machine moved to
+  // Assembly on screen, stayed at "BOM Issued" in Postgres, and reverted on the
+  // next reload with nothing in the console (2026-10-29).
+  //
+  // Zero rows has two real causes here: an id that does not exist (see the
+  // server-id adoption in handleCreateMachine) and an RLS policy that hides the
+  // row from this user. Both must be reported, not swallowed.
+  let { data, error } = await c.from("machine_log").update(row).eq("id", id).select("id");
   if (error && isMissingColumnError(error)) {
     console.warn("[machines:update] migration columns missing — retrying without 021/032 columns");
     delete row.current_department;
     delete row.department_entered_at;
     delete row.pending_handover_id;
     delete row.trial_certificate;
-    ({ error } = await c.from("machine_log").update(row).eq("id", id));
+    ({ data, error } = await c.from("machine_log").update(row).eq("id", id).select("id"));
   }
   if (error) { console.error("[machines:update] failed", error); return { success: false, error: error.message }; }
+  if (!Array.isArray(data) || data.length === 0) {
+    const msg = `machine ${id} was not updated — no such row, or it is not visible to this user`;
+    console.error("[machines:update] matched no rows", { id });
+    return { success: false, error: msg, noRows: true };
+  }
   console.info("[machines:update] ok");
   return { success: true };
 }
@@ -162,8 +176,17 @@ export async function deleteMachine(id) {
     return { success: true };
   }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
-  const { error } = await c.from("machine_log").delete().eq("id", id);
+  // Same zero-row trap as updateMachine: a DELETE matching nothing is not an
+  // error to PostgREST. The rack-remove flow reverses stock and deletes the
+  // outward row before calling this, so a silent no-op here leaves a ghost
+  // machine on the rack with no materials behind it.
+  const { data, error } = await c.from("machine_log").delete().eq("id", id).select("id");
   if (error) { console.error("[machines:delete] failed", error); return { success: false, error: error.message }; }
+  if (!Array.isArray(data) || data.length === 0) {
+    const msg = `machine ${id} was not deleted — no such row, or it is not visible to this user`;
+    console.error("[machines:delete] matched no rows", { id });
+    return { success: false, error: msg, noRows: true };
+  }
   console.info("[machines:delete] ok");
   return { success: true };
 }
