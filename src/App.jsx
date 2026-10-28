@@ -66,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-28-premium-ui-v4";
+const APP_BUILD = "2026-10-28-premium-ui-v5";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -1107,7 +1107,7 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
 
   const accentBorder = isAdd ? "rgba(34,197,94,0.4)"  : "rgba(249,115,22,0.4)";
   const accentGlow   = isAdd ? "rgba(34,197,94,0.18)" : "rgba(249,115,22,0.18)";
-  const accentText   = isAdd ? "#4ade80" : "#fb923c";
+  const accentText   = isAdd ? "#15803d" : "#c2410c";
   const accentShadow = isAdd ? "rgba(74,222,128,0.5)" : "rgba(251,146,60,0.5)";
   const btnGrad      = isAdd ? "linear-gradient(135deg,#16a34a,#15803d)" : "linear-gradient(135deg,#ea580c,#c2410c)";
   const btnGlow      = isAdd ? "0 0 14px rgba(34,197,94,0.35)" : "0 0 14px rgba(249,115,22,0.35)";
@@ -1363,7 +1363,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
 
           {/* Linked Vendors */}
           {(() => {
-            const roleColor = (r) => r === "Preferred" ? "#fbbf24" : r === "Approved" ? "#34d399" : "#6b7280";
+            const roleColor = (r) => r === "Preferred" ? "#b45309" : r === "Approved" ? "#047857" : "#6b7280";
             const roleIcon  = (r) => r === "Preferred" ? "⭐" : r === "Approved" ? "✅" : "🔘";
             const links = item.vendorLinks?.length
               ? [...item.vendorLinks].sort((a, b) => {
@@ -1746,10 +1746,10 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
               if (t === "Purchase Receipt") return { color: "#22c55e",  bg: "rgba(34,197,94,0.12)",   brd: "rgba(34,197,94,0.3)",   icon: "📥" };
               if (t === "BOM Issue")        return { color: "#E8553D",  bg: "rgba(232,85,61,0.12)",  brd: "rgba(232,85,61,0.3)",  icon: "🔧" };
               if (t === "Manual Outward")   return { color: "#f97316",  bg: "rgba(249,115,22,0.12)",  brd: "rgba(249,115,22,0.3)",  icon: "📤" };
-              if (t === "Stock In")         return { color: "#4ade80",  bg: "rgba(74,222,128,0.10)",  brd: "rgba(74,222,128,0.25)", icon: "⬆️" };
+              if (t === "Stock In")         return { color: "#15803d",  bg: "rgba(74,222,128,0.10)",  brd: "rgba(74,222,128,0.25)", icon: "⬆️" };
               if (t === "Stock Out")        return { color: "#ef4444",  bg: "rgba(239,68,68,0.10)",   brd: "rgba(239,68,68,0.25)",  icon: "⬇️" };
               if (t === "Opening Stock")    return { color: "#64748b",  bg: "rgba(100,116,139,0.10)", brd: "rgba(100,116,139,0.2)", icon: "🏁" };
-              if (t === "Auto-fulfill pending") return { color: "#06b6d4", bg: "rgba(6,182,212,0.10)", brd: "rgba(6,182,212,0.25)", icon: "⚡" };
+              if (t === "Auto-fulfill pending") return { color: "#0e7490", bg: "rgba(6,182,212,0.10)", brd: "rgba(6,182,212,0.25)", icon: "⚡" };
               return                               { color: "#8b5cf6",  bg: "rgba(139,92,246,0.10)",  brd: "rgba(139,92,246,0.25)", icon: "✦" };
             };
 
@@ -2073,7 +2073,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
     </div>
   );
 
-  const roleColor = (r) => r === "Preferred" ? "#fbbf24" : r === "Approved" ? "#34d399" : "#6b7280";
+  const roleColor = (r) => r === "Preferred" ? "#b45309" : r === "Approved" ? "#047857" : "#6b7280";
   const roleIcon  = (r) => r === "Preferred" ? "⭐" : r === "Approved" ? "✅" : "🔘";
   const selectStyle = { background: "var(--surface-input)", color: "var(--text)" };
 
@@ -3585,7 +3585,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                 <div className="flex gap-2 overflow-x-auto pb-1.5 -mx-1 px-1">
                   {linkedVendors.map((v) => {
                     const isSelected = form.vendor === v.name;
-                    const pColor = v.linkRole === "Preferred" ? "#fbbf24" : v.linkRole === "Approved" ? "#34d399" : v.linkRole === "Backup" ? "#6b7280" : "#64748b";
+                    const pColor = v.linkRole === "Preferred" ? "#b45309" : v.linkRole === "Approved" ? "#047857" : v.linkRole === "Backup" ? "#6b7280" : "#64748b";
                     const pIcon  = v.linkRole === "Preferred" ? "⭐" : v.linkRole === "Approved" ? "✅" : v.linkRole === "Backup" ? "🔘" : "🏭";
                     return (
                       <button key={v.id} onClick={() => selectVendor(v.name, v.lastRate)}
@@ -3778,7 +3778,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                       <button key={it.code} onClick={() => addLowStockItem(it)}
                               className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-all"
                               style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
-                        <span className="text-[10px]" style={{ color: it.status === "critical" ? "#f87171" : "#fbbf24" }}>{it.status === "critical" ? "🔴" : "🟠"}</span>
+                        <span className="text-[10px]" style={{ color: it.status === "critical" ? "#dc2626" : "#b45309" }}>{it.status === "critical" ? "🔴" : "🟠"}</span>
                         <span className="text-[11px] font-bold text-white truncate flex-1">{it.name}</span>
                         <span className="text-[9px] font-mono text-slate-600 flex-shrink-0">{it.code}</span>
                         <span className="text-[9px] text-slate-500 flex-shrink-0">stock {it.stock}/{it.min} {it.unit}</span>
@@ -4871,7 +4871,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                     {v.priority && (
                       <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full border"
                             style={{
-                              color: v.priority === "Preferred" ? "#fbbf24" : v.priority === "Approved" ? "#34d399" : "#6b7280",
+                              color: v.priority === "Preferred" ? "#b45309" : v.priority === "Approved" ? "#047857" : "#6b7280",
                               background: v.priority === "Preferred" ? "rgba(251,191,36,0.08)" : v.priority === "Approved" ? "rgba(52,211,153,0.08)" : "rgba(148,163,184,0.08)",
                               borderColor: v.priority === "Preferred" ? "rgba(251,191,36,0.3)" : v.priority === "Approved" ? "rgba(52,211,153,0.3)" : "rgba(148,163,184,0.25)",
                             }}>
@@ -4948,7 +4948,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
             });
 
             const recentPOs  = sortedByDate.slice(0, 8);
-            const roleColor  = (r) => r === "Preferred" ? "#fbbf24" : r === "Approved" ? "#34d399" : r === "Backup" ? "#6b7280" : "#64748b";
+            const roleColor  = (r) => r === "Preferred" ? "#b45309" : r === "Approved" ? "#047857" : r === "Backup" ? "#6b7280" : "#64748b";
 
             return (
               <div className="bg-white border border-blue-500/20 rounded-xl p-5 space-y-5 self-start sticky top-4 overflow-y-auto max-h-[calc(100vh-120px)]">
@@ -5350,7 +5350,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
             <SectionHeader>📊 PO Value by Month (₹K)</SectionHeader>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={monthlyPOTrend.length > 0 ? monthlyPOTrend : monthlyPOData} barSize={28}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" />
                 <XAxis dataKey="month" tick={{ fill: "#475569", fontSize: 11 }} />
                 <YAxis tick={{ fill: "#475569", fontSize: 11 }} />
                 <Tooltip content={<CustomTooltip />} />
@@ -5369,7 +5369,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
                     <stop offset="95%" stopColor="#a78bfa" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" />
                 <XAxis dataKey="month" tick={{ fill: "#475569", fontSize: 11 }} />
                 <YAxis tick={{ fill: "#475569", fontSize: 11 }} domain={[3.5, 7]} />
                 <Tooltip content={<CustomTooltip />} />
@@ -5411,7 +5411,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
             {vendorPOData.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={vendorPOData} layout="vertical" barSize={14}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" />
                   <XAxis type="number" tick={{ fill: "#475569", fontSize: 10 }} />
                   <YAxis type="category" dataKey="name" tick={{ fill: "#475569", fontSize: 10 }} width={55} />
                   <Tooltip content={<CustomTooltip />} />
@@ -5748,7 +5748,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
     <Section icon="📋" title="Department Checklists">
       {!canConfig && (
         <div className="mb-4 px-3 py-2 rounded-lg text-[11px]"
-             style={{ background: "rgba(249,115,22,0.08)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.3)" }}>
+             style={{ background: "rgba(249,115,22,0.08)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.3)" }}>
           You can view checklists but not modify them. Admin role required.
         </div>
       )}
@@ -6001,7 +6001,7 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
     <Section icon="👥" title="Employee Members">
       {!canConfig && (
         <div className="mb-4 px-3 py-2 rounded-lg text-[11px]"
-             style={{ background: "rgba(249,115,22,0.08)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.3)" }}>
+             style={{ background: "rgba(249,115,22,0.08)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.3)" }}>
           You can view employees but not modify them. Admin role required.
         </div>
       )}
@@ -6091,7 +6091,7 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                         style={{ background: m.active ? "rgba(34,197,94,0.10)" : "rgba(17,24,39,0.03)",
                                  border: `1px solid ${m.active ? "rgba(34,197,94,0.3)" : "rgba(17,24,39,0.10)"}`,
-                                 color: m.active ? "#4ade80" : "#64748b" }}>
+                                 color: m.active ? "#15803d" : "#64748b" }}>
                     {m.active ? "Active" : "Inactive"}
                   </span>
                 </div>
@@ -6103,7 +6103,7 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   <button onClick={() => toggleActive(m.id)}
                           className="text-[10px] font-semibold px-2 py-1 rounded-md transition-colors"
-                          style={{ color: m.active ? "#6b7280" : "#4ade80", border: "1px solid rgba(17,24,39,0.12)", background: "rgba(17,24,39,0.03)" }}>
+                          style={{ color: m.active ? "#6b7280" : "#15803d", border: "1px solid rgba(17,24,39,0.12)", background: "rgba(17,24,39,0.03)" }}>
                     {m.active ? "Deactivate" : "Activate"}
                   </button>
                   <button onClick={() => start(m)}
@@ -6206,7 +6206,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
     } catch {}
   };
 
-  const inpCls = "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-[#f0f6ff] placeholder-slate-600 outline-none focus:border-blue-500/40 transition-colors";
+  const inpCls = "w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-[#111827] placeholder-slate-400 outline-none focus:border-red-400/60 transition-colors";
 
   // SLabel / Toggle / Section are hoisted to module scope (above SETTINGS_DEFAULTS).
   // Defining them inside this component remounted every <Section> subtree on each
@@ -6240,13 +6240,13 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
       <Topbar title={pageTitle} subtitle={`${activeTab.desc} · Build ${APP_BUILD}`}>
         {isDirty && !saved && (
           <span className="text-[10px] font-bold px-2.5 py-1 rounded-full"
-                style={{ background: "rgba(249,115,22,0.15)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.35)" }}>
+                style={{ background: "rgba(249,115,22,0.15)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.35)" }}>
             ● Unsaved changes
           </span>
         )}
         <button onClick={() => handleSave()}
                 className="inline-flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl transition-all duration-200"
-                style={{ background: saved ? "rgba(34,197,94,0.18)" : "linear-gradient(135deg,#E8553D,#A33E2A)", color: saved ? "#4ade80" : "#fff", border: saved ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(99,130,255,0.5)", boxShadow: saved ? "none" : "0 0 12px rgba(232,85,61,0.3)" }}>
+                style={{ background: saved ? "rgba(22,163,74,0.12)" : "linear-gradient(135deg,#E8553D,#A33E2A)", color: saved ? "#15803d" : "#fff", border: saved ? "1px solid rgba(22,163,74,0.35)" : "1px solid rgba(176,18,24,0.45)", boxShadow: saved ? "none" : "0 0 12px rgba(232,85,61,0.3)" }}>
           {saved ? "✅ Saved!" : "💾 Save Changes"}
         </button>
       </Topbar>
@@ -6273,9 +6273,9 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
               <button key={t.id} onClick={() => setTab(t.id)}
                       className="text-[12px] font-bold px-3.5 py-2.5 -mb-px transition-all whitespace-nowrap"
                       style={{
-                        color:       sel ? "#fff" : "#6b7280",
-                        background:  sel ? "rgba(232,85,61,0.10)" : "transparent",
-                        borderBottom: `2px solid ${sel ? "#E8553D" : "transparent"}`,
+                        color:       sel ? "#d71920" : "#6b7280",
+                        background:  sel ? "rgba(215,25,32,0.07)" : "transparent",
+                        borderBottom: `2px solid ${sel ? "#d71920" : "transparent"}`,
                       }}>
                 {t.label}
               </button>
@@ -6344,13 +6344,13 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
             <Section icon="🔧" title="Department Workflow Settings">
               {!canConfig && (
                 <div className="mb-4 px-3 py-2 rounded-lg text-[11px]"
-                     style={{ background: "rgba(249,115,22,0.08)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.3)" }}>
+                     style={{ background: "rgba(249,115,22,0.08)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.3)" }}>
                   You can view these settings but not change them. Admin role required.
                 </div>
               )}
               {canConfig && isDirty && !saved && (
                 <div className="mb-4 px-3 py-2 rounded-lg text-[11px] font-semibold"
-                     style={{ background: "rgba(249,115,22,0.10)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.4)" }}>
+                     style={{ background: "rgba(249,115,22,0.10)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.4)" }}>
                   ● Unsaved changes — click <strong>💾 Save Changes</strong> at the top to apply.
                 </div>
               )}
@@ -6458,13 +6458,13 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                         this is where to set up the Finish & Transfer picker. */}
                     {canConfig && totalAssigned === 0 && (
                       <div className="mb-3 px-3 py-2.5 rounded-lg text-[11px] font-semibold"
-                           style={{ background: "rgba(249,115,22,0.1)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.4)" }}>
+                           style={{ background: "rgba(249,115,22,0.1)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.4)" }}>
                         ⚠ No one is assigned to any department yet. Add workers below so operators see them on <strong>Machine Tracker → Finish &amp; Transfer</strong>.
                       </div>
                     )}
                     {active.length === 0 && (
                       <div className="mb-3 px-3 py-2.5 rounded-lg text-[11px] font-semibold"
-                           style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                           style={{ background: "rgba(239,68,68,0.08)", color: "#dc2626", border: "1px solid rgba(239,68,68,0.3)" }}>
                         ⚠ Could not load the user roster. If you don't see users here, apply migration <code>030_dept_roster_view.sql</code> or ask a super-admin to assign departments on your behalf.
                       </div>
                     )}
@@ -6560,7 +6560,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                 </div>
                 <button onClick={handleBackup}
                         className="flex-shrink-0 text-[12px] font-bold px-4 py-2 rounded-xl border transition-all"
-                        style={{ color: backupOk ? "#4ade80" : "#F7A992", background: backupOk ? "rgba(34,197,94,0.1)" : "rgba(232,85,61,0.08)", borderColor: backupOk ? "rgba(34,197,94,0.3)" : "rgba(232,85,61,0.25)" }}>
+                        style={{ color: backupOk ? "#15803d" : "#d71920", background: backupOk ? "rgba(22,163,74,0.10)" : "rgba(215,25,32,0.06)", borderColor: backupOk ? "rgba(22,163,74,0.28)" : "rgba(215,25,32,0.22)" }}>
                   {backupOk ? "✅ Downloaded" : "⬇ Backup Now"}
                 </button>
               </div>
@@ -7119,7 +7119,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                         ? [...item.vendorLinks].sort((a, b) => (roleOrder[a.role] ?? 3) - (roleOrder[b.role] ?? 3))
                         : (item.vendor && item.vendor !== "—" ? [{ vendorName: item.vendor, role: "Preferred" }] : []);
                       if (!links.length) return null;
-                      const roleCol = (r) => r === "Preferred" ? "#fbbf24" : r === "Approved" ? "#34d399" : "#6b7280";
+                      const roleCol = (r) => r === "Preferred" ? "#b45309" : r === "Approved" ? "#047857" : "#6b7280";
                       return (
                         <div className="mb-1.5">
                           {links.length === 1 ? (
@@ -8289,7 +8289,7 @@ function BomChecklistSlots({
                     className={`text-left px-3 py-2 rounded-lg border transition-all ${readOnly ? "cursor-default opacity-70" : "hover:bg-slate-50 cursor-pointer"}`}
                     style={{ background: slot ? "rgba(34,197,94,0.05)" : "rgba(17,24,39,0.03)",
                              borderColor: slot ? "rgba(34,197,94,0.3)" : "rgba(17,24,39,0.10)" }}>
-              <div className="text-[9px] font-bold uppercase tracking-wider" style={{ color: slot ? "#4ade80" : "#64748b" }}>{s.short}</div>
+              <div className="text-[9px] font-bold uppercase tracking-wider" style={{ color: slot ? "#15803d" : "#64748b" }}>{s.short}</div>
               <div className="text-[11px] font-bold text-white mt-0.5">
                 {slot
                   ? `${count} step${count === 1 ? "" : "s"}${hasRequired ? " · must do" : ""}`
@@ -8389,7 +8389,7 @@ function BomChecklistSlots({
               </button>
               {editErr && (
                 <div className="text-[11px] font-bold px-3 py-2 rounded-md"
-                     style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                     style={{ background: "rgba(239,68,68,0.08)", color: "#dc2626", border: "1px solid rgba(239,68,68,0.3)" }}>
                   ⚠ {editErr}
                 </div>
               )}
@@ -8603,9 +8603,9 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 style={{ borderBottom: "1px solid rgba(17,24,39,0.04)" }}>
           <span className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] w-28 text-left">{cat}</span>
           <div className="flex gap-1.5">
-            {cReady   > 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background:"rgba(34,197,94,0.1)",  color:"#4ade80",  border:"1px solid rgba(34,197,94,0.2)"  }}>{cReady}✓</span>}
-            {cPartial > 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background:"rgba(249,115,22,0.1)", color:"#fb923c", border:"1px solid rgba(249,115,22,0.2)" }}>{cPartial}~</span>}
-            {cMissing > 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background:"rgba(239,68,68,0.1)",  color:"#f87171",  border:"1px solid rgba(239,68,68,0.2)"  }}>{cMissing}✗</span>}
+            {cReady   > 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background:"rgba(34,197,94,0.1)",  color:"#15803d",  border:"1px solid rgba(34,197,94,0.2)"  }}>{cReady}✓</span>}
+            {cPartial > 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background:"rgba(249,115,22,0.1)", color:"#c2410c", border:"1px solid rgba(249,115,22,0.2)" }}>{cPartial}~</span>}
+            {cMissing > 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background:"rgba(239,68,68,0.1)",  color:"#dc2626",  border:"1px solid rgba(239,68,68,0.2)"  }}>{cMissing}✗</span>}
           </div>
           <span className="ml-auto text-[10px] text-slate-600">{collapsed ? "▶" : "▼"} {catItems.length} items</span>
         </button>
@@ -8649,7 +8649,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               </div>
               <div className="text-right pr-4">
                 {item.overQty > 0
-                  ? <><span className="text-[11px] font-bold font-mono" style={{color:"#fbbf24",fontFamily:"'Inter',system-ui,sans-serif"}}>+{item.overQty}</span><div className="text-[9px] font-bold" style={{color:"#d97706"}}>over</div></>
+                  ? <><span className="text-[11px] font-bold font-mono" style={{color:"#b45309",fontFamily:"'Inter',system-ui,sans-serif"}}>+{item.overQty}</span><div className="text-[9px] font-bold" style={{color:"#d97706"}}>over</div></>
                   : item.pendingQty > 0
                     ? <><span className="text-[11px] font-bold font-mono text-orange-400" style={{fontFamily:"'Inter',system-ui,sans-serif"}}>{item.pendingQty}</span><div className="text-[9px] text-slate-600">{item.unit}</div></>
                     : <span className="text-[10px] text-green-400 font-bold">✓</span>
@@ -8831,9 +8831,9 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:"rgba(232,85,61,0.12)", color:"#F7A992", border:"1px solid rgba(232,85,61,0.25)" }}>S/N: {serialNo}</span>
               )}
               <span className="text-[10px] text-slate-500">{enriched.length} components</span>
-              {readyN > 0   && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(34,197,94,0.12)",  color: "#4ade80",  border: "1px solid rgba(34,197,94,0.22)"  }}>{readyN} ready</span>}
-              {partialN > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(249,115,22,0.12)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.22)" }}>{partialN} partial</span>}
-              {missingN > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(239,68,68,0.12)",  color: "#f87171",  border: "1px solid rgba(239,68,68,0.22)"  }}>{missingN} missing</span>}
+              {readyN > 0   && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(34,197,94,0.12)",  color: "#15803d",  border: "1px solid rgba(34,197,94,0.22)"  }}>{readyN} ready</span>}
+              {partialN > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(249,115,22,0.12)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.22)" }}>{partialN} partial</span>}
+              {missingN > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(239,68,68,0.12)",  color: "#dc2626",  border: "1px solid rgba(239,68,68,0.22)"  }}>{missingN} missing</span>}
             </div>
           </div>
 
@@ -8925,7 +8925,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                     style={{
                       background: showCriticalPanel ? "rgba(249,115,22,0.14)" : "rgba(249,115,22,0.05)",
                       borderColor: showCriticalPanel ? "rgba(249,115,22,0.55)" : "rgba(249,115,22,0.25)",
-                      color: "#fdba74",
+                      color: "#c2410c",
                     }}
                   >
                     <span className="text-base">🔒</span>
@@ -9198,10 +9198,10 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
           </div>
           {confirmIssue && hasOverIssue && (
             <div className="mx-6 mt-2 px-4 py-2.5 rounded-xl" style={{ background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.28)" }}>
-              <div className="text-[10px] font-black mb-1.5" style={{color:"#fbbf24"}}>⚠ Over-Issue Warning — issuing more than BOM requires:</div>
+              <div className="text-[10px] font-black mb-1.5" style={{color:"#b45309"}}>⚠ Over-Issue Warning — issuing more than BOM requires:</div>
               <div className="flex flex-wrap gap-3">
                 {checkedE.filter((i) => i.overQty > 0).map((i) => (
-                  <span key={i.code} className="text-[9px] font-bold font-mono" style={{color:"#fbbf24"}}>
+                  <span key={i.code} className="text-[9px] font-bold font-mono" style={{color:"#b45309"}}>
                     {i.name}: +{i.overQty} {i.unit} extra
                   </span>
                 ))}
@@ -9220,7 +9220,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               )}
               {hasOverIssue && (
                 <><span className="text-slate-700">·</span>
-                <span className="font-bold" style={{color:"#fbbf24"}}>⚠ {totalOverIssue} over-issued</span></>
+                <span className="font-bold" style={{color:"#b45309"}}>⚠ {totalOverIssue} over-issued</span></>
               )}
               {missingN > 0 && (
                 <><span className="text-slate-700">·</span>
@@ -9248,7 +9248,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             ) : (
               <div className="flex items-center gap-2">
                 {hasOverIssue
-                  ? <span className="text-[10px] font-bold" style={{color:"#fbbf24"}}>⚠ Confirm over-issue?</span>
+                  ? <span className="text-[10px] font-bold" style={{color:"#b45309"}}>⚠ Confirm over-issue?</span>
                   : <span className="text-[10px] font-bold text-orange-400">Confirm issue?</span>
                 }
                 <button onClick={() => setConfirmIssue(false)} className="text-xs font-bold text-slate-500 px-3 py-2 rounded-lg border border-slate-200 hover:text-slate-900 transition-all">No</button>
@@ -9313,11 +9313,11 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-[12px] font-bold text-white">{line.name}</span>
                       <span className="text-[10px] font-mono text-slate-500">{line.code}</span>
-                      <span className="text-[10px] font-bold" style={{ color: ready ? "#4ade80" : "#fb923c" }}>
+                      <span className="text-[10px] font-bold" style={{ color: ready ? "#15803d" : "#c2410c" }}>
                         {line.issueQty} {line.unit}
                       </span>
                       <span className="ml-auto text-[9px] font-black uppercase tracking-wider"
-                            style={{ color: ready ? "#4ade80" : "#fb923c" }}>
+                            style={{ color: ready ? "#15803d" : "#c2410c" }}>
                         {ready ? "✓ Confirmed" : type === "serial" ? "Serial Number Entry" : "Checkbox Confirmation"}
                       </span>
                     </div>
@@ -9368,7 +9368,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               })}
               {criticalErr && (
                 <div className="text-[11px] font-bold px-3 py-2 rounded-md"
-                     style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                     style={{ background: "rgba(239,68,68,0.08)", color: "#dc2626", border: "1px solid rgba(239,68,68,0.3)" }}>
                   ⚠ {criticalErr}
                 </div>
               )}
@@ -9429,7 +9429,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             </div>
             {destError && (
               <div className="mx-5 mt-4 px-3 py-2 rounded-lg text-[11px] font-semibold"
-                   style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                   style={{ background: "rgba(239,68,68,0.08)", color: "#dc2626", border: "1px solid rgba(239,68,68,0.3)" }}>
                 ⚠ {destError}
               </div>
             )}
@@ -9538,7 +9538,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               })}
               {durationErr && (
                 <div className="text-[11px] font-bold px-3 py-2 rounded-md"
-                     style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                     style={{ background: "rgba(239,68,68,0.08)", color: "#dc2626", border: "1px solid rgba(239,68,68,0.3)" }}>
                   ⚠ {durationErr}
                 </div>
               )}
@@ -10219,7 +10219,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                         <div className="text-[10px] text-slate-500">{bom.label}</div>
                       </div>
                       <span className="text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                            style={{ background: allFeas ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", color: allFeas ? "#4ade80" : "#f87171", border: `1px solid ${allFeas ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}` }}>
+                            style={{ background: allFeas ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", color: allFeas ? "#15803d" : "#dc2626", border: `1px solid ${allFeas ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}` }}>
                         {feasibleN}/{bom.items.length} ready
                       </span>
                       {/* 2026-06-02d — ⋮ actions menu */}
@@ -10290,7 +10290,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                         const inv = findItem(code); const ok = inv && inv.stock >= qty * units;
                         return (
                           <span key={code} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
-                                style={{ background: ok ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", color: ok ? "#4ade80" : "#f87171", border: `1px solid ${ok ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}` }}>
+                                style={{ background: ok ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", color: ok ? "#15803d" : "#dc2626", border: `1px solid ${ok ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}` }}>
                             {code} {inv ? `(${inv.stock})` : ""}
                           </span>
                         );
@@ -10434,7 +10434,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                       <td className="px-4 py-2 text-[10px] text-slate-500 font-mono">{entry.date}</td>
                       <td className="px-4 py-2">
                         <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
-                              style={{ background: entry.type === "bom" ? "rgba(249,115,22,0.1)" : "rgba(232,85,61,0.1)", color: entry.type === "bom" ? "#fb923c" : "#F18A75", border: `1px solid ${entry.type === "bom" ? "rgba(249,115,22,0.2)" : "rgba(232,85,61,0.2)"}` }}>
+                              style={{ background: entry.type === "bom" ? "rgba(249,115,22,0.1)" : "rgba(232,85,61,0.1)", color: entry.type === "bom" ? "#c2410c" : "#F18A75", border: `1px solid ${entry.type === "bom" ? "rgba(249,115,22,0.2)" : "rgba(232,85,61,0.2)"}` }}>
                           {entry.type === "bom" ? "BOM" : "Manual"}
                         </span>
                       </td>
@@ -10451,7 +10451,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                           return (
                             <span title={title}
                                   className="ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                  style={{ background: "rgba(249,115,22,0.1)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.3)" }}>
+                                  style={{ background: "rgba(249,115,22,0.1)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.3)" }}>
                               🔒 {crit.length} critical
                             </span>
                           );
@@ -10573,7 +10573,7 @@ function AtoZMachineReport({
           </div>
           <div>
             <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Status</div>
-            <div className="text-[13px] font-black mt-0.5" style={{ color: machine.status === "completed" ? "#4ade80" : "#fdba74" }}>
+            <div className="text-[13px] font-black mt-0.5" style={{ color: machine.status === "completed" ? "#15803d" : "#c2410c" }}>
               {machine.status === "completed" ? "Ready ✓" : "In Progress"}
             </div>
           </div>
@@ -10682,7 +10682,7 @@ function AtoZMachineReport({
                         <div className="font-mono text-slate-500 break-words">{(ci.serials || []).join(", ") || "—"}</div>
                       </div>
                     ) : (
-                      <span className="font-bold" style={{ color: ci.confirmed ? "#4ade80" : "#fca5a5" }}>
+                      <span className="font-bold" style={{ color: ci.confirmed ? "#15803d" : "#dc2626" }}>
                         {ci.confirmed ? "✓ Checkbox confirmed" : "✗ Unconfirmed"}
                       </span>
                     )}
@@ -10722,13 +10722,13 @@ function AtoZMachineReport({
                   <span className="text-[12px] font-black" style={{ color: STAGE_COLORS[h.toDepartment] || "#F18A75" }}>{h.toDepartment}</span>
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                         style={{ background: h.status === "accepted" ? "rgba(34,197,94,0.1)" : "rgba(249,115,22,0.1)",
-                                 color:      h.status === "accepted" ? "#86efac"              : "#fdba74",
+                                 color:      h.status === "accepted" ? "#86efac"              : "#c2410c",
                                  border: `1px solid ${h.status === "accepted" ? "rgba(34,197,94,0.3)" : "rgba(249,115,22,0.3)"}` }}>
                     {h.status === "accepted" ? "✓ Accepted" : h.status === "pending" ? "⏳ Pending" : h.status}
                   </span>
                   {(h.overrunMinutes || 0) > 0 && (
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                          style={{ background: "rgba(239,68,68,0.1)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                          style={{ background: "rgba(239,68,68,0.1)", color: "#dc2626", border: "1px solid rgba(239,68,68,0.3)" }}>
                       ⏰ Overrun {formatDuration(h.overrunMinutes || 0)}
                     </span>
                   )}
@@ -11382,7 +11382,7 @@ const STAGE_COLORS = {
   "Assembly":   "#8b5cf6",
   "Mechanical": "#f97316",
   "Electrical": "#eab308",
-  "Trial":      "#06b6d4",
+  "Trial":      "#0e7490",
   "Ready":      "#22c55e",
 };
 
@@ -12723,12 +12723,12 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             <div className="flex items-center gap-4 mb-4 flex-wrap">
               <div className="flex items-baseline gap-3">
                 <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-orange-400">Pending Acceptance</div>
-                <div className="text-4xl font-black" style={{ color: overdueHandovers.length ? "#f87171" : "#fb923c" }}>{pendingHandovers.length}</div>
+                <div className="text-4xl font-black" style={{ color: overdueHandovers.length ? "#dc2626" : "#c2410c" }}>{pendingHandovers.length}</div>
                 <div className="text-[11px] text-slate-400">machine{pendingHandovers.length === 1 ? "" : "s"} waiting for the next department</div>
               </div>
               {overdueHandovers.length > 0 && (
                 <span className="text-[11px] font-black px-3 py-1 rounded-full"
-                      style={{ background: "rgba(239,68,68,0.2)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.5)" }}>
+                      style={{ background: "rgba(239,68,68,0.2)", color: "#dc2626", border: "1px solid rgba(239,68,68,0.5)" }}>
                   🚦 {overdueHandovers.length} ON HOLD
                 </span>
               )}
@@ -12741,9 +12741,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 const minsLeft  = (h.acceptTimeoutMinutes || 0) - sentMin;
                 const approaching = !overdue && minsLeft >= 0 && minsLeft <= 15;   // within 15 min of deadline
                 const canAccept = canAcceptHandover(canDo, h.toDepartment);
-                const statusLabel = overdue    ? { text: "🚦 ON HOLD",        color: "#f87171", bg: "rgba(239,68,68,0.18)",  bd: "rgba(239,68,68,0.5)"  }
+                const statusLabel = overdue    ? { text: "🚦 ON HOLD",        color: "#dc2626", bg: "rgba(239,68,68,0.18)",  bd: "rgba(239,68,68,0.5)"  }
                                    : approaching ? { text: "⚠ Deadline Soon",  color: "#fcd34d", bg: "rgba(234,179,8,0.18)",  bd: "rgba(234,179,8,0.5)"  }
-                                   :              { text: "⏳ Awaiting Accept", color: "#fdba74", bg: "rgba(249,115,22,0.14)", bd: "rgba(249,115,22,0.4)" };
+                                   :              { text: "⏳ Awaiting Accept", color: "#c2410c", bg: "rgba(249,115,22,0.14)", bd: "rgba(249,115,22,0.4)" };
                 return (
                   <div key={h.id}
                        className="flex items-center gap-4 flex-wrap rounded-xl px-4 py-3"
@@ -12808,10 +12808,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           const holdCount = 0;
           const cards = [
             { key: "pendingAccept", label: "Pending Acceptance", value: pendingNotOverdue, sub: "waiting for next dept", color: "#f97316", bg: "rgba(249,115,22,0.08)" },
-            { key: "overdue",       label: "Overdue",            value: overdueCount,       sub: "accept deadline passed", color: "#f87171", bg: "rgba(239,68,68,0.1)"  },
+            { key: "overdue",       label: "Overdue",            value: overdueCount,       sub: "accept deadline passed", color: "#dc2626", bg: "rgba(239,68,68,0.1)"  },
             { key: "hold",          label: "On HOLD",            value: holdCount,          sub: "explicit hold state",     color: "#a78bfa", bg: "rgba(168,139,250,0.08)" },
-            { key: "active",        label: "Active Builds",      value: active.length,       sub: "in production",           color: "#fbbf24", bg: "rgba(251,191,36,0.08)" },
-            { key: "completed",     label: "Completed",          value: completed.length,    sub: "ready for delivery",      color: "#4ade80", bg: "rgba(34,197,94,0.08)" },
+            { key: "active",        label: "Active Builds",      value: active.length,       sub: "in production",           color: "#b45309", bg: "rgba(251,191,36,0.08)" },
+            { key: "completed",     label: "Completed",          value: completed.length,    sub: "ready for delivery",      color: "#15803d", bg: "rgba(34,197,94,0.08)" },
           ];
           return (
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -13038,7 +13038,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                             {curIdx + 1}/{MACHINE_STAGES.length} — {pct}%
                           </span>
                           {isComplete && (
-                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background:"rgba(34,197,94,0.12)", color:"#4ade80", border:"1px solid rgba(34,197,94,0.25)" }}>
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background:"rgba(34,197,94,0.12)", color:"#15803d", border:"1px solid rgba(34,197,94,0.25)" }}>
                               ✓ Completed
                             </span>
                           )}
@@ -13049,7 +13049,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                             <div className="h-full rounded-full transition-all duration-500"
                                  style={{ width: `${pct}%`, background: isComplete ? "#22c55e" : stageColor }} />
                           </div>
-                          <span className="text-[9px] font-mono font-bold" style={{ color: isComplete ? "#4ade80" : stageColor }}>{pct}%</span>
+                          <span className="text-[9px] font-mono font-bold" style={{ color: isComplete ? "#15803d" : stageColor }}>{pct}%</span>
                         </div>
                       </div>
                     </div>
@@ -13140,12 +13140,12 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         const machineOverdue = h && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
                         return machineOverdue ? (
                           <span className="text-[10px] font-black px-2 py-1 rounded-lg"
-                                style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.45)" }}>
+                                style={{ background: "rgba(239,68,68,0.15)", color: "#dc2626", border: "1px solid rgba(239,68,68,0.45)" }}>
                             🚦 ON HOLD
                           </span>
                         ) : (
                           <span className="text-[10px] font-black px-2 py-1 rounded-lg"
-                                style={{ background: "rgba(249,115,22,0.12)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.35)" }}>
+                                style={{ background: "rgba(249,115,22,0.12)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.35)" }}>
                             ⏳ Awaiting accept
                           </span>
                         );
@@ -14081,7 +14081,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 )}
                 {error && (
                   <div className="rounded-lg px-3 py-2 text-[11px] font-semibold"
-                       style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                       style={{ background: "rgba(239,68,68,0.08)", color: "#dc2626", border: "1px solid rgba(239,68,68,0.3)" }}>
                     ⚠ {error}
                   </div>
                 )}
@@ -14147,7 +14147,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 ))}
                 {error && (
                   <div className="rounded-lg px-3 py-2 text-[11px] font-semibold"
-                       style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                       style={{ background: "rgba(239,68,68,0.08)", color: "#dc2626", border: "1px solid rgba(239,68,68,0.3)" }}>
                     ⚠ {error}
                   </div>
                 )}
@@ -14422,11 +14422,11 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                   <div className="text-[9px] font-mono text-slate-500 mt-0.5">{code} · {qty} {inv?.unit || "—"} / unit</div>
                 </div>
                 <div className="text-right flex-shrink-0 mr-2">
-                  <div className="text-[11px] font-bold font-mono tabular-nums" style={{ color: ok ? "#4ade80" : "#f87171" }}>{inv?.stock ?? 0} {inv?.unit || ""}</div>
+                  <div className="text-[11px] font-bold font-mono tabular-nums" style={{ color: ok ? "#15803d" : "#dc2626" }}>{inv?.stock ?? 0} {inv?.unit || ""}</div>
                   <div className="text-[9px] text-slate-600">in stock</div>
                 </div>
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                      style={{ background: ok ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", color: ok ? "#4ade80" : "#f87171", border: `1px solid ${ok ? "rgba(34,197,94,0.22)" : "rgba(239,68,68,0.22)"}` }}>
+                      style={{ background: ok ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", color: ok ? "#15803d" : "#dc2626", border: `1px solid ${ok ? "rgba(34,197,94,0.22)" : "rgba(239,68,68,0.22)"}` }}>
                   {ok ? "OK" : "Low"}
                 </span>
               </div>
@@ -14505,7 +14505,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                 {/* Critical items — require configured input */}
                 {criticalRows.length > 0 && (
                   <div className="space-y-2">
-                    <div className="text-[10px] font-black uppercase tracking-wider" style={{ color: "#fb923c" }}>
+                    <div className="text-[10px] font-black uppercase tracking-wider" style={{ color: "#c2410c" }}>
                       Critical items — {criticalRows.length} line{criticalRows.length === 1 ? "" : "s"} need confirmation
                     </div>
                     {criticalRows.map((entry) => {
@@ -14520,17 +14520,17 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[12px] font-bold text-white">{entry.name}</span>
                             <span className="text-[10px] font-mono text-slate-500">{entry.code}</span>
-                            <span className="text-[10px] font-bold" style={{ color: rowReady ? "#4ade80" : "#fb923c" }}>
+                            <span className="text-[10px] font-bold" style={{ color: rowReady ? "#15803d" : "#c2410c" }}>
                               {entry.canIssue} {entry.unit}
                             </span>
                             {entry.canIssue < entry.pendingQty && (
                               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                    style={{ background: "rgba(249,115,22,0.12)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.3)" }}>
+                                    style={{ background: "rgba(249,115,22,0.12)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.3)" }}>
                                 partial · {entry.pendingQty - entry.canIssue} {entry.unit} will stay pending
                               </span>
                             )}
                             <span className="ml-auto text-[9px] font-black uppercase tracking-wider"
-                                  style={{ color: rowReady ? "#4ade80" : "#fb923c" }}>
+                                  style={{ color: rowReady ? "#15803d" : "#c2410c" }}>
                               {rowReady ? "✓ Confirmed" : type === "serial" ? "Serial Number Entry" : "Checkbox Confirmation"}
                             </span>
                           </div>
@@ -14602,7 +14602,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                         </span>
                         {entry.canIssue < entry.pendingQty && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                style={{ background: "rgba(249,115,22,0.1)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.3)" }}>
+                                style={{ background: "rgba(249,115,22,0.1)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.3)" }}>
                             partial
                           </span>
                         )}
@@ -14613,7 +14613,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
 
                 {cf.err && (
                   <div className="text-[11px] font-bold px-3 py-2 rounded-md"
-                       style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>
+                       style={{ background: "rgba(239,68,68,0.08)", color: "#dc2626", border: "1px solid rgba(239,68,68,0.3)" }}>
                     ⚠ {cf.err}
                   </div>
                 )}
@@ -14849,7 +14849,7 @@ const AUDIT_META = {
   po_deleted:        { label: "PO Deleted",          icon: "🗑️", color: "#64748b", module: "Purchase"   },
   inward_manual:     { label: "Manual Inward",       icon: "📥", color: "#10b981", module: "Inward"     },
   outward_bom:       { label: "BOM Issued",          icon: "📤", color: "#f59e0b", module: "Outward"    },
-  outward_manual:    { label: "Manual Outward",      icon: "📤", color: "#fb923c", module: "Outward"    },
+  outward_manual:    { label: "Manual Outward",      icon: "📤", color: "#c2410c", module: "Outward"    },
   stock_adjust:      { label: "Stock Adjusted",      icon: "🔢", color: "#8b5cf6", module: "Inventory"  },
   inventory_add:     { label: "Item Added",          icon: "➕", color: "#22c55e", module: "Inventory"  },
   inventory_edit:    { label: "Item Edited",         icon: "✏️", color: "#E8553D", module: "Inventory"  },
@@ -15280,7 +15280,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
         {HR_TABS.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className="flex items-center gap-1.5 px-3.5 py-2 text-[11px] font-semibold rounded-t-lg transition-all relative"
-            style={tab===t.id ? { color:"#F18A75", background:"rgba(232,85,61,0.1)", borderBottom:"2px solid #E8553D" } : { color:"#475569" }}>
+            style={tab===t.id ? { color:"#d71920", background:"rgba(215,25,32,0.07)", borderBottom:"2px solid #d71920" } : { color:"#475569" }}>
             <span>{t.icon}</span>{t.label}
           </button>
         ))}
@@ -15430,7 +15430,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
               <div className="space-y-3">
                 {machineRows.map((m) => {
                   const isComplete = m.status === "completed";
-                  const STAGE_C = { "BOM Issued":"#E8553D","Assembly":"#CC4A33","Mechanical":"#8b5cf6","Electrical":"#f59e0b","Trial":"#fb923c","Ready":"#22c55e" };
+                  const STAGE_C = { "BOM Issued":"#E8553D","Assembly":"#CC4A33","Mechanical":"#8b5cf6","Electrical":"#f59e0b","Trial":"#c2410c","Ready":"#22c55e" };
                   const stageColor = STAGE_C[m.stage] || "#64748b";
                   return (
                     <div key={m.id} className="rounded-xl p-4" style={CARD_STYLE}>
@@ -15441,14 +15441,14 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-black text-white">{m.bomKey}</span>
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:stageColor+"18", color:stageColor }}>{m.stage}</span>
-                              {isComplete && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:"rgba(34,197,94,0.12)", color:"#4ade80" }}>✓ Completed</span>}
+                              {isComplete && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:"rgba(34,197,94,0.12)", color:"#15803d" }}>✓ Completed</span>}
                             </div>
                             <div className="text-xs text-slate-400 mt-0.5">{m.bomLabel} {m.serialNo && <span className="text-slate-500 font-mono ml-2">S/N: {m.serialNo}</span>}</div>
                           </div>
                         </div>
                         <div className="flex items-center gap-5 text-right flex-wrap">
                           <div><div className="text-[10px] text-slate-500">Created</div><div className="text-[11px] font-bold text-white">{m.createdDate}</div></div>
-                          {isComplete && <div><div className="text-[10px] text-slate-500">Completed</div><div className="text-[11px] font-bold" style={{color:"#4ade80"}}>{m.completedDate}</div></div>}
+                          {isComplete && <div><div className="text-[10px] text-slate-500">Completed</div><div className="text-[11px] font-bold" style={{color:"#15803d"}}>{m.completedDate}</div></div>}
                           <div><div className="text-[10px] text-slate-500">Steps</div><div className="text-[11px] font-bold text-white">{(m.history||[]).length}</div></div>
                         </div>
                       </div>
@@ -15500,8 +15500,8 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                     <div key={i} className="grid items-center px-4 py-2.5 text-xs hover:bg-transparent transition-all"
                          style={{ gridTemplateColumns:"90px 130px 50px 90px 1fr 70px 60px 120px 120px", borderBottom:"1px solid rgba(17,24,39,0.04)" }}>
                       <div className="text-slate-500 text-[10px]">{r.dateRaw}</div>
-                      <div><span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background:isIn?"rgba(16,185,129,0.12)":"rgba(245,158,11,0.12)", color:isIn?"#34d399":"#fbbf24" }}>{r.mvType}</span></div>
-                      <div className="font-black text-base" style={{color:isIn?"#34d399":"#f87171"}}>{r.direction}</div>
+                      <div><span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background:isIn?"rgba(16,185,129,0.12)":"rgba(245,158,11,0.12)", color:isIn?"#047857":"#b45309" }}>{r.mvType}</span></div>
+                      <div className="font-black text-base" style={{color:isIn?"#047857":"#dc2626"}}>{r.direction}</div>
                       <div className="text-slate-400 font-mono text-[10px]">{r.code}</div>
                       <div className="text-slate-500 truncate">{r.item || r.name || r.label || "—"}</div>
                       <div className="text-right font-bold text-white">{r.qty}</div>
@@ -15544,7 +15544,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                         {stockReportCols.map((c) => (
                           <td key={c.key} className={`px-3 py-2 whitespace-nowrap ${c.key==="code"?"font-mono text-slate-400 text-[10px]":"text-slate-500"}`}>
                             {c.key === "status_label"
-                              ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: r.status==="critical"?"rgba(239,68,68,0.15)":r.status==="warning"?"rgba(245,158,11,0.15)":"rgba(34,197,94,0.12)", color: r.status==="critical"?"#f87171":r.status==="warning"?"#fbbf24":"#4ade80" }}>{r[c.key]}</span>
+                              ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: r.status==="critical"?"rgba(239,68,68,0.15)":r.status==="warning"?"rgba(245,158,11,0.15)":"rgba(34,197,94,0.12)", color: r.status==="critical"?"#dc2626":r.status==="warning"?"#b45309":"#15803d" }}>{r[c.key]}</span>
                               : (r[c.key] ?? "—")}
                           </td>
                         ))}
@@ -15585,7 +15585,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                         {lowStockCols.map((c) => (
                           <td key={c.key} className={`px-3 py-2 whitespace-nowrap ${c.key==="code"?"font-mono text-slate-400 text-[10px]":"text-slate-500"}`}>
                             {c.key === "status_label"
-                              ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: r.status==="critical"?"rgba(239,68,68,0.15)":r.status==="warning"?"rgba(245,158,11,0.15)":"rgba(251,146,60,0.15)", color: r.status==="critical"?"#f87171":r.status==="warning"?"#fbbf24":"#fb923c" }}>{r[c.key]}</span>
+                              ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: r.status==="critical"?"rgba(239,68,68,0.15)":r.status==="warning"?"rgba(245,158,11,0.15)":"rgba(251,146,60,0.15)", color: r.status==="critical"?"#dc2626":r.status==="warning"?"#b45309":"#c2410c" }}>{r[c.key]}</span>
                               : (r[c.key] ?? "—")}
                           </td>
                         ))}
@@ -15639,7 +15639,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                           <div className="text-[9px] text-slate-500">Received</div>
                         </div>
                         <div className="rounded-lg p-2 text-center" style={{ background: delivRate >= 80 ? "rgba(34,197,94,0.08)" : delivRate >= 50 ? "rgba(245,158,11,0.08)" : "rgba(239,68,68,0.08)" }}>
-                          <div className="text-sm font-black" style={{ color: delivRate >= 80 ? "#4ade80" : delivRate >= 50 ? "#fbbf24" : "#f87171" }}>{delivRate}%</div>
+                          <div className="text-sm font-black" style={{ color: delivRate >= 80 ? "#15803d" : delivRate >= 50 ? "#b45309" : "#dc2626" }}>{delivRate}%</div>
                           <div className="text-[9px] text-slate-500">Delivery</div>
                         </div>
                       </div>
@@ -15695,7 +15695,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                     <div className="text-slate-500 font-mono text-[10px]">{p.serialNo || "—"}</div>
                     <div className="text-right font-bold text-white">{p.pendingQty}</div>
                     <div className="text-center">
-                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={p.status==="Fulfilled"?{background:"rgba(34,197,94,0.12)",color:"#4ade80"}:{background:"rgba(249,115,22,0.12)",color:"#fb923c"}}>{p.status}</span>
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={p.status==="Fulfilled"?{background:"rgba(34,197,94,0.12)",color:"#15803d"}:{background:"rgba(249,115,22,0.12)",color:"#c2410c"}}>{p.status}</span>
                     </div>
                   </div>
                 ))}
@@ -15781,7 +15781,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                         <div className="text-[9px] text-slate-600 mb-2 uppercase tracking-wider">Active by Stage</div>
                         <div className="flex flex-wrap gap-2">
                           {stageBreakdown.map((s) => {
-                            const STAGE_C={"BOM Issued":"#E8553D","Assembly":"#CC4A33","Mechanical":"#8b5cf6","Electrical":"#f59e0b","Trial":"#fb923c","Ready":"#22c55e"};
+                            const STAGE_C={"BOM Issued":"#E8553D","Assembly":"#CC4A33","Mechanical":"#8b5cf6","Electrical":"#f59e0b","Trial":"#c2410c","Ready":"#22c55e"};
                             const c = STAGE_C[s.stage]||"#64748b";
                             return <span key={s.stage} className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{background:c+"18",color:c}}>{s.stage}: {s.count}</span>;
                           })}
@@ -15871,7 +15871,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                   {outwardLog.slice(0,10).map((e,i) => (
                     <div key={i} className="flex items-center justify-between py-1.5 border-b border-slate-200 text-xs">
                       <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={e.type==="bom"?{background:"rgba(245,158,11,0.12)",color:"#fbbf24"}:{background:"rgba(251,146,60,0.12)",color:"#fb923c"}}>{e.type==="bom"?"BOM":"Manual"}</span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={e.type==="bom"?{background:"rgba(245,158,11,0.12)",color:"#b45309"}:{background:"rgba(251,146,60,0.12)",color:"#c2410c"}}>{e.type==="bom"?"BOM":"Manual"}</span>
                         <span className="text-slate-500">{e.ref}</span>
                         {e.serialNo && <span className="text-slate-500 font-mono text-[10px]">S/N:{e.serialNo}</span>}
                       </div>
@@ -16607,7 +16607,7 @@ export default function App() {
           <div className="flex items-center gap-3 mb-3">
             <div style={{ fontSize: 24 }}>⚠️</div>
             <div>
-              <div style={{ color: "#fca5a5", fontWeight: 800, fontSize: 13 }}>Session couldn't be restored</div>
+              <div style={{ color: "#dc2626", fontWeight: 800, fontSize: 13 }}>Session couldn't be restored</div>
               <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>Retry, or sign in again.</div>
             </div>
           </div>
@@ -17530,7 +17530,7 @@ export default function App() {
     if (bomDefs[k]) return { success: false, error: "A BOM with this key already exists" };
     if (!(def.label || "").trim()) return { success: false, error: "Machine Model Name is required" };
     if (!(def.items || []).length) return { success: false, error: "At least one component is required" };
-    const palette = ["#E8553D","#CC4A33","#8b5cf6","#ec4899","#f59e0b","#22c55e","#06b6d4","#14b8a6","#f97316","#a855f7"];
+    const palette = ["#E8553D","#CC4A33","#8b5cf6","#ec4899","#f59e0b","#22c55e","#0e7490","#14b8a6","#f97316","#a855f7"];
     const color = def.color || palette[Object.keys(bomDefs).length % palette.length];
     const newBom = {
       label: def.label.trim(),
@@ -17559,7 +17559,7 @@ export default function App() {
     let newKey = `${srcKey}-COPY`;
     let n = 2;
     while (bomDefs[newKey]) { newKey = `${srcKey}-COPY-${n++}`; }
-    const palette = ["#E8553D","#CC4A33","#8b5cf6","#ec4899","#f59e0b","#22c55e","#06b6d4","#14b8a6","#f97316","#a855f7"];
+    const palette = ["#E8553D","#CC4A33","#8b5cf6","#ec4899","#f59e0b","#22c55e","#0e7490","#14b8a6","#f97316","#a855f7"];
     const newBom = {
       label:        src.label ? `${src.label} (Copy)` : newKey,
       color:        palette[Object.keys(bomDefs).length % palette.length],
