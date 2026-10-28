@@ -822,14 +822,112 @@ aside nav button {
   transition: background-color 0.14s ease, color 0.14s ease;
 }
 
-/* ── Reduced motion ───────────────────────────────────────────────────────────── */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+/* ── Motion ───────────────────────────────────────────────────────────────────
+   Deliberately restrained. This is a tool somebody uses for eight hours, and
+   animation that delights on day one is friction by week three. Everything here
+   is 120-220ms, moves a few pixels, and exists to answer a question the user is
+   already asking: did my click register, where did this panel come from, which
+   row am I on. Nothing loops, nothing bounces, nothing delays an action.
+
+   All of it is disabled wholesale by the prefers-reduced-motion block further
+   down, which the OS setting drives. */
+
+/* Did my press register. A button that depresses 1px and dims slightly reads as
+   a physical key; on a tablet, where there is no hover state to confirm the
+   target, it is the only feedback before the action happens. */
+button:not(:disabled):active {
+  transform: translateY(1px);
+  filter: brightness(0.96);
+}
+button { transition: transform 0.08s ease, filter 0.08s ease, background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease; }
+
+/* Where did this come from. A panel that scales up from 96% at the click point
+   reads as opening; one that appears fully formed reads as a page change. */
+.modal-backdrop { animation: fadeIn 0.16s ease both; }
+/* The panel is always the backdrop's direct child in this codebase, so one
+   class on the backdrop animates both halves without touching 36 call sites. */
+.modal-backdrop > div { animation: scaleIn 0.16s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+
+/* Which row am I on. Rows already have a background transition; this adds the
+   hairline lift that makes a long table feel navigable rather than printed. */
+tbody tr:hover { background-color: rgba(17, 24, 39, 0.025); }
+
+/* Cards that can be opened say so by lifting a little under the pointer. No
+   translate on touch devices, where there is no pointer and the transform would
+   only fire after the tap has already done something. */
+@media (hover: hover) {
+  .lift-hover { transition: transform 0.16s ease, box-shadow 0.16s ease; }
+  .lift-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(15, 23, 42, 0.10); }
+}
+
+/* A page that fades in over 140ms covers the frame where React swaps the tree,
+   which otherwise reads as a flicker. Keyed on the page id by the shell. */
+.page-enter { animation: slideDownFade 0.14s ease both; }
+
+/* ── Responsive: phone · tablet · laptop · TV ──────────────────────────────────
+   The ERP is opened on all four. Production keeps a tablet on the floor,
+   department heads get a link on their phone, the office runs laptops, and a
+   screen on the wall shows the tracker. Before this it was a desktop layout
+   everywhere: a 240px navigation rail took most of a phone screen and tables
+   pushed the page sideways.
+
+   The sidebar is the whole problem below ~768px, so there it stops being a
+   column and becomes a drawer over the content. Everything else is a matter of
+   letting wide things scroll instead of forcing the page to grow. */
+
+/* The drawer backdrop. Exists only while the drawer is open, and only matters
+   below md — above that the sidebar is a column and nothing opens. */
+.nav-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.18s ease both;
+}
+@media (min-width: 768px) {
+  .nav-backdrop { display: none; }
+}
+
+/* The hamburger is only meaningful while the sidebar is hidden. */
+@media (min-width: 768px) {
+  .nav-menu-btn { display: none !important; }
+}
+
+@media (max-width: 767.98px) {
+  /* Off-canvas. Transform rather than width so the slide is composited on the
+     GPU and the links inside do not reflow as it moves. */
+  .app-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 60;
+    width: 16rem !important;        /* overrides the w-16 / w-60 Tailwind pair */
+    transform: translateX(-100%);
+    transition: transform 0.22s cubic-bezier(0.22, 0.61, 0.36, 1);
+    box-shadow: 0 0 40px rgba(15, 23, 42, 0.25);
   }
+  .app-sidebar.is-open { transform: translateX(0); }
+
+  /* A phone has no room for ornament: tighten the page gutters and let wide
+     tables scroll inside their own box rather than stretching the document. */
+  .page-scroll > div { padding-left: 0.875rem; padding-right: 0.875rem; }
+  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Modals go near-full-width instead of sitting in a narrow centred column. */
+  .modal-shell { width: calc(100vw - 1.5rem) !important; max-width: none !important; }
+}
+
+/* Wall display. At this size the screen is read from across a room, so scale
+   the whole thing up rather than leaving a desktop layout marooned in the
+   middle of it. rem-based sizing means every Tailwind spacing and text step
+   grows together. */
+@media (min-width: 1920px) {
+  html { font-size: 18px; }
+}
+@media (min-width: 2560px) {
+  html { font-size: 21px; }
 }
 
 /* ── Print ────────────────────────────────────────────────────────────────────── */
@@ -881,4 +979,14 @@ aside nav button {
      page break mid-row. `avoid` is a hint, not a guarantee, but it is enough for
      blocks this size. */
   .print-block { break-inside: avoid; page-break-inside: avoid; }
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
