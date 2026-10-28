@@ -66,7 +66,7 @@ export default class PageErrorBoundary extends Component {
       <div className="flex-1 overflow-y-auto" style={{ background: "#F7F3EB" }}>
         <div className="max-w-2xl mx-auto py-16 px-6">
           <div className="rounded-2xl p-6"
-               style={{ background: "#FFFFFF", border: "1px solid rgba(239,68,68,0.35)", boxShadow: "0 24px 60px rgba(0,0,0,0.7)" }}>
+               style={{ background: "#FFFFFF", border: "1px solid rgba(239,68,68,0.35)", boxShadow: "0 24px 60px rgba(15,20,28,0.14)" }}>
             <div className="flex items-center gap-3 mb-3">
               <div className="text-3xl">⚠️</div>
               <div>
@@ -77,7 +77,7 @@ export default class PageErrorBoundary extends Component {
               </div>
             </div>
 
-            <div className="rounded-xl p-3 mb-4 text-[11px] text-slate-300 font-mono whitespace-pre-wrap break-words"
+            <div className="rounded-xl p-3 mb-4 text-[11px] text-slate-700 font-mono whitespace-pre-wrap break-words"
                  style={{ background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.18)", maxHeight: 280, overflow: "auto" }}>
               <div className="font-bold text-red-300 mb-1">{error?.name || "Error"}: {error?.message || String(error)}</div>
               {info?.componentStack && (
@@ -96,12 +96,12 @@ export default class PageErrorBoundary extends Component {
               </button>
               {onHome && (
                 <button onClick={() => { this.setState({ error: null, info: null }); onHome(); }}
-                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-300 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-600 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all">
                   🏠 Go to Dashboard
                 </button>
               )}
               <button onClick={onReload}
-                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-300 border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-600 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all">
                 🔄 Reload app
               </button>
             </div>

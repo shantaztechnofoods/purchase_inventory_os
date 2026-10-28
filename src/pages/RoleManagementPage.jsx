@@ -170,15 +170,15 @@ export default function RoleManagementPage({ canDo }) {
         <div className="flex items-center gap-2.5">
           {isSuperAdmin && (
             <button onClick={handleReset}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition-all"
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-900 transition-all"
               style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
               Reset to Defaults
             </button>
           )}
           {canCreate && (
             <button onClick={openAdd}
-              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-all"
-              style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 12px rgba(204,74,51,0.35)" }}>
+              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all"
+              style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 12px rgba(204,74,51,0.35)", color: "#ffffff" }}>
               + New Role
             </button>
           )}
@@ -216,7 +216,7 @@ export default function RoleManagementPage({ canDo }) {
                 <div className="flex gap-1.5">
                   {canEdit && (
                     <button onClick={() => openEdit(key, role)}
-                      className="px-2.5 py-1 rounded-lg text-[10px] font-medium text-slate-300 hover:text-white transition-all"
+                      className="px-2.5 py-1 rounded-lg text-[10px] font-medium text-slate-600 hover:text-slate-900 transition-all"
                       style={{ background: "rgba(26,31,46,0.06)", border: "1px solid rgba(26,31,46,0.1)" }}>
                       Edit
                     </button>
@@ -234,7 +234,7 @@ export default function RoleManagementPage({ canDo }) {
                 <div className="text-[10px] text-slate-500 mb-1.5 font-medium">Pages ({(role.pages || []).length})</div>
                 <div className="flex flex-wrap gap-1">
                   {(role.pages || []).map((p) => (
-                    <span key={p} className="px-1.5 py-0.5 rounded text-[9px] text-slate-300" style={{ background: "rgba(26,31,46,0.07)" }}>{PAGE_LABELS[p] || p}</span>
+                    <span key={p} className="px-1.5 py-0.5 rounded text-[9px] text-slate-600" style={{ background: "rgba(26,31,46,0.06)" }}>{PAGE_LABELS[p] || p}</span>
                   ))}
                 </div>
               </div>
@@ -250,7 +250,7 @@ export default function RoleManagementPage({ canDo }) {
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: "1px solid rgba(26,31,46,0.07)" }}>
               <h3 className="font-bold text-white text-sm">{isNew ? "New Role" : `Edit: ${editForm.label}`}</h3>
-              <button onClick={() => setShowModal(false)} className="text-slate-500 hover:text-white transition-colors text-lg leading-none">✕</button>
+              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-900 transition-colors text-lg leading-none">✕</button>
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-4">
@@ -303,7 +303,7 @@ export default function RoleManagementPage({ canDo }) {
                 {["pages", "actions"].map((tab) => (
                   <button key={tab} onClick={() => setActiveTab(tab)}
                     className="flex-1 py-1.5 rounded-md text-xs font-semibold transition-all capitalize"
-                    style={{ background: activeTab === tab ? "rgba(26,31,46,0.1)" : "transparent", color: activeTab === tab ? "#fff" : "#64748b" }}>
+                    style={{ background: activeTab === tab ? "rgba(26,31,46,0.1)" : "transparent", color: activeTab === tab ? "#0f141c" : "#64748b" }}>
                     {tab === "pages" ? "Page Access" : "Action Permissions"}
                   </button>
                 ))}
@@ -316,7 +316,7 @@ export default function RoleManagementPage({ canDo }) {
                            style={{ background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.07)" }}>
                       <input type="checkbox" checked={(editForm.pages || []).includes(page)} onChange={() => togglePage(page)}
                         className="rounded" style={{ accentColor: editForm.color }} />
-                      <span className="text-xs text-slate-300">{PAGE_LABELS[page] || page}</span>
+                      <span className="text-xs text-slate-700">{PAGE_LABELS[page] || page}</span>
                     </label>
                   ))}
                 </div>
@@ -335,7 +335,7 @@ export default function RoleManagementPage({ canDo }) {
                                    style={{ background: checked ? `${editForm.color}15` : "rgba(26,31,46,0.05)", border: `1px solid ${checked ? editForm.color + "40" : "rgba(26,31,46,0.08)"}` }}>
                               <input type="checkbox" checked={checked} onChange={() => toggleAction(mod.key, action)}
                                 className="rounded" style={{ accentColor: editForm.color }} />
-                              <span className="text-[11px] text-slate-300 capitalize">{action}</span>
+                              <span className="text-[11px] text-slate-700 capitalize">{action}</span>
                             </label>
                           );
                         })}
@@ -349,13 +349,13 @@ export default function RoleManagementPage({ canDo }) {
             {/* Modal Footer */}
             <div className="flex gap-2.5 px-6 py-4 flex-shrink-0" style={{ borderTop: "1px solid rgba(26,31,46,0.07)" }}>
               <button onClick={() => setShowModal(false)}
-                className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all"
+                className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-900 transition-all"
                 style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
                 Cancel
               </button>
               <button onClick={handleSave} disabled={!editForm.label.trim() || (isNew && !newRoleKey.trim())}
-                className="flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-all"
-                style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 12px rgba(204,74,51,0.35)", opacity: (!editForm.label.trim() || (isNew && !newRoleKey.trim())) ? 0.4 : 1 }}>
+                className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
+                style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 12px rgba(204,74,51,0.35)", opacity: (!editForm.label.trim() || (isNew && !newRoleKey.trim())) ? 0.4 : 1, color: "#ffffff" }}>
                 {isNew ? "Create Role" : "Save Changes"}
               </button>
             </div>
@@ -374,13 +374,13 @@ export default function RoleManagementPage({ canDo }) {
             </div>
             <div className="flex gap-2.5 mt-6">
               <button onClick={() => setDeleteConfirm(null)}
-                className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all"
+                className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-900 transition-all"
                 style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
                 Cancel
               </button>
               <button onClick={() => handleDelete(deleteConfirm)}
-                className="flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-all"
-                style={{ background: "linear-gradient(135deg,#ef4444,#dc2626)", boxShadow: "0 4px 12px rgba(239,68,68,0.35)" }}>
+                className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
+                style={{ background: "linear-gradient(135deg,#ef4444,#dc2626)", boxShadow: "0 4px 12px rgba(239,68,68,0.35)", color: "#ffffff" }}>
                 Delete Role
               </button>
             </div>

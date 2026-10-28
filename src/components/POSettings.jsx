@@ -109,14 +109,14 @@ export default function POSettings({ value, onChange, onPersist, isSuperAdmin = 
   if (!isSuperAdmin) {
     return (
       <div className="px-3.5 py-3 rounded-xl" style={{ background: "rgba(249,115,22,0.06)", border: "1px solid rgba(249,115,22,0.18)" }}>
-        <div className="text-[12px] font-bold text-orange-300">🔒 Restricted</div>
-        <div className="text-[11px] text-slate-400 mt-1">Only a Super Admin can edit company profiles and Purchase Order templates.</div>
+        <div className="text-[12px] font-bold text-orange-700">🔒 Restricted</div>
+        <div className="text-[11px] text-slate-500 mt-1">Only a Super Admin can edit company profiles and Purchase Order templates.</div>
       </div>
     );
   }
 
-  const inp = "w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-[12px] text-[#f0f6ff] placeholder-slate-600 outline-none focus:border-blue-500/40 transition-colors";
-  const lbl = "text-[10px] font-semibold text-slate-400 mb-1";
+  const inp = "w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-[12px] text-[#0f141c] placeholder-slate-400 outline-none focus:border-blue-500/40 transition-colors";
+  const lbl = "text-[10px] font-semibold text-slate-500 mb-1";
 
   // ─── TEMPLATE MODE (Purchase Order tab) ──────────────────────────────────
   if (mode === "template") {
@@ -279,11 +279,11 @@ export default function POSettings({ value, onChange, onPersist, isSuperAdmin = 
                 {active[key] ? <img src={active[key]} alt={key} className="w-full h-full object-contain" /> : <span className="text-xl">{fallback}</span>}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-[11px] font-semibold text-slate-300 mb-1">{label}</div>
+                <div className="text-[11px] font-semibold text-slate-600 mb-1">{label}</div>
                 <input ref={ref} type="file" accept="image/*" className="hidden" onChange={() => upload(ref, active.id, key)} />
                 <div className="flex gap-1.5">
                   <button onClick={() => ref.current?.click()}
-                          className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-white/[0.1] text-slate-300 hover:border-white/20 transition-all">Upload</button>
+                          className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:border-slate-300 transition-all">Upload</button>
                   {active[key] && <button onClick={() => patchCompany(active.id, { [key]: "" })}
                           className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-all">Remove</button>}
                 </div>

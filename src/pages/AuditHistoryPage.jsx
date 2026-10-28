@@ -226,7 +226,7 @@ export default function AuditHistoryPage() {
 
   const Th = ({ col, children, w }) => (
     <th onClick={() => toggleSort(col)}
-        className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wide cursor-pointer hover:text-white transition-colors select-none"
+        className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wide cursor-pointer hover:text-slate-900 transition-colors select-none"
         style={{ width: w }}>
       <div className="flex items-center gap-1">
         {children}
@@ -248,7 +248,7 @@ export default function AuditHistoryPage() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => exportCSV(sorted)}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white transition-all"
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all"
             style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
             📥 CSV
           </button>
@@ -305,7 +305,7 @@ export default function AuditHistoryPage() {
 
         {(search || dateFrom || dateTo || userFilter || moduleFilter || typeFilter || poFilter || vendorFilter) && (
           <button onClick={resetFilters}
-            className="text-[10px] font-bold text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-white/[0.06] hover:border-white/[0.14] transition-all">
+            className="text-[10px] font-bold text-slate-500 hover:text-slate-700 px-2 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 transition-all">
             ✕ Reset
           </button>
         )}
@@ -349,12 +349,12 @@ export default function AuditHistoryPage() {
                         {meta.label}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 text-slate-300 text-[11px]">{r.action}</td>
+                    <td className="px-3 py-2.5 text-slate-700 text-[11px]">{r.action}</td>
                     <td className="px-3 py-2.5 text-slate-500 font-mono text-[10px]">{r.ref || "—"}</td>
                     <td className="px-3 py-2.5 text-center">
                       {(r.oldValue || r.newValue || r.details) && (
                         <button onClick={() => setExpanded(isExpanded ? null : r.id)}
-                          className="text-slate-500 hover:text-white transition-colors text-[11px]">
+                          className="text-slate-400 hover:text-slate-900 transition-colors text-[11px]">
                           {isExpanded ? "▲" : "▼"}
                         </button>
                       )}
@@ -366,33 +366,33 @@ export default function AuditHistoryPage() {
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Old Value</div>
-                            <pre className="text-[10px] text-slate-300 p-2 rounded-lg overflow-x-auto whitespace-pre-wrap"
-                                 style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(239,68,68,0.15)" }}>
+                            <pre className="text-[10px] text-slate-700 p-2 rounded-lg overflow-x-auto whitespace-pre-wrap"
+                                 style={{ background: "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.15)" }}>
                               {r.oldValue ? JSON.stringify(r.oldValue, null, 2) : "—"}
                             </pre>
                           </div>
                           <div>
                             <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">New Value</div>
-                            <pre className="text-[10px] text-slate-300 p-2 rounded-lg overflow-x-auto whitespace-pre-wrap"
-                                 style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(52,211,153,0.15)" }}>
+                            <pre className="text-[10px] text-slate-700 p-2 rounded-lg overflow-x-auto whitespace-pre-wrap"
+                                 style={{ background: "rgba(52,211,153,0.04)", border: "1px solid rgba(52,211,153,0.15)" }}>
                               {r.newValue ? JSON.stringify(r.newValue, null, 2) : "—"}
                             </pre>
                           </div>
                           {r.details && (
                             <div className="col-span-2">
                               <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Details</div>
-                              <pre className="text-[10px] text-slate-400 p-2 rounded-lg overflow-x-auto whitespace-pre-wrap"
-                                   style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(26,31,46,0.07)" }}>
+                              <pre className="text-[10px] text-slate-600 p-2 rounded-lg overflow-x-auto whitespace-pre-wrap"
+                                   style={{ background: "rgba(26,31,46,0.03)", border: "1px solid rgba(26,31,46,0.07)" }}>
                                 {JSON.stringify(r.details, null, 2)}
                               </pre>
                             </div>
                           )}
                           {(r.itemCode || r.vendor || r.serialNo || r.qty || r.amount) && (
                             <div className="col-span-2 flex flex-wrap gap-3 text-[10px] text-slate-500 pt-1">
-                              {r.itemCode && <span><span className="text-slate-600">Item:</span> <span className="text-slate-300 font-mono">{r.itemCode}</span> {r.itemName && <span className="text-slate-400">— {r.itemName}</span>}</span>}
-                              {r.vendor   && <span><span className="text-slate-600">Vendor:</span> <span className="text-slate-300">{r.vendor}</span></span>}
-                              {r.serialNo && <span><span className="text-slate-600">S/N:</span> <span className="text-slate-300 font-mono">{r.serialNo}</span></span>}
-                              {r.qty      ? <span><span className="text-slate-600">Qty:</span> <span className="text-slate-300">{r.qty}</span></span> : null}
+                              {r.itemCode && <span><span className="text-slate-500">Item:</span> <span className="text-slate-700 font-mono">{r.itemCode}</span> {r.itemName && <span className="text-slate-600">— {r.itemName}</span>}</span>}
+                              {r.vendor   && <span><span className="text-slate-500">Vendor:</span> <span className="text-slate-700">{r.vendor}</span></span>}
+                              {r.serialNo && <span><span className="text-slate-500">S/N:</span> <span className="text-slate-700 font-mono">{r.serialNo}</span></span>}
+                              {r.qty      ? <span><span className="text-slate-500">Qty:</span> <span className="text-slate-700">{r.qty}</span></span> : null}
                               {r.amount   ? <span><span className="text-slate-600">Amount:</span> <span className="text-green-400 font-mono">₹{r.amount.toLocaleString("en-IN")}</span></span> : null}
                             </div>
                           )}
@@ -420,17 +420,17 @@ export default function AuditHistoryPage() {
         </div>
         <div className="flex items-center gap-1.5">
           <button onClick={() => setPage(0)} disabled={safePage === 0}
-            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             style={{ background: "rgba(26,31,46,0.05)" }}>⏮</button>
           <button onClick={() => setPage(Math.max(0, safePage - 1))} disabled={safePage === 0}
-            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             style={{ background: "rgba(26,31,46,0.05)" }}>◀</button>
           <span className="px-3 py-1 text-xs text-slate-400">Page {safePage + 1} / {totalPages}</span>
           <button onClick={() => setPage(Math.min(totalPages - 1, safePage + 1))} disabled={safePage >= totalPages - 1}
-            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             style={{ background: "rgba(26,31,46,0.05)" }}>▶</button>
           <button onClick={() => setPage(totalPages - 1)} disabled={safePage >= totalPages - 1}
-            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             style={{ background: "rgba(26,31,46,0.05)" }}>⏭</button>
         </div>
       </div>

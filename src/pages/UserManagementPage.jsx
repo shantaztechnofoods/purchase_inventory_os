@@ -270,8 +270,8 @@ export default function UserManagementPage({ canDo }) {
             style={inputStyle} />
           {(isSuperAdmin || canDo?.("users", "create")) && (
             <button onClick={openAdd}
-              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-all"
-              style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 12px rgba(204,74,51,0.35)" }}>
+              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all"
+              style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 12px rgba(204,74,51,0.35)", color: "#ffffff" }}>
               + Add User
             </button>
           )}
@@ -311,7 +311,7 @@ export default function UserManagementPage({ canDo }) {
                         <div className="font-mono font-semibold text-white">{user.username}</div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-slate-300">{user.mobile || "—"}</td>
+                    <td className="px-4 py-3 text-slate-600">{user.mobile || "—"}</td>
                     <td className="px-4 py-3">
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ background: rColor + "22", color: rColor }}>{rLabel}</span>
                     </td>
@@ -326,7 +326,7 @@ export default function UserManagementPage({ canDo }) {
                       <div className="flex items-center gap-1.5 justify-end">
                         {(isSuperAdmin || canDo?.("users", "edit")) && (
                           <button onClick={() => openEdit(user)}
-                            className="px-2.5 py-1 rounded-lg text-[10px] font-medium text-slate-300 hover:text-white transition-all"
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-medium text-slate-600 hover:text-slate-900 transition-all"
                             style={{ background: "rgba(26,31,46,0.06)", border: "1px solid rgba(26,31,46,0.1)" }}>
                             Edit
                           </button>
@@ -374,12 +374,12 @@ export default function UserManagementPage({ canDo }) {
 
       {/* Add/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(15,20,28,0.45)", backdropFilter: "blur(4px)" }}
              onClick={(e) => e.target === e.currentTarget && setShowModal(false)}>
-          <div className="w-full max-w-md rounded-2xl p-6 mx-4" style={{ background: "#0e1118", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}>
+          <div className="w-full max-w-md rounded-2xl p-6 mx-4" style={{ background: "#ffffff", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(15,20,28,0.18)" }}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-bold text-white text-sm">{editUser ? "Edit User" : "Add New User"}</h3>
-              <button onClick={() => setShowModal(false)} className="text-slate-500 hover:text-white transition-colors text-lg leading-none">✕</button>
+              <h3 className="font-bold text-sm" style={{ color: "#0f141c" }}>{editUser ? "Edit User" : "Add New User"}</h3>
+              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-900 transition-colors text-lg leading-none">✕</button>
             </div>
 
             <form onSubmit={(ev) => { ev.preventDefault(); if (!submitting) handleSave(); }} className="space-y-3.5">
@@ -410,7 +410,7 @@ export default function UserManagementPage({ canDo }) {
                 <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
                   className={inputCls} style={inputStyle}>
                   {roleOptions.map((r) => (
-                    <option key={r.value} value={r.value} style={{ background: "#0e1118" }}>{r.label}</option>
+                    <option key={r.value} value={r.value} style={{ background: "#ffffff" }}>{r.label}</option>
                   ))}
                 </select>
               </div>
@@ -418,23 +418,24 @@ export default function UserManagementPage({ canDo }) {
                 <label className="block text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Status</label>
                 <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
                   className={inputCls} style={inputStyle}>
-                  <option value="active" style={{ background: "#0e1118" }}>Active</option>
-                  <option value="disabled" style={{ background: "#0e1118" }}>Disabled</option>
+                  <option value="active" style={{ background: "#ffffff" }}>Active</option>
+                  <option value="disabled" style={{ background: "#ffffff" }}>Disabled</option>
                 </select>
               </div>
 
               <div className="flex gap-2.5 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} disabled={submitting}
-                  className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all"
+                  className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-900 transition-all"
                   style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
                   Cancel
                 </button>
                 <button type="submit" disabled={submitting}
-                  className="flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-all"
+                  className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
                   style={{
                     background: submitting ? "rgba(204,74,51,0.4)" : "linear-gradient(135deg,#E8553D,#CC4A33)",
                     boxShadow: submitting ? "none" : "0 4px 12px rgba(204,74,51,0.35)",
                     cursor: submitting ? "wait" : "pointer",
+                    color: "#ffffff",
                   }}>
                   {submitting ? "Saving…" : (editUser ? "Save Changes" : "Create User")}
                 </button>
@@ -446,12 +447,12 @@ export default function UserManagementPage({ canDo }) {
 
       {/* Reset Password Modal */}
       {showResetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(15,20,28,0.45)", backdropFilter: "blur(4px)" }}
              onClick={(e) => { if (!resetSubmitting && e.target === e.currentTarget) setShowResetModal(false); }}>
-          <div className="w-full max-w-sm rounded-2xl p-6 mx-4" style={{ background: "#0e1118", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}>
+          <div className="w-full max-w-sm rounded-2xl p-6 mx-4" style={{ background: "#ffffff", border: "1px solid rgba(26,31,46,0.1)", boxShadow: "0 32px 80px rgba(15,20,28,0.18)" }}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-bold text-white text-sm">Reset Password</h3>
-              <button onClick={() => !resetSubmitting && setShowResetModal(false)} className="text-slate-500 hover:text-white transition-colors text-lg leading-none">✕</button>
+              <h3 className="font-bold text-sm" style={{ color: "#0f141c" }}>Reset Password</h3>
+              <button onClick={() => !resetSubmitting && setShowResetModal(false)} className="text-slate-400 hover:text-slate-900 transition-colors text-lg leading-none">✕</button>
             </div>
             <form onSubmit={(ev) => { ev.preventDefault(); ev.stopPropagation(); if (!resetSubmitting) handleResetPassword(); }} className="space-y-3.5">
               <div>
@@ -473,7 +474,7 @@ export default function UserManagementPage({ canDo }) {
               </div>
               <div className="flex gap-2.5 pt-2">
                 <button type="button" onClick={() => !resetSubmitting && setShowResetModal(false)} disabled={resetSubmitting}
-                  className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all"
+                  className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-900 transition-all"
                   style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)", opacity: resetSubmitting ? 0.5 : 1 }}>
                   Cancel
                 </button>
@@ -490,11 +491,12 @@ export default function UserManagementPage({ canDo }) {
                       handleResetPassword();
                     }
                   }}
-                  className="flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-all flex items-center justify-center gap-2"
+                  className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2"
                   style={{
                     background: "linear-gradient(135deg,#E8553D,#CC4A33)",
                     opacity: (resetSubmitting || !resetPw.pw || resetPw.pw !== resetPw.confirm) ? 0.5 : 1,
                     cursor: resetSubmitting ? "wait" : (!resetPw.pw || resetPw.pw !== resetPw.confirm) ? "not-allowed" : "pointer",
+                    color: "#ffffff",
                   }}
                 >
                   {resetSubmitting && (
@@ -510,9 +512,9 @@ export default function UserManagementPage({ canDo }) {
 
       {/* Delete Confirm */}
       {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(15,20,28,0.45)", backdropFilter: "blur(4px)" }}
              onClick={(e) => { if (!deleteSubmitting && e.target === e.currentTarget) setDeleteConfirm(null); }}>
-          <div className="w-full max-w-sm rounded-2xl p-6 mx-4" style={{ background: "#0e1118", border: "1px solid rgba(239,68,68,0.25)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}>
+          <div className="w-full max-w-sm rounded-2xl p-6 mx-4" style={{ background: "#ffffff", border: "1px solid rgba(239,68,68,0.25)", boxShadow: "0 32px 80px rgba(15,20,28,0.18)" }}>
             <div className="text-center">
               <div className="text-3xl mb-3">⚠️</div>
               <h3 className="font-bold text-white text-sm mb-2">Delete User?</h3>
@@ -523,7 +525,7 @@ export default function UserManagementPage({ canDo }) {
                 type="button"
                 onClick={() => { if (!deleteSubmitting) setDeleteConfirm(null); }}
                 disabled={deleteSubmitting}
-                className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all"
+                className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-900 transition-all"
                 style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)", opacity: deleteSubmitting ? 0.5 : 1 }}
               >
                 Cancel
@@ -539,12 +541,13 @@ export default function UserManagementPage({ canDo }) {
                   if (!deleteSubmitting) handleDelete(deleteConfirm);
                 }}
                 disabled={deleteSubmitting}
-                className="flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-all flex items-center justify-center gap-2"
+                className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2"
                 style={{
                   background: "linear-gradient(135deg,#ef4444,#dc2626)",
                   boxShadow: deleteSubmitting ? "none" : "0 4px 12px rgba(239,68,68,0.35)",
                   opacity: deleteSubmitting ? 0.6 : 1,
                   cursor: deleteSubmitting ? "wait" : "pointer",
+                  color: "#ffffff",
                 }}
               >
                 {deleteSubmitting && (
