@@ -1,6 +1,12 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import * as XLSX from "xlsx";
+// Navigation icons. Named imports so the bundler keeps only these sixteen.
+import {
+  LayoutDashboard, Package, ArrowDownToLine, ArrowUpFromLine, Hourglass,
+  RefreshCw, Wrench, Factory, BarChart3, Bot, ScrollText, TrendingUp,
+  ShieldCheck, Settings, User, KeyRound, Menu, X,
+} from "lucide-react";
 import { useAuth } from "./auth/AuthContext.jsx";
 // Migration 029 — list employees + save their department assignments.
 // Migration 030 — fetchDeptRoster reads a minimal view that bypasses the
@@ -66,7 +72,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-29-store-guards";
+const APP_BUILD = "2026-10-29-ui-foundation";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -466,33 +472,41 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 const MACHINE_STAGES = ["BOM Issued", "Assembly", "Mechanical", "Electrical", "Trial", "Ready"];
 
+// Navigation icons.
+//
+// These were emoji. Emoji render in whatever font the device ships — the
+// sidebar looked different on a Samsung tablet, a Windows laptop and a phone,
+// and emoji are the single clearest tell that software was assembled rather
+// than designed. Lucide draws them as stroked SVG, so they take the sidebar's
+// own colour, stay sharp at any size, and look the same on every screen the
+// ERP is opened on.
 const navItems = [
-  { id: "dashboard",  icon: "⬛", label: "Dashboard",        section: "OVERVIEW" },
-  { id: "inventory",  icon: "📦", label: "Item Master",      section: null },
-  { id: "inward",     icon: "📥", label: "Inward",           section: "TRANSACTIONS" },
-  { id: "outward",    icon: "📤", label: "Outward",          section: null },
-  { id: "pending",    icon: "⏳", label: "Pending Stock",    section: null },
-  { id: "pipeline",   icon: "🔄", label: "Order Pipeline",   section: "OPERATIONS" },
-  { id: "machines",   icon: "🔧", label: "Machine Tracker",  section: null },
-  { id: "vendors",    icon: "🏭", label: "Vendors",          section: null },
-  { id: "analytics",  icon: "📊", label: "Analytics",        section: "INTELLIGENCE" },
-  { id: "ai",         icon: "🤖", label: "AI Assistant",     section: null },
-  { id: "history",    icon: "📜", label: "History & Reports",section: "REPORTS" },
-  { id: "reports",    icon: "📈", label: "Report Center",    section: null },
-  { id: "audit",      icon: "🛡️", label: "Audit Trail",      section: null },
-  { id: "settings",   icon: "⚙️", label: "Settings",         section: "SYSTEM" },
-  { id: "users",      icon: "👤", label: "User Management",  section: null },
-  { id: "roles",      icon: "🔐", label: "Role Management",  section: null },
+  { id: "dashboard",  Icon: LayoutDashboard, label: "Dashboard",        section: "OVERVIEW" },
+  { id: "inventory",  Icon: Package,         label: "Item Master",      section: null },
+  { id: "inward",     Icon: ArrowDownToLine, label: "Inward",           section: "TRANSACTIONS" },
+  { id: "outward",    Icon: ArrowUpFromLine, label: "Outward",          section: null },
+  { id: "pending",    Icon: Hourglass,       label: "Pending Stock",    section: null },
+  { id: "pipeline",   Icon: RefreshCw,       label: "Order Pipeline",   section: "OPERATIONS" },
+  { id: "machines",   Icon: Wrench,          label: "Machine Tracker",  section: null },
+  { id: "vendors",    Icon: Factory,         label: "Vendors",          section: null },
+  { id: "analytics",  Icon: BarChart3,       label: "Analytics",        section: "INTELLIGENCE" },
+  { id: "ai",         Icon: Bot,             label: "AI Assistant",     section: null },
+  { id: "history",    Icon: ScrollText,      label: "History & Reports",section: "REPORTS" },
+  { id: "reports",    Icon: TrendingUp,      label: "Report Center",    section: null },
+  { id: "audit",      Icon: ShieldCheck,     label: "Audit Trail",      section: null },
+  { id: "settings",   Icon: Settings,        label: "Settings",         section: "SYSTEM" },
+  { id: "users",      Icon: User,            label: "User Management",  section: null },
+  { id: "roles",      Icon: KeyRound,        label: "Role Management",  section: null },
 ];
 
 // ─── SIDEBAR ─────────────────────────────────────────────────────────────────
 
-function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = {}, canView, onSearchOpen, onNotifsOpen, notifCount = 0, settings = SETTINGS_DEFAULTS }) {
+function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = {}, canView, onSearchOpen, onNotifsOpen, notifCount = 0, settings = SETTINGS_DEFAULTS, mobileOpen = false, onMobileClose = () => {} }) {
   const visible = navItems.filter((item) => canView ? canView(item.id) : true);
 
   return (
     <aside
-      className={`${collapsed ? "w-16" : "w-60"} no-print flex flex-col flex-shrink-0 transition-all duration-300 overflow-hidden relative`}
+      className={`${collapsed ? "w-16" : "w-60"} app-sidebar${mobileOpen ? " is-open" : ""} no-print flex flex-col flex-shrink-0 transition-all duration-300 overflow-hidden relative`}
       style={{ background: "var(--surface-nav)", borderRight: "1px solid var(--border-subtle)" }}
     >
       <div className="absolute right-0 top-28 bottom-28 w-px pointer-events-none"
@@ -587,9 +601,9 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
                 onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "#f1f3f6"; }}
                 onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = ""; }}>
                 {isActive && <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full" style={{ background: "linear-gradient(180deg,#d71920,#b01218)" }} />}
-                <div className="w-6 h-6 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
                      style={isActive ? { background: "rgba(215,25,32,0.12)", border: "1px solid rgba(215,25,32,0.28)" } : {}}>
-                  {item.icon}
+                  <item.Icon size={15} strokeWidth={isActive ? 2.4 : 2} aria-hidden="true" />
                 </div>
                 {!collapsed && (
                   <>
@@ -630,7 +644,15 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
 
 // ─── TOPBAR ──────────────────────────────────────────────────────────────────
 
+// Opening the navigation drawer is a shell concern, but the button belongs in
+// the Topbar, which is rendered by fifteen different pages that know nothing
+// about the shell. A context carries it there without threading a prop through
+// all fifteen — and without the button drifting out of the header into a
+// floating control that overlaps page content.
+const MobileNavContext = React.createContext(null);
+
 function Topbar({ title, subtitle, children }) {
+  const onMenu = React.useContext(MobileNavContext);
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -639,8 +661,17 @@ function Topbar({ title, subtitle, children }) {
   const timeStr = time.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
   return (
-    <div className="flex-shrink-0 no-print flex items-center gap-4 px-6 py-3.5"
+    <div className="flex-shrink-0 no-print flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3.5"
          style={{ background: "var(--surface-card)", borderBottom: "1px solid var(--border-subtle)" }}>
+      {/* Opens the navigation drawer. Hidden from md up, where the sidebar is
+          a permanent column and this would be a button to nothing. */}
+      {onMenu && (
+        <button onClick={onMenu} aria-label="Open navigation"
+                className="nav-menu-btn flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
+                style={{ color: "var(--text-dim)", border: "1px solid var(--border-subtle)" }}>
+          <Menu size={18} aria-hidden="true" />
+        </button>
+      )}
       <div className="flex-1 min-w-0">
         <h1 className="text-[14px] font-semibold tracking-tight leading-none" style={{ color: "var(--text-strong)" }}>{title}</h1>
         {subtitle && <p className="text-[11px] mt-1 leading-none font-normal" style={{ color: "var(--text-dim)" }}>{subtitle}</p>}
@@ -1109,7 +1140,7 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
   const btnGlow      = isAdd ? "0 0 14px rgba(34,197,94,0.35)" : "0 0 14px rgba(249,115,22,0.35)";
 
   return (
-    <div className="fixed inset-0 z-[55] flex items-center justify-center p-4"
+    <div className="modal-backdrop fixed inset-0 z-[55] flex items-center justify-center p-4"
          style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(14px)" }}
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-xs flex flex-col rounded-2xl overflow-hidden"
@@ -1230,7 +1261,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
   const barGrad   = item.status === "critical" ? "linear-gradient(90deg,#ef4444,#dc2626)" : item.status === "warning" ? "linear-gradient(90deg,#f97316,#ea580c)" : "linear-gradient(90deg,#22c55e,#16a34a)";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
          style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(16px)" }}
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-lg flex flex-col rounded-2xl overflow-hidden"
@@ -2074,7 +2105,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
   const selectStyle = { background: "var(--surface-input)", color: "var(--text)" };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
          style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(14px)" }}
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-2xl flex flex-col rounded-2xl overflow-hidden"
@@ -2569,7 +2600,7 @@ function ItemImportModal({ items, onImport, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
          style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(14px)" }}
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl overflow-hidden"
@@ -3000,7 +3031,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
 
       {/* ── Delete Confirmation Modal ── */}
       {deleteModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[60] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
              onClick={e => e.target === e.currentTarget && setDeleteModal(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
@@ -3525,7 +3556,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
          style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(16px)" }}
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-2xl flex flex-col rounded-2xl overflow-hidden"
@@ -3988,7 +4019,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
   const cur = stepMap[po.status] ?? 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
          style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(16px)" }}
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-lg flex flex-col rounded-2xl overflow-hidden"
@@ -4373,7 +4404,7 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
          style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(14px)" }}
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl overflow-hidden"
@@ -4556,7 +4587,7 @@ function VendorModal({ initialVendor, onSave, onClose }) {
   const selStyle = { background: "var(--surface-input)", color: "var(--text)" };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
          style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(14px)" }}
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl overflow-hidden"
@@ -4770,7 +4801,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
           (it.vendorLinks || []).some((l) => l.vendorId === confirmDelete.id) || it.vendor === confirmDelete.name
         ).length;
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
                style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(14px)" }}
                onClick={(e) => e.target === e.currentTarget && setConfirmDelete(null)}>
             <div className="w-96 rounded-2xl p-6" style={{ background: "var(--surface-elevated)", border: `1px solid ${use.anyRefs ? "rgba(234,179,8,0.4)" : "rgba(239,68,68,0.35)"}` }}>
@@ -7444,7 +7475,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
 
       {/* ── Vendor PO Wizard — Select Vendor (preferred low-stock only) ── */}
       {vendorWizStep === "vendor" && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[80] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && cancelVendorWizard()}>
           <div className="w-full max-w-md rounded-2xl p-6 space-y-4"
@@ -7509,7 +7540,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         const stepMap  = { draft:0, pending:1, approved:2, ordered:3, received:4, overdue:2, review:1 };
         const cur      = stepMap[viewPO.status] ?? 0;
         return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
              onClick={e => e.target === e.currentTarget && setViewPO(null)}>
           <div className="w-full max-w-2xl flex flex-col rounded-2xl overflow-hidden"
@@ -7743,7 +7774,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
 
       {/* ── Reverse Receive Modal (Super Admin only) ── */}
       {reverseModal && (
-        <div className="fixed inset-0 z-[55] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[55] flex items-center justify-center p-4"
              style={{ background:"rgba(17,24,39,0.45)", backdropFilter:"blur(12px)" }}
              onClick={e => e.target===e.currentTarget && (setReverseModal(null), setReverseReason(""), setReverseErr(""))}>
           <div className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ background:"var(--surface-elevated)", border:"1px solid rgba(245,158,11,0.4)", boxShadow:"0 40px 80px rgba(17,24,39,0.22)" }}>
@@ -7784,7 +7815,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
 
       {/* ── Reject Modal ── */}
       {rejectModal && (
-        <div className="fixed inset-0 z-[55] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[55] flex items-center justify-center p-4"
              style={{ background:"rgba(17,24,39,0.45)", backdropFilter:"blur(12px)" }}
              onClick={e => e.target===e.currentTarget && (setRejectModal(null),setRejectReason(""),setRejectErr(false))}>
           <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"var(--surface-elevated)", border:"1px solid rgba(239,68,68,0.4)", boxShadow:"0 40px 80px rgba(17,24,39,0.22)", animation:"slideUp 0.25s ease both" }}>
@@ -7806,7 +7837,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
 
       {/* ── Make Order / ETA Modal ── */}
       {moModal && (
-        <div className="fixed inset-0 z-[55] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[55] flex items-center justify-center p-4"
              style={{ background:"rgba(17,24,39,0.45)", backdropFilter:"blur(12px)" }}
              onClick={e=>e.target===e.currentTarget&&(setMoModal(null),setEta(""),setEtaCustom(""))}>
           <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"var(--surface-elevated)", border:"1px solid rgba(232,85,61,0.4)", boxShadow:"0 40px 80px rgba(17,24,39,0.22)", animation:"slideUp 0.25s ease both" }}>
@@ -7843,7 +7874,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
 
       {/* ── Follow-Up Done Modal ── */}
       {fuModal && (
-        <div className="fixed inset-0 z-[55] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[55] flex items-center justify-center p-4"
              style={{ background:"rgba(17,24,39,0.45)", backdropFilter:"blur(12px)" }}
              onClick={e=>e.target===e.currentTarget&&setFuModal(null)}>
           <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"var(--surface-elevated)", border:"1px solid rgba(167,139,250,0.4)", boxShadow:"0 40px 80px rgba(17,24,39,0.22)", animation:"slideUp 0.25s ease both" }}>
@@ -7885,7 +7916,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         const parsedQty      = Math.max(1, parseInt(qtyInput, 10) || 0);
         const poValue        = parsedQty * (item.lastPurchaseRate || 0);
         return (
-          <div className="fixed inset-0 z-[55] flex items-center justify-center p-4"
+          <div className="modal-backdrop fixed inset-0 z-[55] flex items-center justify-center p-4"
                style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
                onClick={e => e.target === e.currentTarget && setQtyModal(null)}>
             <div className="w-full max-w-sm rounded-2xl overflow-hidden"
@@ -8394,7 +8425,7 @@ function BomChecklistSlots({
 
       {/* ── Inline editor overlay ────────────────────────────────────────── */}
       {editing && (
-        <div className="fixed inset-0 z-[95] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[95] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(10px)" }}
              onClick={(e) => e.target === e.currentTarget && !busy && closeEditor()}>
           <div className="w-full max-w-xl rounded-2xl overflow-hidden flex flex-col"
@@ -9419,7 +9450,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
           the entire sticky summary bar + Issue button, so the trigger path
           is unreachable in edit mode). */}
       {!editMode && showCriticalModal && (
-        <div className="fixed inset-0 z-[85] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[85] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && !issuing && setShowCriticalModal(false)}>
           <div className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col"
@@ -9560,7 +9591,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
           destination has been chosen yet. Either button commits the issue
           with the chosen destination. */}
       {showDestChoice && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[90] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && !issuing && setShowDestChoice(false)}>
           <div className="w-full max-w-md rounded-2xl overflow-hidden"
@@ -9620,7 +9651,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
           exposed to further routine editing — any later correction must go
           through a controlled process (per spec, intentionally not built). */}
       {!editMode && showDurationModal && (
-        <div className="fixed inset-0 z-[88] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[88] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && !issuing && setShowDurationModal(false)}>
           <div className="w-full max-w-xl rounded-2xl overflow-hidden flex flex-col"
@@ -9915,7 +9946,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
 
       {/* Serial Number Modal */}
       {serialModal && bomDefs?.[serialModal] && (
-        <div className="fixed inset-0 z-[75] flex items-center justify-center" style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(10px)" }}>
+        <div className="modal-backdrop fixed inset-0 z-[75] flex items-center justify-center" style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(10px)" }}>
           <div className="bg-white rounded-2xl w-full max-w-md mx-4 overflow-hidden" style={{ border: "1px solid var(--border-rim)", boxShadow: "0 32px 80px rgba(17,24,39,0.18)", animation: "slideUp 0.25s ease both" }}>
             <div className="px-6 py-5" style={{ borderBottom: "1px solid rgba(17,24,39,0.08)", background: "rgba(17,24,39,0.03)" }}>
               <div className="flex items-center gap-3">
@@ -9989,7 +10020,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
 
       {/* 2026-06-02d — Safe BOM delete confirmation */}
       {confirmDeleteBOM && (
-        <div className="fixed inset-0 z-[85] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[85] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setConfirmDeleteBOM(null)}>
           <div className="w-full max-w-md rounded-2xl overflow-hidden"
@@ -10087,7 +10118,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
 
       {/* Feature 3: confirm-then-remove rack build modal */}
       {removeRackConfirm && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[80] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setRemoveRackConfirm(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
@@ -10168,7 +10199,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
 
       {/* Create BOM Modal */}
       {showCreate && (
-        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[75] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(10px)" }}
              onClick={(e) => e.target === e.currentTarget && setShowCreate(false)}>
           <div className="bg-white rounded-2xl w-full max-w-2xl overflow-hidden flex flex-col"
@@ -14212,7 +14243,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           re-renders immediately (capacity, empty, state, progress bar) because
           rackData reads bomDefs from props. */}
       {editRackModal && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[80] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setEditRackModal(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
@@ -14279,7 +14310,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           completed history, and the BOM definition's items/label/colour are
           untouched. */}
       {deleteRackConfirm && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[80] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setDeleteRackConfirm(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
@@ -14367,7 +14398,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           showToast(`${m.bomKey}${m.serialNo ? ` — ${m.serialNo}` : ""}`, `${raiseDept} called · machine is now blocked`);
         };
         return (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[70] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && !raiseBusy && setRaiseModal(null)}>
           <div className="w-full max-w-lg rounded-2xl p-6"
@@ -14427,7 +14458,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
       {/* ── Start Production Modal ── */}
       {startProd && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[70] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setStartProd(null)}>
           <div className="w-full max-w-md rounded-2xl p-6 space-y-4"
@@ -14513,7 +14544,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           Start Production modal threw a ReferenceError on render because
           setRemoveRackConfirm was undefined in scope. */}
       {removeRackConfirm && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[80] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setRemoveRackConfirm(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
@@ -14573,7 +14604,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         const expectedMin = (expectedCfg && expectedCfg.minutes) || 0;
         const { actualMinutes, overrunMinutes, isOverrun } = computeOverrun(machine.departmentEnteredAt, expectedMin, nowTick);
         return (
-          <div className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+          <div className="modal-backdrop fixed inset-0 z-[90] flex items-center justify-center p-4"
                style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(10px)" }}
                onClick={(e) => e.target === e.currentTarget && !transferBusy && setFinishModal(null)}>
             <div className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col bg-white"
@@ -14882,7 +14913,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           setField({ acceptTeamMembers: next });
         };
         return (
-          <div className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+          <div className="modal-backdrop fixed inset-0 z-[90] flex items-center justify-center p-4"
                style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(10px)" }}
                onClick={(e) => e.target === e.currentTarget && !busy && setAcceptModal(null)}>
             <div className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col"
@@ -15067,7 +15098,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         const { machine, template, answers, busy, error } = duringWorkModal;
         const setField = (patch) => setDuringWorkModal((prev) => prev ? { ...prev, ...patch } : prev);
         return (
-          <div className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+          <div className="modal-backdrop fixed inset-0 z-[90] flex items-center justify-center p-4"
                style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(10px)" }}
                onClick={(e) => e.target === e.currentTarget && !busy && setDuringWorkModal(null)}>
             <div className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col"
@@ -15356,7 +15387,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
       return { code, qty, inv, ok };
     });
     return (
-      <div className="fixed inset-0 z-[80] flex items-center justify-center" style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(8px)" }}>
+      <div className="modal-backdrop fixed inset-0 z-[80] flex items-center justify-center" style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(8px)" }}>
         <div className="bg-white rounded-2xl w-full max-w-lg mx-4 overflow-hidden" style={{ border: "1px solid var(--border-rim)", boxShadow: "0 32px 80px rgba(17,24,39,0.18)", animation: "slideUp 0.25s ease both" }}>
           <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid rgba(17,24,39,0.08)", background: "rgba(17,24,39,0.03)" }}>
             <div className="flex items-center gap-3">
@@ -15431,7 +15462,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
           criticalInputs: { ...(prev.criticalInputs || {}), [code]: { ...((prev.criticalInputs || {})[code] || {}), ...patch } },
         } : prev);
         return (
-          <div className="fixed inset-0 z-[85] flex items-center justify-center p-4"
+          <div className="modal-backdrop fixed inset-0 z-[85] flex items-center justify-center p-4"
                style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
                onClick={(e) => e.target === e.currentTarget && setConfirmFulfill(null)}>
             <div className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col"
@@ -17234,6 +17265,11 @@ export default function App() {
 
   const [activePage,    setActivePage]    = useState("dashboard");
   const [collapsed,     setCollapsed]     = useState(false);
+  // Below the md breakpoint the sidebar stops being a column and becomes a
+  // drawer. On a phone a 240px rail eats most of the screen, and the ERP has to
+  // work on a phone: department heads get a link rather than a tablet.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const openMobileNav = useCallback(() => setMobileNavOpen(true), []);
   const [showSearch,    setShowSearch]    = useState(false);
   const [showNotifs,    setShowNotifs]    = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -19859,6 +19895,7 @@ export default function App() {
   };
 
   return (
+    <MobileNavContext.Provider value={openMobileNav}>
     <div className="app-shell flex h-screen overflow-hidden"
          style={{ background: "var(--surface-base)", color: "var(--text)", fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif", fontFeatureSettings: '"cv02","cv03","cv04","cv11"' }}>
 
@@ -19866,10 +19903,18 @@ export default function App() {
           dereferenced currentUser.fullName, which is nullable in Supabase, blanking
           the entire app post-login). Even with that bug fixed, isolating the shell
           here means any future sidebar-side crash leaves the page area usable. */}
+      {/* Backdrop for the mobile drawer. Only exists below md, only when open. */}
+      {mobileNavOpen && (
+        <div className="nav-backdrop no-print" onClick={() => setMobileNavOpen(false)} aria-hidden="true" />
+      )}
+
       <PageErrorBoundary pageId="sidebar" buildTag={APP_BUILD}>
         <Sidebar
-          activePage={activePage} setActivePage={setActivePage}
+          activePage={activePage}
+          setActivePage={(p) => { setActivePage(p); setMobileNavOpen(false); }}
           collapsed={collapsed} setCollapsed={setCollapsed}
+          mobileOpen={mobileNavOpen}
+          onMobileClose={() => setMobileNavOpen(false)}
           badges={{ pending: pendingLog.length, pipeline: pipelineBadge, machines: machineLog.filter((m) => m.status !== "completed" && m.stage !== "BOM Issued").length }}
           canView={canView}
           onSearchOpen={() => setShowSearch(true)}
@@ -19915,7 +19960,7 @@ export default function App() {
 
       {/* ── 2026-06-05i — Keyboard shortcuts cheatsheet (press ? to open) ── */}
       {showShortcuts && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4"
+        <div className="modal-backdrop fixed inset-0 z-[150] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setShowShortcuts(false)}>
           <div className="w-full max-w-2xl rounded-2xl overflow-hidden"
@@ -20034,5 +20079,6 @@ export default function App() {
         </div>
       )}
     </div>
+    </MobileNavContext.Provider>
   );
 }
