@@ -8639,7 +8639,7 @@ function BOMPasteLines({ inventory = [], existingLines = [], onApply = () => {} 
                 {parsed.lines.map((l) => (
                   <div key={l.code} className="flex items-center gap-2 px-2 py-1 rounded-lg"
                        style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.04)" }}>
-                    <span className="text-[11px] font-semibold text-white truncate flex-1">{l.name}</span>
+                    <span className="text-[11px] font-semibold text-slate-900 truncate flex-1">{l.name}</span>
                     <span className="text-[9px] font-mono text-slate-600 flex-shrink-0">{l.code}</span>
                     {l.mergedFromPaste && (
                       <span className="text-[9px] text-slate-500 flex-shrink-0">merged from rows {l.rows.join(", ")}</span>
@@ -8705,7 +8705,7 @@ function BOMPasteLines({ inventory = [], existingLines = [], onApply = () => {} 
       <div className="flex items-center gap-2 mt-3">
         <button onClick={apply} disabled={addCount === 0}
                 className="px-4 py-2 rounded-lg text-xs font-bold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)" }}>
+                style={{ background: "linear-gradient(135deg,#D71920,#B01218)" }}>
           Add {addCount} line{plural(addCount)}
         </button>
         <button onClick={reset} disabled={!hasPaste}
@@ -15208,7 +15208,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   Cancel
                 </button>
                 <button onClick={submitFinishTransfer} disabled={transferBusy || (isOverrun && !narration.trim())}
-                        className="text-[12px] font-bold text-white bg-amber-600 hover:bg-amber-700 px-5 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" style={{ color: "#fff" }}>
+                        className="text-[12px] font-bold text-slate-900 bg-amber-600 hover:bg-amber-700 px-5 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" style={{ color: "#fff" }}>
                   {transferBusy ? "⏳ Sending…" : `Finish & Transfer → ${toDepartment}`}
                 </button>
               </div>

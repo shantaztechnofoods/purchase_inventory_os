@@ -267,10 +267,22 @@ aside {
   color-scheme: light;
 }
 
-/* ── Text-white: light-theme default — dark text on light surfaces.
-      Keep white only inside explicit dark panels (`.dark-panel`). ──────────────── */
-body .text-white { color: var(--text-strong); }
-body .dark-panel .text-white { color: rgba(255, 255, 255, 0.92); }
+/* ── Text-white ───────────────────────────────────────────────────────────────
+   This used to force EVERY `.text-white` to dark, with `.dark-panel` as the
+   escape hatch — a blanket patch for the 284 `text-white` classes the dark→light
+   conversion left behind in the JSX. The escape hatch was never wired up
+   (`.dark-panel` appears nowhere in the markup), so the rule also blacked out
+   the label on every solid brand button, including Sign In.
+
+   The JSX has now been corrected at the source: each `text-white` was measured
+   against its own composited background, 282 that sat on white became
+   `text-slate-900`, and the ~40 that remain are on solid gradients or saturated
+   fills where white is the higher-contrast choice. The blanket override is
+   therefore both unnecessary and wrong, and is gone.
+
+   `.dark-panel` is kept as a working opt-out for any genuinely dark surface
+   added later, so the pattern stays available without a global rule. ─────────── */
+.dark-panel .text-white { color: rgba(255, 255, 255, 0.92); }
 
 /* ── Pale Tailwind text classes → darker readable tones on white canvas ──────── */
 body .text-slate-300, body .text-gray-300 { color: var(--text-dim); }

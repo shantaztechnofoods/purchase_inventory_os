@@ -327,7 +327,7 @@ export default function UserManagementPage({ canDo }) {
           {(isSuperAdmin || canDo?.("users", "create")) && (
             <button onClick={openAdd}
               className="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all"
-              style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 12px rgba(204,74,51,0.35)", color: "#ffffff" }}>
+              style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 4px 12px rgba(176, 18, 24,0.35)", color: "#ffffff" }}>
               + Add User
             </button>
           )}
@@ -360,7 +360,7 @@ export default function UserManagementPage({ canDo }) {
                       onMouseLeave={(e) => e.currentTarget.style.background = ""}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-slate-900 flex-shrink-0"
                              style={{ background: `linear-gradient(135deg,${rColor}80,${rColor}40)` }}>
                           {user.username.slice(0, 2).toUpperCase()}
                         </div>
@@ -390,7 +390,7 @@ export default function UserManagementPage({ canDo }) {
                         {(isSuperAdmin || canDo?.("users", "edit")) && (
                           <button onClick={() => openReset(user)}
                             className="px-2.5 py-1 rounded-lg text-[10px] font-medium text-blue-700 hover:text-blue-900 transition-all"
-                            style={{ background: "rgba(232,85,61,0.08)", border: "1px solid rgba(232,85,61,0.2)" }}>
+                            style={{ background: "rgba(215, 25, 32,0.08)", border: "1px solid rgba(215, 25, 32,0.2)" }}>
                             Reset PW
                           </button>
                         )}
@@ -495,7 +495,7 @@ export default function UserManagementPage({ canDo }) {
                               })}
                               className="text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all"
                               style={on
-                                ? { background: "rgba(232,85,61,0.12)", border: "1px solid rgba(232,85,61,0.5)", color: "#CC4A33" }
+                                ? { background: "rgba(215, 25, 32,0.12)", border: "1px solid rgba(215, 25, 32,0.5)", color: "#B01218" }
                                 : { background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.12)", color: "#64748b" }}>
                         {d}
                       </button>
@@ -533,8 +533,8 @@ export default function UserManagementPage({ canDo }) {
                 <button type="submit" disabled={submitting}
                   className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
                   style={{
-                    background: submitting ? "rgba(204,74,51,0.4)" : "linear-gradient(135deg,#E8553D,#CC4A33)",
-                    boxShadow: submitting ? "none" : "0 4px 12px rgba(204,74,51,0.35)",
+                    background: submitting ? "rgba(176, 18, 24,0.4)" : "linear-gradient(135deg,#D71920,#B01218)",
+                    boxShadow: submitting ? "none" : "0 4px 12px rgba(176, 18, 24,0.35)",
                     cursor: submitting ? "wait" : "pointer",
                     color: "#ffffff",
                   }}>
@@ -594,7 +594,7 @@ export default function UserManagementPage({ canDo }) {
                   }}
                   className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2"
                   style={{
-                    background: "linear-gradient(135deg,#E8553D,#CC4A33)",
+                    background: "linear-gradient(135deg,#D71920,#B01218)",
                     opacity: (resetSubmitting || !resetPw.pw || resetPw.pw !== resetPw.confirm) ? 0.5 : 1,
                     cursor: resetSubmitting ? "wait" : (!resetPw.pw || resetPw.pw !== resetPw.confirm) ? "not-allowed" : "pointer",
                     color: "#ffffff",
