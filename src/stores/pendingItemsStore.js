@@ -15,10 +15,13 @@ const toRow = (p) => {
     description:           p.description || "",
     status:                "open",
   };
-  // Migration 033 — only set when the caller provided it, so the
-  // isMissingColumnError retry path below still works against pre-033 schemas.
+  // Migrations 033/034 — only set when the caller provided them, so the
+  // isMissingColumnError retry path below still works against older schemas.
   if (p.assignedDepartment !== undefined) {
     row.assigned_department = p.assignedDepartment || null;
+  }
+  if (p.kind !== undefined) {
+    row.kind = p.kind === "owed" ? "owed" : "fault";
   }
   return row;
 };
@@ -38,6 +41,9 @@ const fromRow = (r) => ({
   // Migration 033 — department that must come and fix this. Empty string for
   // pre-033 rows and for items raised without an assignment.
   assignedDepartment:   r.assigned_department || "",
+  // Migration 034 — 'fault' holds the machine where it is; 'owed' lets it move
+  // on but stops it reaching Ready. Pre-034 rows were all faults.
+  kind:                 r.kind === "owed" ? "owed" : "fault",
 });
 
 // Detects "column does not exist" / schema-cache errors so createPendingItem
@@ -49,6 +55,7 @@ function isMissingColumnError(error) {
   return error.code === "42703"
     || error.code === "PGRST204"
     || msg.includes("assigned_department")
+    || msg.includes("kind")
     || (msg.includes("column") && msg.includes("does not exist"))
     || msg.includes("schema cache");
 }
@@ -78,9 +85,9 @@ export async function createPendingItem(p) {
   // Migration 033 may not have been applied yet. Strip the new column and
   // retry once so the deployed build keeps working against a pre-033 schema —
   // the assignment is simply not recorded until the migration runs.
-  if (error && isMissingColumnError(error) && "assigned_department" in row) {
-    console.warn("[pending_items:create] assigned_department not in schema yet — retrying without it");
-    const { assigned_department: _omit, ...legacyRow } = row;
+  if (error && isMissingColumnError(error) && ("assigned_department" in row || "kind" in row)) {
+    console.warn("[pending_items:create] 033/034 columns not in schema yet — retrying without them");
+    const { assigned_department: _a, kind: _k, ...legacyRow } = row;
     ({ data, error } = await c.from("pending_handover_items").insert(legacyRow).select().single());
   }
   if (error) { console.error("[pending_items:create] failed", error); return { success: false, error: error.message }; }

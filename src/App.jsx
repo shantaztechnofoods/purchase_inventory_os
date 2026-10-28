@@ -12396,7 +12396,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     // Migration 029 — multi-worker + Main Employee picker init. Operator just
     // clicked Finish & Transfer; nothing selected yet.
     setFinishModal({ machine, toDepartment, narration: "", template, answers,
-                     workedBy: [], mainEmployeeId: null, mainSigSvg: null, mainSigNeeded: false });
+                     workedBy: [], mainEmployeeId: null, mainSigSvg: null, mainSigNeeded: false,
+                     // Phase 1 — jobs this department still owes after handing over.
+                     owedItems: [] });
   };
 
   // Migration 028 — During-Work runtime. Opens the modal only when a template
@@ -12464,7 +12466,8 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   const submitFinishTransfer = async () => {
     if (!finishModal || transferBusy) return;
     const { machine, toDepartment, narration, template, answers,
-            workedBy = [], mainEmployeeId = null, mainSigSvg = null } = finishModal;
+            workedBy = [], mainEmployeeId = null, mainSigSvg = null,
+            owedItems = [] } = finishModal;
     const fromDepartment = machine.currentDepartment || machine.stage;
     // Migration 027 — prefer the per-machine override captured at Outward.
     // Falls back to the live workflow setting for machines created before
@@ -12527,6 +12530,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         checklistAnswers:  Array.isArray(answers) ? answers : [],
         workedBy:          authWorkedBy,   // only real UUIDs for the DB column
         workedBySnapshot,                  // full snapshot including emp members
+        // Phase 1 — jobs this department still owes on the machine it is
+        // handing over. Recorded against fromDepartment, not the receiver.
+        owedItems:         (Array.isArray(owedItems) ? owedItems : []).map((d) => String(d || "").trim()).filter(Boolean),
         mainEmployeeId,
         mainEmployeeSignatureSvg: mainSigSvg,
       });
@@ -12613,9 +12619,42 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       `${handover.bomKey}${handover.serialNo ? ` · S/N ${handover.serialNo}` : ""}${pendingItemsToRaise.length ? ` · ${pendingItemsToRaise.length} pending item${pendingItemsToRaise.length === 1 ? "" : "s"} raised` : ""}`);
   };
 
+  // ── Phase 1 — My Work ──────────────────────────────────────────────────
+  // A worker in Mechanical does not need 37 machines; they need the handful
+  // that is theirs. users.departments (migration 029) already records who
+  // belongs where, it just was not being used to scope this page.
+  // myDepartments is empty for admins and for anyone not assigned to a
+  // department, and those users see everything exactly as before.
+  const myDepartments = Array.isArray(currentUser?.departments) ? currentUser.departments.filter(Boolean) : [];
+  const canScopeToMine = myDepartments.length > 0;
+  // Admins land on the full list; a worker lands on their own work.
+  const [scope, setScope] = useState(() => (canScopeToMine && !isAdminUser) ? "mine" : "all");
+  const scopeMine = scope === "mine" && canScopeToMine;
+  const inMyDept = (m) => myDepartments.includes(m.currentDepartment || m.stage);
+
   // Machine Tracker shows ONLY machines that have STARTED production (left the rack).
   // Rack machines sit at stage "BOM Issued" and appear solely in the Production Rack View.
-  const started   = machineLog.filter((m) => m.stage !== "BOM Issued");
+  const startedAll = machineLog.filter((m) => m.stage !== "BOM Issued");
+  // What "mine" means, bucket by bucket:
+  //   take in  — a handover addressed to one of my departments
+  //   working  — the machine is sitting in one of my departments
+  //   go fix   — an open fault called to one of my departments, wherever the
+  //              machine happens to be
+  //   owed     — a job my department still owes, wherever the machine is
+  const handoverToMine = (m) => {
+    const h = (handovers || []).find((x) => x.id === m.pendingHandoverId && x.status === "pending");
+    return !!(h && myDepartments.includes(h.toDepartment));
+  };
+  const openItemsFor = (m, kind) => (pendingHandoverItems || []).filter((p) =>
+    String(p.machineId) === String(m.id) && p.status === "open"
+    && (kind === "owed" ? p.kind === "owed" : p.kind !== "owed")
+    && myDepartments.includes(p.assignedDepartment));
+  const myTakeIn  = startedAll.filter((m) => m.status !== "completed" && handoverToMine(m));
+  const myWorking = startedAll.filter((m) => m.status !== "completed" && !m.pendingHandoverId && inMyDept(m));
+  const myToFix   = startedAll.filter((m) => m.status !== "completed" && openItemsFor(m, "fault").length > 0);
+  const myOwed    = startedAll.filter((m) => m.status !== "completed" && openItemsFor(m, "owed").length > 0);
+  const myMachineIds = new Set([...myTakeIn, ...myWorking, ...myToFix, ...myOwed].map((m) => m.id));
+  const started   = scopeMine ? startedAll.filter((m) => myMachineIds.has(m.id)) : startedAll;
   const active    = started.filter((m) => m.status !== "completed");
   const completed = started.filter((m) => m.status === "completed");
   // Phase A/B status filters. Distinct categories per the 2026-10-19 UX pass:
@@ -12839,6 +12878,101 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               Completed          = status == completed
             Clicking a card sets the main-list filter; current filter card
             is outlined. */}
+        {/* ── Phase 1 — My Work scope switch ──
+            Only shown to people who actually belong to a department. Admins and
+            unassigned users never see it and keep the full list. */}
+        {canScopeToMine && (
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex rounded-xl p-1" style={{ background: "rgba(17,24,39,0.05)" }}>
+              <button type="button" onClick={() => setScope("mine")}
+                      aria-pressed={scopeMine}
+                      className="text-[12px] font-bold px-4 h-9 rounded-lg transition-all"
+                      style={scopeMine
+                        ? { background: "var(--surface-raised)", color: "#1C1B19", boxShadow: "0 1px 3px rgba(17,24,39,0.1)" }
+                        : { background: "transparent", color: "#6b7280" }}>
+                My work
+              </button>
+              <button type="button" onClick={() => setScope("all")}
+                      aria-pressed={!scopeMine}
+                      className="text-[12px] font-bold px-4 h-9 rounded-lg transition-all"
+                      style={!scopeMine
+                        ? { background: "var(--surface-raised)", color: "#1C1B19", boxShadow: "0 1px 3px rgba(17,24,39,0.1)" }
+                        : { background: "transparent", color: "#6b7280" }}>
+                All machines
+              </button>
+            </div>
+            {scopeMine && (() => {
+              const n = myTakeIn.length + myWorking.length + myToFix.length + myOwed.length;
+              return (
+                <div className="text-[12px] text-slate-600">
+                  <span className="font-bold text-slate-800">{myDepartments.join(", ")}</span>
+                  {" · "}
+                  {n === 0 ? "nothing needs you right now" : `${n} machine${n === 1 ? "" : "s"} need${n === 1 ? "s" : ""} you`}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* ── Phase 1 — My Work buckets ──
+            Four plain questions, in the order they matter: is anyone blocked
+            waiting on me, is something handed to me, what am I building, what
+            do I still owe. */}
+        {scopeMine && (() => {
+          const buckets = [
+            { key: "fix",     label: "Go and fix",  list: myToFix,   color: "#dc2626", bg: "rgba(239,68,68,0.08)",  border: "rgba(239,68,68,0.4)",  hint: "someone is waiting on you" },
+            { key: "takein",  label: "Take in",     list: myTakeIn,  color: "#b45309", bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.4)", hint: "handed to you" },
+            { key: "working", label: "Working on",  list: myWorking, color: "#1C1B19", bg: "rgba(17,24,39,0.04)",   border: "rgba(17,24,39,0.12)",  hint: "in your department" },
+            { key: "owed",    label: "Still owed",  list: myOwed,    color: "#b45309", bg: "rgba(245,158,11,0.06)", border: "rgba(245,158,11,0.3)", hint: "you handed these on" },
+          ];
+          if (buckets.every((b) => b.list.length === 0)) {
+            return (
+              <div className="rounded-2xl p-8 text-center"
+                   style={{ background: "var(--surface-raised)", border: "1px dashed rgba(17,24,39,0.15)" }}>
+                <div className="text-sm font-bold text-slate-700">All clear</div>
+                <div className="text-[12px] text-slate-500 mt-1">
+                  Nothing is waiting for {myDepartments.join(" or ")} right now.
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              {buckets.map((b) => (
+                <div key={b.key} className="rounded-2xl p-4"
+                     style={{ background: b.bg, border: `1px solid ${b.border}` }}>
+                  <div className="flex items-baseline gap-2 mb-0.5">
+                    <span className="text-[12px] font-black" style={{ color: b.color }}>{b.label}</span>
+                    <span className="text-2xl font-black" style={{ color: b.color }}>{b.list.length}</span>
+                  </div>
+                  <div className="text-[10px] text-slate-500 mb-2.5">{b.hint}</div>
+                  <div className="space-y-1.5">
+                    {b.list.slice(0, 3).map((m) => (
+                      <button key={m.id} type="button" onClick={() => setExpanded(expanded === m.id ? null : m.id)}
+                              className="w-full text-left rounded-lg px-2.5 py-2 transition-all hover:brightness-95"
+                              style={{ background: "var(--surface-raised)" }}>
+                        <div className="text-[12px] font-bold text-slate-800">
+                          {m.bomKey}{m.serialNo ? ` · ${m.serialNo}` : ""}
+                        </div>
+                        <div className="text-[10px] text-slate-500">
+                          {b.key === "working" ? `here since ${m.departmentEnteredAt ? formatDuration(computeElapsedMinutes(m.departmentEnteredAt, nowTick)) : "—"}`
+                            : `in ${m.currentDepartment || m.stage}`}
+                        </div>
+                      </button>
+                    ))}
+                    {b.list.length > 3 && (
+                      <div className="text-[10px] text-slate-500 px-2">+{b.list.length - 3} more below</div>
+                    )}
+                    {b.list.length === 0 && (
+                      <div className="text-[10px] text-slate-400 px-1">Nothing</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
         {/* ── Phase 1 — Departments that have been called ──
             Open faults grouped by the department that must come and fix them.
             Without this the responsible department never learns it is needed:
@@ -13111,11 +13245,17 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             const futureStages = MACHINE_STAGES.filter((_, i) => i > curIdx);
             const stageColor = STAGE_COLORS[machine.stage] || "#E8553D";
             const pct = isComplete ? 100 : Math.round((curIdx / (MACHINE_STAGES.length - 1)) * 100);
-            // Phase 1 — unresolved faults block the handover. Trial (or any
-            // department) raises a fault against the department responsible;
-            // the machine stays put until that department resolves it.
-            const machineOpenItems = (pendingHandoverItems || [])
+            // Phase 1 — open pending items, split by what they block.
+            //   fault: someone found something wrong and called the department
+            //          responsible. The machine stays put until it is fixed.
+            //   owed:  a department handed the machine on but still owes work
+            //          on it (a part on order). The machine moves; it just
+            //          cannot reach Ready. Blocking transfer here would stall
+            //          the line for a part nobody is waiting on yet.
+            const machineOpenAll = (pendingHandoverItems || [])
               .filter((p) => String(p.machineId) === String(machine.id) && p.status === "open");
+            const machineOpenItems = machineOpenAll.filter((p) => p.kind !== "owed");
+            const machineOwedItems = machineOpenAll.filter((p) => p.kind === "owed");
 
             return (
               <div key={machine.id} className="bg-white rounded-xl overflow-hidden transition-all"
@@ -13258,6 +13398,16 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                   title={`${machineOpenItems.length} open issue${machineOpenItems.length === 1 ? "" : "s"} must be resolved before this machine can move on. Open History to resolve them.`}>
                             Blocked · {machineOpenItems.length} open issue{machineOpenItems.length === 1 ? "" : "s"}
                           </button>
+                        ) : (nextDepartment(machine.currentDepartment || machine.stage) === "Ready" && machineOwedItems.length > 0) ? (
+                          /* Phase 1 — a machine may move between departments with
+                             work still owed on it, but it must not be presented as
+                             ready for delivery while anything is outstanding. */
+                          <button type="button" disabled
+                                  className="text-[11px] font-black px-3 py-1.5 rounded-lg border cursor-not-allowed"
+                                  style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.3)", color: "#dc2626" }}
+                                  title={`${machineOwedItems.length} job${machineOwedItems.length === 1 ? "" : "s"} still owed on this machine (${[...new Set(machineOwedItems.map((p) => p.assignedDepartment).filter(Boolean))].join(", ") || "unassigned"}). It cannot be marked Ready until they are done.`}>
+                            Cannot be Ready · {machineOwedItems.length} job{machineOwedItems.length === 1 ? "" : "s"} owed
+                          </button>
                         ) : (
                           <button onClick={() => openFinishModal(machine)}
                                   className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
@@ -13266,6 +13416,16 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                             Finish & Transfer →
                           </button>
                         )
+                      )}
+                      {/* Phase 1 — outstanding work carried forward from an
+                          earlier department. Shown wherever the machine is, so
+                          the floor knows before it reaches Trial. */}
+                      {!isComplete && machineOwedItems.length > 0 && (
+                        <span className="text-[10px] font-black px-2 py-1 rounded-lg"
+                              style={{ background: "rgba(245,158,11,0.12)", color: "#b45309", border: "1px solid rgba(245,158,11,0.4)" }}
+                              title={machineOwedItems.map((p) => `${p.assignedDepartment || "?"}: ${p.description}`).join(" · ")}>
+                          {machineOwedItems.length} job{machineOwedItems.length === 1 ? "" : "s"} owed
+                        </span>
                       )}
                       {machine.pendingHandoverId && (() => {
                         const h = (handovers || []).find((x) => x.id === machine.pendingHandoverId && x.status === "pending");
@@ -14099,6 +14259,39 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 {!finishModal.template && (
                   <div className="text-[10px] text-slate-500">No checklist template configured for {fromDepartment}. Admins can add one in Settings → Department Checklists.</div>
                 )}
+
+                {/* ── Phase 1 — work this department still owes ──
+                    A part on order must not hold the whole line, so the machine
+                    goes on and the obligation follows it. It stays on this
+                    department's list and stops the machine reaching Ready. */}
+                <div className="pt-4 mt-4 border-t border-slate-100">
+                  <div className="text-[11px] font-bold text-slate-600 mb-1">
+                    Anything still pending from {fromDepartment}?
+                  </div>
+                  <div className="text-[10px] text-slate-500 mb-2.5">
+                    Leave empty if the work is complete. Anything listed here stays on {fromDepartment}&apos;s list and the machine cannot be marked Ready until it is done.
+                  </div>
+                  {(finishModal.owedItems || []).map((desc, i) => (
+                    <div key={i} className="flex gap-2 mb-2">
+                      <input value={desc}
+                             onChange={(e) => setFinishModal((prev) => prev ? { ...prev, owedItems: (prev.owedItems || []).map((d, idx) => idx === i ? e.target.value : d) } : prev)}
+                             placeholder="e.g. fit the gearbox cover once it arrives"
+                             className="flex-1 rounded-lg px-3 py-2 text-[12px] text-slate-800 outline-none"
+                             style={{ background: "var(--surface-elevated)", border: "1px solid rgba(245,158,11,0.4)" }} />
+                      <button type="button"
+                              onClick={() => setFinishModal((prev) => prev ? { ...prev, owedItems: (prev.owedItems || []).filter((_, idx) => idx !== i) } : prev)}
+                              className="text-[11px] font-bold text-slate-500 hover:text-slate-700 px-2 rounded-lg border border-slate-200">
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button"
+                          onClick={() => setFinishModal((prev) => prev ? { ...prev, owedItems: [...(prev.owedItems || []), ""] } : prev)}
+                          className="text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all"
+                          style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.4)", color: "#b45309" }}>
+                    + Add pending job
+                  </button>
+                </div>
               </div>
               <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between flex-shrink-0 bg-white">
                 <button onClick={() => !transferBusy && setFinishModal(null)} disabled={transferBusy}
@@ -18192,6 +18385,10 @@ export default function App() {
     workedBySnapshot: workedBySnapshotArg = null,
     // Migration 032 — Trial Certificate JSON payload (optional; only for Trial→Ready).
     trialCertificate = null,
+    // Phase 1 — jobs fromDepartment still owes on this machine after handing
+    // it over (a part on order, say). The machine moves; these follow it and
+    // stop it reaching Ready until they are resolved.
+    owedItems = [],
   }) => {
     if (!currentUser?.id) return { success: false, error: "Not authenticated" };
     const machine = machineLog.find((m) => m.id === machineId);
@@ -18316,6 +18513,34 @@ export default function App() {
         });
       } else {
         console.warn("[App] handleFinishTransfer: checklist save failed", cr.error);
+      }
+    }
+
+    // Phase 1 — record the jobs this department still owes. Raised against
+    // fromDepartment (the department that owes the work), kind 'owed' so the
+    // machine can still move between departments but cannot reach Ready.
+    for (const desc of (Array.isArray(owedItems) ? owedItems : [])) {
+      const text = String(desc || "").trim();
+      if (!text) continue;
+      const pr = await createPendingItem({
+        machineId,
+        raisedInHandoverId: res.handover.id,
+        raisedInDepartment: fromDepartment,
+        assignedDepartment: fromDepartment,
+        raisedBy: currentUser.id,
+        description: text,
+        kind: "owed",
+      });
+      if (pr.success) {
+        setPendingHandoverItems((prev) => [pr.item, ...prev]);
+        logAudit({
+          type: "pending_item_raised", module: "Machine",
+          action: `Job owed by ${fromDepartment}: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}`,
+          ref: machine.bomKey, serialNo: machine.serialNo || "",
+          details: { machineId, itemId: pr.item?.id, handoverId: res.handover.id, kind: "owed", assignedDepartment: fromDepartment, description: text },
+        });
+      } else {
+        console.warn("[App] handleFinishTransfer: owed item save failed", pr.error);
       }
     }
 
@@ -18613,6 +18838,7 @@ export default function App() {
       raisedBy: currentUser.id,
       description: desc,
       assignedDepartment: assignedDepartment || null,
+      kind: "fault",
     });
     if (!res.success) return res;
     setPendingHandoverItems((prev) => [res.item, ...prev]);
