@@ -3,9 +3,9 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SHANTAZ ERP — Premium Modern Design System  (2026-10-28-v2)
-   Pure white canvas · crimson #D71920 · light sidebar · Plus Jakarta Sans
-   One consistent premium light theme across sidebar, content, modals, tables.
+   SHANTAZ ERP — Refined Enterprise Design System  (2026-10-28-phase1)
+   White canvas · SHANTAZ Red #d71920 · Plus Jakarta Sans
+   One coherent light theme. Purposeful interactions. No decorative excess.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
@@ -16,58 +16,52 @@
   --brand-light:        #e84048;
   --brand-pale:         #fde8e9;
   --brand-wash:         #fef4f4;
-  --brand-glow:         rgba(215, 25, 32, 0.22);
+  --brand-glow:         rgba(215, 25, 32, 0.18);
   --brand-rgb:          215, 25, 32;
 
-  /* ── Surface hierarchy — pure white canvas ───────────────────────────────── */
-  --surface-page:       #f8f9fb;   /* clean cool-white page background */
-  --surface-base:       #f8f9fb;   /* body background (same as page) */
-  --surface-card:       #ffffff;   /* cards and panels */
-  --surface-raised:     #ffffff;   /* elevated cards, drawer headers */
-  --surface-elevated:   #ffffff;   /* modals, command palette */
-  --surface-highlight:  #f1f3f6;   /* hover states */
-  --surface-nav:        #ffffff;   /* sidebar — LIGHT */
-  --surface-nav-alt:    #f4f5f8;   /* sidebar alt background sections */
+  /* ── Surface hierarchy ──────────────────────────────────────────────────── */
+  --surface-page:       #f8f9fb;
+  --surface-base:       #f8f9fb;
+  --surface-card:       #ffffff;
+  --surface-raised:     #ffffff;
+  --surface-elevated:   #ffffff;
+  --surface-highlight:  #f1f3f6;
+  --surface-nav:        #ffffff;
+  --surface-nav-alt:    #f4f5f8;
   --surface-glass:      rgba(255, 255, 255, 0.90);
   --surface-glass-strong: rgba(255, 255, 255, 0.97);
   --surface-input:      #ffffff;
 
   /* ── Text (WCAG-AA on #ffffff / #f8f9fb) ─────────────────────────────────── */
-  --text:               #374151;   /* body text — darker gray-700 */
-  --text-strong:        #111827;   /* headings and primary values */
-  --text-muted:         #4b5563;   /* secondary labels — gray-600 (readable) */
-  --text-dim:           #6b7280;   /* timestamps, quiet data — gray-500 */
-  --text-faint:         #9ca3af;   /* truly non-essential ornament only */
+  --text:               #374151;
+  --text-strong:        #111827;
+  --text-muted:         #4b5563;
+  --text-dim:           #6b7280;
+  --text-faint:         #9ca3af;
   --text-disabled:      #d1d5db;
 
-  /* ── Borders — crisper, more defined for premium look ────────────────────── */
+  /* ── Borders ────────────────────────────────────────────────────────────── */
   --border-subtle:      rgba(17, 24, 39, 0.09);
   --border-rim:         rgba(17, 24, 39, 0.14);
   --border-rim-strong:  rgba(17, 24, 39, 0.22);
   --border-brand:       rgba(215, 25, 32, 0.32);
   --border-brand-strong: rgba(215, 25, 32, 0.55);
 
-  /* ── Shadows — layered depth (light-mode) ───────────────────────────────── */
-  --shadow-xs:   0 1px 2px rgba(17, 24, 39, 0.06);
-  --shadow-sm:   0 1px 3px rgba(17, 24, 39, 0.08), 0 1px 2px rgba(17, 24, 39, 0.05);
-  --shadow-md:   0 4px 16px rgba(17, 24, 39, 0.09), 0 2px 6px rgba(17, 24, 39, 0.06);
-  --shadow-lg:   0 12px 32px rgba(17, 24, 39, 0.12), 0 4px 10px rgba(17, 24, 39, 0.07);
-  --shadow-xl:   0 24px 48px rgba(17, 24, 39, 0.14), 0 8px 18px rgba(17, 24, 39, 0.08);
-  --shadow-2xl:  0 40px 80px rgba(17, 24, 39, 0.18), 0 16px 32px rgba(17, 24, 39, 0.10);
-  --shadow-elevated: 0 20px 40px -16px rgba(17, 24, 39, 0.14), 0 10px 20px -10px rgba(17, 24, 39, 0.08), 0 1px 0 rgba(255,255,255,0.75) inset;
-  --shadow-brand: 0 10px 24px -8px rgba(215, 25, 32, 0.30), 0 4px 10px -4px rgba(215, 25, 32, 0.18);
-  --shadow-glow-primary:   0 0 28px rgba(215, 25, 32, 0.22);
-  --shadow-glow-secondary: 0 0 24px rgba(22, 163, 74, 0.18);
-  --shadow-glow-amber:     0 0 24px rgba(217, 119, 6, 0.18);
-  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  /* ── Shadows ─────────────────────────────────────────────────────────────── */
+  --shadow-xs:  0 1px 2px rgba(17, 24, 39, 0.06);
+  --shadow-sm:  0 1px 3px rgba(17, 24, 39, 0.08), 0 1px 2px rgba(17, 24, 39, 0.05);
+  --shadow-md:  0 4px 16px rgba(17, 24, 39, 0.09), 0 2px 6px rgba(17, 24, 39, 0.06);
+  --shadow-lg:  0 12px 32px rgba(17, 24, 39, 0.12), 0 4px 10px rgba(17, 24, 39, 0.07);
+  --shadow-xl:  0 24px 48px rgba(17, 24, 39, 0.14), 0 8px 18px rgba(17, 24, 39, 0.08);
+  --shadow-2xl: 0 32px 64px rgba(17, 24, 39, 0.16), 0 12px 24px rgba(17, 24, 39, 0.09);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.80);
+  --shadow-brand: 0 6px 16px -4px rgba(215, 25, 32, 0.28), 0 2px 6px -2px rgba(215, 25, 32, 0.16);
 
-  /* ── Easing curves (shared) ──────────────────────────────────────────────── */
-  --ease-swift:   cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-smooth:  cubic-bezier(0.4, 0, 0.2, 1);
-  --ease-spring:  cubic-bezier(0.34, 1.56, 0.64, 1);
-  --ease-sharp:   cubic-bezier(0.4, 0, 0.6, 1);
+  /* ── Easing ──────────────────────────────────────────────────────────────── */
+  --ease-swift:  cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* ── Status ─────────────────────────────────────────────────────────────── */
+  /* ── Status ──────────────────────────────────────────────────────────────── */
   --status-critical-color:  #dc2626;
   --status-critical-bg:     rgba(220, 38, 38, 0.07);
   --status-critical-border: rgba(220, 38, 38, 0.18);
@@ -84,30 +78,43 @@
   --status-purple-bg:       rgba(124, 58, 237, 0.07);
   --status-purple-border:   rgba(124, 58, 237, 0.18);
 
-  /* ── Radius tokens ──────────────────────────────────────────────────────── */
+  /* ── Radius ──────────────────────────────────────────────────────────────── */
   --radius-xs:   4px;
   --radius-sm:   6px;
-  --radius-md:   10px;
-  --radius-lg:   14px;
-  --radius-xl:   18px;
-  --radius-2xl:  24px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-2xl:  20px;
   --radius-full: 9999px;
 
-  /* ── Surface muted (zebra rows, code chips, subtle fills) ────────────────── */
+  /* ── Surface muted ───────────────────────────────────────────────────────── */
   --surface-muted:  rgba(17, 24, 39, 0.030);
   --surface-muted2: rgba(17, 24, 39, 0.055);
 
-  /* ── Nav (sidebar — LIGHT) ──────────────────────────────────────────────── */
-  --nav-surface:        #ffffff;
-  --nav-rim:            rgba(17, 24, 39, 0.08);
-  --nav-active-bg:      rgba(215, 25, 32, 0.08);
-  --nav-active-border:  rgba(215, 25, 32, 0.30);
-  --nav-text:           #475569;
-  --nav-text-active:    #d71920;
-  --nav-text-muted:     #94a3b8;
+  /* ── Nav ─────────────────────────────────────────────────────────────────── */
+  --nav-surface:       #ffffff;
+  --nav-rim:           rgba(17, 24, 39, 0.08);
+  --nav-active-bg:     rgba(215, 25, 32, 0.08);
+  --nav-active-border: rgba(215, 25, 32, 0.30);
+  --nav-text:          #475569;
+  --nav-text-active:   #d71920;
+  --nav-text-muted:    #94a3b8;
+
+  /* ── Typography scale ────────────────────────────────────────────────────── */
+  --type-label:   11px;   /* labels, badges, meta */
+  --type-body:    13px;   /* table cells, body text */
+  --type-sub:     14px;   /* card titles, subheadings */
+  --type-heading: 16px;   /* page section headers */
+
+  /* ── Spacing scale ───────────────────────────────────────────────────────── */
+  --space-page:   24px;   /* page outer padding */
+  --space-section: 20px;  /* between major sections */
+  --space-card:   16px;   /* inside cards */
+  --space-gap:    16px;   /* between cards/rows */
+  --space-tight:  12px;   /* dense rows, compact lists */
 }
 
-/* ── Base ──────────────────────────────────────────────────────────────────── */
+/* ── Base ────────────────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
 
 html, body, #root {
@@ -123,7 +130,7 @@ html, body, #root {
   color-scheme: light;
 }
 
-/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+/* ── Scrollbar ───────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
@@ -131,26 +138,24 @@ html, body, #root {
   border-radius: 8px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(var(--brand-rgb), 0.38);
+  background: rgba(var(--brand-rgb), 0.32);
 }
 ::-webkit-scrollbar-corner { background: transparent; }
 
-/* ── Keyboard focus ─────────────────────────────────────────────────────────── */
+/* ── Keyboard focus ──────────────────────────────────────────────────────────── */
 :focus { outline: none; }
 *:focus-visible {
-  outline: 2px solid rgba(var(--brand-rgb), 0.80);
+  outline: 2px solid rgba(var(--brand-rgb), 0.75);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(var(--brand-rgb), 0.10);
   border-radius: 6px;
 }
 button:focus-visible, [role="button"]:focus-visible, a:focus-visible {
-  outline: 2px solid rgba(var(--brand-rgb), 0.80);
+  outline: 2px solid rgba(var(--brand-rgb), 0.75);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(var(--brand-rgb), 0.10);
 }
 input:focus-visible, textarea:focus-visible, select:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.14);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.12);
   border-color: rgba(var(--brand-rgb), 0.45) !important;
 }
 
@@ -176,7 +181,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 input[type="number"]::-webkit-inner-spin-button { opacity: 0.3; }
 
-/* Select caret — dark */
+/* Select caret */
 select {
   appearance: none;
   -webkit-appearance: none;
@@ -186,17 +191,14 @@ select {
   padding-right: 2rem !important;
 }
 
-/* ── Buttons ───────────────────────────────────────────────────────────────── */
+/* ── Buttons ─────────────────────────────────────────────────────────────────── */
 button, [role="button"] {
-  transition: background-color 0.12s ease, border-color 0.12s ease,
-              box-shadow 0.12s ease, transform 0.10s ease, filter 0.12s ease;
+  transition: background-color 0.14s ease, border-color 0.14s ease,
+              box-shadow 0.14s ease;
 }
-button:hover:not(:disabled), [role="button"]:hover:not(:disabled) {
-  filter: brightness(0.98);
-}
-button:active:not(:disabled) { transform: scale(0.972); }
+button:active:not(:disabled) { transform: scale(0.975); }
 
-/* ── Glass surface utilities ──────────────────────────────────────────────── */
+/* ── Glass surface utilities ──────────────────────────────────────────────────── */
 .glass {
   background: rgba(255, 255, 255, 0.93);
   backdrop-filter: blur(20px) saturate(160%);
@@ -218,7 +220,7 @@ button:active:not(:disabled) { transform: scale(0.972); }
   border: 1px solid rgba(17, 24, 39, 0.08);
 }
 
-/* ── Modal input ─────────────────────────────────────────────────────────── */
+/* ── Modal input ─────────────────────────────────────────────────────────────── */
 .modal-input {
   font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 13px;
@@ -232,23 +234,45 @@ button:active:not(:disabled) { transform: scale(0.972); }
   outline: none;
 }
 
-/* ── Aside (sidebar) — LIGHT with subtle right border ─────────────────────── */
+/* ── Standard form input ─────────────────────────────────────────────────────── */
+.erp-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  font-size: var(--type-body);
+  color: var(--text-strong);
+  background: #ffffff;
+  border: 1px solid var(--border-rim);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+  font-family: inherit;
+}
+.erp-input:focus {
+  border-color: rgba(var(--brand-rgb), 0.45);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.10);
+}
+.erp-input::placeholder { color: var(--text-faint); }
+textarea.erp-input {
+  height: auto;
+  padding: 10px 12px;
+  resize: vertical;
+}
+select.erp-input { cursor: pointer; }
+
+/* ── Aside (sidebar) ──────────────────────────────────────────────────────────── */
 aside {
   background: var(--surface-nav);
   border-right: 1px solid var(--border-subtle);
-  box-shadow: 1px 0 0 rgba(15, 20, 28, 0.02);
   color-scheme: light;
 }
 
-/* ── Text-white: default to strong dark text; keep white only inside explicit
-      dark panels. (Sidebar is no longer dark.) ───────────────────────────── */
+/* ── Text-white: light-theme default — dark text on light surfaces.
+      Keep white only inside explicit dark panels (`.dark-panel`). ──────────────── */
 body .text-white { color: var(--text-strong); }
 body .dark-panel .text-white { color: rgba(255, 255, 255, 0.92); }
 
-/* ── Readability overrides: Tailwind's pale text classes become darker, more
-      readable tones on our light surfaces. Keeps hierarchy but lifts contrast
-      everywhere Tailwind utilities are used. Preserves semantic colors (red,
-      amber, green, blue) because those classes aren't matched here. ──────── */
+/* ── Pale Tailwind text classes → darker readable tones on white canvas ──────── */
 body .text-slate-300, body .text-gray-300 { color: var(--text-dim); }
 body .text-slate-400, body .text-gray-400 { color: var(--text-muted); }
 body .text-slate-500, body .text-gray-500 { color: var(--text-muted); }
@@ -257,7 +281,7 @@ body .text-slate-700, body .text-gray-700 { color: var(--text); }
 body .text-slate-800, body .text-gray-800 { color: var(--text-strong); }
 body .text-slate-900, body .text-gray-900 { color: var(--text-strong); }
 
-/* But in explicit dark panels, keep the pale tones for contrast */
+/* Restore pale tones inside explicit dark panels */
 body .dark-panel .text-slate-300,
 body .dark-panel .text-gray-300  { color: rgba(255,255,255,0.72); }
 body .dark-panel .text-slate-400,
@@ -265,14 +289,11 @@ body .dark-panel .text-gray-400  { color: rgba(255,255,255,0.64); }
 body .dark-panel .text-slate-500,
 body .dark-panel .text-gray-500  { color: rgba(255,255,255,0.56); }
 
-/* Placeholders — slightly darker so inputs don't look empty */
+/* Placeholders */
 body input::placeholder,
 body textarea::placeholder { color: #94a3b8 !important; }
 
-/* ── Pale chromatic Tailwind class overrides — WCAG-AA on #fff/#f8f9fb ────
-   Light-shade color utilities (300/400) are design-token remnants from the
-   old dark theme. Every rule below promotes them to a darker shade that
-   actually passes contrast on our white canvas.                           ── */
+/* ── Pale chromatic Tailwind overrides — WCAG-AA on white/f8f9fb ─────────────── */
 body .text-blue-300, body .text-blue-400, body .text-indigo-300   { color: #2563eb; }
 body .text-blue-200                                                { color: #1d4ed8; }
 body .text-red-300,  body .text-red-400                           { color: #dc2626; }
@@ -288,56 +309,74 @@ body .text-teal-300,   body .text-teal-400                        { color: #0d94
 body .text-cyan-300,   body .text-cyan-400                        { color: #0e7490; }
 body .text-rose-300,   body .text-rose-400                        { color: #be123c; }
 body .text-pink-300,   body .text-pink-400                        { color: #be185d; }
-/* Inside explicit dark panels the pale shades are intentional — preserve */
+/* Preserve pale shades inside explicit dark panels */
 body .dark-panel .text-blue-300,   body .dark-panel .text-green-300,
 body .dark-panel .text-yellow-300, body .dark-panel .text-red-300,
 body .dark-panel .text-purple-300, body .dark-panel .text-amber-300,
 body .dark-panel .text-orange-300, body .dark-panel .text-teal-300,
-body .dark-panel .text-cyan-300,   body .dark-panel .text-rose-300   { color: inherit; }
+body .dark-panel .text-cyan-300,   body .dark-panel .text-rose-300 { color: inherit; }
 
-/* ── Table rows ─────────────────────────────────────────────────────────── */
+/* ── Table rows ──────────────────────────────────────────────────────────────── */
 tbody tr { transition: background-color 0.08s ease; }
 
-/* ── Animations ──────────────────────────────────────────────────────────── */
+/* ── Animations ──────────────────────────────────────────────────────────────── */
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(14px) scale(0.990); }
-  to   { opacity: 1; transform: translateY(0)    scale(1);     }
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 @keyframes glowCritical {
-  0%, 100% { border-color: rgba(220, 38, 38, 0.16); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
-  50%       { border-color: rgba(220, 38, 38, 0.38); box-shadow: 0 0 16px 3px rgba(220, 38, 38, 0.07); }
+  0%, 100% { border-color: rgba(220, 38, 38, 0.16); }
+  50%       { border-color: rgba(220, 38, 38, 0.36); }
 }
 @keyframes glowWarning {
-  0%, 100% { border-color: rgba(217, 119, 6, 0.16); box-shadow: 0 0 0 0 rgba(217, 119, 6, 0); }
-  50%       { border-color: rgba(217, 119, 6, 0.36); box-shadow: 0 0 14px 2px rgba(217, 119, 6, 0.07); }
+  0%, 100% { border-color: rgba(217, 119, 6, 0.16); }
+  50%       { border-color: rgba(217, 119, 6, 0.34); }
 }
 @keyframes pulseDot {
   0%, 100% { opacity: 1;   transform: scale(1);    }
   50%       { opacity: 0.4; transform: scale(0.82); }
 }
 @keyframes barFill { from { width: 0%; } }
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96) translateY(4px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);   }
+}
+@keyframes slideDownFade {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes breathe {
+  0%, 100% { opacity: 0.85; }
+  50%       { opacity: 1;    }
+}
+@keyframes successCheck {
+  0%   { transform: scale(0.7); opacity: 0; }
+  60%  { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1);   opacity: 1; }
+}
 
-/* ── Component helpers ────────────────────────────────────────────────────── */
+/* ── Component helpers ────────────────────────────────────────────────────────── */
 .glow-critical { animation: glowCritical 2.4s ease-in-out infinite; }
 .glow-warning  { animation: glowWarning  3.0s ease-in-out infinite; }
 .pulse-dot     { animation: pulseDot     2s   ease-in-out infinite; }
 .tabular-nums  { font-variant-numeric: tabular-nums; }
 
-/* ── Card hover lift ─────────────────────────────────────────────────────── */
+/* ── Card hover — subtle elevation, no vertical translate ────────────────────── */
 .card-hover {
-  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
-              box-shadow 0.18s ease,
-              border-color 0.18s ease;
+  transition: box-shadow 0.20s ease, border-color 0.20s ease;
 }
 .card-hover:hover {
-  transform: translateY(-2px);
-  border-color: rgba(17, 24, 39, 0.18) !important;
+  border-color: var(--border-rim) !important;
   box-shadow: var(--shadow-md);
 }
 
-/* ── Section card ───────────────────────────────────────────────────────── */
+/* ── Section card ────────────────────────────────────────────────────────────── */
 .section-card {
   background: var(--surface-card);
   border: 1px solid var(--border-subtle);
@@ -345,7 +384,7 @@ tbody tr { transition: background-color 0.08s ease; }
   box-shadow: var(--shadow-sm);
 }
 
-/* ── Page header bar ────────────────────────────────────────────────────── */
+/* ── Page header bar ─────────────────────────────────────────────────────────── */
 .page-header {
   background: var(--surface-card);
   border-bottom: 1px solid var(--border-subtle);
@@ -356,20 +395,20 @@ tbody tr { transition: background-color 0.08s ease; }
   flex-shrink: 0;
 }
 
-/* ── ERP table ──────────────────────────────────────────────────────────── */
+/* ── ERP table — comfortable density (13px, 12px vertical padding) ───────────── */
 .erp-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--type-body);
 }
 .erp-table thead th {
   background: var(--surface-highlight);
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: var(--type-label);
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
-  padding: 10px 12px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border-rim);
   white-space: nowrap;
   text-align: left;
@@ -383,12 +422,12 @@ tbody tr { transition: background-color 0.08s ease; }
 .erp-table tbody tr:last-child { border-bottom: none; }
 .erp-table tbody tr:hover { background: var(--surface-highlight); }
 .erp-table tbody td {
-  padding: 10px 12px;
+  padding: 12px 14px;
   color: var(--text);
   vertical-align: middle;
 }
 
-/* ── Code chips / monospace snippets ──────────────────────────────────── */
+/* ── Code chips ───────────────────────────────────────────────────────────────── */
 .code-chip {
   font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
   font-size: 11px;
@@ -400,7 +439,7 @@ tbody tr { transition: background-color 0.08s ease; }
   letter-spacing: -0.01em;
 }
 
-/* ── Status dot ─────────────────────────────────────────────────────────── */
+/* ── Status dot ───────────────────────────────────────────────────────────────── */
 .status-dot {
   display: inline-block;
   width: 7px;
@@ -409,19 +448,15 @@ tbody tr { transition: background-color 0.08s ease; }
   flex-shrink: 0;
 }
 
-/* ── Interactive row lift ───────────────────────────────────────────────── */
-.row-hover {
-  transition: background-color 0.09s ease, box-shadow 0.13s ease;
-}
-.row-hover:hover {
-  background: var(--surface-highlight) !important;
-}
+/* ── Interactive row lift ─────────────────────────────────────────────────────── */
+.row-hover { transition: background-color 0.09s ease; }
+.row-hover:hover { background: var(--surface-highlight) !important; }
 
-/* ── Modal backdrop ─────────────────────────────────────────────────────── */
+/* ── Modal backdrop ───────────────────────────────────────────────────────────── */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(17, 24, 39, 0.45);
+  background: rgba(17, 24, 39, 0.40);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   display: flex;
@@ -432,13 +467,14 @@ tbody tr { transition: background-color 0.08s ease; }
 }
 .modal-panel {
   background: var(--surface-elevated);
-  border: 1px solid var(--border-rim);
+  border: 1px solid var(--border-rim-strong);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-2xl);
-  animation: slideUp 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+  box-shadow: var(--shadow-xl);
+  animation: scaleIn 0.20s var(--ease-swift) both;
+  transform-origin: center;
 }
 
-/* ── Tooltip ────────────────────────────────────────────────────────────── */
+/* ── Tooltip ──────────────────────────────────────────────────────────────────── */
 .erp-tooltip {
   background: var(--surface-elevated);
   border: 1px solid var(--border-rim);
@@ -450,11 +486,11 @@ tbody tr { transition: background-color 0.08s ease; }
   pointer-events: none;
 }
 
-/* ── Premium page layout helpers ─────────────────────────────────────────── */
+/* ── Page layout helpers ──────────────────────────────────────────────────────── */
 .page-canvas {
   min-height: 100%;
   background: var(--surface-page);
-  padding: 24px;
+  padding: var(--space-page);
 }
 .page-canvas-tight {
   min-height: 100%;
@@ -462,14 +498,14 @@ tbody tr { transition: background-color 0.08s ease; }
   padding: 16px 20px;
 }
 
-/* ── Metric row ───────────────────────────────────────────────────────────── */
+/* ── Metric row ───────────────────────────────────────────────────────────────── */
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 14px;
 }
 
-/* ── Premium card ────────────────────────────────────────────────────────── */
+/* ── Premium card ────────────────────────────────────────────────────────────── */
 .premium-card {
   background: var(--surface-card);
   border: 1px solid var(--border-subtle);
@@ -478,24 +514,22 @@ tbody tr { transition: background-color 0.08s ease; }
   overflow: hidden;
 }
 .premium-card-header {
-  padding: 14px 18px 10px;
+  padding: var(--space-tight) var(--space-card);
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   gap: 10px;
 }
-.premium-card-body {
-  padding: 16px 18px;
-}
+.premium-card-body { padding: var(--space-card); }
 
-/* ── Tag chips ────────────────────────────────────────────────────────────── */
+/* ── Tag chips ────────────────────────────────────────────────────────────────── */
 .tag-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
+  font-size: var(--type-label);
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   padding: 2px 8px;
   border-radius: var(--radius-full);
   border: 1px solid var(--border-rim);
@@ -503,17 +537,22 @@ tbody tr { transition: background-color 0.08s ease; }
   color: var(--text-muted);
 }
 
-/* ── Divider ─────────────────────────────────────────────────────────────── */
+/* ── Divider ──────────────────────────────────────────────────────────────────── */
 .erp-divider {
   height: 1px;
   background: var(--border-subtle);
   margin: 12px 0;
 }
+.divider-gradient {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-rim), transparent);
+  margin: 14px 0;
+}
 
-/* ── Filter tab bar ──────────────────────────────────────────────────────── */
+/* ── Filter tab bar ───────────────────────────────────────────────────────────── */
 .filter-bar {
   display: flex;
-  gap: 4px;
+  gap: 3px;
   padding: 3px;
   background: var(--surface-highlight);
   border-radius: var(--radius-md);
@@ -521,9 +560,9 @@ tbody tr { transition: background-color 0.08s ease; }
 }
 .filter-tab {
   padding: 5px 12px;
-  font-size: 11.5px;
+  font-size: var(--type-label);
   font-weight: 500;
-  border-radius: 7px;
+  border-radius: 6px;
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -539,7 +578,7 @@ tbody tr { transition: background-color 0.08s ease; }
   box-shadow: var(--shadow-xs);
 }
 
-/* ── Icon button ─────────────────────────────────────────────────────────── */
+/* ── Icon button ──────────────────────────────────────────────────────────────── */
 .icon-btn {
   display: inline-flex;
   align-items: center;
@@ -551,13 +590,12 @@ tbody tr { transition: background-color 0.08s ease; }
   background: var(--surface-card);
   color: var(--text-muted);
   cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
 .icon-btn:hover {
   background: var(--surface-highlight);
   color: var(--text-strong);
   border-color: var(--border-rim-strong);
-  box-shadow: var(--shadow-xs);
 }
 .icon-btn.danger:hover {
   background: var(--status-critical-bg);
@@ -565,7 +603,7 @@ tbody tr { transition: background-color 0.08s ease; }
   border-color: var(--status-critical-border);
 }
 
-/* ── Search field ────────────────────────────────────────────────────────── */
+/* ── Search field ─────────────────────────────────────────────────────────────── */
 .search-field {
   display: flex;
   align-items: center;
@@ -585,13 +623,13 @@ tbody tr { transition: background-color 0.08s ease; }
   flex: 1;
   border: none !important;
   background: transparent !important;
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text-strong) !important;
   outline: none;
   box-shadow: none !important;
 }
 
-/* ── Empty state ─────────────────────────────────────────────────────────── */
+/* ── Empty state ──────────────────────────────────────────────────────────────── */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -604,26 +642,42 @@ tbody tr { transition: background-color 0.08s ease; }
 }
 .empty-state-icon {
   font-size: 32px;
-  opacity: 0.45;
+  opacity: 0.40;
   margin-bottom: 4px;
 }
+.empty-state-title {
+  font-size: var(--type-sub);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.empty-state-desc {
+  font-size: var(--type-body);
+  color: var(--text-dim);
+  max-width: 320px;
+  line-height: 1.5;
+}
 
-/* ── Scrollable region ───────────────────────────────────────────────────── */
+/* ── Scroll area ──────────────────────────────────────────────────────────────── */
 .scroll-area {
   overflow-y: auto;
   scrollbar-gutter: stable;
 }
 
-/* ── Brand accent line (top of cards) ───────────────────────────────────── */
+/* ── Brand accent line ────────────────────────────────────────────────────────── */
+.brand-accent-top {
+  position: relative;
+  overflow: hidden;
+}
 .brand-accent-top::before {
   content: "";
   display: block;
-  height: 3px;
-  background: linear-gradient(90deg, var(--brand), var(--brand-light));
-  border-radius: var(--radius-full) var(--radius-full) 0 0;
+  height: 2px;
+  background: var(--brand);
+  position: absolute;
+  top: 0; left: 0; right: 0;
 }
 
-/* ── Kbd shortcut ────────────────────────────────────────────────────────── */
+/* ── Kbd shortcut ─────────────────────────────────────────────────────────────── */
 kbd.erp-kbd {
   font-family: ui-monospace, 'Cascadia Code', monospace;
   font-size: 9px;
@@ -633,204 +687,86 @@ kbd.erp-kbd {
   border: 1px solid var(--border-rim-strong);
   border-radius: 4px;
   padding: 1px 5px;
-  box-shadow: 0 1px 0 rgba(17, 24, 39, 0.14);
+  box-shadow: 0 1px 0 rgba(17, 24, 39, 0.12);
 }
-
-/* ── Transitions ─────────────────────────────────────────────────────────── */
-.transition-fast { transition: all 0.12s ease; }
-.transition-med  { transition: all 0.20s ease; }
-.transition-slow { transition: all 0.30s ease; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   PREMIUM INTERACTION LAYER  (2026-10-28-v4)
-   Gradient borders, 3D depth, hover elevation, spring motion, shimmer, etc.
-   All effects are drop-in utility classes — apply selectively, never force
-   onto dense tables or data-critical surfaces.
+   INTERACTION LAYER — Purposeful, minimal, professional
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── Keyframes ──────────────────────────────────────────────────────────── */
-@keyframes shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position:  200% 0; }
-}
-@keyframes borderSpin {
-  0%   { --angle: 0deg;   }
-  100% { --angle: 360deg; }
-}
-@property --angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
-}
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.95) translateY(6px); }
-  to   { opacity: 1; transform: scale(1)    translateY(0);   }
-}
-@keyframes popIn {
-  0%   { opacity: 0; transform: scale(0.90); }
-  60%  { opacity: 1; transform: scale(1.015); }
-  100% { opacity: 1; transform: scale(1); }
-}
-@keyframes slideDownFade {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes breathe {
-  0%, 100% { transform: scale(1);    opacity: 0.85; }
-  50%      { transform: scale(1.08); opacity: 1;    }
-}
-@keyframes successCheck {
-  0%   { transform: scale(0.6); opacity: 0; }
-  60%  { transform: scale(1.15); opacity: 1; }
-  100% { transform: scale(1);   opacity: 1; }
-}
-@keyframes rippleOut {
-  from { opacity: 0.35; transform: scale(0.4); }
-  to   { opacity: 0;    transform: scale(1.8); }
-}
-
-/* ── Hover lift (richer than .card-hover; works on buttons + cards) ───────── */
-.hover-lift {
-  transition:
-    transform 0.22s var(--ease-swift),
-    box-shadow 0.22s ease,
-    border-color 0.22s ease;
-  will-change: transform;
-}
-.hover-lift:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-elevated);
-  border-color: var(--border-rim) !important;
-}
-
-/* ── Hover glow (brand-tinted) ──────────────────────────────────────────── */
-.hover-glow {
-  transition: box-shadow 0.25s ease, border-color 0.25s ease;
-}
-.hover-glow:hover {
-  box-shadow: var(--shadow-brand);
-  border-color: var(--border-brand) !important;
-}
-
-/* ── 3D card tilt (very subtle, respects reduced-motion) ──────────────────── */
-.card-3d {
-  transform-style: preserve-3d;
-  transition: transform 0.3s var(--ease-swift), box-shadow 0.3s ease;
-}
-.card-3d:hover {
-  transform: perspective(900px) rotateX(1.5deg) rotateY(-1.5deg) translateY(-3px);
-  box-shadow: var(--shadow-elevated);
-}
-
-/* ── Press feedback (tap-to-depress for any interactive element) ───────── */
-.press-feedback {
-  transition: transform 0.08s ease;
-}
-.press-feedback:active { transform: scale(0.97); }
-
-/* ── Spring tap (soft overshoot on tap) ─────────────────────────────────── */
-.spring-tap {
-  transition: transform 0.26s var(--ease-spring);
-}
-.spring-tap:hover:not(:disabled) { transform: translateY(-1px); }
-.spring-tap:active:not(:disabled) { transform: translateY(0) scale(0.985); }
-
-/* ── Animated gradient border — selective premium accent ─────────────────── */
-.gradient-border-brand {
-  position: relative;
-  z-index: 0;
-  background-clip: padding-box;
-  border: 1px solid transparent !important;
-}
-.gradient-border-brand::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  z-index: -1;
-  border-radius: inherit;
-  background: conic-gradient(
-    from var(--angle),
-    rgba(215,25,32,0.00) 0%,
-    rgba(215,25,32,0.55) 15%,
-    rgba(215,25,32,0.00) 30%,
-    rgba(215,25,32,0.00) 100%
-  );
-  animation: borderSpin 6s linear infinite;
-}
-.gradient-border-static {
-  position: relative;
-  isolation: isolate;
-  background: linear-gradient(var(--surface-card), var(--surface-card)) padding-box,
-              linear-gradient(135deg, rgba(215,25,32,0.45), rgba(215,25,32,0.08) 60%, transparent) border-box;
-  border: 1px solid transparent;
-}
-
-/* ── Shimmer loader ─────────────────────────────────────────────────────── */
+/* ── Shimmer loader ───────────────────────────────────────────────────────────── */
 .shimmer {
   background: linear-gradient(
     90deg,
     rgba(17,24,39,0.04) 0%,
-    rgba(17,24,39,0.10) 40%,
+    rgba(17,24,39,0.09) 40%,
     rgba(17,24,39,0.04) 80%
   );
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;
 }
 
-/* ── Pop-in / Scale-in entrance ──────────────────────────────────────────── */
-.anim-scale-in { animation: scaleIn 0.22s var(--ease-swift) both; }
-.anim-pop-in   { animation: popIn   0.28s var(--ease-spring) both; }
-.anim-slide-down { animation: slideDownFade 0.18s var(--ease-swift) both; }
-.anim-success-check { animation: successCheck 0.42s var(--ease-spring) both; }
+/* ── Spring tap — button press feedback ──────────────────────────────────────── */
+.spring-tap {
+  transition: background-color 0.14s ease, border-color 0.14s ease,
+              box-shadow 0.14s ease, transform 0.10s ease;
+}
+.spring-tap:active:not(:disabled) { transform: scale(0.975); }
 
-/* ── Critical attention breather (sparingly, on genuinely critical items) ── */
-.breathe-critical::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.00);
-  animation: breathe 2.6s ease-in-out infinite;
-  opacity: 0.3;
+/* ── Hover lift — card hover (no vertical movement, just shadow) ─────────────── */
+.hover-lift {
+  transition: box-shadow 0.20s ease, border-color 0.20s ease;
+}
+.hover-lift:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-rim) !important;
 }
 
-/* ── Enhanced button hierarchy ───────────────────────────────────────────── */
+/* ── Gradient border static (highlighted cards, no animation) ────────────────── */
+.gradient-border-static {
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(var(--surface-card), var(--surface-card)) padding-box,
+              linear-gradient(135deg, rgba(215,25,32,0.40), rgba(215,25,32,0.06) 60%, transparent) border-box;
+  border: 1px solid transparent;
+}
+
+/* ── Primary button ───────────────────────────────────────────────────────────── */
 .btn-primary-brand {
   background: linear-gradient(135deg, #d71920 0%, #b01218 100%);
   color: #ffffff !important;
-  border: 1px solid rgba(176, 18, 24, 0.60);
-  box-shadow: var(--shadow-brand);
+  border: 1px solid rgba(176, 18, 24, 0.55);
+  box-shadow: 0 2px 8px -2px rgba(215, 25, 32, 0.30);
   font-weight: 600;
   letter-spacing: -0.005em;
-  transition:
-    transform 0.14s var(--ease-swift),
-    box-shadow 0.18s ease,
-    filter 0.14s ease;
+  transition: box-shadow 0.16s ease, filter 0.14s ease;
 }
 .btn-primary-brand:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 28px -10px rgba(215,25,32,0.42), 0 6px 12px -6px rgba(215,25,32,0.26);
-  filter: brightness(1.04);
+  box-shadow: var(--shadow-brand);
+  filter: brightness(1.05);
 }
 .btn-primary-brand:active:not(:disabled) {
-  transform: translateY(0) scale(0.985);
+  filter: brightness(0.96);
+  box-shadow: 0 1px 4px -1px rgba(215, 25, 32, 0.25);
 }
 
-/* ── Dropdown / popover entrance ─────────────────────────────────────────── */
+/* ── Entrance animations ──────────────────────────────────────────────────────── */
+.anim-scale-in    { animation: scaleIn    0.20s var(--ease-swift) both; }
+.anim-slide-down  { animation: slideDownFade 0.18s var(--ease-swift) both; }
+.anim-success-check { animation: successCheck 0.38s var(--ease-swift) both; }
+
+/* ── Popover panel ────────────────────────────────────────────────────────────── */
 .popover-panel {
   background: var(--surface-elevated);
   border: 1px solid var(--border-rim);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-elevated);
+  box-shadow: var(--shadow-lg);
   animation: scaleIn 0.14s var(--ease-swift) both;
   transform-origin: top center;
 }
 
-/* ── Row left-border accent on hover (table rows) ────────────────────────── */
-.row-accent {
-  position: relative;
-}
+/* ── Row left-border accent on hover ─────────────────────────────────────────── */
+.row-accent { position: relative; }
 .row-accent::before {
   content: "";
   position: absolute;
@@ -843,29 +779,22 @@ kbd.erp-kbd {
 }
 .row-accent:hover::before { opacity: 1; }
 
-/* ── Checkbox / radio polish ────────────────────────────────────────────── */
+/* ── Focus ring ───────────────────────────────────────────────────────────────── */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.14),
+              0 0 0 1px rgba(var(--brand-rgb), 0.45);
+  border-color: rgba(var(--brand-rgb), 0.45);
+}
+
+/* ── Checkbox / radio ─────────────────────────────────────────────────────────── */
 input[type="checkbox"]:focus-visible,
 input[type="radio"]:focus-visible {
   outline: 2px solid rgba(var(--brand-rgb), 0.75);
   outline-offset: 2px;
 }
 
-/* ── Enhanced focus ring everywhere ──────────────────────────────────────── */
-.focus-ring:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.14),
-              0 0 0 1px rgba(var(--brand-rgb), 0.50);
-  border-color: rgba(var(--brand-rgb), 0.50);
-}
-
-/* ── Soft divider gradient ───────────────────────────────────────────────── */
-.divider-gradient {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--border-rim), transparent);
-  margin: 14px 0;
-}
-
-/* ── Loading dots ───────────────────────────────────────────────────────── */
+/* ── Loading dots ─────────────────────────────────────────────────────────────── */
 .loading-dots {
   display: inline-flex;
   gap: 4px;
@@ -881,57 +810,19 @@ input[type="radio"]:focus-visible {
 .loading-dots span:nth-child(2) { animation-delay: 0.18s; }
 .loading-dots span:nth-child(3) { animation-delay: 0.36s; }
 
-/* ── Enhance existing .card-hover (richer elevation) ────────────────────── */
-.card-hover {
-  transition:
-    transform 0.22s var(--ease-swift),
-    box-shadow 0.22s ease,
-    border-color 0.22s ease;
-}
-.card-hover:hover {
-  transform: translateY(-3px);
-  border-color: var(--border-rim) !important;
-  box-shadow: var(--shadow-elevated);
-}
-
-/* ── Modal panel: smoother, deeper entrance ─────────────────────────────── */
-.modal-panel {
-  background: var(--surface-elevated);
-  border: 1px solid var(--border-rim);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-2xl);
-  animation: scaleIn 0.22s var(--ease-swift) both;
-  transform-origin: center;
-}
-
-/* ── Table thead refinement — gentle top-shadow and crisper type ────────── */
-.erp-table thead th {
-  background: linear-gradient(180deg, var(--surface-highlight) 0%, var(--surface-card) 100%);
-  color: var(--text);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-/* ── Sidebar nav item: smoother active transition ───────────────────────── */
-aside nav button {
-  transition:
-    background-color 0.14s ease,
-    color 0.14s ease,
-    box-shadow 0.14s ease;
-}
-
-/* ── KPI value — enhanced tabular typography ─────────────────────────────── */
+/* ── KPI value typography ─────────────────────────────────────────────────────── */
 .kpi-value {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1, "ss01" 1;
   letter-spacing: -0.025em;
 }
 
-/* ── Button active + hover baseline (small-but-nice spring on all btns) ──── */
-button:not(:disabled):not([data-nospring]):hover { transition: all 0.14s var(--ease-swift); }
+/* ── Sidebar nav transition ───────────────────────────────────────────────────── */
+aside nav button {
+  transition: background-color 0.14s ease, color 0.14s ease;
+}
 
-/* ── Reduced motion ──────────────────────────────────────────────────────── */
+/* ── Reduced motion ───────────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -941,7 +832,7 @@ button:not(:disabled):not([data-nospring]):hover { transition: all 0.14s var(--e
   }
 }
 
-/* ── Print ───────────────────────────────────────────────────────────────── */
+/* ── Print ────────────────────────────────────────────────────────────────────── */
 @media print {
   aside, .glass, .glass-strong {
     background: #fff !important;

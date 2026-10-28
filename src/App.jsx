@@ -66,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-28-vendor-ui-v7";
+const APP_BUILD = "2026-10-28-ui-phase1";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
