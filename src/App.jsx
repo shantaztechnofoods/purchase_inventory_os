@@ -66,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-28-ui-phase2";
+const APP_BUILD = "2026-10-28-ui-phase3";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -827,8 +827,8 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
               onMouseEnter={(e) => { e.currentTarget.style.background = kpi.color + "18"; e.currentTarget.style.borderColor = kpi.color + "44"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = kpi.color + "0d"; e.currentTarget.style.borderColor = kpi.alert ? kpi.color + "44" : kpi.color + "22"; }}>
               <div className="text-lg mb-1.5">{kpi.icon}</div>
-              <div className="text-2xl font-black" style={{ color: kpi.alert ? kpi.color : "var(--text-strong)" }}>{kpi.value}</div>
-              <div className="text-[10px] font-bold mt-0.5 leading-tight" style={{ color: "var(--text-muted)" }}>{kpi.label}</div>
+              <div className="text-xl font-bold tabular-nums" style={{ color: kpi.alert ? kpi.color : "var(--text-strong)" }}>{kpi.value}</div>
+              <div className="text-[10px] font-semibold mt-1 leading-tight tracking-[0.03em]" style={{ color: "var(--text-muted)" }}>{kpi.label}</div>
               <div className="text-[9px] mt-0.5 truncate" style={{ color: "var(--text-dim)" }}>{kpi.sub}</div>
             </button>
           ))}
@@ -841,7 +841,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
           <div className="bg-white border border-slate-200 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-[12px] font-semibold" style={{ color: "var(--text-strong)" }}>🔴 Critical Stock — Order Now</span>
+                <span className="text-[13px] font-semibold" style={{ color: "var(--text-strong)" }}>🔴 Critical Stock — Order Now</span>
                 {criticalN > 0 && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(220,38,38,0.08)", color: "#dc2626", border: "1px solid rgba(220,38,38,0.22)" }}>{criticalN}</span>
                 )}
@@ -889,7 +889,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
           <div className="bg-white border border-slate-200 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-[12px] font-semibold" style={{ color: "var(--text-strong)" }}>📋 Pending PO Approvals</span>
+                <span className="text-[13px] font-semibold" style={{ color: "var(--text-strong)" }}>📋 Pending PO Approvals</span>
                 {pendingPOs.length > 0 && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(217,119,6,0.08)", color: "#b45309", border: "1px solid rgba(217,119,6,0.22)" }}>{pendingPOs.length}</span>
                 )}
@@ -933,7 +933,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
           <div className="bg-white border border-slate-200 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-[12px] font-semibold" style={{ color: "var(--text-strong)" }}>⏳ Materials Blocking Production</span>
+                <span className="text-[13px] font-semibold" style={{ color: "var(--text-strong)" }}>⏳ Materials Blocking Production</span>
                 {blockingMaterials.length > 0 && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(217,119,6,0.08)", color: "#b45309", border: "1px solid rgba(217,119,6,0.22)" }}>{blockingMaterials.length}</span>
                 )}
@@ -980,7 +980,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
           <div className="bg-white border border-slate-200 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-[12px] font-semibold" style={{ color: "var(--text-strong)" }}>⚙️ Machines — Next Stage</span>
+                <span className="text-[13px] font-semibold" style={{ color: "var(--text-strong)" }}>⚙️ Machines — Next Stage</span>
                 {activeMachines.length > 0 && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(215,25,32,0.08)", color: "#d71920", border: "1px solid rgba(215,25,32,0.22)" }}>{activeMachines.length}</span>
                 )}
@@ -1029,7 +1029,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
         <div className="bg-white border border-slate-200 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <span className="text-[12px] font-semibold" style={{ color: "var(--text-strong)" }}>🔄 Recent Stock Movements</span>
+              <span className="text-[13px] font-semibold" style={{ color: "var(--text-strong)" }}>🔄 Recent Stock Movements</span>
               {recentMoves.length > 0 && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(215,25,32,0.08)", color: "#d71920", border: "1px solid rgba(215,25,32,0.22)" }}>{recentMoves.length}</span>
               )}
@@ -3177,12 +3177,13 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 text-[11px] pointer-events-none">🔍</span>
             <input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)}
                    placeholder="Search code, name, vendor, location..."
-                   className="bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-3 py-1.5 text-xs text-white placeholder-slate-600 outline-none focus:border-blue-500/40 w-72 transition-all" />
+                   className="bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-3 py-1.5 text-xs placeholder-slate-400 outline-none focus:border-blue-500/40 w-72 transition-all"
+                   style={{ color: "var(--text-strong)" }} />
           </div>
 
           {filtersActive && (
             <button onClick={clearFilters}
-                    className="text-[10px] font-bold text-slate-500 hover:text-red-400 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:border-red-500/30 transition-all">
+                    className="text-[10px] font-bold text-slate-500 hover:text-red-600 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:border-red-500/40 transition-all">
               ✕ Clear
             </button>
           )}
@@ -3197,7 +3198,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                   {cols.map(({ col, label }) => (
                     <th key={label}
                         onClick={col ? () => toggleSort(col) : undefined}
-                        className={`text-left text-[10px] font-semibold text-slate-500 uppercase tracking-[0.06em] px-4 py-3 ${col ? "cursor-pointer hover:text-slate-500 select-none" : ""}`}>
+                        className={`text-left text-[10px] font-semibold text-slate-600 uppercase tracking-[0.06em] px-4 py-3 ${col ? "cursor-pointer hover:text-slate-900 select-none" : ""}`}>
                       {label}{col && <SortIcon col={col} />}
                     </th>
                   ))}
@@ -3231,7 +3232,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                           {item.category}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-xs text-slate-400">{item.unit}</td>
+                      <td className="px-4 py-4 text-xs" style={{ color: "var(--text-dim)" }}>{item.unit}</td>
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold font-mono tabular-nums" style={{ color: cfg.dot || cfg.style?.color || "var(--text)" }}>{item.stock}</span>
@@ -3240,31 +3241,31 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-4 text-xs font-mono tabular-nums text-slate-500">{item.min}</td>
-                      <td className="px-4 py-4 text-xs font-mono tabular-nums text-slate-400">
-                        {item.lastPurchaseRate ? `₹${Number(item.lastPurchaseRate).toLocaleString("en-IN")}` : <span className="text-slate-700">—</span>}
+                      <td className="px-4 py-4 text-xs font-mono tabular-nums" style={{ color: "var(--text-muted)" }}>{item.min}</td>
+                      <td className="px-4 py-4 text-xs font-mono tabular-nums" style={{ color: "var(--text-muted)" }}>
+                        {item.lastPurchaseRate ? `₹${Number(item.lastPurchaseRate).toLocaleString("en-IN")}` : <span style={{ color: "var(--text-faint)" }}>—</span>}
                       </td>
                       <td className="px-4 py-4">
                         <StatusBadge status={item.status} />
                       </td>
-                      <td className="px-4 py-4 text-[10px] text-slate-400 max-w-[120px]">
-                        <div className="truncate">{item.vendor || <span className="text-slate-700">—</span>}</div>
+                      <td className="px-4 py-4 text-[10px] max-w-[120px]" style={{ color: "var(--text-muted)" }}>
+                        <div className="truncate">{item.vendor || <span style={{ color: "var(--text-faint)" }}>—</span>}</div>
                       </td>
-                      <td className="px-4 py-4 text-[10px] text-slate-500 max-w-[100px]">
-                        <div className="truncate">{item.location || <span className="text-slate-700">—</span>}</div>
+                      <td className="px-4 py-4 text-[10px] max-w-[100px]" style={{ color: "var(--text-muted)" }}>
+                        <div className="truncate">{item.location || <span style={{ color: "var(--text-faint)" }}>—</span>}</div>
                       </td>
                       <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                         <div className="flex gap-1 items-center">
                           {canDo("inventory","adjust") && (
                             <button onClick={() => setQuickAdjust({ item: { ...item }, category: item.category, mode: "add" })}
                                     title="Add Stock"
-                                    className="w-6 h-6 rounded flex items-center justify-center text-xs font-black text-green-400 hover:text-slate-900 transition-all"
+                                    className="w-6 h-6 rounded flex items-center justify-center text-xs font-black text-green-700 hover:text-green-900 transition-all"
                                     style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.22)" }}>＋</button>
                           )}
                           {canDo("inventory","adjust") && (
                             <button onClick={() => setQuickAdjust({ item: { ...item }, category: item.category, mode: "remove" })}
                                     title="Remove Stock"
-                                    className="w-6 h-6 rounded flex items-center justify-center text-xs font-black text-orange-400 hover:text-slate-900 transition-all"
+                                    className="w-6 h-6 rounded flex items-center justify-center text-xs font-black text-orange-700 hover:text-orange-900 transition-all"
                                     style={{ background: "rgba(249,115,22,0.1)", border: "1px solid rgba(249,115,22,0.22)" }}>－</button>
                           )}
                           {canDo("inventory","edit") && (
@@ -3274,7 +3275,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                                     style={{ background: "rgba(17,24,39,0.04)", border: "1px solid rgba(17,24,39,0.10)" }}>✏</button>
                           )}
                           {item.status !== "safe" && (
-                            <span className="text-[9px] font-black text-red-400 px-1.5 py-0.5 rounded whitespace-nowrap"
+                            <span className="text-[9px] font-black text-red-700 px-1.5 py-0.5 rounded whitespace-nowrap"
                                   style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>🚨</span>
                           )}
                         </div>
@@ -3289,13 +3290,13 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
           {/* Footer */}
           <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between"
                style={{ background: "#f8f9fb" }}>
-            <div className="text-[10px] text-slate-600">
-              Showing <span className="text-slate-500 font-bold">{sorted.length}</span> of <span className="text-slate-500 font-bold">{totalSKUs}</span> items
+            <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+              Showing <span className="font-bold" style={{ color: "var(--text-strong)" }}>{sorted.length}</span> of <span className="font-bold" style={{ color: "var(--text-strong)" }}>{totalSKUs}</span> items
             </div>
-            <div className="text-[10px] text-slate-500 tabular-nums">
+            <div className="text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>
               Inventory Value:{" "}
-              <span className="text-blue-700 font-bold">₹{filteredVal.toLocaleString("en-IN")}</span>
-              {filtersActive && <span className="text-slate-700 ml-1">(filtered)</span>}
+              <span className="font-bold" style={{ color: "#d71920" }}>₹{filteredVal.toLocaleString("en-IN")}</span>
+              {filtersActive && <span className="ml-1" style={{ color: "var(--text-dim)" }}>(filtered)</span>}
             </div>
           </div>
         </div>
@@ -5412,15 +5413,18 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
                 </ResponsiveContainer>
                 <div className="flex flex-wrap gap-x-3 gap-y-1.5 justify-center mt-2">
                   {spendByCat.map((d) => (
-                    <div key={d.name} className="flex items-center gap-1 text-[10px] text-slate-400">
-                      <div className="w-2 h-2 rounded-sm" style={{ background: d.color }} />
-                      {d.name} <span className="font-bold text-white">{d.value}%</span>
+                    <div key={d.name} className="flex items-center gap-1.5 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                      <div className="w-2.5 h-2.5 rounded-sm" style={{ background: d.color }} />
+                      {d.name} <span className="font-bold tabular-nums" style={{ color: "var(--text-strong)" }}>{d.value}%</span>
                     </div>
                   ))}
                 </div>
               </>
             ) : (
-              <div className="h-[200px] flex items-center justify-center text-slate-600 text-xs">No PO line item data yet</div>
+              <div className="h-[200px] flex flex-col items-center justify-center gap-1 text-center">
+                <div className="text-2xl" style={{ opacity: 0.45 }}>🥧</div>
+                <div className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>No PO line item data yet</div>
+              </div>
             )}
           </div>
 
@@ -5437,7 +5441,10 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[220px] flex items-center justify-center text-slate-600 text-xs">No PO data yet</div>
+              <div className="h-[220px] flex flex-col items-center justify-center gap-1 text-center">
+                <div className="text-2xl" style={{ opacity: 0.45 }}>🏭</div>
+                <div className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>No PO data yet</div>
+              </div>
             )}
           </div>
 
@@ -5455,9 +5462,9 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
               {stockDist.map((d) => (
                 <div key={d.name} className="flex items-center gap-2 text-xs">
                   <div className="w-2.5 h-2.5 rounded-sm" style={{ background: d.color }} />
-                  <span className="text-slate-400 flex-1">{d.name}</span>
-                  <span className="font-bold font-mono text-white">{d.value}</span>
-                  <span className="text-slate-600 text-[10px]">{totalItems > 0 ? ((d.value / totalItems) * 100).toFixed(1) : 0}%</span>
+                  <span className="flex-1" style={{ color: "var(--text-muted)" }}>{d.name}</span>
+                  <span className="font-bold font-mono tabular-nums" style={{ color: "var(--text-strong)" }}>{d.value}</span>
+                  <span className="text-[10px] tabular-nums" style={{ color: "var(--text-dim)" }}>{totalItems > 0 ? ((d.value / totalItems) * 100).toFixed(1) : 0}%</span>
                 </div>
               ))}
             </div>
