@@ -11489,6 +11489,79 @@ function ReportCenterPage({
   );
 }
 
+// ── Department scoreboard ────────────────────────────────────────────────────
+// "Where it sticks" used to be four CSV-shaped tables. Every number was in
+// there, but nobody could answer the question the tab is named after without
+// reading all four and doing the arithmetic in their head.
+//
+// This is the answer instead: one row per department, worst first. Each row is
+// built from the handovers that department SENT, which is the work it owns —
+// how often it finished inside its allowance, how far over it ran when it
+// didn't, how long the next department left it waiting, and the stars it was
+// given. Sorting by score puts the department that needs attention at the top.
+function buildDepartmentScoreboard(handovers = [], ratings = []) {
+  const byDept = new Map();
+
+  const row = (dept) => {
+    if (!byDept.has(dept)) {
+      byDept.set(dept, {
+        department: dept, handovers: 0, onTime: 0, overran: 0,
+        overrunMinutes: 0, heldMinutes: 0, heldCount: 0,
+        ratingSum: 0, ratingCount: 0, openIssues: 0,
+      });
+    }
+    return byDept.get(dept);
+  };
+
+  for (const h of handovers) {
+    if (!h || !h.fromDepartment) continue;
+    const r = row(h.fromDepartment);
+    r.handovers += 1;
+    const over = Number(h.overrunMinutes) || 0;
+    if (over > 0) { r.overran += 1; r.overrunMinutes += over; } else { r.onTime += 1; }
+
+    // How long the RECEIVING department sat on it past the accept window.
+    // Charged to the receiver, not the sender — it is the receiver's delay.
+    if (h.sentAt && h.toDepartment) {
+      const until = h.acceptedAt ? Date.parse(h.acceptedAt) : Date.now();
+      const waited = Math.max(0, Math.floor((until - Date.parse(h.sentAt)) / 60000));
+      const held = Math.max(0, waited - (Number(h.acceptTimeoutMinutes) || 0));
+      if (held > 0) {
+        const rec = row(h.toDepartment);
+        rec.heldMinutes += held;
+        rec.heldCount += 1;
+      }
+    }
+  }
+
+  for (const rt of ratings) {
+    if (!rt || !rt.department) continue;
+    const n = Number(rt.rating);
+    if (!Number.isFinite(n)) continue;
+    const r = row(rt.department);
+    r.ratingSum += n;
+    r.ratingCount += 1;
+  }
+
+  return [...byDept.values()]
+    .map((r) => ({
+      ...r,
+      onTimePct: r.handovers ? Math.round((r.onTime / r.handovers) * 100) : null,
+      avgOverrun: r.overran ? Math.round(r.overrunMinutes / r.overran) : 0,
+      avgHeld: r.heldCount ? Math.round(r.heldMinutes / r.heldCount) : 0,
+      avgRating: r.ratingCount ? Math.round((r.ratingSum / r.ratingCount) * 10) / 10 : null,
+    }))
+    // Worst first: lowest rating, then worst on-time record. Departments with
+    // no rating yet sort to the bottom rather than to the top as a false 0 —
+    // "no data" is not "bad".
+    .sort((a, b) => {
+      if (a.avgRating === null && b.avgRating !== null) return 1;
+      if (b.avgRating === null && a.avgRating !== null) return -1;
+      if (a.avgRating !== b.avgRating) return (a.avgRating ?? 0) - (b.avgRating ?? 0);
+      return (a.onTimePct ?? 0) - (b.onTimePct ?? 0);
+    });
+}
+
 function ReportKPI({ label, value, color = "#E8553D", suffix = "" }) {
   return (
     <div className="p-4 rounded-xl" style={{ background: `${color}10`, border: `1px solid ${color}33` }}>
@@ -17199,6 +17272,33 @@ export default function App() {
     if (stockErrTimer.current) clearTimeout(stockErrTimer.current);
     stockErrTimer.current = setTimeout(() => setStockError(null), 6000);
   }, []);
+
+  // ── Writes that did not reach the database ────────────────────────────────
+  //
+  // Most Supabase mirrors in this file are fire-and-forget: the local state
+  // updates, the write goes off on its own, and a failure only ever reached
+  // console.warn. The operator saw a success toast either way. Two confirmed
+  // production incidents came out of that on 2026-10-29 — a machine that moved
+  // stage on screen but not in Postgres, and stock that read as issued while it
+  // was still on the shelf. Nobody could have known; nothing was shown.
+  //
+  // This is the channel for those. Unlike flashStockError it does NOT
+  // auto-dismiss — a lost write is not a transient notice, and the operator has
+  // usually moved on by the time it resolves. It holds a list, because a BOM
+  // issue is a batch and the one-slot design would hide all but the last
+  // failure. Entries stay until dismissed by hand.
+  const [saveErrors, setSaveErrors] = useState([]);
+  const flashSaveError = useCallback((what, detail) => {
+    setSaveErrors((prev) => {
+      // Collapse an identical repeat rather than stacking it — a retry loop
+      // should not bury the screen.
+      if (prev.some((e) => e.what === what && e.detail === detail)) return prev;
+      return [...prev, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, what, detail, at: new Date() }];
+    });
+  }, []);
+  const dismissSaveError = useCallback((id) => {
+    setSaveErrors((prev) => prev.filter((e) => e.id !== id));
+  }, []);
   // In-flight PO-receive guard — blocks duplicate movement writes from rapid double-clicks
   // before the optimistic status flip to "received" has rendered.
   const receivingRef = useRef(new Set());
@@ -18483,12 +18583,30 @@ export default function App() {
   };
   const handleAddOutward = (entry, pending) => {
     setOutwardLog((prev) => [entry, ...prev]);
-    if (isSupabaseEnabled()) createOutward(entry).then((r) => { if (!r.success) console.warn("[App] Outward Supabase failed:", r.error); });
+    // The stock has already left by the time we get here, and this row is the
+    // only record of where it went. Lose it and inventory shows an unexplained
+    // drop that nothing in the ERP can account for.
+    if (isSupabaseEnabled()) createOutward(entry).then((r) => {
+      if (!r.success) {
+        console.warn("[App] Outward Supabase failed:", r.error);
+        flashSaveError("Outward record",
+          `${entry.ref}${entry.serialNo ? ` · ${entry.serialNo}` : ""}: stock was issued but the outward entry was not saved — ${r.error || "unknown error"}`);
+      }
+    });
     if (pending && pending.length > 0) {
       const issueId = entry.id;
       const rows = pending.map((p) => ({ ...p, bomKey: entry.ref, bomLabel: entry.label, date: entry.date, issueId, serialNo: entry.serialNo || "" }));
       setPendingLog((prev) => [...rows, ...prev]);
-      if (isSupabaseEnabled()) bulkCreatePending(rows).then((r) => { if (!r.success) console.warn("[App] Pending bulk-create Supabase failed:", r.error); });
+      // Losing these leaves the Pending Stock page empty after a reload, so the
+      // shortfall is never chased and the machine sits blocked with no visible
+      // reason why.
+      if (isSupabaseEnabled()) bulkCreatePending(rows).then((r) => {
+        if (!r.success) {
+          console.warn("[App] Pending bulk-create Supabase failed:", r.error);
+          flashSaveError("Pending Stock shortfall",
+            `${entry.ref}: ${rows.length} shortfall line${rows.length === 1 ? "" : "s"} were not saved — ${r.error || "unknown error"}`);
+        }
+      });
     }
     if (entry.type === "bom") {
       // Migration 026 — surface critical-item confirmations in the audit so a
@@ -18563,7 +18681,34 @@ export default function App() {
       deptDurations:       deptDurations || null,
     };
     setMachineLog((prev) => [newMachine, ...prev]);
-    if (isSupabaseEnabled()) machineCreate(newMachine).then((r) => { if (!r.success) console.warn("[App] Machine create Supabase failed:", r.error); });
+    // Adopt the id Postgres assigned.
+    //
+    // `machine_log.id` is a bigserial. The `Date.now()` above is a placeholder
+    // so the optimistic row has a React key, nothing more — the database picks
+    // its own id on insert. machineCreate has always returned that row, and we
+    // used to throw it away. Every later write addressed the machine by the
+    // placeholder: `.eq("id", 1761700000000)` is type-valid and matches nothing,
+    // and a zero-row UPDATE reports no error, so Start Production, stage
+    // changes, Accept and Finish & Transfer could all "succeed" against a row
+    // that does not exist.
+    //
+    // It looked intermittent because machine_log has a realtime subscription:
+    // if a refetch landed first, the placeholder had already been replaced by
+    // the real row and everything worked. If the operator was quick, or the
+    // channel was slow, the write vanished. Found 2026-10-29.
+    if (isSupabaseEnabled()) {
+      machineCreate(newMachine).then((r) => {
+        if (!r.success) {
+          console.warn("[App] Machine create Supabase failed:", r.error);
+          flashSaveError("Machine not saved", `${bomKey}${serialNo ? ` · ${serialNo}` : ""}: ${r.error || "unknown error"}`);
+          return;
+        }
+        const realId = r.machine && r.machine.id;
+        if (realId != null && String(realId) !== String(newMachine.id)) {
+          setMachineLog((prev) => prev.map((m) => (m.id === newMachine.id ? { ...m, id: realId } : m)));
+        }
+      });
+    }
   };
 
   const handleUpdateMachineStage = (machineId, newStage) => {
@@ -18593,7 +18738,13 @@ export default function App() {
         history: [...(machine.history || []), { stage: newStage, date: dateStr }],
         currentDepartment:   newStage,
         departmentEnteredAt: nowIso,
-      }).then((r) => { if (!r.success) console.warn("[App] Machine stage Supabase failed:", r.error); });
+      }).then((r) => {
+        if (!r.success) {
+          console.warn("[App] Machine stage Supabase failed:", r.error);
+          flashSaveError(`stage change to ${newStage}`,
+            `${machine.bomKey}${machine.serialNo ? ` · ${machine.serialNo}` : ""}: ${r.error || "unknown error"}`);
+        }
+      });
     }
   };
 
@@ -18629,8 +18780,21 @@ export default function App() {
           departmentEnteredAt: nowIso,
         })
       )).then((results) => {
+        // This is the exact call that lost a Start Production on 2026-10-29:
+        // the UI moved the machine to Assembly, Postgres kept it at BOM Issued,
+        // and the only trace was a console.warn nobody was watching — in fact
+        // not even that, because updateMachine was reporting success for an
+        // UPDATE that matched no rows. Both halves are fixed now; this half
+        // makes sure the operator is told.
         const failed = results.filter((r) => !r.success);
-        if (failed.length) console.warn("[App] handleStartProduction: Supabase machine updates failed", failed);
+        if (failed.length) {
+          console.warn("[App] handleStartProduction: Supabase machine updates failed", failed);
+          failed.forEach((r, i) => {
+            const m = targets[results.indexOf(r)] || targets[i];
+            flashSaveError("Start Production",
+              `${m?.serialNo || m?.bomKey || "machine"}: ${r.error || "unknown error"}`);
+          });
+        }
       });
     }
     const serials = targets.map((m) => m.serialNo).filter(Boolean);
@@ -18843,7 +19007,17 @@ export default function App() {
         history: [...(machine.history || []), { stage: machine.stage, date: dateStr, note: historyNote }],
       };
       if (trialCertificate) machUpd.trialCertificate = trialCertificate;
-      machineUpdate(machineId, machUpd).then((r) => { if (!r.success) console.warn("[App] handleFinishTransfer: machine update failed", r.error); });
+      machineUpdate(machineId, machUpd).then((r) => {
+        if (!r.success) {
+          console.warn("[App] handleFinishTransfer: machine update failed", r.error);
+          // The handover row itself is already committed and checked above. If
+          // this half is lost the machine does not point at it, so the receiving
+          // department never sees the machine and the sender can raise a second
+          // handover for the same unit. Worth shouting about.
+          flashSaveError("Finish & Transfer",
+            `${machine.bomKey}${machine.serialNo ? ` · ${machine.serialNo}` : ""}: the handover was recorded but the machine was not linked to it — ${r.error || "unknown error"}`);
+        }
+      });
     }
 
     // Refresh handovers list locally — realtime will catch up but immediate
@@ -19008,7 +19182,17 @@ export default function App() {
         currentDepartment:   newStage,
         departmentEnteredAt: nowIso,
         pendingHandoverId:   null,
-      }).then((r) => { if (!r.success) console.warn("[App] handleAcceptHandover: machine promote failed", r.error); });
+      }).then((r) => {
+        if (!r.success) {
+          console.warn("[App] handleAcceptHandover: machine promote failed", r.error);
+          // handover_events is already flipped to accepted and that write WAS
+          // checked. Losing this one deadlocks the machine: it sits in the old
+          // department with pending_handover_id still set, so Finish & Transfer
+          // refuses with "Handover already in progress" and nothing can move it.
+          flashSaveError(`Accept into ${newStage}`,
+            `${machine.bomKey}${machine.serialNo ? ` · ${machine.serialNo}` : ""}: the acceptance was recorded but the machine was not moved — ${r.error || "unknown error"}`);
+        }
+      });
     }
 
     // Refresh handovers list locally.
@@ -19696,6 +19880,33 @@ export default function App() {
             <div className="text-[11px] text-slate-400 mt-0.5 break-words">{stockError}</div>
           </div>
           <button onClick={() => setStockError(null)} className="text-slate-600 hover:text-slate-500 text-xs flex-shrink-0">✕</button>
+        </div>
+      )}
+
+      {/* Writes that did not reach the database.
+          Deliberately persistent and deliberately loud: it sits above the stock
+          toast, it does not time out, and each entry must be dismissed by hand.
+          The operator needs to know the machine they just moved is not actually
+          moved, and they need to still know it a minute later. */}
+      {saveErrors.length > 0 && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[150] w-[min(94vw,640px)] space-y-2 no-print">
+          {saveErrors.map((e) => (
+            <div key={e.id} className="flex items-start gap-3 px-4 py-3 rounded-xl shadow-2xl"
+                 style={{ background: "linear-gradient(180deg,#2a1216,#1a0c0e)", border: "1px solid rgba(239,68,68,0.55)", animation: "slideUp 0.2s ease both" }}>
+              <span className="text-lg leading-none mt-0.5">🚫</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[12px] font-bold text-red-300">
+                  Not saved to the database — {e.what}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-0.5 break-words">{e.detail}</div>
+                <div className="text-[10px] text-slate-500 mt-1">
+                  What you see on screen has not been stored. Reload to see the real state, then try again.
+                </div>
+              </div>
+              <button onClick={() => dismissSaveError(e.id)}
+                      className="text-slate-500 hover:text-slate-300 text-xs flex-shrink-0 px-1">✕</button>
+            </div>
+          ))}
         </div>
       )}
     </div>
