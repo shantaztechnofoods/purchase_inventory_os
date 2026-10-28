@@ -299,10 +299,16 @@ const USER_FACING_STRINGS = [
   "⚙️ Settings",
   // Phase C — Report Center
   "Report Center",
-  "Delay-wise",
-  "HOLD-wise",
-  "Pending-wise",
-  "Rating-wise",
+  // 2026-10-29 — nine tabs became four. Delay-wise / HOLD-wise / Pending-wise
+  // / Rating-wise were four views of one question (where is production losing
+  // time) and are now four tables stacked under "Where it sticks"; their
+  // table titles are asserted below instead of the old tab labels. Nothing was
+  // removed from the page — only the labels changed.
+  "Where it sticks",
+  "Took longer than allowed",
+  "Accepted late",
+  "Issues raised and still open",
+  "Department ratings",
   "Factory",
   "Save as PDF",
   // Critical Item (migration 026)
@@ -341,8 +347,10 @@ const USER_FACING_STRINGS = [
   "Critical Items in this BOM",
   "Department Checklists for ",
   "Open Inventory to edit",
-  // A-to-Z Machine Report (2026-10-23)
+  // A-to-Z Machine Report (2026-10-23). The tab that opens it is now labelled
+  // "One machine"; the report's own heading is unchanged.
   "A-to-Z Machine Report",
+  "One machine",
   "Department Timeline",
   "Materials Issued",
   "Stage History",

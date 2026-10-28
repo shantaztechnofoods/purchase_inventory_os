@@ -10959,7 +10959,7 @@ function ReportCenterPage({
   attachments = [], checklistResponses = [], bomDefs = {}, settings = {},
   outwardLog = [], inwardLog = [], pos = [], items = {}, canDo = () => true,
 }) {
-  const [tab,         setTab]         = useState("summary");
+  const [tab, setTab] = useState("machine");
   const [dateFrom,    setDateFrom]    = useState("");
   const [dateTo,      setDateTo]      = useState("");
   const [machineFilter,  setMachineFilter]  = useState("");
@@ -10971,15 +10971,14 @@ function ReportCenterPage({
   const workflow = readDeptWorkflowSettings(settings);
 
   const tabs = [
-    { id: "summary",    label: "📊 Overall Summary"       },
-    { id: "delay",      label: "⏰ Delay-wise"             },
-    { id: "hold",       label: "🚦 HOLD-wise"              },
-    { id: "pending",    label: "⏳ Pending-wise"           },
-    { id: "rating",     label: "⭐ Rating-wise"            },
-    { id: "machineHistory", label: "🔧 Machine Full History" },
-    { id: "atoz",       label: "📄 A-to-Z Machine Report"  },
-    { id: "factory",    label: "🏭 Factory / Internal"     },
-    { id: "customer",   label: "👥 Customer Progress"      },
+    // Four tabs, not nine. Delay / HOLD / Pending / Rating were four views of
+    // one question — where is production losing time — so they are one tab
+    // with the tables stacked under it, and nothing was dropped. Machine Full
+    // History was a thinner version of the A-to-Z report, so it goes.
+    { id: "machine",   label: "One machine",     hint: "full report, printable" },
+    { id: "stuck",     label: "Where it sticks", hint: "delays, holds, ratings" },
+    { id: "factory",   label: "Factory",         hint: "overall + per handover" },
+    { id: "customer",  label: "For the customer", hint: "progress to share" },
   ];
 
   // ── Filters ──
@@ -11246,10 +11245,17 @@ function ReportCenterPage({
 
         {/* Tabs */}
         <div className="flex items-center gap-2 flex-wrap no-print">
+          {/* Four tabs, each saying in plain words what it answers, so nobody
+              has to open all of them to find out which one they wanted. */}
           {tabs.map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)}
-                    className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${tab === t.id ? "bg-blue-500/15 text-blue-400 border-blue-500/30" : "text-slate-500 border-slate-200 hover:text-slate-500"}`}>
-              {t.label}
+                    aria-pressed={tab === t.id}
+                    className="text-left px-4 py-2 rounded-xl border transition-all"
+                    style={tab === t.id
+                      ? { background: "rgba(232,85,61,0.1)", borderColor: "rgba(232,85,61,0.45)", color: "#CC4A33" }
+                      : { background: "transparent", borderColor: "rgba(17,24,39,0.12)", color: "#475569" }}>
+              <div className="text-[12px] font-bold">{t.label}</div>
+              <div className="text-[10px] opacity-70">{t.hint}</div>
             </button>
           ))}
           <div className="flex-1" />
@@ -11268,7 +11274,7 @@ function ReportCenterPage({
         </div>
 
         {/* Tab content */}
-        {tab === "summary" && (
+        {tab === "factory" && (
           <div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <ReportKPI label="Total machines" value={summary.total} color="#E8553D" />
@@ -11283,13 +11289,18 @@ function ReportCenterPage({
           </div>
         )}
 
-        {tab === "delay" && <ReportTable title="Delays — handovers that exceeded configured duration" rows={delayRows} />}
-        {tab === "hold"  && <ReportTable title="HOLDs — handovers that were accepted after the 2h timeout (or still pending overdue)" rows={holdRows} />}
-        {tab === "pending" && <ReportTable title="Pending handover items" rows={pendingRows} />}
-        {tab === "rating" && <ReportTable title="Department ratings" rows={ratingRows} />}
-        {tab === "machineHistory" && <ReportTable title="Machine-wise full history" rows={machineHistoryRows} />}
+        {/* One question — where is production losing time — answered by four
+            tables stacked in the order you would ask them. */}
+        {tab === "stuck" && (
+          <div className="space-y-5">
+            <ReportTable title="Took longer than allowed" rows={delayRows} />
+            <ReportTable title="Accepted late — the next department left it waiting" rows={holdRows} />
+            <ReportTable title="Issues raised and still open" rows={pendingRows} />
+            <ReportTable title="Department ratings" rows={ratingRows} />
+          </div>
+        )}
 
-        {tab === "atoz" && (() => {
+        {tab === "machine" && (() => {
           // Picker candidates: honour the shared Machine / dept / date filters
           // (filteredMachines already applies them). Operator picks one.
           const options = filteredMachines.slice().sort((a, b) => {
@@ -11340,7 +11351,7 @@ function ReportCenterPage({
           );
         })()}
 
-        {tab === "factory" && <ReportTable title="Factory / Internal — full operational detail per handover" rows={factoryRows} />}
+        {tab === "factory" && <ReportTable title="Every handover, in full" rows={factoryRows} />}
         {tab === "customer" && (
           <>
             <div className="rounded-lg px-3 py-2 text-[11px] no-print" style={{ background: "rgba(34,197,94,0.06)", color: "#86efac", border: "1px solid rgba(34,197,94,0.25)" }}>
