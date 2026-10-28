@@ -18698,6 +18698,34 @@ export default function App() {
           console.warn("[App] Pending bulk-create Supabase failed:", r.error);
           flashSaveError("Pending Stock shortfall",
             `${entry.ref}: ${rows.length} shortfall line${rows.length === 1 ? "" : "s"} were not saved — ${r.error || "unknown error"}`);
+          return;
+        }
+        // Adopt the ids Postgres assigned — the same trap as handleCreateMachine.
+        //
+        // These rows are built client-side and have no `id` at all. Every later
+        // write addresses a pending row by id, and both fulfil paths guard with
+        // `if (matchedRow && matchedRow.id)` — so fulfilling a shortfall created
+        // in this same session skipped Postgres entirely and logged nothing. The
+        // row came back on the next reload and could be issued a second time.
+        //
+        // It looked intermittent for the same reason the machine bug did:
+        // pending_log has a realtime subscription, so if a refetch landed first
+        // the id-less rows had already been replaced by real ones.
+        const saved = Array.isArray(r.entries) ? r.entries : [];
+        if (saved.length > 0) {
+          setPendingLog((prev) => {
+            const byKey = new Map(saved.map((e) => [`${e.issueId}|${e.code}`, e]));
+            return prev.map((p) => {
+              if (p.id != null) return p;
+              const match = byKey.get(`${p.issueId}|${p.code}`);
+              return match ? { ...p, id: match.id } : p;
+            });
+          });
+        }
+        if (saved.length !== rows.length) {
+          console.warn("[App] Pending bulk-create: saved", saved.length, "of", rows.length);
+          flashSaveError("Pending Stock shortfall",
+            `${entry.ref}: only ${saved.length} of ${rows.length} shortfall lines came back from the database. Reload before issuing against them.`);
         }
       });
     }
