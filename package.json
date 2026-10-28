@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test tests/auth.test.mjs tests/gst.test.mjs tests/itemImport.test.mjs tests/handover.test.mjs tests/rating.test.mjs tests/checklist.test.mjs tests/checklist-scope.test.mjs tests/regression.test.mjs && node --test --experimental-test-module-mocks tests/stores-zero-row.test.mjs"
+    "test": "node --test tests/auth.test.mjs tests/gst.test.mjs tests/itemImport.test.mjs tests/handover.test.mjs tests/rating.test.mjs tests/checklist.test.mjs tests/checklist-scope.test.mjs tests/teamMemory.test.mjs tests/regression.test.mjs && node --test --experimental-test-module-mocks tests/stores-zero-row.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.1",

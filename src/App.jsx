@@ -51,7 +51,8 @@ import { fetchPendingItems, createPendingItem, resolvePendingItem } from "./stor
 import { fetchAllAttachments, fetchAttachmentsForMachine, uploadAttachment, signedUrlFor, deleteAttachment } from "./stores/attachmentsStore.js";
 import { fetchRatings, createRating, overrideRating } from "./stores/ratingsStore.js";
 import { computeDepartmentRating, formatRatingBadge, summarizeMachineRatings, buildDepartmentScoreboard } from "./utils/ratingLogic.js";
-import { startChecklistResponse, toggleAnswer, setAnswerRemark, validateChecklistAnswers, snapshotResponse, pickTemplate, duplicateTemplateItems } from "./utils/checklistLogic.js";
+import { startChecklistResponse, toggleAnswer, setAnswerRemark, validateChecklistAnswers, snapshotResponse, pickTemplate, duplicateTemplateItems, setAllAnswers, countChecked } from "./utils/checklistLogic.js";
+import { reconcileTeam, pickRememberedMain, readTeamMemory, writeTeamMemory } from "./utils/teamMemory.js";
 import { useRealtimeTables } from "./realtime/useRealtimeTables.js";
 import { fetchRecentMovements, MOVEMENT_META } from "./stores/stockMovementsStore.js";
 import { sendPOWhatsApp, openVendorWhatsApp, waErrorToast } from "./utils/whatsapp.js";
@@ -74,7 +75,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-29-dashboard-icons";
+const APP_BUILD = "2026-10-29-red-theme-readable";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -109,7 +110,7 @@ const inventoryData = {
 const bomDefinitions = {
   "KM-10": {
     label: "Kneading Machine 10L",
-    color: "#E8553D",
+    color: "#D71920",
     items: [
       { code: "OIL-046",  qty: 2 },
       { code: "BRG-001",  qty: 2 },
@@ -119,7 +120,7 @@ const bomDefinitions = {
   },
   "KM-15": {
     label: "Kneading Machine 15L",
-    color: "#CC4A33",
+    color: "#B01218",
     items: [
       { code: "OIL-046",  qty: 3 },
       { code: "BRG-001",  qty: 2 },
@@ -150,7 +151,7 @@ const bomDefinitions = {
   },
   "ARM-800": {
     label: "Arm Mixer 800",
-    color: "#f97316",
+    color: "#D97706",
     items: [
       { code: "OIL-HYD46", qty: 5 },
       { code: "BRG-6205",  qty: 2 },
@@ -318,15 +319,15 @@ const monthlyPOData = [
 ];
 
 const stockDistribution = [
-  { name: "Safe", value: 1147, color: "#E8553D" },
-  { name: "Warning", value: 67, color: "#f97316" },
+  { name: "Safe", value: 1147, color: "#D71920" },
+  { name: "Warning", value: 67, color: "#D97706" },
   { name: "Critical", value: 34, color: "#ef4444" },
 ];
 
 const spendByCategory = [
-  { name: "Lubricants", value: 38, color: "#E8553D" },
+  { name: "Lubricants", value: 38, color: "#D71920" },
   { name: "Bearings", value: 24, color: "#a78bfa" },
-  { name: "Electrical", value: 18, color: "#f97316" },
+  { name: "Electrical", value: 18, color: "#D97706" },
   { name: "Belts", value: 12, color: "#22c55e" },
   { name: "Seals", value: 8, color: "#ef4444" },
 ];
@@ -357,7 +358,7 @@ const timeline = [
   { icon: "✅", bg: "bg-green-500/10 border-green-500/30", time: "Today, 10:32 AM", title: "PO #4521 Approved by GM", sub: "Hydraulic Oil × 500L · ₹18,500" },
   { icon: "🚨", bg: "bg-red-500/10 border-red-500/30", time: "Today, 09:14 AM", title: "Critical Alert: Bearing 6205 ZZ", sub: "Stock dropped to 2 pcs (min: 50)" },
   { icon: "📦", bg: "bg-blue-500/10 border-blue-500/30", time: "Yesterday, 4:45 PM", title: "GRN #8873 Received", sub: "V-Belt B-42 × 100 pcs from Shree Industries" },
-  { icon: "📱", bg: "bg-orange-500/10 border-orange-500/30", time: "Yesterday, 11:00 AM", title: "WhatsApp sent to Bharat Lubricants", sub: "Auto-generated PO reminder via AI" },
+  { icon: "📱", bg: "bg-amber-500/10 border-amber-500/30", time: "Yesterday, 11:00 AM", title: "WhatsApp sent to Bharat Lubricants", sub: "Auto-generated PO reminder via AI" },
   { icon: "🤖", bg: "bg-purple-500/10 border-purple-500/30", time: "Yesterday, 08:00 AM", title: "AI generated 3 reorder suggestions", sub: "Based on 30-day consumption analysis" },
   { icon: "🏭", bg: "bg-blue-500/10 border-blue-500/30", time: "2 days ago, 3:00 PM", title: "New vendor onboarded", sub: "Vimal Fasteners added to approved list" },
 ];
@@ -617,8 +618,8 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
                       <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight"
                             style={{
                               color: "#ffffff",
-                              background: item.id==="pending" ? "linear-gradient(135deg,#f97316,#ea580c)" : item.id==="pipeline" ? "linear-gradient(135deg,#7c3aed,#6d28d9)" : item.id==="machines" ? "linear-gradient(135deg,#d71920,#b01218)" : "linear-gradient(135deg,#ef4444,#dc2626)",
-                              boxShadow:  item.id==="pending" ? "0 2px 6px rgba(249,115,22,0.35)" : item.id==="pipeline" ? "0 2px 6px rgba(124,58,237,0.35)" : item.id==="machines" ? "0 2px 6px rgba(215,25,32,0.35)" : "0 2px 6px rgba(239,68,68,0.35)",
+                              background: item.id==="pending" ? "linear-gradient(135deg,#D97706,#B45309)" : item.id==="pipeline" ? "linear-gradient(135deg,#7c3aed,#6d28d9)" : item.id==="machines" ? "linear-gradient(135deg,#d71920,#b01218)" : "linear-gradient(135deg,#ef4444,#dc2626)",
+                              boxShadow:  item.id==="pending" ? "0 2px 6px rgba(217, 119, 6,0.35)" : item.id==="pipeline" ? "0 2px 6px rgba(124,58,237,0.35)" : item.id==="machines" ? "0 2px 6px rgba(215,25,32,0.35)" : "0 2px 6px rgba(239,68,68,0.35)",
                             }}>{b}</span>
                     ) : null; })()}
                   </>
@@ -697,13 +698,13 @@ const Btn = ({ variant = "ghost", size = "sm", onClick, children, className = ""
     ghost:   "text-slate-700 border-slate-200 bg-white hover:text-slate-900 hover:bg-slate-50 hover:border-slate-300",
     green:   "bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:border-green-300",
     red:     "bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300",
-    wa:      "bg-[#22c55e] text-white border-[#16a34a] hover:bg-[#16a34a]",
+    wa:      "bg-[#22c55e] text-slate-900 border-[#16a34a] hover:bg-[#16a34a]",
     mail:    "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300",
-    orange:  "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 hover:border-orange-300",
+    orange:  "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300",
     purple:  "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 hover:border-purple-300",
   };
   const primaryStyle = variant === "primary" && disabled ? {
-    background: "rgba(215,25,32,0.35)", boxShadow: "none", color: "#ffffff",
+    background: "rgba(215,25,32,0.35)", boxShadow: "none", color: "#7f1d1d",
   } : {};
   const waStyle = variant === "wa" ? { color: "#ffffff" } : {};
   // eslint-disable-next-line jsx-a11y/no-autofocus
@@ -719,7 +720,7 @@ const Btn = ({ variant = "ghost", size = "sm", onClick, children, className = ""
 // ─── METRIC CARD ─────────────────────────────────────────────────────────────
 
 function MetricCard({ label, value, delta, deltaUp, icon, barPct, barColor, valueColor, delay = 0, highlight = false }) {
-  const color = barColor || "#E8553D";
+  const color = barColor || "#D71920";
   return (
     <div
       className={`rounded-2xl p-5 relative overflow-hidden hover-lift ${highlight ? "gradient-border-static" : ""}`}
@@ -826,14 +827,14 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
   // the dashboard look assembled rather than designed. Stroked icons take each
   // tile's own colour instead of fighting it.
   const kpis = [
-    { label: "Total SKUs",        value: totalSKUs,                                              Icon: Boxes,        color: "#E8553D", nav: "inventory",  sub: `${safeItems.length} safe` },
+    { label: "Total SKUs",        value: totalSKUs,                                              Icon: Boxes,        color: "#D71920", nav: "inventory",  sub: `${safeItems.length} safe` },
     { label: "Critical Stock",    value: criticalN,                                              Icon: AlertOctagon, color: "#ef4444", nav: "inventory",  sub: `${warningItems.length} warning`,  alert: criticalN > 0 },
-    { label: "Pending POs",       value: pendingPOs.length,                                      Icon: AlertTriangle,color: "#f97316", nav: "pipeline",   sub: "awaiting approval",               alert: pendingPOs.length > 0 },
+    { label: "Pending POs",       value: pendingPOs.length,                                      Icon: AlertTriangle,color: "#D97706", nav: "pipeline",   sub: "awaiting approval",               alert: pendingPOs.length > 0 },
     { label: "Open PO Value",     value: fmtVal(openPOValue),                                    Icon: Wallet,       color: "#22c55e", nav: "pipeline",   sub: `${pos.filter(p=>p.status!=="received").length} open` },
-    { label: "In Production",     value: machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").length, Icon: Cog, color: "#CC4A33", nav: "machines",   sub: "machines active" },
+    { label: "In Production",     value: machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").length, Icon: Cog, color: "#B01218", nav: "machines",   sub: "machines active" },
     { label: "Machines Ready",    value: machineLog.filter((m) => m.status === "completed").length, Icon: CircleCheckBig, color: "#22c55e", nav: "machines", sub: "completed" },
-    { label: "Pending Materials", value: pendingLog.length,                                      Icon: Hourglass,    color: "#f97316", nav: "pending",    sub: "items pending",                   alert: pendingLog.length > 0 },
-    { label: "Pending Approvals", value: pos.filter((p) => p.status === "pending").length,       Icon: ClipboardList,color: "#E8553D", nav: "pipeline",   sub: "awaiting review",                 alert: pos.filter((p) => p.status === "pending").length > 0 },
+    { label: "Pending Materials", value: pendingLog.length,                                      Icon: Hourglass,    color: "#D97706", nav: "pending",    sub: "items pending",                   alert: pendingLog.length > 0 },
+    { label: "Pending Approvals", value: pos.filter((p) => p.status === "pending").length,       Icon: ClipboardList,color: "#D71920", nav: "pipeline",   sub: "awaiting review",                 alert: pos.filter((p) => p.status === "pending").length > 0 },
     { label: "In Follow Up",      value: followUps.length,                                       Icon: PhoneCall,    color: "#8b5cf6", nav: "pipeline",   sub: "orders tracked" },
   ];
 
@@ -938,7 +939,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
             ) : (
               <div className="space-y-2.5">
                 {pendingPOs.slice(0, 4).map((po) => (
-                  <div key={po.id} className="rounded-xl p-3.5 border bg-orange-500/[0.06] border-orange-500/20">
+                  <div key={po.id} className="rounded-xl p-3.5 border bg-amber-600/[0.06] border-amber-500/20">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -946,7 +947,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                           <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded tracking-wide flex-shrink-0 ${
                             po.status === "draft"  ? "bg-slate-100 text-slate-500" :
                             po.status === "review" ? "bg-blue-50 text-blue-600"   :
-                                                     "bg-orange-50 text-orange-600"
+                                                     "bg-amber-50 text-amber-700"
                           }`}>{po.status}</span>
                         </div>
                         <div className="text-[10px] text-slate-500 mt-0.5 truncate">
@@ -985,7 +986,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                   const liveStock = allItems.find((it) => it.code === p.code)?.stock ?? 0;
                   const shortage  = p.pendingQty - liveStock;
                   return (
-                    <div key={i} className="rounded-xl p-3.5 border bg-orange-500/[0.06] border-orange-500/20">
+                    <div key={i} className="rounded-xl p-3.5 border bg-amber-600/[0.06] border-amber-500/20">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -994,7 +995,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                           </div>
                           <div className="text-[10px] text-slate-500 mt-0.5">
                             Need: <span className="font-bold" style={{ color: "var(--text-strong)" }}>{p.pendingQty} {p.unit}</span>
-                            {" · "}Have: <span className={liveStock > 0 ? "text-orange-600 font-bold" : "text-red-600 font-bold"}>{liveStock} {p.unit}</span>
+                            {" · "}Have: <span className={liveStock > 0 ? "text-amber-700 font-bold" : "text-red-600 font-bold"}>{liveStock} {p.unit}</span>
                             {" · "}<span className="text-red-600">Short {shortage}</span>
                           </div>
                           {p.bomKey && <div className="text-[9px] text-slate-400 mt-0.5">{p.bomKey}{p.serialNo ? ` · ${p.serialNo}` : ""}</div>}
@@ -1138,12 +1139,12 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
     onClose();
   };
 
-  const accentBorder = isAdd ? "rgba(34,197,94,0.4)"  : "rgba(249,115,22,0.4)";
-  const accentGlow   = isAdd ? "rgba(34,197,94,0.18)" : "rgba(249,115,22,0.18)";
-  const accentText   = isAdd ? "#15803d" : "#c2410c";
+  const accentBorder = isAdd ? "rgba(34,197,94,0.4)"  : "rgba(217, 119, 6,0.4)";
+  const accentGlow   = isAdd ? "rgba(34,197,94,0.18)" : "rgba(217, 119, 6,0.18)";
+  const accentText   = isAdd ? "#15803d" : "#B45309";
   const accentShadow = isAdd ? "rgba(74,222,128,0.5)" : "rgba(251,146,60,0.5)";
-  const btnGrad      = isAdd ? "linear-gradient(135deg,#16a34a,#15803d)" : "linear-gradient(135deg,#ea580c,#c2410c)";
-  const btnGlow      = isAdd ? "0 0 14px rgba(34,197,94,0.35)" : "0 0 14px rgba(249,115,22,0.35)";
+  const btnGrad      = isAdd ? "linear-gradient(135deg,#16a34a,#15803d)" : "linear-gradient(135deg,#B45309,#B45309)";
+  const btnGlow      = isAdd ? "0 0 14px rgba(34,197,94,0.35)" : "0 0 14px rgba(217, 119, 6,0.35)";
 
   return (
     <div className="modal-backdrop fixed inset-0 z-[55] flex items-center justify-center p-4"
@@ -1159,13 +1160,13 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
 
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between"
-             style={{ background: isAdd ? "rgba(34,197,94,0.06)" : "rgba(249,115,22,0.06)" }}>
+             style={{ background: isAdd ? "rgba(34,197,94,0.06)" : "rgba(217, 119, 6,0.06)" }}>
           <div className="min-w-0 pr-2">
             <div className="text-[10px] font-black uppercase tracking-[0.08em] mb-0.5"
                  style={{ color: accentText, textShadow: `0 0 8px ${accentShadow}` }}>
               {isAdd ? "Add Stock" : "Remove Stock"}
             </div>
-            <div className="text-xs font-semibold text-white truncate">{item.name}</div>
+            <div className="text-xs font-semibold text-slate-900 truncate">{item.name}</div>
           </div>
           <button onClick={onClose}
                   className="w-7 h-7 rounded-lg bg-slate-50 hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all duration-200 flex items-center justify-center text-xs font-bold flex-shrink-0">
@@ -1204,13 +1205,13 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
           {previewStatus && (
             <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all"
                  style={{
-                   background: previewStatus === "critical" ? "rgba(239,68,68,0.06)" : previewStatus === "warning" ? "rgba(249,115,22,0.06)" : "rgba(232,85,61,0.06)",
-                   border: `1px solid ${previewStatus === "critical" ? "rgba(239,68,68,0.3)" : previewStatus === "warning" ? "rgba(249,115,22,0.3)" : "rgba(232,85,61,0.3)"}`,
+                   background: previewStatus === "critical" ? "rgba(239,68,68,0.06)" : previewStatus === "warning" ? "rgba(217, 119, 6,0.06)" : "rgba(215, 25, 32,0.06)",
+                   border: `1px solid ${previewStatus === "critical" ? "rgba(239,68,68,0.3)" : previewStatus === "warning" ? "rgba(217, 119, 6,0.3)" : "rgba(215, 25, 32,0.3)"}`,
                  }}>
               <div>
                 <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.06em] mb-0.5">New Stock</div>
                 <div className="text-sm font-black font-mono"
-                     style={{ color: previewStatus === "critical" ? "#ef4444" : previewStatus === "warning" ? "#f97316" : "#F18A75", fontFamily: "'Inter',system-ui,sans-serif", fontVariantNumeric: "tabular-nums" }}>
+                     style={{ color: previewStatus === "critical" ? "#ef4444" : previewStatus === "warning" ? "#D97706" : "#F18A75", fontFamily: "'Inter',system-ui,sans-serif", fontVariantNumeric: "tabular-nums" }}>
                   {newStock} <span className="text-xs font-semibold text-slate-500">{item.unit}</span>
                 </div>
               </div>
@@ -1224,7 +1225,7 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
              style={{ background: "#f8f9fb" }}>
           <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
           <button onClick={confirm}
-                  className="flex-1 py-1.5 rounded-lg text-xs font-bold text-white border transition-all duration-200"
+                  className="flex-1 py-1.5 rounded-lg text-xs font-bold text-slate-900 border transition-all duration-200"
                   style={{ background: btnGrad, borderColor: accentBorder, boxShadow: btnGlow }}>
             {isAdd ? "＋ Confirm Add" : "－ Confirm Remove"}
           </button>
@@ -1263,8 +1264,8 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
     setAdjustQty("");
   };
 
-  const glowColor = item.status === "critical" ? "rgba(239,68,68,0.25)" : item.status === "warning" ? "rgba(249,115,22,0.25)" : "rgba(34,197,94,0.18)";
-  const barGrad   = item.status === "critical" ? "linear-gradient(90deg,#ef4444,#dc2626)" : item.status === "warning" ? "linear-gradient(90deg,#f97316,#ea580c)" : "linear-gradient(90deg,#22c55e,#16a34a)";
+  const glowColor = item.status === "critical" ? "rgba(239,68,68,0.25)" : item.status === "warning" ? "rgba(217, 119, 6,0.25)" : "rgba(34,197,94,0.18)";
+  const barGrad   = item.status === "critical" ? "linear-gradient(90deg,#ef4444,#dc2626)" : item.status === "warning" ? "linear-gradient(90deg,#D97706,#B45309)" : "linear-gradient(90deg,#22c55e,#16a34a)";
 
   return (
     <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -1281,7 +1282,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
 
         {/* Header */}
         <div className="px-6 py-5 border-b border-slate-200 flex items-start justify-between flex-shrink-0"
-             style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.1),rgba(204,74,51,0.05))" }}>
+             style={{ background: "linear-gradient(90deg,rgba(215, 25, 32,0.1),rgba(176, 18, 24,0.05))" }}>
           <div className="flex-1 min-w-0 pr-3 flex items-start gap-3">
             {/* Optional item photo (Phase 1 item media) */}
             {item.photo && (
@@ -1292,7 +1293,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
               </a>
             )}
             <div className="flex-1 min-w-0">
-              <div className="text-[15px] font-semibold text-white leading-snug truncate">{item.name}</div>
+              <div className="text-[15px] font-semibold text-slate-900 leading-snug truncate">{item.name}</div>
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                 <span className="text-[10px] font-mono font-bold text-blue-400">{item.code}</span>
                 <span className="text-slate-700">·</span>
@@ -1445,7 +1446,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
 
           {/* Stock adjustment panel */}
           {adjustMode && (
-            <div className="p-4 rounded-xl" style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.3)" }}>
+            <div className="p-4 rounded-xl" style={{ background: "rgba(215, 25, 32,0.05)", border: "1px solid rgba(215, 25, 32,0.3)" }}>
               <div className="text-[9px] font-black text-blue-600 uppercase tracking-[0.08em] mb-3">
                 {adjustMode === "add" ? "Add Stock" : "Remove Stock"}
               </div>
@@ -1458,7 +1459,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                        style={{ fontVariantNumeric: "tabular-nums" }} />
                 <button onClick={handleAdjust}
                         className="px-4 py-2 rounded-xl text-xs font-bold text-white transition-all duration-200"
-                        style={{ background: "linear-gradient(135deg,#E8553D,#A33E2A)", border: "1px solid rgba(99,130,255,0.5)", boxShadow: "0 0 12px rgba(232,85,61,0.35)" }}>
+                        style={{ background: "linear-gradient(135deg,#D71920,#B01218)", border: "1px solid rgba(176, 18, 24,0.5)", boxShadow: "0 0 12px rgba(215, 25, 32,0.35)" }}>
                   Confirm
                 </button>
                 <button onClick={() => { setAdjustMode(null); setAdjustQty(""); }}
@@ -1576,9 +1577,9 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                 {/* Summary tiles */}
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    ["Total Consumed",    `${totalConsumed} ${item.unit}`,    "#f97316"],
+                    ["Total Consumed",    `${totalConsumed} ${item.unit}`,    "#D97706"],
                     ["Last Used",         lastConsDate || "—",                "#8b5cf6"],
-                    ["BOMs Using Item",   Object.keys(byBOM).length || "—",   "#E8553D"],
+                    ["BOMs Using Item",   Object.keys(byBOM).length || "—",   "#D71920"],
                     ["Machines Used In",  Object.keys(byMachine).length || "—","#22c55e"],
                   ].map(([lbl, val, col]) => (
                     <div key={lbl} className="px-3.5 py-3 rounded-xl"
@@ -1596,12 +1597,12 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                     {months.map((m) => (
                       <div key={m.short} className="flex-1 flex flex-col items-center justify-end gap-1">
                         {m.qty > 0 && (
-                          <div className="text-[8px] font-bold text-orange-400 tabular-nums">{m.qty}</div>
+                          <div className="text-[8px] font-bold text-amber-700 tabular-nums">{m.qty}</div>
                         )}
                         <div className="w-full rounded-sm"
                              style={{
                                height: `${Math.max(3, Math.round((m.qty / maxQty) * 32))}px`,
-                               background: m.qty > 0 ? "rgba(249,115,22,0.65)" : "rgba(17,24,39,0.04)",
+                               background: m.qty > 0 ? "rgba(217, 119, 6,0.65)" : "rgba(17,24,39,0.04)",
                              }} />
                         <div className="text-[8px] text-slate-700 whitespace-nowrap">{m.short}</div>
                       </div>
@@ -1621,13 +1622,13 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                           <div key={bom}>
                             <div className="flex items-center justify-between mb-1">
                               <div>
-                                <span className="text-[11px] font-bold text-white">{bom}</span>
+                                <span className="text-[11px] font-bold text-slate-900">{bom}</span>
                                 {def?.label && <span className="text-[9px] text-slate-600 ml-1.5">{def.label}</span>}
                               </div>
-                              <span className="text-[11px] font-mono font-bold text-orange-400">{qty} {item.unit}</span>
+                              <span className="text-[11px] font-mono font-bold text-amber-700">{qty} {item.unit}</span>
                             </div>
                             <div className="h-1 bg-slate-50 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "rgba(249,115,22,0.55)" }} />
+                              <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "rgba(217, 119, 6,0.55)" }} />
                             </div>
                           </div>
                         );
@@ -1685,7 +1686,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                             <td className="px-2.5 py-1.5 text-[10px] font-mono">
                               {u.serialNo ? <span className="text-blue-400">{u.serialNo}</span> : <span style={{ color: "var(--text-faint)" }}>—</span>}
                             </td>
-                            <td className="px-2.5 py-1.5 text-[10px] font-mono font-bold text-orange-400">
+                            <td className="px-2.5 py-1.5 text-[10px] font-mono font-bold text-amber-700">
                               -{u.qty} {item.unit}
                             </td>
                           </tr>
@@ -1777,8 +1778,8 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
             // Type badge config
             const txnCfg = (t) => {
               if (t === "Purchase Receipt") return { color: "#22c55e",  bg: "rgba(34,197,94,0.12)",   brd: "rgba(34,197,94,0.3)",   icon: "📥" };
-              if (t === "BOM Issue")        return { color: "#E8553D",  bg: "rgba(232,85,61,0.12)",  brd: "rgba(232,85,61,0.3)",  icon: "🔧" };
-              if (t === "Manual Outward")   return { color: "#f97316",  bg: "rgba(249,115,22,0.12)",  brd: "rgba(249,115,22,0.3)",  icon: "📤" };
+              if (t === "BOM Issue")        return { color: "#D71920",  bg: "rgba(215, 25, 32,0.12)",  brd: "rgba(215, 25, 32,0.3)",  icon: "🔧" };
+              if (t === "Manual Outward")   return { color: "#D97706",  bg: "rgba(217, 119, 6,0.12)",  brd: "rgba(217, 119, 6,0.3)",  icon: "📤" };
               if (t === "Stock In")         return { color: "#15803d",  bg: "rgba(74,222,128,0.10)",  brd: "rgba(74,222,128,0.25)", icon: "⬆️" };
               if (t === "Stock Out")        return { color: "#ef4444",  bg: "rgba(239,68,68,0.10)",   brd: "rgba(239,68,68,0.25)",  icon: "⬇️" };
               if (t === "Opening Stock")    return { color: "#64748b",  bg: "rgba(100,116,139,0.10)", brd: "rgba(100,116,139,0.2)", icon: "🏁" };
@@ -1806,9 +1807,9 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                     <button key={key} onClick={() => setMvFilter(key)}
                             className="text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all"
                             style={{
-                              color:       mvFilter === key ? "#E8553D" : "#64748b",
-                              background:  mvFilter === key ? "rgba(232,85,61,0.12)" : "transparent",
-                              borderColor: mvFilter === key ? "rgba(232,85,61,0.35)" : "rgba(17,24,39,0.10)",
+                              color:       mvFilter === key ? "#D71920" : "#64748b",
+                              background:  mvFilter === key ? "rgba(215, 25, 32,0.12)" : "transparent",
+                              borderColor: mvFilter === key ? "rgba(215, 25, 32,0.35)" : "rgba(17,24,39,0.10)",
                             }}>
                       {label}
                     </button>
@@ -2118,15 +2119,15 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
            style={{
              maxHeight: "92vh",
              background: "var(--surface-elevated)",
-             border: "1px solid rgba(232,85,61,0.32)",
-             boxShadow: "0 40px 100px rgba(17,24,39,0.22), 0 0 0 1px rgba(17,24,39,0.04), 0 0 80px rgba(232,85,61,0.1)",
+             border: "1px solid rgba(215, 25, 32,0.32)",
+             boxShadow: "0 40px 100px rgba(17,24,39,0.22), 0 0 0 1px rgba(17,24,39,0.04), 0 0 80px rgba(215, 25, 32,0.1)",
            }}>
 
         {/* Header */}
         <div className="px-6 py-5 border-b border-slate-200 flex items-center justify-between flex-shrink-0"
-             style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.11),rgba(204,74,51,0.06))" }}>
+             style={{ background: "linear-gradient(90deg,rgba(215, 25, 32,0.11),rgba(176, 18, 24,0.06))" }}>
           <div>
-            <div className="text-[15px] font-semibold text-white tracking-tight">{isEdit ? "Edit Inventory Item" : "Add Inventory Item"}</div>
+            <div className="text-[15px] font-semibold text-slate-900 tracking-tight">{isEdit ? "Edit Inventory Item" : "Add Inventory Item"}</div>
             <div className="text-[11px] text-slate-400 mt-0.5">Status auto-calculates from stock vs minimum level</div>
           </div>
           <button onClick={onClose}
@@ -2259,9 +2260,9 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
           {computedStatus && (
             <div className="flex items-center justify-between px-4 py-3 rounded-xl"
                  style={{
-                   background: computedStatus === "critical" ? "rgba(239,68,68,0.04)" : computedStatus === "warning" ? "rgba(249,115,22,0.04)" : "rgba(232,85,61,0.04)",
-                   border: `1px solid ${computedStatus === "critical" ? "rgba(239,68,68,0.3)" : computedStatus === "warning" ? "rgba(249,115,22,0.3)" : "rgba(232,85,61,0.3)"}`,
-                   boxShadow: computedStatus === "critical" ? "0 0 16px rgba(239,68,68,0.06)" : computedStatus === "warning" ? "0 0 16px rgba(249,115,22,0.06)" : "0 0 16px rgba(232,85,61,0.06)",
+                   background: computedStatus === "critical" ? "rgba(239,68,68,0.04)" : computedStatus === "warning" ? "rgba(217, 119, 6,0.04)" : "rgba(215, 25, 32,0.04)",
+                   border: `1px solid ${computedStatus === "critical" ? "rgba(239,68,68,0.3)" : computedStatus === "warning" ? "rgba(217, 119, 6,0.3)" : "rgba(215, 25, 32,0.3)"}`,
+                   boxShadow: computedStatus === "critical" ? "0 0 16px rgba(239,68,68,0.06)" : computedStatus === "warning" ? "0 0 16px rgba(217, 119, 6,0.06)" : "0 0 16px rgba(215, 25, 32,0.06)",
                  }}>
               <div>
                 <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.08em]">Auto-detected status</div>
@@ -2284,8 +2285,8 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
               <div
                 className="min-h-[44px] w-full bg-slate-50 border rounded-xl px-3 py-2 flex flex-wrap gap-1.5 items-center cursor-text transition-all"
                 style={{
-                  borderColor: dropOpen ? "rgba(232,85,61,0.55)" : "var(--border-rim)",
-                  boxShadow:   dropOpen ? "0 0 0 2px rgba(232,85,61,0.12)" : "none",
+                  borderColor: dropOpen ? "rgba(215, 25, 32,0.55)" : "var(--border-rim)",
+                  boxShadow:   dropOpen ? "0 0 0 2px rgba(215, 25, 32,0.12)" : "none",
                 }}
                 onClick={() => { setDropOpen(true); setTimeout(() => vendorSearchRef.current?.focus(), 0); }}
               >
@@ -2329,7 +2330,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
               {/* Dropdown */}
               {dropOpen && (
                 <div className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl overflow-hidden overflow-y-auto"
-                     style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 20px 50px rgba(17,24,39,0.18)", maxHeight: 224 }}>
+                     style={{ background: "var(--surface-elevated)", border: "1px solid rgba(215, 25, 32,0.4)", boxShadow: "0 20px 50px rgba(17,24,39,0.18)", maxHeight: 224 }}>
                   {vendorList.length === 0 ? (
                     <div className="px-4 py-5 text-center">
                       <div className="text-[11px] text-slate-500 mb-1">No vendors in Vendor Master yet.</div>
@@ -2358,7 +2359,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
                                 className="w-full text-left flex items-center gap-3 px-3.5 py-2.5 hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-200 last:border-0">
                           <span className="text-[11px] flex-shrink-0">{roleIcon(v.priority)}</span>
                           <div className="flex-1 min-w-0">
-                            <div className="text-xs font-semibold text-white truncate">{v.name}</div>
+                            <div className="text-xs font-semibold text-slate-900 truncate">{v.name}</div>
                             {(v.contactPerson || v.leadDays) && (
                               <div className="text-[9px] text-slate-500 flex gap-2 mt-0.5">
                                 {v.contactPerson && <span>👤 {v.contactPerson}</span>}
@@ -2399,7 +2400,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
                          style={{ background: `${rc}06`, borderColor: `${rc}22` }}>
                       <span className="text-[11px] flex-shrink-0">{roleIcon(link.role)}</span>
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs font-semibold text-white truncate">{link.vendorName}</div>
+                        <div className="text-xs font-semibold text-slate-900 truncate">{link.vendorName}</div>
                         {v && (
                           <div className="text-[9px] text-slate-500 flex gap-2 mt-0.5">
                             {v.contactPerson && <span>👤 {v.contactPerson}</span>}
@@ -2518,19 +2519,19 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
             <button onClick={handleSave}
                     className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all duration-200"
                     style={{
-                      background: "linear-gradient(135deg, #E8553D 0%, #A33E2A 100%)",
-                      borderColor: "rgba(99,130,255,0.5)",
-                      boxShadow: "0 0 12px rgba(232,85,61,0.45), 0 2px 8px rgba(17,24,39,0.08)",
+                      background: "linear-gradient(135deg, #D71920 0%, #B01218 100%)",
+                      borderColor: "rgba(176, 18, 24,0.5)",
+                      boxShadow: "0 0 12px rgba(215, 25, 32,0.45), 0 2px 8px rgba(17,24,39,0.08)",
                     }}
                     onMouseEnter={e => {
-                      e.currentTarget.style.background = "linear-gradient(135deg, #E8553D 0%, #CC4A33 100%)";
-                      e.currentTarget.style.boxShadow = "0 0 22px rgba(99,130,255,0.7), 0 0 6px rgba(232,85,61,0.4), 0 2px 8px rgba(17,24,39,0.08)";
+                      e.currentTarget.style.background = "linear-gradient(135deg, #D71920 0%, #B01218 100%)";
+                      e.currentTarget.style.boxShadow = "0 0 22px rgba(176, 18, 24,0.7), 0 0 6px rgba(215, 25, 32,0.4), 0 2px 8px rgba(17,24,39,0.08)";
                       e.currentTarget.style.borderColor = "rgba(139,160,255,0.7)";
                     }}
                     onMouseLeave={e => {
-                      e.currentTarget.style.background = "linear-gradient(135deg, #E8553D 0%, #A33E2A 100%)";
-                      e.currentTarget.style.boxShadow = "0 0 12px rgba(232,85,61,0.45), 0 2px 8px rgba(17,24,39,0.08)";
-                      e.currentTarget.style.borderColor = "rgba(99,130,255,0.5)";
+                      e.currentTarget.style.background = "linear-gradient(135deg, #D71920 0%, #B01218 100%)";
+                      e.currentTarget.style.boxShadow = "0 0 12px rgba(215, 25, 32,0.45), 0 2px 8px rgba(17,24,39,0.08)";
+                      e.currentTarget.style.borderColor = "rgba(176, 18, 24,0.5)";
                     }}>
               {isEdit ? "💾 Save Changes" : "💾 Save Item"}
             </button>
@@ -2610,12 +2611,12 @@ function ItemImportModal({ items, onImport, onClose }) {
          style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(14px)" }}
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl overflow-hidden"
-           style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.35)", boxShadow: "0 32px 80px rgba(17,24,39,0.22)", animation: "slideUp 0.2s ease both" }}>
+           style={{ background: "var(--surface-elevated)", border: "1px solid rgba(215, 25, 32,0.35)", boxShadow: "0 32px 80px rgba(17,24,39,0.22)", animation: "slideUp 0.2s ease both" }}>
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
           <div>
-            <div className="text-sm font-black text-white">Import Items</div>
+            <div className="text-sm font-black text-slate-900">Import Items</div>
             <div className="text-[11px] text-slate-500 mt-0.5">Upload a CSV or Excel file exported from Google Sheets</div>
           </div>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-900 text-lg leading-none">✕</button>
@@ -2623,7 +2624,7 @@ function ItemImportModal({ items, onImport, onClose }) {
 
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* Column guide — operator's actual 2-column sheet. Other columns ignored. */}
-          <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(232,85,61,0.06)", border: "1px solid rgba(232,85,61,0.15)" }}>
+          <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(215, 25, 32,0.06)", border: "1px solid rgba(215, 25, 32,0.15)" }}>
             <div>
               <div className="text-[11px] font-semibold text-blue-300 mb-1.5">Supported columns — only these two are read</div>
               <div className="grid grid-cols-2 gap-1.5">
@@ -2635,9 +2636,9 @@ function ItemImportModal({ items, onImport, onClose }) {
                     <span className="text-[10px] font-mono font-semibold"
                           style={{ color: req ? "#F7A992" : "#64748b" }}>{label}</span>
                     <span className="text-[9px] px-1.5 py-0.5 rounded-full"
-                          style={{ background: req ? "rgba(232,85,61,0.15)" : "rgba(17,24,39,0.04)",
+                          style={{ background: req ? "rgba(215, 25, 32,0.15)" : "rgba(17,24,39,0.04)",
                                    color: req ? "#F7A992" : "#475569",
-                                   border: req ? "1px solid rgba(232,85,61,0.3)" : "1px solid rgba(17,24,39,0.06)" }}>
+                                   border: req ? "1px solid rgba(215, 25, 32,0.3)" : "1px solid rgba(17,24,39,0.06)" }}>
                       {hint}
                     </span>
                   </div>
@@ -2659,12 +2660,12 @@ function ItemImportModal({ items, onImport, onClose }) {
                onClick={() => fileRef.current?.click()}
                className="rounded-xl border-2 border-dashed cursor-pointer flex flex-col items-center justify-center py-10 transition-all"
                style={{ borderColor: "var(--border-rim)" }}
-               onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(232,85,61,0.4)"}
+               onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(215, 25, 32,0.4)"}
                onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(17,24,39,0.10)"}>
             <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
                    onChange={(e) => { const f = e.target.files[0]; if (f) parseFile(f); e.target.value = ""; }} />
             <div className="text-4xl mb-3">{fileName ? "📄" : "📂"}</div>
-            <div className="text-sm font-semibold text-white mb-1">{fileName || "Click or drag file here"}</div>
+            <div className="text-sm font-semibold text-slate-900 mb-1">{fileName || "Click or drag file here"}</div>
             <div className="text-[11px] text-slate-500">Supports .csv and .xlsx (Excel) — exported from Google Sheets</div>
           </div>
 
@@ -2704,7 +2705,7 @@ function ItemImportModal({ items, onImport, onClose }) {
                               ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-green-700" style={{ background: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.22)" }}>✓ New</span>
                               : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-yellow-300" style={{ background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.25)" }}>↻ Update Existing</span>}
                           </td>
-                          <td className="px-3 py-2.5 text-[11px] font-semibold text-white whitespace-nowrap max-w-[280px] truncate">{r.name}</td>
+                          <td className="px-3 py-2.5 text-[11px] font-semibold text-slate-900 whitespace-nowrap max-w-[280px] truncate">{r.name}</td>
                           <td className="px-3 py-2.5 text-[11px] font-mono text-blue-600 whitespace-nowrap">{r.code || <span className="text-slate-700">— auto —</span>}</td>
                         </tr>
                       ))}
@@ -2729,7 +2730,7 @@ function ItemImportModal({ items, onImport, onClose }) {
             <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
             <button onClick={handleImport} disabled={!rows || (readyCount + updateCount) === 0}
                     className="text-xs font-black px-5 py-2 rounded-xl text-white transition-opacity"
-                    style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 20px rgba(232,85,61,0.4)",
+                    style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 20px rgba(215, 25, 32,0.4)",
                              opacity: (!rows || (readyCount + updateCount) === 0) ? 0.4 : 1,
                              cursor: (!rows || (readyCount + updateCount) === 0) ? "not-allowed" : "pointer" }}>
               {(() => { const total = readyCount + updateCount; return `Import${total > 0 ? ` ${total} Item${total !== 1 ? "s" : ""}` : ""}`; })()}
@@ -2890,7 +2891,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
   const filtersActive = search || statusFilter !== "all" || catFilter !== "all";
   const clearFilters  = () => { setSearch(""); setStatusFilter("all"); setCatFilter("all"); };
 
-  const catColors = { Electrical: "#f97316", Mechanical: "#E8553D", "R&D": "#a78bfa", Other: "#6b7280" };
+  const catColors = { Electrical: "#D97706", Mechanical: "#D71920", "R&D": "#a78bfa", Other: "#6b7280" };
 
   const SortIcon = ({ col }) =>
     sortCol !== col
@@ -3067,7 +3068,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                 </div>
               )}
               <div className="text-[11px] text-slate-400 leading-relaxed">
-                Are you sure you want to permanently delete <span className="text-white font-semibold">{deleteModal.item.name}</span>? This action cannot be undone.
+                Are you sure you want to permanently delete <span className="text-slate-900 font-semibold">{deleteModal.item.name}</span>? This action cannot be undone.
               </div>
             </div>
 
@@ -3088,10 +3089,10 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
 
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "var(--surface-raised)", border: `1px solid ${toast.status === "critical" ? "rgba(239,68,68,0.45)" : toast.status === "warning" ? "rgba(249,115,22,0.45)" : "rgba(34,197,94,0.45)"}`, boxShadow: "0 20px 60px rgba(17,24,39,0.14)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "var(--surface-raised)", border: `1px solid ${toast.status === "critical" ? "rgba(239,68,68,0.45)" : toast.status === "warning" ? "rgba(217, 119, 6,0.45)" : "rgba(34,197,94,0.45)"}`, boxShadow: "0 20px 60px rgba(17,24,39,0.14)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">{toast.status === "critical" ? "🔴" : toast.status === "warning" ? "🟠" : "✅"}</span>
           <div>
-            <div className="text-xs font-black text-white">{toast.name} added</div>
+            <div className="text-xs font-black text-slate-900">{toast.name} added</div>
             <div className="text-[10px] text-slate-500 mt-0.5">Category: {toast.machine}</div>
           </div>
           <StatusBadge status={toast.status} />
@@ -3113,11 +3114,11 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
       <div className="p-6 space-y-4">
         {/* Metric cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard label="Total SKUs"    value={totalSKUs.toLocaleString("en-IN")} barPct={totalSKUs ? Math.round((safeCount / totalSKUs) * 100) : 0} barColor="#E8553D" icon="📦" />
+          <MetricCard label="Total SKUs"    value={totalSKUs.toLocaleString("en-IN")} barPct={totalSKUs ? Math.round((safeCount / totalSKUs) * 100) : 0} barColor="#D71920" icon="📦" />
           <MetricCard label="Critical"      value={String(criticalCount)} valueColor="#dc2626" icon="🚨"
                       barPct={totalSKUs ? Math.round((criticalCount / totalSKUs) * 100) : 0} barColor="#ef4444" />
           <MetricCard label="Low Stock"     value={String(warningCount)}  valueColor="#d97706" icon="⚠️"
-                      barPct={totalSKUs ? Math.round((warningCount / totalSKUs) * 100) : 0} barColor="#f97316" />
+                      barPct={totalSKUs ? Math.round((warningCount / totalSKUs) * 100) : 0} barColor="#D97706" />
           <MetricCard label="Safe"          value={String(safeCount)} valueColor="#15803d" icon="✅"
                       barPct={totalSKUs ? Math.round((safeCount / totalSKUs) * 100) : 0} barColor="#22c55e" />
         </div>
@@ -3193,7 +3194,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
             {[
               { key: "all",      label: `All (${totalSKUs})`,              active: "bg-blue-50 text-blue-700 border border-blue-200"       },
               { key: "critical", label: `Critical (${criticalCount})`,     active: "bg-red-50 text-red-700 border border-red-200"             },
-              { key: "warning",  label: `Low (${warningCount})`,           active: "bg-orange-50 text-orange-700 border border-orange-200"   },
+              { key: "warning",  label: `Low (${warningCount})`,           active: "bg-amber-50 text-amber-700 border border-amber-200"   },
               { key: "safe",     label: `Safe (${safeCount})`,             active: "bg-green-50 text-green-700 border border-green-200"      },
             ].map(({ key, label, active }) => (
               <button key={key} onClick={() => setStatusFilter(key)}
@@ -3252,7 +3253,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                 ) : sorted.map((item) => {
                   const cfg      = statusConfig[item.status];
                   const stockPct = item.min > 0 ? Math.min((item.stock / item.min) * 100, 100) : 0;
-                  const barColor = item.status === "critical" ? "#ef4444" : item.status === "warning" ? "#f97316" : "#22c55e";
+                  const barColor = item.status === "critical" ? "#ef4444" : item.status === "warning" ? "#D97706" : "#22c55e";
                   const catColor = catColors[item.category] || "#6b7280";
                   const isCrit   = item.status === "critical";
                   return (
@@ -3302,8 +3303,8 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                           {canDo("inventory","adjust") && (
                             <button onClick={() => setQuickAdjust({ item: { ...item }, category: item.category, mode: "remove" })}
                                     title="Remove Stock"
-                                    className="w-6 h-6 rounded flex items-center justify-center text-xs font-black text-orange-700 hover:text-orange-900 transition-all"
-                                    style={{ background: "rgba(249,115,22,0.1)", border: "1px solid rgba(249,115,22,0.22)" }}>－</button>
+                                    className="w-6 h-6 rounded flex items-center justify-center text-xs font-black text-amber-700 hover:text-amber-900 transition-all"
+                                    style={{ background: "rgba(217, 119, 6,0.1)", border: "1px solid rgba(217, 119, 6,0.22)" }}>－</button>
                           )}
                           {canDo("inventory","edit") && (
                             <button onClick={() => setEditingItem({ item: { ...item }, category: item.category })}
@@ -3566,11 +3567,11 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
          style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(16px)" }}
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-2xl flex flex-col rounded-2xl overflow-hidden"
-           style={{ maxHeight: "92vh", background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.32)", boxShadow: "0 40px 100px rgba(17,24,39,0.22),0 0 80px rgba(232,85,61,0.1)", animation: "slideUp 0.25s ease both" }}>
+           style={{ maxHeight: "92vh", background: "var(--surface-elevated)", border: "1px solid rgba(215, 25, 32,0.32)", boxShadow: "0 40px 100px rgba(17,24,39,0.22),0 0 80px rgba(215, 25, 32,0.1)", animation: "slideUp 0.25s ease both" }}>
         <div className="px-6 py-5 border-b border-slate-200 flex items-center justify-between flex-shrink-0"
-             style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.11),rgba(204,74,51,0.06))" }}>
+             style={{ background: "linear-gradient(90deg,rgba(215, 25, 32,0.11),rgba(176, 18, 24,0.06))" }}>
           <div>
-            <div className="text-[15px] font-semibold text-white">{isEdit ? "Edit Purchase Order" : "Create Purchase Order"}</div>
+            <div className="text-[15px] font-semibold text-slate-900">{isEdit ? "Edit Purchase Order" : "Create Purchase Order"}</div>
             <div className="text-[11px] text-slate-400 mt-0.5">Select vendor · Add items · Review totals</div>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-sm font-bold">✕</button>
@@ -3626,9 +3627,9 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                               className="flex-shrink-0 text-left rounded-xl border transition-all duration-150"
                               style={{
                                 minWidth: 148, padding: "10px 12px",
-                                background: isSelected ? "rgba(232,85,61,0.10)" : "rgba(17,24,39,0.03)",
-                                borderColor: isSelected ? "rgba(232,85,61,0.55)" : "rgba(17,24,39,0.10)",
-                                boxShadow: isSelected ? "0 0 14px rgba(232,85,61,0.18)" : "none",
+                                background: isSelected ? "rgba(215, 25, 32,0.10)" : "rgba(17,24,39,0.03)",
+                                borderColor: isSelected ? "rgba(215, 25, 32,0.55)" : "rgba(17,24,39,0.10)",
+                                boxShadow: isSelected ? "0 0 14px rgba(215, 25, 32,0.18)" : "none",
                               }}>
                         <div className="flex items-center gap-1 mb-1.5">
                           <span className="text-[10px]">{pIcon}</span>
@@ -3640,7 +3641,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                           )}
                           {isSelected && <span className="ml-auto text-[8px] font-black text-blue-700">✓ SELECTED</span>}
                         </div>
-                        <div className="text-[11px] font-bold text-white truncate max-w-[130px] mb-1" title={v.name}>{v.name}</div>
+                        <div className="text-[11px] font-bold text-slate-900 truncate max-w-[130px] mb-1" title={v.name}>{v.name}</div>
                         {v.contactPerson && <div className="text-[9px] text-slate-500 mb-1">👤 {v.contactPerson}</div>}
                         <div className="text-[9px] text-slate-400 font-mono font-bold">
                           {v.lastRate ? `₹${v.lastRate.toLocaleString("en-IN")} / unit` : <span className="text-slate-600">No rate history</span>}
@@ -3676,7 +3677,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                   </div>
                   {addCode && itemLinkedVendors.length > 0 && (
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                          style={{ background: "rgba(204,74,51,0.12)", color: "#a5b4fc", border: "1px solid rgba(204,74,51,0.22)" }}>
+                          style={{ background: "rgba(176, 18, 24,0.12)", color: "#a5b4fc", border: "1px solid rgba(176, 18, 24,0.22)" }}>
                       {itemLinkedVendors.length} linked · {addCodeItem?.name}
                     </span>
                   )}
@@ -3813,10 +3814,10 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                               className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-all"
                               style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
                         <span className="text-[10px]" style={{ color: it.status === "critical" ? "#dc2626" : "#b45309" }}>{it.status === "critical" ? "🔴" : "🟠"}</span>
-                        <span className="text-[11px] font-bold text-white truncate flex-1">{it.name}</span>
+                        <span className="text-[11px] font-bold text-slate-900 truncate flex-1">{it.name}</span>
                         <span className="text-[9px] font-mono text-slate-600 flex-shrink-0">{it.code}</span>
                         <span className="text-[9px] text-slate-500 flex-shrink-0">stock {it.stock}/{it.min} {it.unit}</span>
-                        {shortage > 0 && <span className="text-[9px] font-bold text-orange-700 flex-shrink-0">need {shortage}+</span>}
+                        {shortage > 0 && <span className="text-[9px] font-bold text-amber-700 flex-shrink-0">need {shortage}+</span>}
                         <span className="text-[10px] font-bold text-emerald-300 flex-shrink-0">+ Add</span>
                       </button>
                     );
@@ -3849,7 +3850,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                      onKeyDown={(e) => e.key === "Enter" && addLine()} />
               <button onClick={addLine}
                       className="px-3 py-2 rounded-xl text-xs font-bold text-white"
-                      style={{ background: "linear-gradient(135deg,#E8553D,#A33E2A)", border: "1px solid rgba(99,130,255,0.5)", boxShadow: "0 0 10px rgba(232,85,61,0.3)" }}>
+                      style={{ background: "linear-gradient(135deg,#D71920,#B01218)", border: "1px solid rgba(176, 18, 24,0.5)", boxShadow: "0 0 10px rgba(215, 25, 32,0.3)" }}>
                 + Add
               </button>
             </div>
@@ -3898,7 +3899,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                     {form.lineItems.map((li, idx) => (
                       <tr key={idx} className="border-b border-slate-200 last:border-0">
                         <td className="px-3 py-2">
-                          <div className="text-xs font-semibold text-white">{li.name}</div>
+                          <div className="text-xs font-semibold text-slate-900">{li.name}</div>
                           <div className="text-[9px] text-slate-500 font-mono">{li.code} · {li.unit}</div>
                         </td>
                         <td className="px-3 py-2 text-xs font-mono text-slate-500 text-right">{li.qty}</td>
@@ -3920,7 +3921,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                               }}>
                               <span className="w-3 h-3 rounded-sm flex items-center justify-center"
                                     style={{ background: li.attachDesign ? "#8b5cf6" : "transparent", border: `1.5px solid ${li.attachDesign ? "#8b5cf6" : "rgba(17,24,39,0.22)"}` }}>
-                                {li.attachDesign && <span className="text-white text-[8px] font-black">✓</span>}
+                                {li.attachDesign && <span className="text-slate-900 text-[8px] font-black">✓</span>}
                               </span>
                               {li.attachDesign ? "Attach" : "Attach"}
                             </button>
@@ -3952,7 +3953,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
             <div className="p-4 rounded-xl space-y-2" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
               <div className="flex justify-between text-[11px]">
                 <span className="text-slate-400">Subtotal</span>
-                <span className="font-mono font-bold text-white">₹{subtotal.toLocaleString("en-IN")}</span>
+                <span className="font-mono font-bold text-slate-900">₹{subtotal.toLocaleString("en-IN")}</span>
               </div>
               {/* GST breakdown — driven by the chosen Purchase Type. Local POs
                   show CGST + SGST; interstate / import show a single IGST line;
@@ -3966,21 +3967,21 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                 <>
                   <div className="flex justify-between text-[11px]">
                     <span className="text-slate-400">CGST{purchaseTypeMeta.rate ? ` (${purchaseTypeMeta.rate / 2}%)` : ""}</span>
-                    <span className="font-mono font-bold text-orange-700">₹{cgst.toLocaleString("en-IN")}</span>
+                    <span className="font-mono font-bold text-amber-700">₹{cgst.toLocaleString("en-IN")}</span>
                   </div>
                   <div className="flex justify-between text-[11px]">
                     <span className="text-slate-400">SGST{purchaseTypeMeta.rate ? ` (${purchaseTypeMeta.rate / 2}%)` : ""}</span>
-                    <span className="font-mono font-bold text-orange-700">₹{sgst.toLocaleString("en-IN")}</span>
+                    <span className="font-mono font-bold text-amber-700">₹{sgst.toLocaleString("en-IN")}</span>
                   </div>
                 </>
               ) : (
                 <div className="flex justify-between text-[11px]">
                   <span className="text-slate-400">IGST{purchaseTypeMeta?.rate ? ` (${purchaseTypeMeta.rate}%)` : ""}</span>
-                  <span className="font-mono font-bold text-orange-700">₹{igst.toLocaleString("en-IN")}</span>
+                  <span className="font-mono font-bold text-amber-700">₹{igst.toLocaleString("en-IN")}</span>
                 </div>
               )}
               <div className="flex justify-between text-sm border-t border-slate-200 pt-2">
-                <span className="font-bold text-white">Total</span>
+                <span className="font-bold text-slate-900">Total</span>
                 <span className="font-mono font-black text-green-700">₹{total.toLocaleString("en-IN")}</span>
               </div>
             </div>
@@ -3998,7 +3999,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
             </button>
             <button onClick={() => handleSave("pending")}
                     className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
-                    style={{ background: "linear-gradient(135deg,#E8553D,#A33E2A)", borderColor: "rgba(99,130,255,0.5)", boxShadow: "0 0 12px rgba(232,85,61,0.45)" }}>
+                    style={{ background: "linear-gradient(135deg,#D71920,#B01218)", borderColor: "rgba(176, 18, 24,0.5)", boxShadow: "0 0 12px rgba(215, 25, 32,0.45)" }}>
               📤 Submit for Approval
             </button>
           </div>
@@ -4029,18 +4030,18 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
          style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(16px)" }}
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-lg flex flex-col rounded-2xl overflow-hidden"
-           style={{ maxHeight: "90vh", background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.32)", boxShadow: "0 40px 100px rgba(17,24,39,0.22)", animation: "slideUp 0.25s ease both" }}>
+           style={{ maxHeight: "90vh", background: "var(--surface-elevated)", border: "1px solid rgba(215, 25, 32,0.32)", boxShadow: "0 40px 100px rgba(17,24,39,0.22)", animation: "slideUp 0.25s ease both" }}>
 
         <div className="px-6 py-5 border-b border-slate-200 flex items-start justify-between flex-shrink-0"
-             style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.1),rgba(204,74,51,0.05))" }}>
+             style={{ background: "linear-gradient(90deg,rgba(215, 25, 32,0.1),rgba(176, 18, 24,0.05))" }}>
           <div>
-            <div className="text-[15px] font-semibold text-white">{po.id}</div>
+            <div className="text-[15px] font-semibold text-slate-900">{po.id}</div>
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <span className="text-[10px] text-slate-400 truncate max-w-[180px]">{po.vendor}</span>
               <span className="text-slate-600">·</span>
               <StatusBadge status={po.status} />
               <span className="text-slate-600">·</span>
-              <span className={`text-[10px] font-bold uppercase ${po.priority === "urgent" ? "text-red-600" : po.priority === "high" ? "text-orange-700" : "text-slate-500"}`}>{po.priority}</span>
+              <span className={`text-[10px] font-bold uppercase ${po.priority === "urgent" ? "text-red-600" : po.priority === "high" ? "text-amber-700" : "text-slate-500"}`}>{po.priority}</span>
             </div>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-sm font-bold flex-shrink-0">✕</button>
@@ -4053,7 +4054,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
               <div key={s} className="flex items-center flex-1 last:flex-none">
                 <div className="flex flex-col items-center">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black border transition-all ${
-                    i < cur ? "bg-blue-500 border-blue-500 text-white" :
+                    i < cur ? "bg-blue-500 border-blue-500 text-slate-900" :
                     i === cur ? "bg-blue-100 border-blue-400 text-blue-700" :
                     "bg-slate-50 border-slate-200 text-slate-600 opacity-40"
                   }`} style={i < cur ? { color: "#fff" } : undefined}>{i < cur ? "✓" : i + 1}</div>
@@ -4103,7 +4104,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
                     {po.lineItems.map((li, i) => (
                       <tr key={i} className="border-b border-slate-200 last:border-0">
                         <td className="px-3 py-2">
-                          <div className="text-[11px] font-semibold text-white">{li.name}</div>
+                          <div className="text-[11px] font-semibold text-slate-900">{li.name}</div>
                           <div className="text-[9px] text-slate-500 font-mono">{li.code}</div>
                         </td>
                         <td className="px-3 py-2 text-[11px] font-mono text-slate-500">{li.qty} {li.unit}</td>
@@ -4133,7 +4134,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
               <div className="text-xs font-bold text-green-700 mb-1">📦 Confirm GRN — Mark as Received?</div>
               <div className="text-[10px] text-slate-500 mb-3">All line item quantities will be added to inventory stock automatically.</div>
               <div className="flex gap-2">
-                <button onClick={onMarkReceived} className="px-4 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: "rgba(34,197,94,0.8)", border: "1px solid rgba(34,197,94,0.5)", color: "#fff" }}>✅ Confirm Received</button>
+                <button onClick={onMarkReceived} className="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-900" style={{ background: "rgba(34,197,94,0.8)", border: "1px solid rgba(34,197,94,0.5)", color: "#fff" }}>✅ Confirm Received</button>
                 <button onClick={() => setConfirmReceive(false)} className="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-50 border border-slate-200 transition-all">Cancel</button>
               </div>
             </div>
@@ -4144,7 +4145,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
               <div className="text-xs font-bold text-red-600 mb-1">Delete this PO?</div>
               <div className="text-[10px] text-slate-500 mb-3">This cannot be undone.</div>
               <div className="flex gap-2">
-                <button onClick={onDelete} className="px-4 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: "rgba(239,68,68,0.8)", border: "1px solid rgba(239,68,68,0.5)", color: "#fff" }}>Yes, Delete</button>
+                <button onClick={onDelete} className="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-900" style={{ background: "rgba(239,68,68,0.8)", border: "1px solid rgba(239,68,68,0.5)", color: "#fff" }}>Yes, Delete</button>
                 <button onClick={() => setConfirmDelete(false)} className="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-50 border border-slate-200 transition-all">Cancel</button>
               </div>
             </div>
@@ -4168,7 +4169,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
           )}
           {["approved","ordered"].includes(po.status) && (
             <button onClick={() => { setConfirmReceive(true); setConfirmDelete(false); }}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-slate-900 border transition-all"
                     style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", borderColor: "rgba(34,197,94,0.5)", boxShadow: "0 0 10px rgba(34,197,94,0.3)" }}>
               ✅ Mark Received
             </button>
@@ -4207,7 +4208,7 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
   const pendingN  = pos.filter((p) => ["pending","review","draft"].includes(p.status)).length;
 
   const priorityChip = (p) => {
-    const cfg = { urgent: "bg-red-50 text-red-700", high: "bg-orange-50 text-orange-700", normal: "bg-slate-50 text-slate-500", low: "bg-slate-50 text-slate-600" };
+    const cfg = { urgent: "bg-red-50 text-red-700", high: "bg-amber-50 text-amber-700", normal: "bg-slate-50 text-slate-500", low: "bg-slate-50 text-slate-600" };
     return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${cfg[p] || cfg.normal}`}>{p}</span>;
   };
 
@@ -4215,10 +4216,10 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
     <div className="flex-1 overflow-y-auto">
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "var(--surface-raised)", border: "1px solid rgba(232,85,61,0.45)", boxShadow: "0 20px 60px rgba(17,24,39,0.14)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "var(--surface-raised)", border: "1px solid rgba(215, 25, 32,0.45)", boxShadow: "0 20px 60px rgba(17,24,39,0.14)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">🧾</span>
           <div>
-            <div className="text-xs font-black text-white">{toast.msg}</div>
+            <div className="text-xs font-black text-slate-900">{toast.msg}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">{toast.sub}</div>
           </div>
           <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-500 text-xs">✕</button>
@@ -4269,9 +4270,9 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
 
       <div className="p-6 space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard label="Total POs"  value={String(pos.length)} barPct={100} barColor="#E8553D" />
+          <MetricCard label="Total POs"  value={String(pos.length)} barPct={100} barColor="#D71920" />
           <MetricCard label="Open Value" value={`₹${(totalAmt / 100000).toFixed(1)}L`} valueColor="#d97706"
-                      barPct={pos.length ? Math.round((pendingN / pos.length) * 100) : 0} barColor="#f97316" />
+                      barPct={pos.length ? Math.round((pendingN / pos.length) * 100) : 0} barColor="#D97706" />
           <MetricCard label="Received"   value={String(receivedN)} valueColor="#15803d"
                       barPct={pos.length ? Math.round((receivedN / pos.length) * 100) : 0} barColor="#22c55e" />
           <MetricCard label="Overdue"    value={String(overdueN)}  valueColor="#dc2626"
@@ -4280,7 +4281,7 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
 
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-slate-200 flex flex-wrap items-center gap-3">
-            <div className="text-sm font-bold text-white">Purchase Order Register</div>
+            <div className="text-sm font-bold text-slate-900">Purchase Order Register</div>
             <div className="flex gap-1 flex-wrap ml-2">
               {["all","draft","pending","approved","ordered","received","overdue"].map((f) => (
                 <button key={f} onClick={() => setFilter(f)}
@@ -4317,7 +4318,7 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
                       <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">{po.id}</span>
                     </td>
                     <td className="px-4 py-3 text-[11px] text-slate-500 whitespace-nowrap">{po.date}</td>
-                    <td className="px-4 py-3 text-xs font-semibold text-white max-w-[140px]">
+                    <td className="px-4 py-3 text-xs font-semibold text-slate-900 max-w-[140px]">
                       <div className="truncate">{po.vendor}</div>
                     </td>
                     <td className="px-4 py-3 text-[11px] text-slate-500 tabular-nums">{po.lineItems?.length || 0}</td>
@@ -4414,12 +4415,12 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
          style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(14px)" }}
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl overflow-hidden"
-           style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.35)", boxShadow: "0 32px 80px rgba(17,24,39,0.22)", animation: "slideUp 0.2s ease both" }}>
+           style={{ background: "var(--surface-elevated)", border: "1px solid rgba(215, 25, 32,0.35)", boxShadow: "0 32px 80px rgba(17,24,39,0.22)", animation: "slideUp 0.2s ease both" }}>
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
           <div>
-            <div className="text-sm font-black text-white">Import Vendors</div>
+            <div className="text-sm font-black text-slate-900">Import Vendors</div>
             <div className="text-[11px] text-slate-500 mt-0.5">Upload a CSV or Excel file exported from Google Sheets</div>
           </div>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-900 text-lg leading-none">✕</button>
@@ -4428,7 +4429,7 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
 
           {/* Column guide */}
-          <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(232,85,61,0.06)", border: "1px solid rgba(232,85,61,0.15)" }}>
+          <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(215, 25, 32,0.06)", border: "1px solid rgba(215, 25, 32,0.15)" }}>
             <div>
               <div className="text-[11px] font-semibold text-blue-300 mb-1.5">Supported columns — use these exact header names in your sheet</div>
               <div className="grid grid-cols-2 gap-1.5">
@@ -4446,9 +4447,9 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
                     <span className="text-[10px] font-mono font-semibold"
                           style={{ color: req ? "#F7A992" : "#64748b" }}>{label}</span>
                     <span className="text-[9px] px-1.5 py-0.5 rounded-full"
-                          style={{ background: req ? "rgba(232,85,61,0.15)" : "rgba(17,24,39,0.04)",
+                          style={{ background: req ? "rgba(215, 25, 32,0.15)" : "rgba(17,24,39,0.04)",
                                    color: req ? "#F7A992" : "#475569",
-                                   border: req ? "1px solid rgba(232,85,61,0.3)" : "1px solid rgba(17,24,39,0.06)" }}>
+                                   border: req ? "1px solid rgba(215, 25, 32,0.3)" : "1px solid rgba(17,24,39,0.06)" }}>
                       {hint}
                     </span>
                   </div>
@@ -4466,12 +4467,12 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
                onClick={() => fileRef.current?.click()}
                className="rounded-xl border-2 border-dashed cursor-pointer flex flex-col items-center justify-center py-10 transition-all"
                style={{ borderColor: "var(--border-rim)" }}
-               onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(232,85,61,0.4)"}
+               onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(215, 25, 32,0.4)"}
                onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(17,24,39,0.10)"}>
             <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
                    onChange={(e) => { const f = e.target.files[0]; if (f) parseFile(f); e.target.value = ""; }} />
             <div className="text-4xl mb-3">{fileName ? "📄" : "📂"}</div>
-            <div className="text-sm font-semibold text-white mb-1">{fileName || "Click or drag file here"}</div>
+            <div className="text-sm font-semibold text-slate-900 mb-1">{fileName || "Click or drag file here"}</div>
             <div className="text-[11px] text-slate-500">Supports .csv and .xlsx (Excel) — exported from Google Sheets</div>
           </div>
 
@@ -4511,7 +4512,7 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
                               ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-green-700" style={{ background: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.22)" }}>✓ New</span>
                               : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-yellow-300" style={{ background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.25)" }}>↻ Update existing</span>}
                           </td>
-                          <td className="px-3 py-2.5 text-[11px] font-semibold text-white whitespace-nowrap">{r.name}</td>
+                          <td className="px-3 py-2.5 text-[11px] font-semibold text-slate-900 whitespace-nowrap">{r.name}</td>
                           <td className="px-3 py-2.5 text-[11px] text-slate-400 whitespace-nowrap">{r.contactPerson || <span style={{ color: "var(--text-faint)" }}>—</span>}</td>
                           <td className="px-3 py-2.5 text-[11px] text-slate-400 whitespace-nowrap">{r.phone || <span style={{ color: "var(--text-faint)" }}>—</span>}</td>
                           <td className="px-3 py-2.5 text-[11px] text-slate-400 max-w-[160px] truncate">{r.email || <span style={{ color: "var(--text-faint)" }}>—</span>}</td>
@@ -4539,7 +4540,7 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
             <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
             <button onClick={handleImport} disabled={!rows || (readyCount + updateCount) === 0}
                     className="text-xs font-black px-5 py-2 rounded-xl text-white transition-opacity"
-                    style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 20px rgba(232,85,61,0.4)",
+                    style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 20px rgba(215, 25, 32,0.4)",
                              opacity: (!rows || (readyCount + updateCount) === 0) ? 0.4 : 1,
                              cursor: (!rows || (readyCount + updateCount) === 0) ? "not-allowed" : "pointer" }}>
               {(() => {
@@ -4597,11 +4598,11 @@ function VendorModal({ initialVendor, onSave, onClose }) {
          style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(14px)" }}
          onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl overflow-hidden"
-           style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.35)", boxShadow: "0 32px 80px rgba(17,24,39,0.22), 0 0 60px rgba(232,85,61,0.08)", animation: "slideUp 0.2s ease both" }}>
+           style={{ background: "var(--surface-elevated)", border: "1px solid rgba(215, 25, 32,0.35)", boxShadow: "0 32px 80px rgba(17,24,39,0.22), 0 0 60px rgba(215, 25, 32,0.08)", animation: "slideUp 0.2s ease both" }}>
 
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
           <div>
-            <div className="text-sm font-black text-white">{isEdit ? "Edit Vendor" : "Add New Vendor"}</div>
+            <div className="text-sm font-black text-slate-900">{isEdit ? "Edit Vendor" : "Add New Vendor"}</div>
             <div className="text-[11px] text-slate-500 mt-0.5">Supplier details &amp; terms</div>
           </div>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-900 text-lg leading-none">✕</button>
@@ -4686,7 +4687,7 @@ function VendorModal({ initialVendor, onSave, onClose }) {
           <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
           <button onClick={handleSave}
                   className="text-xs font-black px-5 py-2 rounded-xl text-white"
-                  style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 20px rgba(232,85,61,0.4)" }}>
+                  style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 20px rgba(215, 25, 32,0.4)" }}>
             {isEdit ? "Save Changes" : "Add Vendor"}
           </button>
         </div>
@@ -4758,15 +4759,15 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
         || (v.location || "").toLowerCase().includes(q);
   });
 
-  const perfColor = (p) => p > 85 ? "#15803d" : p > 65 ? "#d97706" : p > 50 ? "#c2410c" : "#dc2626";
+  const perfColor = (p) => p > 85 ? "#15803d" : p > 65 ? "#d97706" : p > 50 ? "#B45309" : "#dc2626";
 
   return (
     <div className="flex-1 overflow-y-auto">
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "var(--surface-raised)", border: "1px solid rgba(232,85,61,0.45)", boxShadow: "0 20px 60px rgba(17,24,39,0.14)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "var(--surface-raised)", border: "1px solid rgba(215, 25, 32,0.45)", boxShadow: "0 20px 60px rgba(17,24,39,0.14)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">🏭</span>
-          <div className="text-xs font-black text-white">{toast}</div>
+          <div className="text-xs font-black text-slate-900">{toast}</div>
           <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-500 text-xs">✕</button>
         </div>
       )}
@@ -4811,13 +4812,13 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(14px)" }}
                onClick={(e) => e.target === e.currentTarget && setConfirmDelete(null)}>
             <div className="w-96 rounded-2xl p-6" style={{ background: "var(--surface-elevated)", border: `1px solid ${use.anyRefs ? "rgba(234,179,8,0.4)" : "rgba(239,68,68,0.35)"}` }}>
-              <div className="text-sm font-black text-white mb-2">
+              <div className="text-sm font-black text-slate-900 mb-2">
                 {use.anyRefs ? "Archive Vendor?" : "Delete Vendor?"}
               </div>
               {use.anyRefs ? (
                 <div className="space-y-2.5 mb-5">
                   <div className="text-[11px] text-slate-400">
-                    <span className="text-white font-bold">{confirmDelete.name}</span> has live references — archiving keeps the name visible on existing records.
+                    <span className="text-slate-900 font-bold">{confirmDelete.name}</span> has live references — archiving keeps the name visible on existing records.
                   </div>
                   <div className="space-y-1.5">
                     {use.hasPOs && (
@@ -4845,7 +4846,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                 </div>
               ) : (
                 <div className="text-[11px] text-slate-400 mb-5">
-                  Remove <span className="text-white font-bold">{confirmDelete.name}</span> from the vendor list? No purchase history will be lost — this vendor has no live references.
+                  Remove <span className="text-slate-900 font-bold">{confirmDelete.name}</span> from the vendor list? No purchase history will be lost — this vendor has no live references.
                 </div>
               )}
               <div className="flex gap-3 justify-end">
@@ -4883,7 +4884,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <MetricCard label="Total Vendors"  value={activeVendors.length.toString()} icon="🏭" barPct={100} barColor="#d71920" />
           <MetricCard label="Preferred"      value={activeVendors.filter((v) => v.status === "preferred").length.toString()} icon="⭐" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "preferred").length / activeVendors.length) * 100) : 0} barColor="#22c55e" valueColor="#15803d" />
-          <MetricCard label="Under Review"   value={activeVendors.filter((v) => v.status === "review").length.toString()} icon="🔍" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "review").length / activeVendors.length) * 100) : 0} barColor="#f97316" valueColor="#d97706" />
+          <MetricCard label="Under Review"   value={activeVendors.filter((v) => v.status === "review").length.toString()} icon="🔍" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "review").length / activeVendors.length) * 100) : 0} barColor="#D97706" valueColor="#d97706" />
           <MetricCard label="Poor"           value={activeVendors.filter((v) => v.status === "poor").length.toString()} icon="⚠️" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "poor").length / activeVendors.length) * 100) : 0} barColor="#ef4444" valueColor="#dc2626" />
         </div>
 
@@ -5242,7 +5243,7 @@ function ApprovalsPage({ pos, onUpdatePO }) {
           {displayList.length === 0 ? (
             <div className="py-14 text-center">
               <div className="text-4xl mb-3">✅</div>
-              <div className="text-sm font-bold text-white mb-1">All caught up!</div>
+              <div className="text-sm font-bold text-slate-900 mb-1">All caught up!</div>
               <div className="text-[11px] text-slate-500">No POs awaiting approval.</div>
             </div>
           ) : (
@@ -5254,19 +5255,19 @@ function ApprovalsPage({ pos, onUpdatePO }) {
                     !isPending
                       ? "bg-green-500/[0.05] border-green-500/20 opacity-60"
                       : po.status === "review"
-                      ? "bg-orange-500/[0.04] border-orange-500/20"
+                      ? "bg-amber-600/[0.04] border-amber-500/20"
                       : "bg-transparent border-slate-200"
                   }`}>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className="text-xs font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">{po.id}</span>
-                        <span className="text-xs font-bold text-white truncate">{po.vendor}</span>
+                        <span className="text-xs font-bold text-slate-900 truncate">{po.vendor}</span>
                       </div>
                       <div className="text-[11px] text-slate-500">
                         {po.lineItems?.length || 0} line items · Due: {po.delivery || "—"} ·
-                        <span className="text-orange-400 font-bold"> ₹{(po.amount || po.subtotal || 0).toLocaleString("en-IN")}</span>
+                        <span className="text-amber-700 font-bold"> ₹{(po.amount || po.subtotal || 0).toLocaleString("en-IN")}</span>
                         {po.priority && (
-                          <span className={`ml-1 font-bold ${po.priority === "urgent" ? "text-red-400" : po.priority === "high" ? "text-orange-400" : "text-slate-500"}`}>
+                          <span className={`ml-1 font-bold ${po.priority === "urgent" ? "text-red-400" : po.priority === "high" ? "text-amber-700" : "text-slate-500"}`}>
                             {" "}· {po.priority.toUpperCase()}
                           </span>
                         )}
@@ -5300,7 +5301,7 @@ function ApprovalsPage({ pos, onUpdatePO }) {
               <tbody>
                 {approvalRules.map((r, i) => (
                   <tr key={i} className="border-b border-slate-200 hover:bg-slate-50">
-                    <td className="px-4 py-3 text-xs font-bold text-white">{r.rule}</td>
+                    <td className="px-4 py-3 text-xs font-bold text-slate-900">{r.rule}</td>
                     <td className="px-4 py-3 text-xs text-slate-400">{r.trigger}</td>
                     <td className="px-4 py-3 text-xs text-blue-400 font-semibold">{r.approver}</td>
                     <td className="px-4 py-3 text-xs font-mono text-green-400">{r.limit}</td>
@@ -5328,7 +5329,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
   const safeCount = allItems.filter((i) => i.status === "safe").length;
   const stockDist = [
     { name: "Safe",     value: safeCount, color: "#22c55e" },
-    { name: "Warning",  value: warnCount, color: "#f97316" },
+    { name: "Warning",  value: warnCount, color: "#D97706" },
     { name: "Critical", value: critCount, color: "#ef4444" },
   ];
 
@@ -5364,7 +5365,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
     catSpend[cat] = (catSpend[cat] || 0) + (li.amount || 0);
   }));
   const catSpendTotal = Object.values(catSpend).reduce((s, v) => s + v, 0) || 1;
-  const catColors = { Electrical: "#f97316", Mechanical: "#E8553D", "R&D": "#a78bfa", Other: "#6b7280" };
+  const catColors = { Electrical: "#D97706", Mechanical: "#D71920", "R&D": "#a78bfa", Other: "#6b7280" };
   const spendByCat = Object.entries(catSpend)
     .map(([name, val]) => ({ name, value: Math.round((val / catSpendTotal) * 100), color: catColors[name] || "#6b7280" }))
     .sort((a, b) => b.value - a.value);
@@ -5410,7 +5411,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
                 <XAxis dataKey="month" tick={{ fill: "#475569", fontSize: 11 }} />
                 <YAxis tick={{ fill: "#475569", fontSize: 11 }} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="value" name="PO Value (₹K)" fill="#E8553D20" stroke="#E8553D" strokeWidth={1.5} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="value" name="PO Value (₹K)" fill="#D7192020" stroke="#D71920" strokeWidth={1.5} radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -5595,9 +5596,9 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
 
   const aiStats = [
     { label: "Reorder Accuracy", pct: 94, color: "#22c55e" },
-    { label: "Demand Forecast",  pct: 87, color: "#E8553D" },
-    { label: "Vendor Scoring",   pct: 91, color: "#E8553D" },
-    { label: "Price Prediction", pct: 78, color: "#f97316" },
+    { label: "Demand Forecast",  pct: 87, color: "#D71920" },
+    { label: "Vendor Scoring",   pct: 91, color: "#D71920" },
+    { label: "Price Prediction", pct: 78, color: "#D97706" },
   ];
 
   return (
@@ -5682,15 +5683,15 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
             <SectionHeader>📊 Live Inventory Stats</SectionHeader>
             <div className="space-y-3">
               {[
-                { label: "Total SKUs",    value: allItems.length,    color: "#E8553D" },
+                { label: "Total SKUs",    value: allItems.length,    color: "#D71920" },
                 { label: "Critical",      value: critItems.length,   color: "#ef4444" },
-                { label: "Warning",       value: warnItems.length,   color: "#f97316" },
+                { label: "Warning",       value: warnItems.length,   color: "#D97706" },
                 { label: "Pending POs",   value: pendingPOs.length,  color: "#a78bfa" },
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-3">
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: item.color }} />
                   <span className="text-[11px] text-slate-400 flex-1">{item.label}</span>
-                  <span className="text-sm font-bold font-mono text-white">{item.value}</span>
+                  <span className="text-sm font-bold font-mono text-slate-900">{item.value}</span>
                 </div>
               ))}
             </div>
@@ -5725,12 +5726,12 @@ const SLabel = ({ text, hint }) => (
 const Toggle = ({ checked, onChange, label, desc }) => (
   <div className="flex items-center justify-between py-3.5 border-b border-slate-200 last:border-0">
     <div>
-      <div className="text-[13px] font-semibold text-white">{label}</div>
+      <div className="text-[13px] font-semibold text-slate-900">{label}</div>
       {desc && <div className="text-[11px] text-slate-500 mt-0.5">{desc}</div>}
     </div>
     <button onClick={() => onChange(!checked)}
             className="relative flex-shrink-0 w-11 h-6 rounded-full transition-all duration-200"
-            style={{ background: checked ? "#E8553D" : "rgba(17,24,39,0.10)", border: `1px solid ${checked ? "rgba(232,85,61,0.6)" : "rgba(17,24,39,0.14)"}` }}>
+            style={{ background: checked ? "#D71920" : "rgba(17,24,39,0.10)", border: `1px solid ${checked ? "rgba(215, 25, 32,0.6)" : "rgba(17,24,39,0.14)"}` }}>
       <div className="absolute top-0.5 h-5 w-5 rounded-full transition-all duration-200 shadow"
            style={{ background: "#fff", left: checked ? "calc(100% - 22px)" : "2px" }} />
     </button>
@@ -5742,7 +5743,7 @@ const Section = ({ icon, title, children }) => (
     <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-200"
          style={{ background: "rgba(17,24,39,0.03)" }}>
       <span className="text-base">{icon}</span>
-      <span className="text-[14px] font-bold text-white">{title}</span>
+      <span className="text-[14px] font-bold text-slate-900">{title}</span>
     </div>
     <div className="px-6 py-5">{children}</div>
   </div>
@@ -5810,7 +5811,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
     <Section icon="📋" title="Department Checklists">
       {!canConfig && (
         <div className="mb-4 px-3 py-2 rounded-lg text-[11px]"
-             style={{ background: "rgba(249,115,22,0.08)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.3)" }}>
+             style={{ background: "rgba(217, 119, 6,0.08)", color: "#B45309", border: "1px solid rgba(217, 119, 6,0.3)" }}>
           You can view checklists but not modify them. Admin role required.
         </div>
       )}
@@ -5820,7 +5821,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
         {canConfig && !editing && (
           <button onClick={() => start(null)}
                   className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg"
-                  style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 10px rgba(232,85,61,0.3)" }}>
+                  style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 10px rgba(215, 25, 32,0.3)" }}>
             + Add Checklist
           </button>
         )}
@@ -5833,9 +5834,9 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
           )}
           {templates.map((t) => (
             <div key={t.id} className="rounded-lg px-3 py-2 flex items-center gap-3 flex-wrap"
-                 style={{ background: t.active === false ? "rgba(17,24,39,0.03)" : "rgba(232,85,61,0.05)", border: `1px solid ${t.active === false ? "rgba(17,24,39,0.06)" : "rgba(232,85,61,0.25)"}` }}>
+                 style={{ background: t.active === false ? "rgba(17,24,39,0.03)" : "rgba(215, 25, 32,0.05)", border: `1px solid ${t.active === false ? "rgba(17,24,39,0.06)" : "rgba(215, 25, 32,0.25)"}` }}>
               <span className="text-[11px] font-black text-blue-300 w-28">{t.department}</span>
-              <span className="text-[12px] font-bold text-white flex-1">{t.name}</span>
+              <span className="text-[12px] font-bold text-slate-900 flex-1">{t.name}</span>
               <span className="text-[10px] text-slate-500">{(t.items || []).length} item{(t.items || []).length === 1 ? "" : "s"} · v{t.version || 1}</span>
               {t.active === false && <span className="text-[9px] font-bold text-slate-500 px-1.5 py-0.5 rounded-full bg-white/5 border border-white/10">inactive</span>}
               {canConfig && (
@@ -5850,13 +5851,13 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
       )}
 
       {editing && (
-        <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.3)" }}>
+        <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(215, 25, 32,0.05)", border: "1px solid rgba(215, 25, 32,0.3)" }}>
           <div className="text-[11px] font-black text-blue-300">{editing.id ? "Edit template" : "New template"}</div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <SLabel text="Department" />
               <select value={editing.department} onChange={(e) => setEditing((p) => ({ ...p, department: e.target.value }))}
-                      disabled={!canConfig} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-white outline-none">
+                      disabled={!canConfig} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 outline-none">
                 {DEPTS.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
@@ -5864,7 +5865,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
               <SLabel text="Template name" />
               <input type="text" value={editing.name} onChange={(e) => setEditing((p) => ({ ...p, name: e.target.value }))}
                      disabled={!canConfig} placeholder="e.g. Assembly QC"
-                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-white outline-none" />
+                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 outline-none" />
             </div>
           </div>
           <div>
@@ -5882,7 +5883,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
                   <input type="text" value={it.label || ""}
                          onChange={(e) => patchItem(i, { label: e.target.value })}
                          disabled={!canConfig} placeholder="Question text (e.g. Bolts torqued correctly)"
-                         className="flex-1 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-white outline-none focus:border-blue-500/40" />
+                         className="flex-1 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-900 outline-none focus:border-blue-500/40" />
                   <label className="text-[10px] text-slate-400 flex items-center gap-1">
                     <input type="checkbox" checked={!!it.required} onChange={(e) => patchItem(i, { required: e.target.checked })} disabled={!canConfig} />
                     required
@@ -5904,7 +5905,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
             </div>
           </div>
           {preview && (
-            <div className="rounded-lg p-3" style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.3)" }}>
+            <div className="rounded-lg p-3" style={{ background: "rgba(215, 25, 32,0.05)", border: "1px solid rgba(215, 25, 32,0.3)" }}>
               <div className="text-[10px] font-bold text-blue-300 uppercase tracking-wide mb-2">Preview — how operators will see this during Finish &amp; Transfer</div>
               <div className="space-y-2">
                 {editing.items.length === 0 && <div className="text-[11px] text-slate-500 italic">Add at least one question to preview.</div>}
@@ -5915,7 +5916,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
                       <span className="text-[12px] text-slate-700 flex-1">{it.label || <em className="text-slate-500">(empty question)</em>}{it.required && <span className="text-red-400 ml-0.5">*</span>}</span>
                     </label>
                     <input type="text" disabled placeholder="Remark (required when unchecked)"
-                           className="w-full mt-2 bg-slate-50 border border-orange-500/20 rounded px-2 py-1 text-[10px] text-slate-500" />
+                           className="w-full mt-2 bg-slate-50 border border-amber-500/20 rounded px-2 py-1 text-[10px] text-slate-500" />
                   </div>
                 ))}
               </div>
@@ -5935,7 +5936,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
               Cancel
             </button>
             {canConfig && (
-              <button onClick={save} disabled={busy} className="text-[11px] font-black text-white px-4 py-1.5 rounded-lg disabled:opacity-50" style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", color: "#fff" }}>
+              <button onClick={save} disabled={busy} className="text-[11px] font-black text-slate-900 px-4 py-1.5 rounded-lg disabled:opacity-50" style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", color: "#fff" }}>
                 {busy ? "⏳ Saving…" : "Save Checklist"}
               </button>
             )}
@@ -5982,7 +5983,7 @@ function DeptEmployeesRow({ dept, assigned, notAssigned, canConfig, onSaveUserDe
   return (
     <div className="rounded-lg p-3" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.10)" }}>
       <div className="flex items-center gap-2 mb-2 flex-wrap">
-        <span className="text-[12px] font-black text-white">{dept}</span>
+        <span className="text-[12px] font-black text-slate-900">{dept}</span>
         <span className="text-[10px] text-slate-500">· {assigned.length} assigned</span>
       </div>
       {assigned.length === 0 ? (
@@ -6006,7 +6007,7 @@ function DeptEmployeesRow({ dept, assigned, notAssigned, canConfig, onSaveUserDe
       {canConfig && (
         <div className="flex items-center gap-2 flex-wrap">
           <select value={pickValue} onChange={(e) => setPickValue(e.target.value)} disabled={busy || notAssigned.length === 0}
-                  className="flex-1 min-w-[180px] bg-slate-50 border border-slate-200 rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-blue-500/40 disabled:opacity-50"
+                  className="flex-1 min-w-[180px] bg-slate-50 border border-slate-200 rounded-md px-2 py-1.5 text-[11px] text-slate-900 outline-none focus:border-blue-500/40 disabled:opacity-50"
                   style={{ background: "var(--surface-input)", color: "var(--text)" }}>
             <option value="">
               {notAssigned.length === 0 ? "— All active users already assigned —" : "+ Add worker from existing users…"}
@@ -6016,7 +6017,7 @@ function DeptEmployeesRow({ dept, assigned, notAssigned, canConfig, onSaveUserDe
             ))}
           </select>
           <button onClick={addWorker} disabled={!pickValue || busy}
-                  className="text-[11px] font-black text-white px-3 py-1.5 rounded-md transition-all disabled:opacity-40"
+                  className="text-[11px] font-black text-slate-900 px-3 py-1.5 rounded-md transition-all disabled:opacity-40"
                   style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 10px rgba(34,197,94,0.25)" }}>
             Add
           </button>
@@ -6084,12 +6085,12 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
     <Section icon="👥" title="Employee Members">
       {!canConfig && (
         <div className="mb-4 px-3 py-2 rounded-lg text-[11px]"
-             style={{ background: "rgba(249,115,22,0.08)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.3)" }}>
+             style={{ background: "rgba(217, 119, 6,0.08)", color: "#B45309", border: "1px solid rgba(217, 119, 6,0.3)" }}>
           You can view employees but not modify them. Admin role required.
         </div>
       )}
       <div className="text-[11px] text-slate-400 mb-3">
-        These display names appear alongside ERP login-accounts in the <strong className="text-white">Finish &amp; Transfer</strong> worker picker and <strong className="text-white">Accept</strong> team picker. Use them for factory workers who don't have ERP logins.
+        These display names appear alongside ERP login-accounts in the <strong className="text-slate-900">Finish &amp; Transfer</strong> worker picker and <strong className="text-slate-900">Accept</strong> team picker. Use them for factory workers who don't have ERP logins.
         <span className="block mt-1 text-slate-500">Each employee saves on its own — you don't need the Save Changes button at the top.</span>
       </div>
       {!editing && err && (
@@ -6103,7 +6104,7 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
         {canConfig && !editing && (
           <button onClick={() => start(null)}
                   className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg"
-                  style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 10px rgba(232,85,61,0.3)" }}>
+                  style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 10px rgba(215, 25, 32,0.3)" }}>
             + Add Employee
           </button>
         )}
@@ -6111,7 +6112,7 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
 
       {editing && (
         <div className="mb-4 rounded-xl px-4 py-4 space-y-3"
-             style={{ background: "rgba(232,85,61,0.04)", border: "1px solid rgba(232,85,61,0.25)" }}>
+             style={{ background: "rgba(215, 25, 32,0.04)", border: "1px solid rgba(215, 25, 32,0.25)" }}>
           <div className="text-[12px] font-bold text-slate-700">
             {members.some((m) => m.id === editing.id) ? "Edit Employee" : "New Employee"}
           </div>
@@ -6158,7 +6159,7 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
           )}
           <div className="flex gap-2">
             <button onClick={save} disabled={busy}
-                    className="text-[11px] font-black text-white px-4 py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="text-[11px] font-black text-slate-900 px-4 py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ background: "linear-gradient(135deg,#16a34a,#15803d)" }}>
               {busy ? "Saving…" : "Save"}
             </button>
@@ -6182,7 +6183,7 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
                  style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[12px] font-bold text-white">{m.name}</span>
+                  <span className="text-[12px] font-bold text-slate-900">{m.name}</span>
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                         style={{ background: m.active ? "rgba(34,197,94,0.10)" : "rgba(17,24,39,0.03)",
                                  border: `1px solid ${m.active ? "rgba(34,197,94,0.3)" : "rgba(17,24,39,0.10)"}`,
@@ -6360,13 +6361,13 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
       <Topbar title={pageTitle} subtitle={`${activeTab.desc} · Build ${APP_BUILD}`}>
         {isDirty && !saved && (
           <span className="text-[10px] font-bold px-2.5 py-1 rounded-full"
-                style={{ background: "rgba(249,115,22,0.15)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.35)" }}>
+                style={{ background: "rgba(217, 119, 6,0.15)", color: "#B45309", border: "1px solid rgba(217, 119, 6,0.35)" }}>
             ● Unsaved changes
           </span>
         )}
         <button onClick={() => handleSave()}
                 className="inline-flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl transition-all duration-200"
-                style={{ background: saved ? "rgba(22,163,74,0.12)" : "linear-gradient(135deg,#E8553D,#A33E2A)", color: saved ? "#15803d" : "#fff", border: saved ? "1px solid rgba(22,163,74,0.35)" : "1px solid rgba(176,18,24,0.45)", boxShadow: saved ? "none" : "0 0 12px rgba(232,85,61,0.3)" }}>
+                style={{ background: saved ? "rgba(22,163,74,0.12)" : "linear-gradient(135deg,#D71920,#B01218)", color: saved ? "#15803d" : "#fff", border: saved ? "1px solid rgba(22,163,74,0.35)" : "1px solid rgba(176,18,24,0.45)", boxShadow: saved ? "none" : "0 0 12px rgba(215, 25, 32,0.3)" }}>
           {saved ? "✅ Saved!" : "💾 Save Changes"}
         </button>
       </Topbar>
@@ -6440,10 +6441,10 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
-            <div className="mt-3 px-3.5 py-3 rounded-xl" style={{ background: "rgba(232,85,61,0.06)", border: "1px solid rgba(232,85,61,0.18)" }}>
+            <div className="mt-3 px-3.5 py-3 rounded-xl" style={{ background: "rgba(215, 25, 32,0.06)", border: "1px solid rgba(215, 25, 32,0.18)" }}>
               <div className="text-[11px] text-blue-300 font-semibold">ℹ️ Low Stock Alerts</div>
               <div className="text-[11px] text-slate-400 mt-1">
-                Low stock thresholds are set per item in <span className="text-white font-semibold">Item Master → Minimum Stock</span>.
+                Low stock thresholds are set per item in <span className="text-slate-900 font-semibold">Item Master → Minimum Stock</span>.
                 Items below their individual minimum are shown in Inventory and Order Pipeline automatically.
               </div>
             </div>
@@ -6464,19 +6465,19 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
             <Section icon="🔧" title="Department Workflow Settings">
               {!canConfig && (
                 <div className="mb-4 px-3 py-2 rounded-lg text-[11px]"
-                     style={{ background: "rgba(249,115,22,0.08)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.3)" }}>
+                     style={{ background: "rgba(217, 119, 6,0.08)", color: "#B45309", border: "1px solid rgba(217, 119, 6,0.3)" }}>
                   You can view these settings but not change them. Admin role required.
                 </div>
               )}
               {canConfig && isDirty && !saved && (
                 <div className="mb-4 px-3 py-2 rounded-lg text-[11px] font-semibold"
-                     style={{ background: "rgba(249,115,22,0.10)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.4)" }}>
+                     style={{ background: "rgba(217, 119, 6,0.10)", color: "#B45309", border: "1px solid rgba(217, 119, 6,0.4)" }}>
                   ● Unsaved changes — click <strong>💾 Save Changes</strong> at the top to apply.
                 </div>
               )}
               <div className="space-y-6">
                 {/* ── Acceptance timeout (separate from per-dept work duration) ── */}
-                <div className="rounded-lg p-3" style={{ background: "rgba(232,85,61,0.04)", border: "1px solid rgba(232,85,61,0.2)" }}>
+                <div className="rounded-lg p-3" style={{ background: "rgba(215, 25, 32,0.04)", border: "1px solid rgba(215, 25, 32,0.2)" }}>
                   <SLabel text="Acceptance timeout (receiving dept)" hint="A handover not accepted within this window shows as OVERDUE / HOLD in Machine Tracker and reports. Separate from the department's work-duration limit." />
                   <div className="flex items-center gap-2 flex-wrap">
                     <input type="number" min="0" step="1"
@@ -6487,7 +6488,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                              const rem = current.accept_timeout_minutes % 60;
                              commitWorkflow({ accept_timeout_minutes: h * 60 + rem });
                            }}
-                           className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                           className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-500/40 disabled:opacity-60" />
                     <span className="text-[11px] text-slate-400">hours</span>
                     <input type="number" min="0" max="59" step="1"
                            value={current.accept_timeout_minutes % 60}
@@ -6497,7 +6498,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                              const h = Math.floor(current.accept_timeout_minutes / 60);
                              commitWorkflow({ accept_timeout_minutes: h * 60 + m });
                            }}
-                           className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                           className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-500/40 disabled:opacity-60" />
                     <span className="text-[11px] text-slate-400">minutes</span>
                     <span className="text-[11px] text-slate-500 ml-2">= {current.accept_timeout_minutes} min total · default 2 hours</span>
                   </div>
@@ -6528,19 +6529,19 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                                    const nd = Math.max(0, parseInt(e.target.value, 10) || 0);
                                    setMinutes(nd * 24 * 60 + hours * 60 + minutes);
                                  }}
-                                 className="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                                 className="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-900 outline-none focus:border-blue-500/40 disabled:opacity-60" />
                           <input type="number" min="0" max="23" step="1" value={hours} disabled={!canConfig}
                                  onChange={(e) => {
                                    const nh = Math.max(0, Math.min(23, parseInt(e.target.value, 10) || 0));
                                    setMinutes(days * 24 * 60 + nh * 60 + minutes);
                                  }}
-                                 className="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                                 className="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-900 outline-none focus:border-blue-500/40 disabled:opacity-60" />
                           <input type="number" min="0" max="59" step="1" value={minutes} disabled={!canConfig}
                                  onChange={(e) => {
                                    const nm = Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0));
                                    setMinutes(days * 24 * 60 + hours * 60 + nm);
                                  }}
-                                 className="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-white outline-none focus:border-blue-500/40 disabled:opacity-60" />
+                                 className="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-900 outline-none focus:border-blue-500/40 disabled:opacity-60" />
                           <div className="text-[11px] text-slate-400 font-mono">{mins} min · {formatDuration(mins)}</div>
                         </div>
                       );
@@ -6558,7 +6559,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                            disabled={!canConfig}
                            onChange={(e) => commitWorkflow({ require_password_at_accept: e.target.checked })} />
                     <div>
-                      <div className="text-[12px] font-semibold text-white">Require password re-entry at Accept Machine</div>
+                      <div className="text-[12px] font-semibold text-slate-900">Require password re-entry at Accept Machine</div>
                       <div className="text-[10px] text-slate-500 mt-0.5">
                         OFF (recommended for factory use): receiving operator confirms with one click; their saved signature + authenticated session + role check + audit log are the proof chain.
                         ON: receiving operator must retype their password every time (slower but matches a stricter security posture).
@@ -6578,7 +6579,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                         this is where to set up the Finish & Transfer picker. */}
                     {canConfig && totalAssigned === 0 && (
                       <div className="mb-3 px-3 py-2.5 rounded-lg text-[11px] font-semibold"
-                           style={{ background: "rgba(249,115,22,0.1)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.4)" }}>
+                           style={{ background: "rgba(217, 119, 6,0.1)", color: "#B45309", border: "1px solid rgba(217, 119, 6,0.4)" }}>
                         ⚠ No one is assigned to any department yet. Add workers below so operators see them on <strong>Machine Tracker → Finish &amp; Transfer</strong>.
                       </div>
                     )}
@@ -6675,7 +6676,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
               <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200"
                    style={{ background: "rgba(17,24,39,0.03)" }}>
                 <div>
-                  <div className="text-[13px] font-semibold text-white">Backup Data</div>
+                  <div className="text-[13px] font-semibold text-slate-900">Backup Data</div>
                   <div className="text-[11px] text-slate-500 mt-0.5">Download a full JSON backup of all ERP data</div>
                 </div>
                 <button onClick={handleBackup}
@@ -6688,7 +6689,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
               <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200"
                    style={{ background: "rgba(17,24,39,0.03)" }}>
                 <div>
-                  <div className="text-[13px] font-semibold text-white">Export Inventory to Excel</div>
+                  <div className="text-[13px] font-semibold text-slate-900">Export Inventory to Excel</div>
                   <div className="text-[11px] text-slate-500 mt-0.5">Download all inventory items as a CSV file (opens in Excel)</div>
                 </div>
                 <button onClick={handleExportExcel}
@@ -6778,9 +6779,9 @@ function POSearchCenter({
   };
 
   const statusColor = (s) => ({
-    draft:    "#6b7280", pending:  "#f59e0b", approved: "#E8553D",
+    draft:    "#6b7280", pending:  "#f59e0b", approved: "#D71920",
     ordered:  "#8b5cf6", received: "#22c55e", overdue:  "#ef4444",
-    rejected: "#ef4444", review:   "#f97316",
+    rejected: "#ef4444", review:   "#D97706",
   }[s] || "#6b7280");
 
   return (
@@ -6797,7 +6798,7 @@ function POSearchCenter({
           <div>
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Status</div>
             <select value={searchStatus} onChange={(e) => { setSearchStatus(e.target.value); setPage(0); }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white outline-none"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none"
                     style={{ background: "var(--surface-elevated)" }}>
               <option value="all">All</option>
               {["draft","pending","approved","ordered","received","overdue","rejected","review"].map((s) => <option key={s} value={s}>{s}</option>)}
@@ -6806,7 +6807,7 @@ function POSearchCenter({
           <div>
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Purchase Type</div>
             <select value={searchPurchaseType} onChange={(e) => { setSearchPurchaseType(e.target.value); setPage(0); }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white outline-none"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none"
                     style={{ background: "var(--surface-elevated)" }}>
               <option value="all">All</option>
               {PURCHASE_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
@@ -6815,19 +6816,19 @@ function POSearchCenter({
           <div>
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">From</div>
             <input type="date" value={searchDateFrom} onChange={(e) => { setSearchDateFrom(e.target.value); setPage(0); }}
-                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white outline-none"
+                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none"
                    style={{ colorScheme: "dark" }} />
           </div>
           <div>
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">To</div>
             <input type="date" value={searchDateTo} onChange={(e) => { setSearchDateTo(e.target.value); setPage(0); }}
-                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white outline-none"
+                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none"
                    style={{ colorScheme: "dark" }} />
           </div>
         </div>
         <div className="flex items-center justify-between mt-3 text-[10px]">
           <div className="text-slate-500">
-            <span className="text-white font-bold">{sorted.length.toLocaleString("en-IN")}</span> result{sorted.length !== 1 ? "s" : ""}
+            <span className="text-slate-900 font-bold">{sorted.length.toLocaleString("en-IN")}</span> result{sorted.length !== 1 ? "s" : ""}
             {sorted.length !== pos.length && <span className="text-slate-600"> · of {pos.length.toLocaleString("en-IN")} total</span>}
           </div>
           <button onClick={clearAll}
@@ -6860,7 +6861,7 @@ function POSearchCenter({
                   <tr key={po.id} onClick={() => onOpenPO?.(po)}
                       className="border-b border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 text-xs font-mono font-bold text-blue-400 whitespace-nowrap">{po.id}</td>
-                    <td className="px-4 py-3 text-xs font-semibold text-white max-w-[200px]"><div className="truncate">{po.vendor}</div></td>
+                    <td className="px-4 py-3 text-xs font-semibold text-slate-900 max-w-[200px]"><div className="truncate">{po.vendor}</div></td>
                     <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap font-mono">{po.poDate || po.date || "—"}</td>
                     <td className="px-4 py-3 text-[11px] text-slate-400 max-w-[180px]"><div className="truncate">{pt?.label || <span style={{ color: "var(--text-faint)" }}>—</span>}</div></td>
                     <td className="px-4 py-3 whitespace-nowrap">
@@ -6884,7 +6885,7 @@ function POSearchCenter({
           <div className="px-4 py-3 border-t border-slate-200 flex items-center justify-between text-[10px]"
                style={{ background: "rgba(17,24,39,0.03)" }}>
             <div className="text-slate-500">
-              Page <span className="text-white font-bold">{pageSafe + 1}</span> of <span className="text-white font-bold">{totalPages}</span>
+              Page <span className="text-slate-900 font-bold">{pageSafe + 1}</span> of <span className="text-slate-900 font-bold">{totalPages}</span>
               <span className="text-slate-600"> · showing {(pageSafe * pageSize) + 1}–{Math.min((pageSafe + 1) * pageSize, sorted.length)}</span>
             </div>
             <div className="flex gap-1">
@@ -7098,9 +7099,9 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
     <div className="flex items-center justify-between mb-3">
       <div className="flex items-center gap-2">
         <div className="w-1 h-5 rounded-full" style={{ background: color }} />
-        <span className="text-[12px] font-semibold text-white">{icon} {title}</span>
+        <span className="text-[12px] font-semibold text-slate-900">{icon} {title}</span>
       </div>
-      <span className="text-[11px] font-semibold text-white px-2 py-0.5 rounded-full" style={{ background: color+"22", border:`1px solid ${color}44` }}>{count}</span>
+      <span className="text-[11px] font-semibold text-slate-900 px-2 py-0.5 rounded-full" style={{ background: color+"22", border:`1px solid ${color}44` }}>{count}</span>
     </div>
   );
   const FuBadge = ({ fstat }) => {
@@ -7122,7 +7123,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
              style={{ background: "var(--surface-raised)", border: "1px solid rgba(34,197,94,0.45)", boxShadow: "0 20px 60px rgba(17,24,39,0.14)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">📦</span>
           <div>
-            <div className="text-xs font-black text-white">Received — {receiveToast}</div>
+            <div className="text-xs font-black text-slate-900">Received — {receiveToast}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">Stock updated · Pipeline closed</div>
           </div>
         </div>
@@ -7133,7 +7134,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
              style={{ background: "linear-gradient(135deg,#2a1216,#1a0c0e)", border: "1px solid rgba(239,68,68,0.45)", boxShadow: "0 20px 60px rgba(17,24,39,0.14)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">⚠️</span>
           <div>
-            <div className="text-xs font-black text-white">{waToast}</div>
+            <div className="text-xs font-black text-slate-900">{waToast}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">Add a valid mobile number in Vendor Master.</div>
           </div>
           <button onClick={() => setWaToast(null)} className="ml-2 text-slate-600 hover:text-slate-500 text-xs">✕</button>
@@ -7156,7 +7157,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         </div>
         {canDo("pipeline","create") && (
           <button onClick={openVendorWizard}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-slate-900 border transition-all"
                   style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", borderColor: "rgba(34,197,94,0.5)" }}>
             📦 Create Vendor PO
           </button>
@@ -7164,7 +7165,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         {canDo("pipeline","create") && (
           <button onClick={() => { setCreatePrefill(null); setShowCreatePO(true); }}
                   className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
-                  style={{ background: "linear-gradient(135deg,#E8553D,#A33E2A)", borderColor: "rgba(99,130,255,0.5)" }}>
+                  style={{ background: "linear-gradient(135deg,#D71920,#B01218)", borderColor: "rgba(176, 18, 24,0.5)" }}>
             + New PO
           </button>
         )}
@@ -7204,11 +7205,11 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                 const recommendedQty = Math.max(item.min * 2 - item.stock, item.min);
                 return (
                   <div key={item.code}
-                       className={`${card} ${item.status === "critical" ? "border-red-500/30" : "border-orange-500/20"}`}
+                       className={`${card} ${item.status === "critical" ? "border-red-500/30" : "border-amber-500/20"}`}
                        style={{ background: "var(--surface-elevated)" }}>
                     <div className="flex items-start justify-between gap-2 mb-2.5">
                       <div className="flex-1 min-w-0">
-                        <div className="text-[11px] font-semibold text-white truncate">{item.name}</div>
+                        <div className="text-[11px] font-semibold text-slate-900 truncate">{item.name}</div>
                         <div className="text-[9px] font-mono text-slate-500 mt-0.5">{item.code}</div>
                       </div>
                       <StatusBadge status={item.status} />
@@ -7217,17 +7218,17 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                     <div className="grid grid-cols-2 gap-1 mb-2">
                       <div className="px-2 py-1.5 rounded-lg" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.06)" }}>
                         <div className="text-[8px] text-slate-600 uppercase tracking-wide mb-0.5">Current</div>
-                        <div className={`text-[11px] font-bold ${item.status === "critical" ? "text-red-400" : "text-orange-400"}`}>{item.stock} {item.unit}</div>
+                        <div className={`text-[11px] font-bold ${item.status === "critical" ? "text-red-400" : "text-amber-700"}`}>{item.stock} {item.unit}</div>
                       </div>
                       <div className="px-2 py-1.5 rounded-lg" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.06)" }}>
                         <div className="text-[8px] text-slate-600 uppercase tracking-wide mb-0.5">Minimum</div>
                         <div className="text-[11px] font-bold text-slate-400">{item.min} {item.unit}</div>
                       </div>
-                      <div className="px-2 py-1.5 rounded-lg" style={{ background: "rgba(249,115,22,0.05)", border: "1px solid rgba(249,115,22,0.15)" }}>
-                        <div className="text-[8px] text-orange-700 uppercase tracking-wide mb-0.5">Shortage</div>
-                        <div className="text-[11px] font-bold text-orange-400">{shortage} {item.unit}</div>
+                      <div className="px-2 py-1.5 rounded-lg" style={{ background: "rgba(217, 119, 6,0.05)", border: "1px solid rgba(217, 119, 6,0.15)" }}>
+                        <div className="text-[8px] text-amber-700 uppercase tracking-wide mb-0.5">Shortage</div>
+                        <div className="text-[11px] font-bold text-amber-700">{shortage} {item.unit}</div>
                       </div>
-                      <div className="px-2 py-1.5 rounded-lg" style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.15)" }}>
+                      <div className="px-2 py-1.5 rounded-lg" style={{ background: "rgba(215, 25, 32,0.05)", border: "1px solid rgba(215, 25, 32,0.15)" }}>
                         <div className="text-[8px] text-blue-700 uppercase tracking-wide mb-0.5">Recommended</div>
                         <div className="text-[11px] font-bold text-blue-400">{recommendedQty} {item.unit}</div>
                       </div>
@@ -7262,11 +7263,11 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                       );
                     })()}
                     <div className="h-1 rounded-full bg-slate-50 mb-2.5 overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${poPct}%`, background: item.status === "critical" ? "#ef4444" : "#f97316" }} />
+                      <div className="h-full rounded-full" style={{ width: `${poPct}%`, background: item.status === "critical" ? "#ef4444" : "#D97706" }} />
                     </div>
                     {canDo("pipeline","create") && (
                       <button onClick={() => { setQtyModal({ item }); setQtyInput(String(recommendedQty)); }}
-                              className="w-full text-[10px] font-semibold py-1.5 rounded-lg text-white border border-blue-500/40 bg-blue-600/20 hover:bg-blue-600/35 transition-all">
+                              className="w-full text-[10px] font-semibold py-1.5 rounded-lg text-slate-900 border border-blue-500/40 bg-blue-600/20 hover:bg-blue-600/35 transition-all">
                         + Create PO
                       </button>
                     )}
@@ -7288,18 +7289,18 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
 
           {/* ─ Col 2: PO Approval ─ */}
           <div className="flex-1 flex flex-col min-w-[210px] max-w-[270px]">
-            <ColHdr icon="⏳" title="PO Approval" count={approvalPOs.length} color="#f97316" />
+            <ColHdr icon="⏳" title="PO Approval" count={approvalPOs.length} color="#D97706" />
             <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 pb-2">
               {approvalPOs.length === 0 && <div className="text-center py-10 text-[11px] text-slate-600"><div className="text-3xl mb-2">✅</div>No POs awaiting approval</div>}
               {approvalPOs.map(po => (
-                <div key={po.id} className={`${card} border-orange-500/20`} style={{ background: "var(--surface-elevated)" }}>
+                <div key={po.id} className={`${card} border-amber-500/20`} style={{ background: "var(--surface-elevated)" }}>
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">{po.id}</span>
                     <StatusBadge status={po.status} />
                   </div>
-                  <div className="text-[11px] font-bold text-white truncate mb-0.5">{po.vendor}</div>
+                  <div className="text-[11px] font-bold text-slate-900 truncate mb-0.5">{po.vendor}</div>
                   <div className="text-[9px] text-slate-500 mb-0.5">₹{(po.amount||0).toLocaleString("en-IN")} · {po.lineItems?.length||0} items · {po.date}</div>
-                  {po.priority && <div className={`text-[9px] font-bold mb-2 ${po.priority==="urgent"?"text-red-400":po.priority==="high"?"text-orange-400":"text-slate-600"}`}>⚡ {po.priority.toUpperCase()}</div>}
+                  {po.priority && <div className={`text-[9px] font-bold mb-2 ${po.priority==="urgent"?"text-red-400":po.priority==="high"?"text-amber-700":"text-slate-600"}`}>⚡ {po.priority.toUpperCase()}</div>}
                   {po.notes && <div className="text-[9px] text-slate-500 mb-2 truncate italic">"{po.notes}"</div>}
                   {po.rejectReason && <div className="text-[9px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1.5 mb-2">❌ {po.rejectReason}</div>}
                   <div className="flex gap-1 mb-1.5">
@@ -7320,7 +7321,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
 
           {/* ─ Col 3: Make Order ─ */}
           <div className="flex-1 flex flex-col min-w-[210px] max-w-[270px]">
-            <ColHdr icon="📦" title="Make Order" count={makeOrderPOs.length} color="#E8553D" />
+            <ColHdr icon="📦" title="Make Order" count={makeOrderPOs.length} color="#D71920" />
             <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 pb-2">
               {makeOrderPOs.length === 0 && <div className="text-center py-10 text-[11px] text-slate-600"><div className="text-3xl mb-2">📋</div>No approved POs to order</div>}
               {makeOrderPOs.map(po => {
@@ -7331,7 +7332,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                       <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">{po.id}</span>
                       <StatusBadge status={po.status} />
                     </div>
-                    <div className="text-[11px] font-bold text-white truncate mb-0.5">{po.vendor}</div>
+                    <div className="text-[11px] font-bold text-slate-900 truncate mb-0.5">{po.vendor}</div>
                     <div className="text-[9px] text-slate-500 mb-0.5">₹{(po.amount||0).toLocaleString("en-IN")} · {po.lineItems?.length||0} items</div>
                     <div className="text-[9px] text-slate-500 mb-2">ETA: {po.delivery||"—"}</div>
                     <div className="flex gap-1 mb-1.5">
@@ -7340,7 +7341,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                     </div>
                     {canDo("pipeline","ordered") && (
                       <button onClick={() => { setMoModal(po); setEta(""); setEtaCustom(""); }}
-                              className="w-full text-[10px] font-bold py-1.5 rounded-lg text-white border border-blue-500/40 bg-blue-600/20 hover:bg-blue-600/30 transition-all mb-1.5">
+                              className="w-full text-[10px] font-bold py-1.5 rounded-lg text-slate-900 border border-blue-500/40 bg-blue-600/20 hover:bg-blue-600/30 transition-all mb-1.5">
                         📋 Confirm Order + ETA
                       </button>
                     )}
@@ -7366,7 +7367,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                       <span className="text-[10px] font-mono font-bold text-purple-400 bg-purple-500/10 border border-purple-500/20 px-1.5 py-0.5 rounded">{f.poId}</span>
                       <FuBadge fstat={f.fstat} />
                     </div>
-                    <div className="text-[11px] font-bold text-white truncate mb-0.5">{f.vendor}</div>
+                    <div className="text-[11px] font-bold text-slate-900 truncate mb-0.5">{f.vendor}</div>
                     {f.itemNames?.length > 0 && (
                       <div className="text-[9px] text-slate-500 mb-1.5 truncate">{f.itemNames.slice(0,2).join(", ")}{f.itemNames.length>2?` +${f.itemNames.length-2} more`:""}</div>
                     )}
@@ -7428,7 +7429,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                     <span className="text-[10px] font-mono font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded">{po.id}</span>
                     <StatusBadge status="received" />
                   </div>
-                  <div className="text-[11px] font-bold text-white truncate mb-0.5">{po.vendor}</div>
+                  <div className="text-[11px] font-bold text-slate-900 truncate mb-0.5">{po.vendor}</div>
                   <div className="text-[9px] text-slate-500 mb-1">₹{(po.amount||0).toLocaleString("en-IN")} · {po.lineItems?.length||0} item{(po.lineItems?.length||0)!==1?"s":""}</div>
                   {po.receivedDate && (
                     <div className="flex items-center gap-1.5 mb-2">
@@ -7490,7 +7491,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base"
                    style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.35)" }}>📦</div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-black text-white">Select Vendor</div>
+                <div className="text-sm font-black text-slate-900">Select Vendor</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">Vendors with preferred low-stock items, sorted by item count.</div>
               </div>
               <button onClick={cancelVendorWizard} className="text-slate-500 hover:text-slate-900 text-lg leading-none">✕</button>
@@ -7498,7 +7499,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
             {vendorsWithPreferredLowStock.length === 0 ? (
               <div className="py-6 text-center">
                 <div className="text-3xl mb-2">✅</div>
-                <div className="text-sm font-bold text-white mb-1">No low-stock items with a preferred vendor</div>
+                <div className="text-sm font-bold text-slate-900 mb-1">No low-stock items with a preferred vendor</div>
                 <div className="text-[11px] text-slate-500">Either everything is in safe stock, or low-stock items don't have a Preferred vendor link yet.</div>
               </div>
             ) : (
@@ -7513,7 +7514,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                             style={{ background: sel ? "#16a34a" : "transparent", border: `1.5px solid ${sel ? "#16a34a" : "rgba(17,24,39,0.22)"}` }}>
                         {sel && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
                       </span>
-                      <span className="text-[12px] font-bold text-white flex-1 truncate">{v.name}</span>
+                      <span className="text-[12px] font-bold text-slate-900 flex-1 truncate">{v.name}</span>
                       <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full flex-shrink-0">
                         {v.count} low-stock item{v.count !== 1 ? "s" : ""}
                       </span>
@@ -7527,7 +7528,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                       className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 transition-all"
                       style={{ background: "rgba(17,24,39,0.04)", border: "1px solid var(--border-rim)" }}>Cancel</button>
               <button onClick={confirmWizVendor} disabled={!vendorWizVendor}
-                      className="flex-1 py-2.5 rounded-xl text-xs font-black text-white transition-all disabled:opacity-50"
+                      className="flex-1 py-2.5 rounded-xl text-xs font-black text-slate-900 transition-all disabled:opacity-50"
                       style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.35)" }}>
                 Open PO →
               </button>
@@ -7550,17 +7551,17 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
              onClick={e => e.target === e.currentTarget && setViewPO(null)}>
           <div className="w-full max-w-2xl flex flex-col rounded-2xl overflow-hidden"
-               style={{ maxHeight:"92vh", background:"var(--surface-elevated)", border:"1px solid rgba(232,85,61,0.32)", boxShadow:"0 40px 100px rgba(17,24,39,0.22)", animation:"slideUp 0.25s ease both" }}>
+               style={{ maxHeight:"92vh", background:"var(--surface-elevated)", border:"1px solid rgba(215, 25, 32,0.32)", boxShadow:"0 40px 100px rgba(17,24,39,0.22)", animation:"slideUp 0.25s ease both" }}>
             {/* ── Header ── */}
             <div className="px-5 py-4 border-b border-slate-200 flex-shrink-0"
-                 style={{ background:"linear-gradient(90deg,rgba(232,85,61,0.09),rgba(204,74,51,0.05))" }}>
+                 style={{ background:"linear-gradient(90deg,rgba(215, 25, 32,0.09),rgba(176, 18, 24,0.05))" }}>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[15px] font-black text-white font-mono">{viewPO.id}</span>
+                    <span className="text-[15px] font-black text-slate-900 font-mono">{viewPO.id}</span>
                     <StatusBadge status={viewPO.status} />
                     {viewPO.priority && (
-                      <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${viewPO.priority==="urgent"?"bg-red-500/15 text-red-400":viewPO.priority==="high"?"bg-orange-500/15 text-orange-400":"bg-white/5 text-slate-500"}`}>
+                      <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${viewPO.priority==="urgent"?"bg-red-500/15 text-red-400":viewPO.priority==="high"?"bg-amber-500/15 text-amber-700":"bg-white/5 text-slate-500"}`}>
                         {viewPO.priority}
                       </span>
                     )}
@@ -7571,7 +7572,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                   {vnd?.phone && <a href={`tel:${vnd.phone}`} className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg text-blue-400 border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-all">📞 Call</a>}
                   <button onClick={() => sendWA(viewPO)} className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg text-green-400 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-all">💬 WhatsApp</button>
                   <button onClick={() => generatePOPdf(viewPO, vnd, settings)}
-                          className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg text-orange-400 border border-orange-500/30 bg-orange-500/10 hover:bg-orange-500/20 transition-all">
+                          className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg text-amber-700 border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 transition-all">
                     📄 PDF
                   </button>
                   <button onClick={() => setViewPO(null)} className="w-7 h-7 rounded-lg bg-slate-50 hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-sm font-bold ml-0.5">✕</button>
@@ -7582,7 +7583,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                 {steps.map((s, i) => (
                   <div key={s} className="flex items-center flex-1 last:flex-none">
                     <div className="flex flex-col items-center">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black border ${i<cur?"bg-blue-500 border-blue-500 text-white":i===cur?"bg-blue-500/20 border-blue-500/60 text-blue-400":"bg-slate-50 border-slate-200 text-slate-600 opacity-40"}`} style={i<cur?{color:"#fff"}:undefined}>
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black border ${i<cur?"bg-blue-500 border-blue-500 text-slate-900":i===cur?"bg-blue-500/20 border-blue-500/60 text-blue-400":"bg-slate-50 border-slate-200 text-slate-600 opacity-40"}`} style={i<cur?{color:"#fff"}:undefined}>
                         {i < cur ? "✓" : i + 1}
                       </div>
                       <div className={`text-[7px] mt-1 font-bold ${i===cur?"text-blue-400":i<cur?"text-slate-400":"text-slate-700"}`}>{s}</div>
@@ -7600,7 +7601,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="p-3.5 rounded-xl" style={{ background:"rgba(17,24,39,0.03)", border:"1px solid rgba(17,24,39,0.08)" }}>
                   <div className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.12em] mb-2">Vendor</div>
-                  <div className="text-[13px] font-black text-white mb-2">{viewPO.vendor}</div>
+                  <div className="text-[13px] font-black text-slate-900 mb-2">{viewPO.vendor}</div>
                   {vnd?.contactPerson && <div className="flex items-center gap-1.5 text-[10.5px] text-slate-400 mb-1">👤 {vnd.contactPerson}</div>}
                   {vnd?.phone && <div className="flex items-center gap-1.5 text-[10.5px] text-slate-400 mb-1">📱 {vnd.phone}</div>}
                   {vnd?.gst && <div className="text-[10px] font-mono text-slate-500 mb-1">GSTIN: {vnd.gst}</div>}
@@ -7610,11 +7611,11 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                 <div className="p-3.5 rounded-xl" style={{ background:"rgba(17,24,39,0.03)", border:"1px solid rgba(17,24,39,0.08)" }}>
                   <div className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.12em] mb-2">Purchase Order</div>
                   <div className="grid gap-y-1.5 text-[10.5px]" style={{ gridTemplateColumns:"auto 1fr" }}>
-                    <span className="text-slate-500 pr-3">PO Number</span><span className="font-mono font-bold text-white">{viewPO.id}</span>
+                    <span className="text-slate-500 pr-3">PO Number</span><span className="font-mono font-bold text-slate-900">{viewPO.id}</span>
                     <span className="text-slate-500 pr-3">Date</span><span className="font-semibold text-slate-500">{viewPO.date}</span>
                     <span className="text-slate-500 pr-3">ETA</span><span className="font-semibold text-slate-500">{viewPO.eta || viewPO.delivery || "—"}</span>
                     <span className="text-slate-500 pr-3">Priority</span>
-                    <span className={`font-bold uppercase text-[9px] ${viewPO.priority==="urgent"?"text-red-400":viewPO.priority==="high"?"text-orange-400":"text-slate-400"}`}>{viewPO.priority||"normal"}</span>
+                    <span className={`font-bold uppercase text-[9px] ${viewPO.priority==="urgent"?"text-red-400":viewPO.priority==="high"?"text-amber-700":"text-slate-400"}`}>{viewPO.priority||"normal"}</span>
                     <span className="text-slate-500 pr-3">Items</span><span className="font-semibold text-slate-500">{viewPO.lineItems?.length||0} line items</span>
                     <span className="text-slate-500 pr-3">Grand Total</span><span className="font-black text-green-400 font-mono">₹{poTotal.toLocaleString("en-IN")}</span>
                   </div>
@@ -7642,7 +7643,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                           <tr key={i} style={{ borderBottom: i < viewPO.lineItems.length-1 ? "1px solid rgba(17,24,39,0.04)" : "none" }}>
                             <td className="px-3 py-2 text-[10px] text-slate-600 font-mono">{i+1}</td>
                             <td className="px-3 py-2">
-                              <div className="text-[11px] font-semibold text-white">{li.name}</div>
+                              <div className="text-[11px] font-semibold text-slate-900">{li.name}</div>
                               <div className="text-[9px] font-mono text-slate-500">{li.code}</div>
                             </td>
                             <td className="px-2 py-2 text-[10px] text-slate-400 text-center">{li.unit||"—"}</td>
@@ -7661,10 +7662,10 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                       </div>
                       <div className="flex justify-between px-3 py-1.5 text-[10px]">
                         <span className="text-slate-500">GST (18%)</span>
-                        <span className="font-mono font-semibold text-orange-400">₹{poGst.toLocaleString("en-IN")}</span>
+                        <span className="font-mono font-semibold text-amber-700">₹{poGst.toLocaleString("en-IN")}</span>
                       </div>
                       <div className="flex justify-between px-3 py-2.5" style={{ borderTop:"1px solid rgba(17,24,39,0.06)" }}>
-                        <span className="text-[12px] font-bold text-white">Grand Total</span>
+                        <span className="text-[12px] font-bold text-slate-900">Grand Total</span>
                         <span className="text-[13px] font-black font-mono text-green-400">₹{poTotal.toLocaleString("en-IN")}</span>
                       </div>
                     </div>
@@ -7691,11 +7692,11 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               {/* Activity History */}
               {viewPO.activityLog?.length > 0 && (() => {
                 const iconCfg = {
-                  "Created PO":     { icon: "📄", color: "#E8553D" },
+                  "Created PO":     { icon: "📄", color: "#D71920" },
                   "Approved":       { icon: "✅", color: "#22c55e" },
                   "Rejected":       { icon: "❌", color: "#ef4444" },
                   "Order Placed":   { icon: "📋", color: "#8b5cf6" },
-                  "Follow Up Done": { icon: "🔔", color: "#f97316" },
+                  "Follow Up Done": { icon: "🔔", color: "#D97706" },
                   "Received":       { icon: "📦", color: "#22c55e" },
                 };
                 return (
@@ -7709,7 +7710,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                                style={{ background:"rgba(17,24,39,0.03)", border:`1px solid ${cfg.color}20` }}>
                             <span className="text-sm flex-shrink-0 mt-0.5">{cfg.icon}</span>
                             <div className="flex-1 min-w-0">
-                              <div className="text-[11px] font-bold text-white">{entry.action}</div>
+                              <div className="text-[11px] font-bold text-slate-900">{entry.action}</div>
                               {entry.note && <div className="text-[10px] text-slate-500 mt-0.5">{entry.note}</div>}
                             </div>
                             <div className="text-[9px] text-slate-600 flex-shrink-0 mt-1">{entry.date}</div>
@@ -7735,7 +7736,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               {viewPO.status === "approved" && canDo("pipeline","ordered") && (
                 <button onClick={() => { setMoModal(viewPO); setViewPO(null); setEta(""); setEtaCustom(""); }}
                         className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
-                        style={{ background:"linear-gradient(135deg,#E8553D,#A33E2A)", borderColor:"rgba(99,130,255,0.5)" }}>
+                        style={{ background:"linear-gradient(135deg,#D71920,#B01218)", borderColor:"rgba(176, 18, 24,0.5)" }}>
                   📋 Confirm Order + ETA
                 </button>
               )}
@@ -7751,14 +7752,14 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               })()}
               {["ordered","overdue"].includes(viewPO.status) && canDo("pipeline","receive") && (
                 <button onClick={() => { handleReceive(viewPO.id); setViewPO(null); }}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-slate-900 border transition-all"
                         style={{ background:"linear-gradient(135deg,#16a34a,#15803d)", borderColor:"rgba(34,197,94,0.5)" }}>
                   📦 Mark Received
                 </button>
               )}
               {viewPO.status === "received" && isSuperAdmin && onReverseReceive && (
                 <button onClick={() => { setReverseModal(viewPO.id); setReverseReason(""); setReverseErr(""); }}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-slate-900 border transition-all"
                         style={{ background:"linear-gradient(135deg,#f59e0b,#d97706)", borderColor:"rgba(251,191,36,0.5)" }}
                         title="Super Admin only: reverts stock and PO status">
                   ↩ Reverse Receive
@@ -7787,7 +7788,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background:"rgba(245,158,11,0.15)" }}>↩</div>
               <div>
-                <div className="text-sm font-black text-white">Reverse Receive</div>
+                <div className="text-sm font-black text-slate-900">Reverse Receive</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">PO {reverseModal} — Super Admin correction</div>
               </div>
             </div>
@@ -7810,7 +7811,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                 if (res?.success === false) { setReverseErr(res.error || "Reversal failed"); return; }
                 setReverseModal(null); setReverseReason(""); setReverseErr("");
               }}
-                className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-2 text-white border transition-all"
+                className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-2 text-slate-900 border transition-all"
                 style={{ background:"linear-gradient(135deg,#f59e0b,#d97706)", borderColor:"rgba(251,191,36,0.5)" }}>
                 Reverse Receive
               </button>
@@ -7825,7 +7826,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
              style={{ background:"rgba(17,24,39,0.45)", backdropFilter:"blur(12px)" }}
              onClick={e => e.target===e.currentTarget && (setRejectModal(null),setRejectReason(""),setRejectErr(false))}>
           <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"var(--surface-elevated)", border:"1px solid rgba(239,68,68,0.4)", boxShadow:"0 40px 80px rgba(17,24,39,0.22)", animation:"slideUp 0.25s ease both" }}>
-            <div className="text-sm font-black text-white">❌ Reject PO</div>
+            <div className="text-sm font-black text-slate-900">❌ Reject PO</div>
             <div>
               <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-1.5">Rejection Reason <span className="text-red-600">*</span></div>
               <textarea value={rejectReason} onChange={e=>{setRejectReason(e.target.value);setRejectErr(false);}} rows={3}
@@ -7846,9 +7847,9 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         <div className="modal-backdrop fixed inset-0 z-[55] flex items-center justify-center p-4"
              style={{ background:"rgba(17,24,39,0.45)", backdropFilter:"blur(12px)" }}
              onClick={e=>e.target===e.currentTarget&&(setMoModal(null),setEta(""),setEtaCustom(""))}>
-          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"var(--surface-elevated)", border:"1px solid rgba(232,85,61,0.4)", boxShadow:"0 40px 80px rgba(17,24,39,0.22)", animation:"slideUp 0.25s ease both" }}>
+          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"var(--surface-elevated)", border:"1px solid rgba(215, 25, 32,0.4)", boxShadow:"0 40px 80px rgba(17,24,39,0.22)", animation:"slideUp 0.25s ease both" }}>
             <div>
-              <div className="text-sm font-black text-white">📋 Confirm Order</div>
+              <div className="text-sm font-black text-slate-900">📋 Confirm Order</div>
               <div className="text-[10px] text-slate-500 mt-1">{moModal.id} · {moModal.vendor} · ₹{(moModal.amount||0).toLocaleString("en-IN")}</div>
             </div>
             <div>
@@ -7863,14 +7864,14 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                       className={`w-full py-2 rounded-lg text-xs font-bold border transition-all mb-2 ${eta==="custom"?"bg-purple-500/20 text-purple-400 border-purple-500/40":"bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100"}`}>
                 📅 Custom Date
               </button>
-              {eta==="custom" && <input type="date" value={etaCustom} onChange={e=>setEtaCustom(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-white outline-none modal-input" />}
-              {!eta && <div className="text-[10px] text-orange-400 mt-1">Select an ETA to confirm</div>}
+              {eta==="custom" && <input type="date" value={etaCustom} onChange={e=>setEtaCustom(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none modal-input" />}
+              {!eta && <div className="text-[10px] text-amber-700 mt-1">Select an ETA to confirm</div>}
             </div>
             <div className="flex gap-2">
               <Btn variant="ghost" size="sm" onClick={()=>{setMoModal(null);setEta("");setEtaCustom("");}}>Cancel</Btn>
               <button onClick={handleConfirm} disabled={!eta||(eta==="custom"&&!etaCustom)}
                       className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-4 py-1.5 text-white border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                      style={{ background:"linear-gradient(135deg,#E8553D,#A33E2A)", borderColor:"rgba(99,130,255,0.5)" }}>
+                      style={{ background:"linear-gradient(135deg,#D71920,#B01218)", borderColor:"rgba(176, 18, 24,0.5)" }}>
                 ✅ Confirm & Start Follow-Up
               </button>
             </div>
@@ -7885,7 +7886,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
              onClick={e=>e.target===e.currentTarget&&setFuModal(null)}>
           <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"var(--surface-elevated)", border:"1px solid rgba(167,139,250,0.4)", boxShadow:"0 40px 80px rgba(17,24,39,0.22)", animation:"slideUp 0.25s ease both" }}>
             <div>
-              <div className="text-sm font-black text-white">✓ Mark Follow-Up Done</div>
+              <div className="text-sm font-black text-slate-900">✓ Mark Follow-Up Done</div>
               <div className="text-[10px] text-slate-500 mt-1">{fuModal.poId} · {fuModal.vendor}</div>
             </div>
             <div>
@@ -7900,7 +7901,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                       className={`w-full py-2 rounded-lg text-xs font-bold border transition-all mb-2 ${fuFreq==="custom"?"bg-purple-500/20 text-purple-400 border-purple-500/40":"bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100"}`}>
                 📅 Custom Date
               </button>
-              {fuFreq==="custom" && <input type="date" value={fuCustom} onChange={e=>setFuCustom(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-white outline-none modal-input" />}
+              {fuFreq==="custom" && <input type="date" value={fuCustom} onChange={e=>setFuCustom(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none modal-input" />}
             </div>
             <div className="flex gap-2">
               <Btn variant="ghost" size="sm" onClick={()=>setFuModal(null)}>Cancel</Btn>
@@ -7929,16 +7930,16 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                  style={{ background: "var(--surface-elevated)", border: "1px solid rgba(99,130,246,0.4)", boxShadow: "0 40px 80px rgba(17,24,39,0.22)", animation: "slideUp 0.25s ease both" }}>
               {/* Header */}
               <div className="px-5 py-4 border-b border-slate-200" style={{ background: "rgba(99,130,246,0.06)" }}>
-                <div className="text-sm font-black text-white">🛒 Create Purchase Order</div>
+                <div className="text-sm font-black text-slate-900">🛒 Create Purchase Order</div>
                 <div className="text-[10px] text-slate-500 mt-0.5 truncate">{item.name} · {item.code}</div>
               </div>
               {/* Stats grid */}
               <div className="px-5 pt-4 grid grid-cols-2 gap-2">
                 {[
-                  { label: "Current Stock", value: `${item.stock} ${item.unit}`, color: item.status === "critical" ? "#ef4444" : "#f97316" },
+                  { label: "Current Stock", value: `${item.stock} ${item.unit}`, color: item.status === "critical" ? "#ef4444" : "#D97706" },
                   { label: "Min Stock",     value: `${item.min} ${item.unit}`,   color: "#6b7280" },
-                  { label: "Shortage",      value: `${shortage} ${item.unit}`,   color: "#f97316" },
-                  { label: "Recommended",   value: `${recommendedQty} ${item.unit}`, color: "#E8553D" },
+                  { label: "Shortage",      value: `${shortage} ${item.unit}`,   color: "#D97706" },
+                  { label: "Recommended",   value: `${recommendedQty} ${item.unit}`, color: "#D71920" },
                 ].map(s => (
                   <div key={s.label} className="px-3 py-2.5 rounded-xl" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.06)" }}>
                     <div className="text-[9px] font-black text-slate-600 uppercase tracking-wider mb-1">{s.label}</div>
@@ -7954,7 +7955,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                           className="w-9 h-9 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white/10 border border-slate-200 transition-all text-lg font-bold flex items-center justify-center flex-shrink-0">−</button>
                   <input type="number" min="1" value={qtyInput}
                          onChange={e => setQtyInput(e.target.value)}
-                         className="flex-1 text-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-white outline-none modal-input"
+                         className="flex-1 text-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-900 outline-none modal-input"
                          style={{ fontVariantNumeric: "tabular-nums" }} />
                   <button onClick={() => setQtyInput(v => String((parseInt(v, 10) || 0) + 1))}
                           className="w-9 h-9 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white/10 border border-slate-200 transition-all text-lg font-bold flex items-center justify-center flex-shrink-0">+</button>
@@ -7974,7 +7975,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                   disabled={parsedQty < 1}
                   onClick={() => { openCreatePO(item, parsedQty); setQtyModal(null); }}
                   className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all disabled:opacity-40"
-                  style={{ background: "linear-gradient(135deg,#E8553D,#A33E2A)", borderColor: "rgba(99,130,255,0.5)" }}>
+                  style={{ background: "linear-gradient(135deg,#D71920,#B01218)", borderColor: "rgba(176, 18, 24,0.5)" }}>
                   📋 Create PO →
                 </button>
               </div>
@@ -8050,7 +8051,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
              style={{ background: "var(--surface-raised)", border: "1px solid rgba(34,197,94,0.45)", boxShadow: "0 20px 60px rgba(17,24,39,0.14)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">📥</span>
           <div>
-            <div className="text-xs font-black text-white">+{toast.qty} {toast.unit} — {toast.item}</div>
+            <div className="text-xs font-black text-slate-900">+{toast.qty} {toast.unit} — {toast.item}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">From: {toast.vendor}</div>
           </div>
           <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-500 text-xs">✕</button>
@@ -8065,7 +8066,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
         {/* ── Entry Form ── */}
         <div className="bg-white border border-slate-200 rounded-xl p-6" style={{ animation: "slideUp 0.4s ease both" }}>
           <div className="flex items-center gap-2 mb-5">
-            <h2 className="text-sm font-extrabold text-white">📥 New Inward Entry</h2>
+            <h2 className="text-sm font-extrabold text-slate-900">📥 New Inward Entry</h2>
             <span className="text-[10px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded-full">GRN</span>
           </div>
 
@@ -8149,7 +8150,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
                       {selectedItem.stock} <span className="text-xs text-slate-500">{selectedItem.unit}</span>
                     </div>
                     <div className="mt-2 h-1 bg-slate-50 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${fillPctNow}%`, background: statusConfig[selectedItem.status].dot || "#E8553D" }} />
+                      <div className="h-full rounded-full" style={{ width: `${fillPctNow}%`, background: statusConfig[selectedItem.status].dot || "#D71920" }} />
                     </div>
                     <div className="text-[9px] text-slate-600 mt-1">Min: {selectedItem.min} {selectedItem.unit}</div>
                   </div>
@@ -8167,7 +8168,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
                       {newS} <span className="text-xs text-slate-500">{selectedItem.unit}</span>
                     </div>
                     <div className="mt-2 h-1 bg-slate-50 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${fillPctNew}%`, background: newCfg.dot || "#E8553D" }} />
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${fillPctNew}%`, background: newCfg.dot || "#D71920" }} />
                     </div>
                     <div className="text-[9px] text-slate-600 mt-1">{fillPctNew}% of min level</div>
                   </div>
@@ -8180,7 +8181,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
             <Btn variant="ghost" size="sm" onClick={() => { setSelectedCode(""); setQty(""); setNotes(""); setVendor(""); setErrors({}); }}>Clear</Btn>
             {canDo("inward","submit") && (
               <button onClick={handleSubmit} disabled={submitting}
-                      className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white border transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-slate-900 border transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                       style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", borderColor: "rgba(34,197,94,0.5)", boxShadow: "0 0 16px rgba(34,197,94,0.3)" }}>
                 {submitting ? "⏳ Submitting…" : "📥 Submit Inward"}
               </button>
@@ -8219,7 +8220,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
                           {entry.fromPO && <span className="ml-1.5 text-[8px] font-bold text-green-500 bg-green-500/10 border border-green-500/20 px-1 py-0.5 rounded">AUTO</span>}
                         </td>
                         <td className="px-4 py-2 text-[10px] font-mono font-bold text-blue-400">{entry.code}</td>
-                        <td className="px-4 py-2 text-[10px] text-white">{entry.item}</td>
+                        <td className="px-4 py-2 text-[10px] text-slate-900">{entry.item}</td>
                         <td className="px-4 py-2 text-[10px] font-bold font-mono text-green-400">+{entry.qty} {entry.unit}</td>
                         <td className="px-4 py-2 text-[10px] text-slate-500">{entry.notes}</td>
                       </tr>
@@ -8396,7 +8397,7 @@ function BomChecklistSlots({
   // ── Render ────────────────────────────────────────────────────────────────
   const DeptRow = ({ dept }) => (
     <div className="rounded-xl p-3" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
-      <div className="text-[11px] font-black text-white mb-2 uppercase tracking-wider">{dept}</div>
+      <div className="text-[11px] font-black text-slate-900 mb-2 uppercase tracking-wider">{dept}</div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         {CHECKLIST_STAGES.map((s) => {
           const slot = slotFor(dept, s.key);
@@ -8410,7 +8411,7 @@ function BomChecklistSlots({
                     style={{ background: slot ? "rgba(34,197,94,0.05)" : "rgba(17,24,39,0.03)",
                              borderColor: slot ? "rgba(34,197,94,0.3)" : "rgba(17,24,39,0.10)" }}>
               <div className="text-[9px] font-bold uppercase tracking-wider" style={{ color: slot ? "#15803d" : "#64748b" }}>{s.short}</div>
-              <div className="text-[11px] font-bold text-white mt-0.5">
+              <div className="text-[11px] font-bold text-slate-900 mt-0.5">
                 {slot
                   ? `${count} step${count === 1 ? "" : "s"}${hasRequired ? " · must do" : ""}`
                   : <span className="text-slate-500">— Add —</span>}
@@ -8436,12 +8437,12 @@ function BomChecklistSlots({
              onClick={(e) => e.target === e.currentTarget && !busy && closeEditor()}>
           <div className="w-full max-w-xl rounded-2xl overflow-hidden flex flex-col"
                style={{ maxHeight: "90vh", background: "var(--surface-elevated)",
-                        border: "1px solid rgba(232,85,61,0.5)",
+                        border: "1px solid rgba(215, 25, 32,0.5)",
                         boxShadow: "0 40px 100px rgba(17,24,39,0.22)" }}>
             <div className="px-5 py-3 border-b border-slate-200 flex items-start justify-between flex-shrink-0"
-                 style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.14),rgba(204,74,51,0.06))" }}>
+                 style={{ background: "linear-gradient(90deg,rgba(215, 25, 32,0.14),rgba(176, 18, 24,0.06))" }}>
               <div>
-                <div className="text-sm font-black text-white">📋 Checklist · {editing.dept}</div>
+                <div className="text-sm font-black text-slate-900">📋 Checklist · {editing.dept}</div>
                 <div className="text-[11px] text-slate-400 mt-0.5">{CHECKLIST_STAGES.find((s) => s.key === editing.stage).long}</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">{CHECKLIST_STAGES.find((s) => s.key === editing.stage).hint}</div>
               </div>
@@ -8463,12 +8464,12 @@ function BomChecklistSlots({
                 </button>
                 {reuseOpen && reuseCandidates.length > 0 && (
                   <div className="absolute left-0 right-0 top-full mt-1 z-10 rounded-lg overflow-hidden overflow-y-auto"
-                       style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.35)", maxHeight: 220 }}>
+                       style={{ background: "var(--surface-elevated)", border: "1px solid rgba(215, 25, 32,0.35)", maxHeight: 220 }}>
                     {reuseCandidates.map((t) => (
                       <button key={t.id}
                               onMouseDown={(e) => { e.preventDefault(); applyReuse(t); }}
                               className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-200 last:border-0">
-                        <div className="text-[11px] font-bold text-white truncate">{t.name}</div>
+                        <div className="text-[11px] font-bold text-slate-900 truncate">{t.name}</div>
                         <div className="text-[9px] text-slate-500">
                           {t.bomKey ? `BOM ${t.bomKey}` : "Shared library"} · {t.stage ? CHECKLIST_STAGES.find((s) => s.key === t.stage)?.short || t.stage : "Legacy"} · {(t.items || []).length} step{(t.items || []).length === 1 ? "" : "s"}
                         </div>
@@ -8488,7 +8489,7 @@ function BomChecklistSlots({
                   <input value={it.label}
                          onChange={(e) => patchRow(idx, { label: e.target.value })}
                          placeholder="What should the operator check?"
-                         className="flex-1 bg-slate-50 border border-slate-200 rounded-md px-2 py-1.5 text-[12px] text-white outline-none focus:border-blue-500/40 modal-input" />
+                         className="flex-1 bg-slate-50 border border-slate-200 rounded-md px-2 py-1.5 text-[12px] text-slate-900 outline-none focus:border-blue-500/40 modal-input" />
                   <label className="flex items-center gap-1 cursor-pointer text-[10px] text-slate-400">
                     <input type="checkbox" checked={!!it.required}
                            onChange={(e) => patchRow(idx, { required: e.target.checked })}
@@ -8532,7 +8533,7 @@ function BomChecklistSlots({
                   Cancel
                 </button>
                 <button onClick={saveSlot} disabled={busy}
-                        className="text-xs font-black text-white px-4 py-1.5 rounded-lg transition-all disabled:opacity-50"
+                        className="text-xs font-black text-slate-900 px-4 py-1.5 rounded-lg transition-all disabled:opacity-50"
                         style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.3)" }}>
                   {busy ? "Saving…" : "✓ Save Checklist"}
                 </button>
@@ -8676,8 +8677,8 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   const hasOverIssue   = checkedE.some((i) => (i.overQty || 0) > 0);
   const canSubmit      = checkedE.some((i) => i.issueQty > 0);
 
-  const SC = { green: "#22c55e", orange: "#f97316", red: "#ef4444" };
-  const SB = { green: "rgba(34,197,94,0.1)", orange: "rgba(249,115,22,0.1)", red: "rgba(239,68,68,0.1)" };
+  const SC = { green: "#22c55e", orange: "#D97706", red: "#ef4444" };
+  const SB = { green: "rgba(34,197,94,0.1)", orange: "rgba(217, 119, 6,0.1)", red: "rgba(239,68,68,0.1)" };
   const SL = { green: "Available", orange: "Partial", red: "Missing" };
 
   // Critical-item lines that are both checked and being issued this round.
@@ -8728,7 +8729,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
           <span className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] w-28 text-left">{cat}</span>
           <div className="flex gap-1.5">
             {cReady   > 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background:"rgba(34,197,94,0.1)",  color:"#15803d",  border:"1px solid rgba(34,197,94,0.2)"  }}>{cReady}✓</span>}
-            {cPartial > 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background:"rgba(249,115,22,0.1)", color:"#c2410c", border:"1px solid rgba(249,115,22,0.2)" }}>{cPartial}~</span>}
+            {cPartial > 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background:"rgba(217, 119, 6,0.1)", color:"#B45309", border:"1px solid rgba(217, 119, 6,0.2)" }}>{cPartial}~</span>}
             {cMissing > 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background:"rgba(239,68,68,0.1)",  color:"#dc2626",  border:"1px solid rgba(239,68,68,0.2)"  }}>{cMissing}✗</span>}
           </div>
           <span className="ml-auto text-[10px] text-slate-600">{collapsed ? "▶" : "▼"} {catItems.length} items</span>
@@ -8745,7 +8746,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               <div className="min-w-0 pr-3">
                 <div className="flex items-center gap-1.5">
                   <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: sc }} />
-                  <span className="text-[11px] font-semibold text-white truncate">{item.name}</span>
+                  <span className="text-[11px] font-semibold text-slate-900 truncate">{item.name}</span>
                 </div>
                 <div className="flex items-center gap-2 pl-3 mt-0.5">
                   <span className="text-[9px] font-mono text-slate-600">{item.code}</span>
@@ -8776,14 +8777,14 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                        onChange={(e) => setIssueQtys((p) => ({ ...p, [item.code]: Math.min(item.available, Math.max(0, parseInt(e.target.value,10)||0)) }))}
                        onWheel={(e) => e.currentTarget.blur()}
                        disabled={!rowChecked}
-                       className="w-[58px] bg-slate-50 border rounded-lg px-2 py-1 text-xs text-white outline-none text-right modal-input disabled:opacity-30 transition-colors"
-                       style={{ fontFamily:"'Inter',system-ui,sans-serif", borderColor: rowChecked && item.overQty > 0 ? "rgba(251,191,36,0.55)" : rowChecked && item.issueQty < item.required ? "rgba(249,115,22,0.45)" : "rgba(17,24,39,0.10)" }} />
+                       className="w-[58px] bg-slate-50 border rounded-lg px-2 py-1 text-xs text-slate-900 outline-none text-right modal-input disabled:opacity-30 transition-colors"
+                       style={{ fontFamily:"'Inter',system-ui,sans-serif", borderColor: rowChecked && item.overQty > 0 ? "rgba(251,191,36,0.55)" : rowChecked && item.issueQty < item.required ? "rgba(217, 119, 6,0.45)" : "rgba(17,24,39,0.10)" }} />
               </div>
               <div className="text-right pr-4">
                 {item.overQty > 0
                   ? <><span className="text-[11px] font-bold font-mono" style={{color:"#b45309",fontFamily:"'Inter',system-ui,sans-serif"}}>+{item.overQty}</span><div className="text-[9px] font-bold" style={{color:"#d97706"}}>over</div></>
                   : item.pendingQty > 0
-                    ? <><span className="text-[11px] font-bold font-mono text-orange-400" style={{fontFamily:"'Inter',system-ui,sans-serif"}}>{item.pendingQty}</span><div className="text-[9px] text-slate-600">{item.unit}</div></>
+                    ? <><span className="text-[11px] font-bold font-mono text-amber-700" style={{fontFamily:"'Inter',system-ui,sans-serif"}}>{item.pendingQty}</span><div className="text-[9px] text-slate-600">{item.unit}</div></>
                     : <span className="text-[10px] text-green-400 font-bold">✓</span>
                 }
               </div>
@@ -9004,17 +9005,17 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
       {/* ── Header ── */}
       <div className="flex-shrink-0" style={{ background: "var(--surface-card)", borderBottom: "1px solid var(--border-subtle)" }}>
         <div className="flex items-center gap-4 px-6 py-4">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black text-white flex-shrink-0"
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black text-slate-900 flex-shrink-0"
                style={{ background: bom.color + "22", border: `1px solid ${bom.color}55` }}>{bomKey}</div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-black text-white">{bomKey} — {bom.label}</div>
+            <div className="text-sm font-black text-slate-900">{bomKey} — {bom.label}</div>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               {serialNo && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:"rgba(232,85,61,0.12)", color:"#F7A992", border:"1px solid rgba(232,85,61,0.25)" }}>S/N: {serialNo}</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:"rgba(215, 25, 32,0.12)", color:"#F7A992", border:"1px solid rgba(215, 25, 32,0.25)" }}>S/N: {serialNo}</span>
               )}
               <span className="text-[10px] text-slate-500">{enriched.length} components</span>
               {readyN > 0   && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(34,197,94,0.12)",  color: "#15803d",  border: "1px solid rgba(34,197,94,0.22)"  }}>{readyN} ready</span>}
-              {partialN > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(249,115,22,0.12)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.22)" }}>{partialN} partial</span>}
+              {partialN > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(217, 119, 6,0.12)", color: "#B45309", border: "1px solid rgba(217, 119, 6,0.22)" }}>{partialN} partial</span>}
               {missingN > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(239,68,68,0.12)",  color: "#dc2626",  border: "1px solid rgba(239,68,68,0.22)"  }}>{missingN} missing</span>}
             </div>
           </div>
@@ -9023,12 +9024,12 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(17,24,39,0.04)", border: "1px solid rgba(17,24,39,0.10)" }}>
             <span className="text-[10px] text-slate-400 mr-1">Units</span>
             <button onClick={() => onUnitsChange(Math.max(1, units - 1))} className="w-6 h-6 rounded text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-white/10 transition-all">−</button>
-            <span className="text-sm font-black text-white w-8 text-center font-mono" style={{ fontFamily: "'Inter',system-ui,sans-serif" }}>{units}</span>
+            <span className="text-sm font-black text-slate-900 w-8 text-center font-mono" style={{ fontFamily: "'Inter',system-ui,sans-serif" }}>{units}</span>
             <button onClick={() => onUnitsChange(units + 1)} className="w-6 h-6 rounded text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-white/10 transition-all">+</button>
           </div>
 
           <button onClick={() => { if (editMode) { setEditMode(false); resetEditState(); } else { resetEditState(); setEditMode(true); } }}
-                  className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${editMode ? "bg-orange-500/10 text-orange-400 border-orange-500/30" : "bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-900"}`}>
+                  className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${editMode ? "bg-amber-500/10 text-amber-700 border-amber-500/30" : "bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-900"}`}>
             {editMode ? "✕ Cancel" : "✏️ Edit BOM"}
           </button>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-900 text-[11px] font-bold px-3 py-1.5 rounded-lg hover:bg-slate-50 border border-slate-200 transition-all">✕ Close</button>
@@ -9046,7 +9047,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               <button key={f} onClick={() => setFilterStatus(f)}
                       className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg border transition-all"
                       style={ filterStatus === f
-                        ? { background: f === "all" ? "rgba(232,85,61,0.15)" : SB[f], borderColor: f === "all" ? "rgba(232,85,61,0.4)" : SC[f] + "55", color: f === "all" ? "#F18A75" : SC[f] }
+                        ? { background: f === "all" ? "rgba(215, 25, 32,0.15)" : SB[f], borderColor: f === "all" ? "rgba(215, 25, 32,0.4)" : SC[f] + "55", color: f === "all" ? "#F18A75" : SC[f] }
                         : { background: "transparent", borderColor: "rgba(17,24,39,0.06)", color: "#64748b" } }>
                 {f === "all" ? `All (${enriched.length})` : `${SL[f]} (${enriched.filter(i=>i.status===f).length})`}
               </button>
@@ -9063,7 +9064,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
         {editMode ? (
           /* ── Edit Mode — full width, unchanged ── */
           <div className="flex-1 overflow-y-auto"><div className="p-6 space-y-4 max-w-3xl">
-            <div className="text-[10px] font-bold text-orange-400 bg-orange-500/10 border border-orange-500/20 rounded-xl px-4 py-3">
+            <div className="text-[10px] font-bold text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
               ✏️ Edit Mode — Modify items, quantities, then Save BOM to apply changes permanently.
             </div>
 
@@ -9105,15 +9106,15 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                     onClick={() => setShowCriticalPanel((v) => !v)}
                     className="flex items-center gap-2 text-[12px] font-bold px-4 py-2 rounded-xl border transition-all"
                     style={{
-                      background: showCriticalPanel ? "rgba(249,115,22,0.14)" : "rgba(249,115,22,0.05)",
-                      borderColor: showCriticalPanel ? "rgba(249,115,22,0.55)" : "rgba(249,115,22,0.25)",
-                      color: "#c2410c",
+                      background: showCriticalPanel ? "rgba(217, 119, 6,0.14)" : "rgba(217, 119, 6,0.05)",
+                      borderColor: showCriticalPanel ? "rgba(217, 119, 6,0.55)" : "rgba(217, 119, 6,0.25)",
+                      color: "#B45309",
                     }}
                   >
                     <span className="text-base">🔒</span>
                     <span>Critical Items</span>
                     <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
-                          style={{ background: "rgba(249,115,22,0.2)", color: "#fed7aa" }}>
+                          style={{ background: "rgba(217, 119, 6,0.2)", color: "#fed7aa" }}>
                       {criticalCount} in BOM
                     </span>
                     <span className="text-[11px] text-slate-400">{showCriticalPanel ? "▲ Hide" : "▼ View"}</span>
@@ -9135,11 +9136,11 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 .map(({ code, qty }) => ({ code, qty, inv: findInv(code) }))
                 .filter((r) => r.inv && r.inv.isCritical);
               return (
-                <div className="rounded-xl p-4" style={{ background: "rgba(249,115,22,0.05)", border: "1px solid rgba(249,115,22,0.3)" }}>
+                <div className="rounded-xl p-4" style={{ background: "rgba(217, 119, 6,0.05)", border: "1px solid rgba(217, 119, 6,0.3)" }}>
                   <div className="flex items-center gap-2 mb-3 flex-wrap">
                     <span className="text-base">🔒</span>
-                    <div className="text-[11px] font-bold text-white">Critical Items in this BOM</div>
-                    <span className="text-[9px] text-orange-300 px-1.5 py-0.5 rounded-full" style={{ background: "rgba(249,115,22,0.15)" }}>
+                    <div className="text-[11px] font-bold text-slate-900">Critical Items in this BOM</div>
+                    <span className="text-[9px] text-amber-700 px-1.5 py-0.5 rounded-full" style={{ background: "rgba(217, 119, 6,0.15)" }}>
                       Configured on items — not duplicated here
                     </span>
                   </div>
@@ -9163,7 +9164,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                           <div key={code} className="grid grid-cols-12 gap-2 items-center px-3 py-2 border-t border-slate-200">
                             <div className="col-span-3 text-[10px] font-mono text-blue-300">{code}</div>
                             <div className="col-span-5">
-                              <div className="text-[11px] font-semibold text-white truncate">{inv.name}</div>
+                              <div className="text-[11px] font-semibold text-slate-900 truncate">{inv.name}</div>
                               <div className="text-[9px] text-slate-500">{inv.category || "—"}</div>
                             </div>
                             <div className="col-span-2 text-right text-[11px] font-mono text-slate-500">
@@ -9171,7 +9172,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                             </div>
                             <div className="col-span-2 text-right">
                               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                    style={{ background: "rgba(249,115,22,0.15)", color: "#fed7aa", border: "1px solid rgba(249,115,22,0.3)" }}>
+                                    style={{ background: "rgba(217, 119, 6,0.15)", color: "#fed7aa", border: "1px solid rgba(217, 119, 6,0.3)" }}>
                                 {type}
                               </span>
                             </div>
@@ -9186,7 +9187,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                     </div>
                     <button onClick={() => onNavigate("inventory")}
                             className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
-                            style={{ background: "linear-gradient(135deg,#ea580c,#c2410c)", boxShadow: "0 0 12px rgba(249,115,22,0.3)" }}>
+                            style={{ background: "linear-gradient(135deg,#B45309,#B45309)", boxShadow: "0 0 12px rgba(217, 119, 6,0.3)" }}>
                       → Open Inventory to edit
                     </button>
                   </div>
@@ -9198,7 +9199,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             <div className="rounded-xl p-4" style={{ background: "rgba(139,92,246,0.05)", border: "1px solid rgba(139,92,246,0.22)" }}>
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-base">✏️</span>
-                <div className="text-[11px] font-bold text-white">BOM Identity</div>
+                <div className="text-[11px] font-bold text-slate-900">BOM Identity</div>
                 <span className="text-[9px] text-purple-300 px-1.5 py-0.5 rounded-full" style={{ background: "rgba(139,92,246,0.15)" }}>Rename safe</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -9206,13 +9207,13 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                   <div className="text-[10px] font-medium text-purple-200 mb-1.5">BOM Key</div>
                   <input value={editKey} onChange={(e) => { setEditKey(e.target.value.toUpperCase()); setRenameErr(""); }}
                     placeholder="e.g. KM-10"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-white font-mono outline-none modal-input" />
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 font-mono outline-none modal-input" />
                 </div>
                 <div>
                   <div className="text-[10px] font-medium text-purple-200 mb-1.5">Machine Model Name</div>
                   <input value={editLabel} onChange={(e) => { setEditLabel(e.target.value); setRenameErr(""); }}
                     placeholder="e.g. Kneading Machine 10L"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-white outline-none modal-input" />
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 outline-none modal-input" />
                 </div>
               </div>
               <div className="text-[10px] text-slate-500 mt-2">
@@ -9222,11 +9223,11 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             </div>
 
             {/* Rack Assignment + Capacity */}
-            <div className="rounded-xl p-4" style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.2)" }}>
+            <div className="rounded-xl p-4" style={{ background: "rgba(215, 25, 32,0.05)", border: "1px solid rgba(215, 25, 32,0.2)" }}>
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-lg">📦</span>
                 <div className="flex-1 min-w-[160px]">
-                  <div className="text-[11px] font-bold text-white">Production Rack</div>
+                  <div className="text-[11px] font-bold text-slate-900">Production Rack</div>
                   <div className="text-[10px] text-slate-500 mt-0.5">Rack ID: <span className="font-mono text-slate-500">{bomKey}</span> · Used by Machine Tracker → Rack View</div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -9234,7 +9235,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                   <input type="number" min="0" step="1" value={editRackCap}
                          onChange={(e) => setEditRackCap(e.target.value)}
                          placeholder="0"
-                         className="w-24 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-white outline-none text-right modal-input"
+                         className="w-24 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 outline-none text-right modal-input"
                          style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
                   <span className="text-[10px] text-slate-500">slots</span>
                 </div>
@@ -9255,14 +9256,14 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                   <div key={ei.code} className={`grid gap-0 items-center px-4 py-3 hover:bg-transparent ${idx > 0 ? "border-t border-slate-200" : ""}`}
                        style={{ gridTemplateColumns: "1fr 100px 120px 60px" }}>
                     <div>
-                      <div className="text-[11px] font-semibold text-white">{inv?.name || ei.code}</div>
+                      <div className="text-[11px] font-semibold text-slate-900">{inv?.name || ei.code}</div>
                       <div className="text-[9px] font-mono text-slate-600">{ei.code}</div>
                     </div>
                     <div className="text-[10px] text-slate-500 text-center">{inv?.category || "—"}</div>
                     <div className="flex items-center gap-1.5 justify-center">
                       <input type="number" min="0.1" step="0.1" value={ei.qty}
                              onChange={(e) => setEditItems((p) => p.map((i) => i.code === ei.code ? { ...i, qty: parseFloat(e.target.value) || 0 } : i))}
-                             className="w-16 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-white outline-none text-right modal-input"
+                             className="w-16 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-900 outline-none text-right modal-input"
                              style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
                       <span className="text-[9px] text-slate-600">{inv?.unit || ""}</span>
                     </div>
@@ -9290,10 +9291,10 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 </div>
                 <div className="flex items-center gap-2">
                   <input type="number" min="0.1" step="0.1" value={addBaseQty} onChange={(e) => setAddBaseQty(e.target.value)}
-                         placeholder="Qty" className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white outline-none modal-input"
+                         placeholder="Qty" className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none modal-input"
                          style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
                   <button onClick={addItemToBOM} className="px-4 py-2 rounded-lg text-xs font-bold text-white"
-                          style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 14px rgba(232,85,61,0.3)" }}>Add</button>
+                          style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 14px rgba(215, 25, 32,0.3)" }}>Add</button>
                 </div>
               </div>
               {addErr && <div className="text-[10px] text-red-400 mt-2">⚠ {addErr}</div>}
@@ -9310,7 +9311,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               <div className="rounded-xl p-4" style={{ background: "rgba(139,92,246,0.04)", border: "1px solid rgba(139,92,246,0.22)" }}>
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-base">📋</span>
-                  <div className="text-[11px] font-bold text-white">Department Checklists for {bomKey}</div>
+                  <div className="text-[11px] font-bold text-slate-900">Department Checklists for {bomKey}</div>
                   <span className="text-[9px] text-purple-300 px-1.5 py-0.5 rounded-full" style={{ background: "rgba(139,92,246,0.15)" }}>Saved per BOM · past responses untouched</span>
                 </div>
                 <BomChecklistSlots
@@ -9333,7 +9334,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               <button onClick={() => { setEditMode(false); resetEditState(); }}
                       className="text-xs font-bold text-slate-400 px-5 py-2.5 rounded-xl border border-slate-200 hover:text-slate-900 hover:border-white/20 transition-all">Discard Changes</button>
               <button onClick={saveBOMEdit}
-                      className="text-xs font-black text-white px-8 py-2.5 rounded-xl transition-all"
+                      className="text-xs font-black text-slate-900 px-8 py-2.5 rounded-xl transition-all"
                       style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.3)" }}>✓ Save BOM</button>
             </div>
           </div></div>
@@ -9393,12 +9394,12 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
           <div className="flex items-center gap-4 px-6 py-3 flex-wrap">
             {/* Pills */}
             <div className="flex items-center gap-3 flex-1 flex-wrap text-[11px]">
-              <span className="text-slate-500"><span className="font-black text-white">{checkedE.length}</span> selected</span>
+              <span className="text-slate-500"><span className="font-black text-slate-900">{checkedE.length}</span> selected</span>
               <span className="text-slate-700">·</span>
               <span className="text-slate-400">Issuing <span className="font-black text-green-400">{totalIssuing}</span> units</span>
               {totalPending > 0 && (
                 <><span className="text-slate-700">·</span>
-                <span className="font-bold text-orange-400">⚠ {totalPending} units pending</span></>
+                <span className="font-bold text-amber-700">⚠ {totalPending} units pending</span></>
               )}
               {hasOverIssue && (
                 <><span className="text-slate-700">·</span>
@@ -9423,7 +9424,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                         }
                       }}
                       disabled={!canSubmit}
-                      className="text-xs font-black text-white px-6 py-2.5 rounded-xl border transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="text-xs font-black text-slate-900 px-6 py-2.5 rounded-xl border transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                       style={{ background: canSubmit ? `linear-gradient(135deg,${bom.color}dd,${bom.color}99)` : "#1f2937", boxShadow: canSubmit ? `0 0 18px ${bom.color}35` : "none", borderColor: `${bom.color}55` }}>
                 📤 Issue Stock
               </button>
@@ -9431,11 +9432,11 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               <div className="flex items-center gap-2">
                 {hasOverIssue
                   ? <span className="text-[10px] font-bold" style={{color:"#b45309"}}>⚠ Confirm over-issue?</span>
-                  : <span className="text-[10px] font-bold text-orange-400">Confirm issue?</span>
+                  : <span className="text-[10px] font-bold text-amber-700">Confirm issue?</span>
                 }
                 <button onClick={() => setConfirmIssue(false)} className="text-xs font-bold text-slate-500 px-3 py-2 rounded-lg border border-slate-200 hover:text-slate-900 transition-all">No</button>
                 <button onClick={() => doIssue()} disabled={issuing}
-                        className="text-xs font-black text-white px-5 py-2 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-xs font-black text-slate-900 px-5 py-2 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{ background: hasOverIssue ? "linear-gradient(135deg,#d97706,#b45309)" : "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: hasOverIssue ? "0 0 14px rgba(217,119,6,0.4)" : "0 0 14px rgba(34,197,94,0.3)" }}>
                   {issuing ? "⏳ Issuing…" : hasOverIssue ? "⚠ Confirm Over-Issue" : "✓ Confirm Issue"}
                 </button>
@@ -9461,13 +9462,13 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
              onClick={(e) => e.target === e.currentTarget && !issuing && setShowCriticalModal(false)}>
           <div className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col"
                style={{ maxHeight: "92vh", background: "var(--surface-elevated)",
-                        border: "1px solid rgba(249,115,22,0.5)",
-                        boxShadow: "0 40px 100px rgba(17,24,39,0.22), 0 0 60px rgba(249,115,22,0.08)" }}>
+                        border: "1px solid rgba(217, 119, 6,0.5)",
+                        boxShadow: "0 40px 100px rgba(17,24,39,0.22), 0 0 60px rgba(217, 119, 6,0.08)" }}>
             {/* Header */}
             <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between flex-shrink-0"
-                 style={{ background: "linear-gradient(90deg,rgba(249,115,22,0.14),rgba(234,88,12,0.06))" }}>
+                 style={{ background: "linear-gradient(90deg,rgba(217, 119, 6,0.14),rgba(234,88,12,0.06))" }}>
               <div>
-                <div className="text-sm font-black text-white flex items-center gap-2">
+                <div className="text-sm font-black text-slate-900 flex items-center gap-2">
                   🔒 Critical Item Confirmation
                 </div>
                 <div className="text-[11px] text-slate-400 mt-0.5">
@@ -9490,16 +9491,16 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 return (
                   <div key={line.code}
                        className="rounded-xl px-4 py-3"
-                       style={{ background: ready ? "rgba(34,197,94,0.06)" : "rgba(249,115,22,0.04)",
-                                border: `1px solid ${ready ? "rgba(34,197,94,0.35)" : "rgba(249,115,22,0.28)"}` }}>
+                       style={{ background: ready ? "rgba(34,197,94,0.06)" : "rgba(217, 119, 6,0.04)",
+                                border: `1px solid ${ready ? "rgba(34,197,94,0.35)" : "rgba(217, 119, 6,0.28)"}` }}>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[12px] font-bold text-white">{line.name}</span>
+                      <span className="text-[12px] font-bold text-slate-900">{line.name}</span>
                       <span className="text-[10px] font-mono text-slate-500">{line.code}</span>
-                      <span className="text-[10px] font-bold" style={{ color: ready ? "#15803d" : "#c2410c" }}>
+                      <span className="text-[10px] font-bold" style={{ color: ready ? "#15803d" : "#B45309" }}>
                         {line.issueQty} {line.unit}
                       </span>
                       <span className="ml-auto text-[9px] font-black uppercase tracking-wider"
-                            style={{ color: ready ? "#15803d" : "#c2410c" }}>
+                            style={{ color: ready ? "#15803d" : "#B45309" }}>
                         {ready ? "✓ Confirmed" : type === "serial" ? "Serial Number Entry" : "Checkbox Confirmation"}
                       </span>
                     </div>
@@ -9534,11 +9535,11 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                                        }}
                                        placeholder={`Serial #${idx + 1}`}
                                        autoFocus={idx === 0}
-                                       className="bg-slate-50 rounded-md px-2 py-1.5 text-[11px] text-white outline-none modal-input"
+                                       className="bg-slate-50 rounded-md px-2 py-1.5 text-[11px] text-slate-900 outline-none modal-input"
                                        style={{ fontFamily: "'Inter',system-ui,sans-serif",
                                                 border: (alreadyUsed || dupeInBatch) ? "1px solid rgba(239,68,68,0.7)" : "1px solid rgba(17,24,39,0.10)" }} />
                                 {alreadyUsed && <span className="text-[9px] text-red-400 font-semibold">Already issued</span>}
-                                {dupeInBatch && !alreadyUsed && <span className="text-[9px] text-orange-400 font-semibold">Duplicate in list</span>}
+                                {dupeInBatch && !alreadyUsed && <span className="text-[9px] text-amber-700 font-semibold">Duplicate in list</span>}
                               </div>
                             );
                           })}
@@ -9580,7 +9581,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                           doIssue();
                         }}
                         disabled={issuing || !allCriticalReady}
-                        className="text-xs font-black text-white px-4 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-xs font-black text-slate-900 px-4 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{ background: !allCriticalReady ? "#1f2937" : "linear-gradient(135deg,#16a34a,#15803d)",
                                  boxShadow: !allCriticalReady ? "none" : "0 0 14px rgba(34,197,94,0.3)" }}>
                   {issuing ? "⏳ Issuing…" : !allCriticalReady ? "🔒 Complete Confirmations" : "✓ Confirm Outward"}
@@ -9601,10 +9602,10 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && !issuing && setShowDestChoice(false)}>
           <div className="w-full max-w-md rounded-2xl overflow-hidden"
-               style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 40px 80px rgba(17,24,39,0.22)" }}>
+               style={{ background: "var(--surface-elevated)", border: "1px solid rgba(215, 25, 32,0.4)", boxShadow: "0 40px 80px rgba(17,24,39,0.22)" }}>
             <div className="px-6 py-5 border-b border-slate-200"
-                 style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.10),rgba(204,74,51,0.05))" }}>
-              <div className="text-sm font-black text-white">Where should this build go?</div>
+                 style={{ background: "linear-gradient(90deg,rgba(215, 25, 32,0.10),rgba(176, 18, 24,0.05))" }}>
+              <div className="text-sm font-black text-slate-900">Where should this build go?</div>
               <div className="text-[11px] text-slate-500 mt-0.5">
                 {bomKey}{serialNo ? ` · S/N ${serialNo}` : ""}
               </div>
@@ -9662,12 +9663,12 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
              onClick={(e) => e.target === e.currentTarget && !issuing && setShowDurationModal(false)}>
           <div className="w-full max-w-xl rounded-2xl overflow-hidden flex flex-col"
                style={{ maxHeight: "92vh", background: "var(--surface-elevated)",
-                        border: "1px solid rgba(232,85,61,0.5)",
-                        boxShadow: "0 40px 100px rgba(17,24,39,0.22), 0 0 60px rgba(232,85,61,0.08)" }}>
+                        border: "1px solid rgba(215, 25, 32,0.5)",
+                        boxShadow: "0 40px 100px rgba(17,24,39,0.22), 0 0 60px rgba(215, 25, 32,0.08)" }}>
             <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between flex-shrink-0"
-                 style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.14),rgba(204,74,51,0.06))" }}>
+                 style={{ background: "linear-gradient(90deg,rgba(215, 25, 32,0.14),rgba(176, 18, 24,0.06))" }}>
               <div>
-                <div className="text-sm font-black text-white flex items-center gap-2">
+                <div className="text-sm font-black text-slate-900 flex items-center gap-2">
                   ⏱️ Department Durations
                 </div>
                 <div className="text-[11px] text-slate-400 mt-0.5">
@@ -9696,21 +9697,21 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                   <div key={dept} className="rounded-xl px-4 py-3 flex items-center gap-3 flex-wrap"
                        style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.10)" }}>
                     <div className="min-w-[110px]">
-                      <div className="text-[12px] font-bold text-white">{dept}</div>
+                      <div className="text-[12px] font-bold text-slate-900">{dept}</div>
                       <div className="text-[9px] text-slate-500 uppercase tracking-wider">deadline</div>
                     </div>
                     <div className="flex items-center gap-2 flex-1 justify-end">
                       <div className="flex items-center gap-1.5">
                         <input type="number" min="0" step="1" value={row.days}
                                onChange={(e) => setField("days", e.target.value)}
-                               className="w-16 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 text-xs text-white outline-none text-right modal-input"
+                               className="w-16 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 text-xs text-slate-900 outline-none text-right modal-input"
                                style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
                         <span className="text-[11px] text-slate-500">days</span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <input type="number" min="0" max="23" step="1" value={row.hours}
                                onChange={(e) => setField("hours", e.target.value)}
-                               className="w-16 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 text-xs text-white outline-none text-right modal-input"
+                               className="w-16 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 text-xs text-slate-900 outline-none text-right modal-input"
                                style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
                         <span className="text-[11px] text-slate-500">hours</span>
                       </div>
@@ -9746,7 +9747,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                         }}
                         disabled={issuing}
                         className="text-xs font-black text-white px-4 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{ background: "linear-gradient(135deg,#E8553D,#A33E2A)",
+                        style={{ background: "linear-gradient(135deg,#D71920,#B01218)",
                                  boxShadow: "0 0 14px rgba(163,62,42,0.3)" }}>
                   ✓ Save Durations & Continue
                 </button>
@@ -9956,12 +9957,12 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
           <div className="bg-white rounded-2xl w-full max-w-md mx-4 overflow-hidden" style={{ border: "1px solid var(--border-rim)", boxShadow: "0 32px 80px rgba(17,24,39,0.18)", animation: "slideUp 0.25s ease both" }}>
             <div className="px-6 py-5" style={{ borderBottom: "1px solid rgba(17,24,39,0.08)", background: "rgba(17,24,39,0.03)" }}>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black text-white flex-shrink-0"
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black text-slate-900 flex-shrink-0"
                      style={{ background: bomDefs[serialModal].color + "22", border: `1px solid ${bomDefs[serialModal].color}55` }}>
                   {serialModal}
                 </div>
                 <div>
-                  <div className="text-sm font-bold text-white">{serialModal} — {bomDefs[serialModal].label}</div>
+                  <div className="text-sm font-bold text-slate-900">{serialModal} — {bomDefs[serialModal].label}</div>
                   <div className="text-[11px] text-slate-500 mt-0.5">
                     {(() => {
                       const cap = Number(bomDefs[serialModal].rackCapacity) || 0;
@@ -10002,7 +10003,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                 </button>
                 <button onClick={confirmSerial}
                         className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-all"
-                        style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 20px rgba(232,85,61,0.3)" }}>
+                        style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 20px rgba(215, 25, 32,0.3)" }}>
                   Proceed to Issue →
                 </button>
               </div>
@@ -10014,10 +10015,10 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
       {/* 2026-06-02d — BOM action toast (Duplicate / Delete result) */}
       {bomActionToast && (
         <div className="fixed bottom-6 right-6 z-[65] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "var(--surface-raised)", border: "1px solid rgba(232,85,61,0.45)", boxShadow: "0 20px 60px rgba(17,24,39,0.14)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "var(--surface-raised)", border: "1px solid rgba(215, 25, 32,0.45)", boxShadow: "0 20px 60px rgba(17,24,39,0.14)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">📋</span>
           <div>
-            <div className="text-xs font-bold text-white">{bomActionToast.text}</div>
+            <div className="text-xs font-bold text-slate-900">{bomActionToast.text}</div>
             {bomActionToast.sub && <div className="text-[10px] text-slate-500 mt-0.5">{bomActionToast.sub}</div>}
           </div>
           <button onClick={() => setBomActionToast(null)} className="ml-2 text-slate-600 hover:text-slate-500 text-xs">✕</button>
@@ -10044,12 +10045,12 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
               {!confirmDeleteBOM.info.canDelete ? (
                 <>
                   <div className="text-slate-500">
-                    This BOM has <span className="font-bold text-white">{confirmDeleteBOM.info.active.length}</span> active production build{confirmDeleteBOM.info.active.length !== 1 ? "s" : ""} past the rack stage. Complete or cancel them first, then delete.
+                    This BOM has <span className="font-bold text-slate-900">{confirmDeleteBOM.info.active.length}</span> active production build{confirmDeleteBOM.info.active.length !== 1 ? "s" : ""} past the rack stage. Complete or cancel them first, then delete.
                   </div>
                   <div className="max-h-32 overflow-y-auto rounded-lg" style={{ background: "#f8f9fb", border: "1px solid rgba(17,24,39,0.04)" }}>
                     {confirmDeleteBOM.info.active.slice(0, 10).map((m) => (
                       <div key={m.id} className="px-3 py-1.5 text-[10px] flex items-center justify-between border-b border-slate-200 last:border-0">
-                        <span className="font-mono font-bold text-white">{m.serialNo || "(no serial)"}</span>
+                        <span className="font-mono font-bold text-slate-900">{m.serialNo || "(no serial)"}</span>
                         <span className="text-slate-500">{m.stage}</span>
                       </div>
                     ))}
@@ -10063,7 +10064,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                   {confirmDeleteBOM.info.rack.length > 0 ? (
                     <>
                       <div className="text-slate-500">
-                        <span className="font-bold text-white">{confirmDeleteBOM.info.rack.length}</span> rack machine{confirmDeleteBOM.info.rack.length !== 1 ? "s" : ""} will be removed. Materials will be returned to stock.
+                        <span className="font-bold text-slate-900">{confirmDeleteBOM.info.rack.length}</span> rack machine{confirmDeleteBOM.info.rack.length !== 1 ? "s" : ""} will be removed. Materials will be returned to stock.
                       </div>
                       <ul className="space-y-1 ml-1">
                         <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Reverse stock for {confirmDeleteBOM.info.rack.length} rack build{confirmDeleteBOM.info.rack.length !== 1 ? "s" : ""}</span></li>
@@ -10077,7 +10078,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                     </>
                   ) : confirmDeleteBOM.info.completed.length > 0 ? (
                     <div className="text-slate-500">
-                      BOM has <span className="font-bold text-white">{confirmDeleteBOM.info.completed.length}</span> completed build{confirmDeleteBOM.info.completed.length !== 1 ? "s" : ""} in history. They will remain visible in Machine Tracker after deletion (history is denormalised).
+                      BOM has <span className="font-bold text-slate-900">{confirmDeleteBOM.info.completed.length}</span> completed build{confirmDeleteBOM.info.completed.length !== 1 ? "s" : ""} in history. They will remain visible in Machine Tracker after deletion (history is denormalised).
                     </div>
                   ) : (
                     <div className="text-slate-500">
@@ -10212,9 +10213,9 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                style={{ border: "1px solid var(--border-rim)", boxShadow: "0 32px 80px rgba(17,24,39,0.18)", maxHeight: "90vh", animation: "slideUp 0.25s ease both" }}>
             <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid rgba(17,24,39,0.08)" }}>
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base" style={{ background: "rgba(232,85,61,0.15)" }}>📋</div>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base" style={{ background: "rgba(215, 25, 32,0.15)" }}>📋</div>
                 <div>
-                  <div className="text-sm font-black text-white">Create New BOM</div>
+                  <div className="text-sm font-black text-slate-900">Create New BOM</div>
                   <div className="text-[10px] text-slate-500 mt-0.5">Define a new machine model with components and rack capacity</div>
                 </div>
               </div>
@@ -10255,14 +10256,14 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                         <div key={ci.code} className="grid items-center gap-2 px-3 py-2 rounded-lg"
                              style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.04)", gridTemplateColumns: "1fr 120px 100px 40px" }}>
                           <div>
-                            <div className="text-[11px] font-semibold text-white">{inv?.name || ci.code}</div>
+                            <div className="text-[11px] font-semibold text-slate-900">{inv?.name || ci.code}</div>
                             <div className="text-[9px] font-mono text-slate-600">{ci.code}</div>
                           </div>
                           <div className="text-[10px] text-slate-500 text-center">{inv?.category || "—"}</div>
                           <div className="flex items-center gap-1.5 justify-end">
                             <input type="number" min="0.1" step="0.1" value={ci.qty}
                               onChange={(e) => setCreateItems((p) => p.map((i) => i.code === ci.code ? { ...i, qty: parseFloat(e.target.value) || 0 } : i))}
-                              className="w-16 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-white text-right outline-none modal-input"
+                              className="w-16 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-900 text-right outline-none modal-input"
                               style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
                             <span className="text-[9px] text-slate-600">{inv?.unit || ""}</span>
                           </div>
@@ -10288,11 +10289,11 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                     onChange={(e) => setCreateAddQty(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && addCreateItem()}
                     placeholder="Qty"
-                    className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white outline-none mt-2 modal-input text-right"
+                    className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none mt-2 modal-input text-right"
                     style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
                   <button onClick={addCreateItem}
                     className="px-4 py-2 rounded-lg text-xs font-bold text-white mt-2"
-                    style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)" }}>+ Add</button>
+                    style={{ background: "linear-gradient(135deg,#D71920,#B01218)" }}>+ Add</button>
                 </div>
               </div>
 
@@ -10331,7 +10332,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                 Cancel
               </button>
               <button onClick={submitCreateBOM}
-                className="flex-1 py-2.5 rounded-xl text-xs font-black text-white transition-all"
+                className="flex-1 py-2.5 rounded-xl text-xs font-black text-slate-900 transition-all"
                 style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.35)" }}>
                 ✓ Create BOM
               </button>
@@ -10342,10 +10343,10 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
 
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "var(--surface-raised)", border: "1px solid rgba(249,115,22,0.45)", boxShadow: "0 20px 60px rgba(17,24,39,0.14)", animation: "slideUp 0.3s ease both" }}>
+             style={{ background: "var(--surface-raised)", border: "1px solid rgba(217, 119, 6,0.45)", boxShadow: "0 20px 60px rgba(17,24,39,0.14)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">📤</span>
           <div>
-            <div className="text-xs font-black text-white">{toast.text}</div>
+            <div className="text-xs font-black text-slate-900">{toast.text}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">{toast.sub}</div>
           </div>
           <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-500 text-xs">✕</button>
@@ -10359,13 +10360,13 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
         {/* ── BOM Cards ── */}
         <div>
           <div className="flex items-center gap-2 mb-4">
-            <h2 className="text-sm font-extrabold text-white">📤 BOM Outward</h2>
-            <span className="text-[10px] font-bold text-orange-400 bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 rounded-full">{boms.length} BOMs</span>
+            <h2 className="text-sm font-extrabold text-slate-900">📤 BOM Outward</h2>
+            <span className="text-[10px] font-bold text-amber-700 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">{boms.length} BOMs</span>
             <div className="flex-1" />
             {canDo("outward","editBOM") && onCreateBOM && (
               <button onClick={openCreateBOM}
                 className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-white transition-all"
-                style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 14px rgba(232,85,61,0.3)" }}>
+                style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 14px rgba(215, 25, 32,0.3)" }}>
                 + New BOM
               </button>
             )}
@@ -10397,10 +10398,10 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(17,24,39,0.08)"; e.currentTarget.style.boxShadow = "none"; }}>
                   <div className="p-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black text-white flex-shrink-0"
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black text-slate-900 flex-shrink-0"
                            style={{ background: bom.color + "22", border: `1px solid ${bom.color}50` }}>{bomKey}</div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-bold text-white">{bomKey}</div>
+                        <div className="text-sm font-bold text-slate-900">{bomKey}</div>
                         <div className="text-[10px] text-slate-500">{bom.label}</div>
                       </div>
                       <span className="text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
@@ -10506,10 +10507,10 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
         {/* ── Pending Stock banner ── */}
         {pendingLog && pendingLog.length > 0 && (
           <div className="flex items-center gap-4 px-5 py-3.5 rounded-xl"
-               style={{ background: "rgba(249,115,22,0.06)", border: "1px solid rgba(249,115,22,0.22)" }}>
+               style={{ background: "rgba(217, 119, 6,0.06)", border: "1px solid rgba(217, 119, 6,0.22)" }}>
             <span className="text-xl flex-shrink-0">⏳</span>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold text-orange-300">{pendingLog.length} item{pendingLog.length !== 1 ? "s" : ""} moved to Pending Stock</div>
+              <div className="text-xs font-bold text-amber-700">{pendingLog.length} item{pendingLog.length !== 1 ? "s" : ""} moved to Pending Stock</div>
               <div className="text-[11px] text-slate-500 mt-0.5">Partially-issued BOM materials are tracked in the Pending Stock module.</div>
             </div>
             <button onClick={onClearPending}
@@ -10522,7 +10523,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
         {/* ── Manual Outward ── */}
         <div className="bg-white border border-slate-200 rounded-xl p-6">
           <div className="flex items-center gap-2 mb-5">
-            <h2 className="text-sm font-extrabold text-white">✋ Manual Outward</h2>
+            <h2 className="text-sm font-extrabold text-slate-900">✋ Manual Outward</h2>
             <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">Ad-hoc Issue</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -10569,13 +10570,13 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                 </div>
                 <div>
                   <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.06em] mb-1">Issuing</div>
-                  <div className="text-xl font-black font-mono text-orange-400" style={{ fontFamily: "'Inter',system-ui,sans-serif" }}>
+                  <div className="text-xl font-black font-mono text-amber-700" style={{ fontFamily: "'Inter',system-ui,sans-serif" }}>
                     −{n > 0 ? n : 0} <span className="text-xs text-slate-500">{inv.unit}</span>
                   </div>
                 </div>
                 <div>
                   <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.06em] mb-1">Remaining</div>
-                  <div className={`text-xl font-black font-mono ${sufficient ? "text-white" : "text-red-400"}`} style={{ fontFamily: "'Inter',system-ui,sans-serif" }}>
+                  <div className={`text-xl font-black font-mono ${sufficient ? "text-slate-900" : "text-red-400"}`} style={{ fontFamily: "'Inter',system-ui,sans-serif" }}>
                     {newS !== null ? newS : inv.stock} <span className="text-xs text-slate-500">{inv.unit}</span>
                   </div>
                 </div>
@@ -10595,7 +10596,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
             {canDo("outward","manual") && (
               <button onClick={handleManualSubmit} disabled={manualBusy}
                       className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white border transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                      style={{ background: "linear-gradient(135deg,#ea580c,#c2410c)", borderColor: "rgba(249,115,22,0.5)", boxShadow: "0 0 16px rgba(249,115,22,0.3)" }}>
+                      style={{ background: "linear-gradient(135deg,#B45309,#B45309)", borderColor: "rgba(217, 119, 6,0.5)", boxShadow: "0 0 16px rgba(217, 119, 6,0.3)" }}>
                 {manualBusy ? "⏳ Issuing…" : "📤 Issue Stock"}
               </button>
             )}
@@ -10619,11 +10620,11 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                       <td className="px-4 py-2 text-[10px] text-slate-500 font-mono">{entry.date}</td>
                       <td className="px-4 py-2">
                         <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
-                              style={{ background: entry.type === "bom" ? "rgba(249,115,22,0.1)" : "rgba(232,85,61,0.1)", color: entry.type === "bom" ? "#c2410c" : "#F18A75", border: `1px solid ${entry.type === "bom" ? "rgba(249,115,22,0.2)" : "rgba(232,85,61,0.2)"}` }}>
+                              style={{ background: entry.type === "bom" ? "rgba(217, 119, 6,0.1)" : "rgba(215, 25, 32,0.1)", color: entry.type === "bom" ? "#B45309" : "#F18A75", border: `1px solid ${entry.type === "bom" ? "rgba(217, 119, 6,0.2)" : "rgba(215, 25, 32,0.2)"}` }}>
                           {entry.type === "bom" ? "BOM" : "Manual"}
                         </span>
                       </td>
-                      <td className="px-4 py-2 text-[10px] font-bold font-mono text-white">{entry.ref}</td>
+                      <td className="px-4 py-2 text-[10px] font-bold font-mono text-slate-900">{entry.ref}</td>
                       <td className="px-4 py-2 text-[10px] text-slate-400">
                         {entry.type === "bom" ? `${entry.label} × ${entry.units}` : entry.items?.[0]?.name || "—"}
                         {(() => {
@@ -10636,13 +10637,13 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                           return (
                             <span title={title}
                                   className="ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                  style={{ background: "rgba(249,115,22,0.1)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.3)" }}>
+                                  style={{ background: "rgba(217, 119, 6,0.1)", color: "#B45309", border: "1px solid rgba(217, 119, 6,0.3)" }}>
                               🔒 {crit.length} critical
                             </span>
                           );
                         })()}
                       </td>
-                      <td className="px-4 py-2 text-[10px] font-bold font-mono text-orange-400">
+                      <td className="px-4 py-2 text-[10px] font-bold font-mono text-amber-700">
                         {entry.items ? `${entry.items.reduce((s, i) => s + (i.issueQty || 0), 0)} units` : "—"}
                       </td>
                       <td className="px-4 py-2 text-[10px] text-slate-500">{entry.note}</td>
@@ -10747,12 +10748,12 @@ function AtoZMachineReport({
   // ── Section 1: Header KPIs ────────────────────────────────────────────
   const Hdr = () => (
     <div className="rounded-xl p-5 mb-5"
-         style={{ background: "linear-gradient(135deg,rgba(232,85,61,0.08),rgba(204,74,51,0.03))",
-                  border: "1px solid rgba(232,85,61,0.35)" }}>
+         style={{ background: "linear-gradient(135deg,rgba(215, 25, 32,0.08),rgba(176, 18, 24,0.03))",
+                  border: "1px solid rgba(215, 25, 32,0.35)" }}>
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <div className="text-[9px] font-black text-blue-400 uppercase tracking-[0.14em]">A-to-Z Machine Report</div>
-          <div className="text-xl font-black text-white mt-1 tracking-tight">
+          <div className="text-xl font-black text-slate-900 mt-1 tracking-tight">
             {machine.bomKey}
             {machine.serialNo ? <span className="text-slate-400 font-normal"> · S/N {machine.serialNo}</span> : null}
           </div>
@@ -10761,11 +10762,11 @@ function AtoZMachineReport({
         <div className="flex items-center gap-4 flex-wrap text-right">
           <div>
             <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Current Stage</div>
-            <div className="text-[13px] font-black mt-0.5" style={{ color: STAGE_COLORS[machine.stage] || "#E8553D" }}>{machine.stage}</div>
+            <div className="text-[13px] font-black mt-0.5" style={{ color: STAGE_COLORS[machine.stage] || "#D71920" }}>{machine.stage}</div>
           </div>
           <div>
             <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Status</div>
-            <div className="text-[13px] font-black mt-0.5" style={{ color: machine.status === "completed" ? "#15803d" : "#c2410c" }}>
+            <div className="text-[13px] font-black mt-0.5" style={{ color: machine.status === "completed" ? "#15803d" : "#B45309" }}>
               {machine.status === "completed" ? "Ready ✓" : "In Progress"}
             </div>
           </div>
@@ -10879,7 +10880,7 @@ function AtoZMachineReport({
             return (
               <div key={`${r.code}-${idx}`} className="grid grid-cols-12 gap-2 items-start px-3 py-2 text-[11px] border-t border-slate-200">
                 <div className="col-span-3">
-                  <div className="text-white font-semibold truncate">{r.name || r.code}</div>
+                  <div className="text-slate-900 font-semibold truncate">{r.name || r.code}</div>
                   <div className="text-[9px] font-mono text-blue-300">{r.code}</div>
                 </div>
                 <div className="col-span-1 text-right font-mono text-slate-700">{r.qty}</div>
@@ -10888,7 +10889,7 @@ function AtoZMachineReport({
                     <div className="flex flex-wrap gap-1">
                       {serials.map((s) => (
                         <span key={s} className="font-mono px-1.5 py-0.5 rounded"
-                              style={{ background: "rgba(249,115,22,0.10)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.3)" }}>
+                              style={{ background: "rgba(217, 119, 6,0.10)", color: "#B45309", border: "1px solid rgba(217, 119, 6,0.3)" }}>
                           {s}
                         </span>
                       ))}
@@ -10940,13 +10941,13 @@ function AtoZMachineReport({
               <div key={h.id} className="rounded-lg p-3 print-block"
                    style={{ background: "rgba(16,185,129,0.04)", border: "1px solid rgba(16,185,129,0.25)" }}>
                 <div className="flex items-center gap-2 flex-wrap mb-2">
-                  <span className="text-[12px] font-black text-white">{h.fromDepartment}</span>
+                  <span className="text-[12px] font-black text-slate-900">{h.fromDepartment}</span>
                   <span className="text-slate-500">→</span>
                   <span className="text-[12px] font-black" style={{ color: STAGE_COLORS[h.toDepartment] || "#F18A75" }}>{h.toDepartment}</span>
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                        style={{ background: h.status === "accepted" ? "rgba(34,197,94,0.1)" : "rgba(249,115,22,0.1)",
-                                 color:      h.status === "accepted" ? "#86efac"              : "#c2410c",
-                                 border: `1px solid ${h.status === "accepted" ? "rgba(34,197,94,0.3)" : "rgba(249,115,22,0.3)"}` }}>
+                        style={{ background: h.status === "accepted" ? "rgba(34,197,94,0.1)" : "rgba(217, 119, 6,0.1)",
+                                 color:      h.status === "accepted" ? "#86efac"              : "#B45309",
+                                 border: `1px solid ${h.status === "accepted" ? "rgba(34,197,94,0.3)" : "rgba(217, 119, 6,0.3)"}` }}>
                     {h.status === "accepted" ? "✓ Accepted" : h.status === "pending" ? "⏳ Pending" : h.status}
                   </span>
                   {(h.overrunMinutes || 0) > 0 && (
@@ -11021,13 +11022,13 @@ function AtoZMachineReport({
                       Before-Dispatch checklist · {bdDispatch.templateName || "—"} (v{bdDispatch.templateVersion || 1})
                     </div>
                     <div className="rounded-lg px-3 py-2 text-[10px] space-y-0.5"
-                         style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.2)" }}>
+                         style={{ background: "rgba(215, 25, 32,0.05)", border: "1px solid rgba(215, 25, 32,0.2)" }}>
                       {(bdDispatch.answers || []).map((a, i) => (
                         <div key={i} className="flex items-start gap-2">
                           <span className="text-[11px]">{a.checked ? "✓" : "✗"}</span>
                           <div className="flex-1">
                             <span className="text-slate-700">{a.label}</span>
-                            {a.required && <span className="text-orange-300 ml-1 text-[9px]">• must-do</span>}
+                            {a.required && <span className="text-amber-700 ml-1 text-[9px]">• must-do</span>}
                             {!a.checked && a.remark && <div className="text-slate-400 italic mt-0.5">Remark: {a.remark}</div>}
                           </div>
                         </div>
@@ -11048,7 +11049,7 @@ function AtoZMachineReport({
                           <span className="text-[11px]">{a.checked ? "✓" : "✗"}</span>
                           <div className="flex-1">
                             <span className="text-slate-700">{a.label}</span>
-                            {a.required && <span className="text-orange-300 ml-1 text-[9px]">• must-do</span>}
+                            {a.required && <span className="text-amber-700 ml-1 text-[9px]">• must-do</span>}
                             {!a.checked && a.remark && <div className="text-slate-400 italic mt-0.5">Remark: {a.remark}</div>}
                           </div>
                         </div>
@@ -11063,10 +11064,10 @@ function AtoZMachineReport({
                     <div className="space-y-1">
                       {relatedPending.map((p) => (
                         <div key={p.id} className="rounded px-2 py-1.5 text-[10px]"
-                             style={{ background: p.status === "resolved" ? "rgba(34,197,94,0.05)" : "rgba(249,115,22,0.07)",
-                                      border: `1px solid ${p.status === "resolved" ? "rgba(34,197,94,0.25)" : "rgba(249,115,22,0.3)"}` }}>
+                             style={{ background: p.status === "resolved" ? "rgba(34,197,94,0.05)" : "rgba(217, 119, 6,0.07)",
+                                      border: `1px solid ${p.status === "resolved" ? "rgba(34,197,94,0.25)" : "rgba(217, 119, 6,0.3)"}` }}>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className={p.status === "resolved" ? "text-emerald-300 font-bold" : "text-orange-300 font-bold"}>
+                            <span className={p.status === "resolved" ? "text-emerald-300 font-bold" : "text-amber-700 font-bold"}>
                               {p.status === "resolved" ? "✓" : "⏳"}
                             </span>
                             <span className="text-slate-700 flex-1">{p.description}</span>
@@ -11096,13 +11097,13 @@ function AtoZMachineReport({
       <div className="relative pl-5">
         <div className="absolute left-2 top-0 bottom-0 w-px" style={{ background: "rgba(17,24,39,0.06)" }} />
         {(machine.history || []).map((h, i) => {
-          const sc = STAGE_COLORS[h.stage] || "#E8553D";
+          const sc = STAGE_COLORS[h.stage] || "#D71920";
           return (
             <div key={i} className="relative mb-2 last:mb-0">
               <div className="absolute -left-[13px] top-1 w-2.5 h-2.5 rounded-full"
                    style={{ background: sc + "22", border: `1.5px solid ${sc}` }} />
               <div className="flex items-center gap-3 flex-wrap text-[11px]">
-                <span className="font-bold text-white">{h.stage}</span>
+                <span className="font-bold text-slate-900">{h.stage}</span>
                 <span className="text-slate-500">·</span>
                 <span className="text-slate-500 font-mono">{h.date}</span>
                 {h.note && <span className="text-slate-400 italic">— {h.note}</span>}
@@ -11446,23 +11447,23 @@ function ReportCenterPage({
             <div>
               <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">From</div>
               <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                     className="bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-white outline-none" />
+                     className="bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-900 outline-none" />
             </div>
             <div>
               <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">To</div>
               <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                     className="bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-white outline-none" />
+                     className="bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-900 outline-none" />
             </div>
             <div>
               <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Machine / BOM / Serial</div>
               <input type="text" value={machineFilter} onChange={(e) => setMachineFilter(e.target.value)}
                      placeholder="e.g. BOM-ASSY-01 or S/N A-104"
-                     className="bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-white outline-none" />
+                     className="bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-900 outline-none" />
             </div>
             <div>
               <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Department</div>
               <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}
-                      className="bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-white outline-none">
+                      className="bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-900 outline-none">
                 <option value="">All</option>
                 {DEPARTMENT_SEQUENCE.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
@@ -11484,7 +11485,7 @@ function ReportCenterPage({
                     aria-pressed={tab === t.id}
                     className="text-left px-4 py-2 rounded-xl border transition-all"
                     style={tab === t.id
-                      ? { background: "rgba(232,85,61,0.1)", borderColor: "rgba(232,85,61,0.45)", color: "#CC4A33" }
+                      ? { background: "rgba(215, 25, 32,0.1)", borderColor: "rgba(215, 25, 32,0.45)", color: "#B01218" }
                       : { background: "transparent", borderColor: "rgba(17,24,39,0.12)", color: "#475569" }}>
               <div className="text-[12px] font-bold">{t.label}</div>
               <div className="text-[10px] opacity-70">{t.hint}</div>
@@ -11509,13 +11510,13 @@ function ReportCenterPage({
         {tab === "factory" && (
           <div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <ReportKPI label="Total machines" value={summary.total} color="#E8553D" />
-              <ReportKPI label="Active" value={summary.active} color="#f97316" />
+              <ReportKPI label="Total machines" value={summary.total} color="#D71920" />
+              <ReportKPI label="Active" value={summary.active} color="#D97706" />
               <ReportKPI label="Completed" value={summary.completed} color="#22c55e" />
               <ReportKPI label="Avg rating" value={summary.avgRating ?? "—"} color="#eab308" suffix={summary.avgRating ? "★" : ""} />
               <ReportKPI label="Delayed handovers" value={summary.delayedHandovers} color="#ef4444" />
               <ReportKPI label="Held handovers" value={summary.heldHandovers} color="#ef4444" />
-              <ReportKPI label="Open pending items" value={summary.openPending} color="#f97316" />
+              <ReportKPI label="Open pending items" value={summary.openPending} color="#D97706" />
               <ReportKPI label="Resolved pending items" value={summary.resolvedPending} color="#22c55e" />
             </div>
           </div>
@@ -11551,11 +11552,11 @@ function ReportCenterPage({
           return (
             <div>
               <div className="rounded-xl p-4 mb-4 no-print flex items-center gap-3 flex-wrap"
-                   style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.25)" }}>
+                   style={{ background: "rgba(215, 25, 32,0.05)", border: "1px solid rgba(215, 25, 32,0.25)" }}>
                 <div className="text-[10px] font-black uppercase tracking-wider text-blue-200">A-to-Z Machine Report</div>
                 <select value={pickedId}
                         onChange={(e) => setAtozMachineId(e.target.value)}
-                        className="flex-1 min-w-[220px] rounded-lg px-3 py-1.5 text-[12px] text-white outline-none focus:border-blue-500/60"
+                        className="flex-1 min-w-[220px] rounded-lg px-3 py-1.5 text-[12px] text-slate-900 outline-none focus:border-blue-500/60"
                         style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-rim)", color: "var(--text)" }}>
                   {options.length === 0 && <option value="">— no machines match the current filters —</option>}
                   {options.map((m) => (
@@ -11567,7 +11568,7 @@ function ReportCenterPage({
                 </select>
                 <button onClick={printReport} disabled={!pickedId}
                         className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all disabled:opacity-40"
-                        style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 10px rgba(232,85,61,0.3)" }}>
+                        style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 10px rgba(215, 25, 32,0.3)" }}>
                   🖨 Print / Save as PDF
                 </button>
               </div>
@@ -11621,7 +11622,7 @@ function DepartmentScoreboard({ rows = [], openIssues = [], waitingNow = [] }) {
 
   // Colour the on-time figure rather than every cell — one signal, read in a
   // glance, instead of a wall of traffic lights.
-  const onTimeColor = (pct) => (pct === null ? "#64748b" : pct >= 90 ? "#15803d" : pct >= 70 ? "#c2410c" : "#dc2626");
+  const onTimeColor = (pct) => (pct === null ? "#64748b" : pct >= 90 ? "#15803d" : pct >= 70 ? "#B45309" : "#dc2626");
 
   return (
     <div className="rounded-xl p-4" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.10)" }}>
@@ -11653,7 +11654,7 @@ function DepartmentScoreboard({ rows = [], openIssues = [], waitingNow = [] }) {
                     {r.department}
                     {waiting > 0 && (
                       <span className="ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full align-middle"
-                            style={{ background: "rgba(249,115,22,0.12)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.3)" }}>
+                            style={{ background: "rgba(217, 119, 6,0.12)", color: "#B45309", border: "1px solid rgba(217, 119, 6,0.3)" }}>
                         {waiting} waiting now
                       </span>
                     )}
@@ -11686,7 +11687,7 @@ function DepartmentScoreboard({ rows = [], openIssues = [], waitingNow = [] }) {
   );
 }
 
-function ReportKPI({ label, value, color = "#E8553D", suffix = "" }) {
+function ReportKPI({ label, value, color = "#D71920", suffix = "" }) {
   return (
     <div className="p-4 rounded-xl" style={{ background: `${color}10`, border: `1px solid ${color}33` }}>
       <div className="text-[9px] font-bold uppercase tracking-[0.08em] mb-1" style={{ color }}>{label}</div>
@@ -11735,9 +11736,9 @@ function ReportTable({ title, rows }) {
 // ─── MACHINE TRACKER PAGE ────────────────────────────────────────────────────
 
 const STAGE_COLORS = {
-  "BOM Issued": "#E8553D",
+  "BOM Issued": "#D71920",
   "Assembly":   "#8b5cf6",
-  "Mechanical": "#f97316",
+  "Mechanical": "#D97706",
   "Electrical": "#eab308",
   "Trial":      "#0e7490",
   "Ready":      "#22c55e",
@@ -11830,7 +11831,7 @@ function SignaturePad({ onSave, onCancel, initialSvg = "", light = false }) {
         )}
         <button type="button" onClick={save}
                 className="text-[11px] font-black text-white px-4 py-1.5 rounded-lg transition-all"
-                style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 12px rgba(232,85,61,0.3)" }}>
+                style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 12px rgba(215, 25, 32,0.3)" }}>
           Save Signature
         </button>
       </div>
@@ -12625,6 +12626,53 @@ function TrialCertificatePrintModal({ machine, onClose }) {
   );
 }
 
+// ── Checklist bulk control ───────────────────────────────────────────────────
+// One tap to tick a whole checklist, then untick the exceptions.
+//
+// Why this is the right way round: a 20-item checklist was 20 taps, at every
+// department, on every machine, on a tablet held in one hand. Almost every step
+// passes — the information is in the handful that don't. So the cheap order is
+// "all OK, then untick what failed", not "tick twenty things and hope nobody
+// starts tapping without looking".
+//
+// This does NOT weaken the record. validateChecklistAnswers still refuses to
+// submit while any unticked item lacks a written reason, so the exceptions are
+// documented exactly as well as before — and they are now the only rows the
+// operator had to stop and think about, which is the point.
+//
+// Used at all three checklist hookpoints: before_receive (Accept),
+// during_work, and before_dispatch (Finish & Transfer).
+function ChecklistBulkBar({ answers, onSetAll }) {
+  const total = (answers || []).length;
+  if (!total) return null;
+  const ticked = countChecked(answers);
+  const allTicked = ticked === total;
+  return (
+    <div className="flex items-center gap-1.5 mb-2">
+      <button type="button"
+              onClick={() => onSetAll(true)}
+              disabled={allTicked}
+              className="rounded-md px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors disabled:cursor-default"
+              style={allTicked
+                ? { background: "rgba(34,197,94,0.10)", color: "#15803d", border: "1px solid rgba(34,197,94,0.35)" }
+                : { background: "rgba(34,197,94,0.08)", color: "#15803d", border: "1px solid rgba(34,197,94,0.45)" }}>
+        {allTicked ? "✓ All ticked" : "Mark all OK"}
+      </button>
+      <button type="button"
+              onClick={() => onSetAll(false)}
+              disabled={ticked === 0}
+              className="rounded-md px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors disabled:opacity-40 disabled:cursor-default"
+              style={{ background: "rgba(17,24,39,0.04)", color: "var(--text-muted)", border: "1px solid rgba(17,24,39,0.14)" }}>
+        Clear
+      </button>
+      <span className="ml-auto text-[10px] font-bold tabular-nums"
+            style={{ color: allTicked ? "#15803d" : "var(--text-dim)" }}>
+        {ticked} / {total} ticked
+      </span>
+    </div>
+  );
+}
+
 function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo = () => true, bomDefs = {}, onStartProduction, onRemoveRackMachine, onUpdateBOM,
   // Phase A props (optional — the page keeps working if any are missing)
   handovers = [], settings = {}, onFinishTransfer, onAcceptHandover, onRegisterSignature, currentUser = null,
@@ -12714,6 +12762,22 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   const showToast = (text, sub) => { setToast({ text, sub }); setTimeout(() => setToast(null), 3000); };
 
   // Open the Finish & Transfer modal for a given machine.
+  // Everyone who may be recorded as having worked in a department today:
+  // ERP logins assigned to it, plus the factory workers from Settings →
+  // Employees. Same two filters the Finish-modal picker renders from, pulled
+  // out so the remembered-crew pre-selection is reconciled against exactly the
+  // list the operator is about to see — never against a stale idea of it.
+  const eligibleWorkerIds = (dept) => {
+    if (!dept) return [];
+    const logins = (allUsers || [])
+      .filter((u) => u && u.status !== "disabled" && Array.isArray(u.departments) && u.departments.includes(dept))
+      .map((u) => u.id);
+    const workers = (settings?.employeeMembers || [])
+      .filter((m) => m && m.active && Array.isArray(m.departments) && m.departments.includes(dept))
+      .map((m) => `emp:${m.id}`);
+    return [...logins, ...workers];
+  };
+
   const openFinishModal = (machine) => {
     const toDepartment = nextDepartment(machine.currentDepartment || machine.stage);
     if (!toDepartment) {
@@ -12733,8 +12797,22 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     const answers  = template ? startChecklistResponse(template) : [];
     // Migration 029 — multi-worker + Main Employee picker init. Operator just
     // clicked Finish & Transfer; nothing selected yet.
+    // Remembered crew. The same two or three fitters work this department
+    // every day, and this modal used to open with nothing selected every
+    // single time. reconcileTeam drops anyone no longer eligible, so somebody
+    // who left the company or was deactivated in Settings can never come back
+    // pre-ticked — which would be the ERP claiming they worked on a machine
+    // when nobody said so. It stays a pre-selection the operator can change in
+    // one tap; what gets recorded is only ever what they confirmed on screen.
+    //
+    // The signature is deliberately NOT remembered: mainSigSvg stays null and
+    // the pad is shown as always. A pre-filled signature would be a forgery.
+    const recalled     = readTeamMemory("finish", fromDepartment);
+    const recalledTeam = reconcileTeam(recalled.members, eligibleWorkerIds(fromDepartment));
+    const recalledMain = pickRememberedMain(recalledTeam, recalled.mainId);
     setFinishModal({ machine, toDepartment, narration: "", template, answers,
-                     workedBy: [], mainEmployeeId: null, mainSigSvg: null, mainSigNeeded: false,
+                     workedBy: recalledTeam, mainEmployeeId: recalledMain,
+                     mainSigSvg: null, mainSigNeeded: false,
                      // Phase 1 — jobs this department still owes after handing over.
                      owedItems: [] });
   };
@@ -12878,6 +12956,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         showToast("Transfer failed", res.error || "Unknown error");
         return;
       }
+      // Remember this crew for the next machine through this department.
+      // Only after a confirmed, successful transfer — a failed or abandoned
+      // handover teaches us nothing.
+      writeTeamMemory("finish", fromDepartment, workedBy, mainEmployeeId);
       setFinishModal(null);
       showToast(`${machine.bomKey} → ${toDepartment}`,
         overrunMinutes > 0 ? `Awaiting accept · Overrun ${formatDuration(overrunMinutes)}` : "Awaiting accept");
@@ -12895,9 +12977,20 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     const checklistTemplate = pickTemplate(checklistTemplates, bomKey, toDept, "before_receive");
     const checklistAnswers  = checklistTemplate ? startChecklistResponse(checklistTemplate) : [];
 
+    // Remembered crew for the receiving department. Accept records plain
+    // names (not ids), so the memory is reconciled against the active
+    // employee names for this department — anyone deactivated or moved is
+    // dropped rather than silently re-ticked.
+    const recalled = readTeamMemory("accept", toDept);
+    const acceptTeamMembers = reconcileTeam(
+      recalled.members,
+      (settings?.employeeMembers || [])
+        .filter((m) => m && m.active && Array.isArray(m.departments) && m.departments.includes(toDept))
+        .map((m) => m.name),
+    );
     setAcceptModal({ handover, password: "", needSig: false, sigSvg: null, busy: false, error: "",
                      pendingItemsToRaise: [""], newPendingText: "",
-                     checklistTemplate, checklistAnswers });
+                     checklistTemplate, checklistAnswers, acceptTeamMembers });
     // Pre-check: does the current user have a stored signature? If not, we
     // show the pad before password re-auth. The actual signature creation
     // still happens through onRegisterSignature.
@@ -12948,6 +13041,11 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                          stage: "before_receive", department: handover.toDepartment,
                                          // Feature 5 — accept-side team snapshot.
                                          acceptTeamMembers: acceptTeamMembers.filter(Boolean) });
+    // Remember the receiving crew for the next machine into this department.
+    // Only on a confirmed accept.
+    if (res && res.success !== false) {
+      writeTeamMemory("accept", handover.toDepartment, acceptTeamMembers.filter(Boolean));
+    }
     if (!res || res.success === false) {
       setAcceptModal((prev) => prev ? { ...prev, busy: false, error: res?.error || "Accept failed." } : prev);
       return;
@@ -13133,7 +13231,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
              style={{ background: "var(--surface-raised)", border: "1px solid rgba(34,197,94,0.45)", boxShadow: "0 20px 60px rgba(17,24,39,0.14)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">🔧</span>
           <div>
-            <div className="text-xs font-bold text-white">{toast.text}</div>
+            <div className="text-xs font-bold text-slate-900">{toast.text}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">{toast.sub}</div>
           </div>
           <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-500 text-xs">✕</button>
@@ -13148,7 +13246,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           <button onClick={() => onNavigate("machines_settings")}
                   title="Open Machine Tracker settings (deadlines, HOLD rules, checklists, employees)"
                   className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all"
-                  style={{ background: "rgba(232,85,61,0.1)", border: "1px solid rgba(232,85,61,0.35)", color: "#F7A992" }}>
+                  style={{ background: "rgba(215, 25, 32,0.1)", border: "1px solid rgba(215, 25, 32,0.35)", color: "#F7A992" }}>
             ⚙️ Settings
           </button>
         )}
@@ -13163,11 +13261,11 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             visible countdown to the 2-hour acceptance deadline. */}
         {pendingHandovers.length > 0 && (
           <div className="rounded-2xl p-5"
-               style={{ background: "linear-gradient(135deg,rgba(249,115,22,0.08),rgba(234,88,12,0.03))", border: `2px solid ${overdueHandovers.length ? "rgba(239,68,68,0.55)" : "rgba(249,115,22,0.45)"}`, boxShadow: overdueHandovers.length ? "0 0 24px rgba(239,68,68,0.15)" : "0 0 16px rgba(249,115,22,0.1)" }}>
+               style={{ background: "linear-gradient(135deg,rgba(217, 119, 6,0.08),rgba(234,88,12,0.03))", border: `2px solid ${overdueHandovers.length ? "rgba(239,68,68,0.55)" : "rgba(217, 119, 6,0.45)"}`, boxShadow: overdueHandovers.length ? "0 0 24px rgba(239,68,68,0.15)" : "0 0 16px rgba(217, 119, 6,0.1)" }}>
             <div className="flex items-center gap-4 mb-4 flex-wrap">
               <div className="flex items-baseline gap-3">
-                <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-orange-400">Pending Acceptance</div>
-                <div className="text-4xl font-black" style={{ color: overdueHandovers.length ? "#dc2626" : "#c2410c" }}>{pendingHandovers.length}</div>
+                <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-amber-700">Pending Acceptance</div>
+                <div className="text-4xl font-black" style={{ color: overdueHandovers.length ? "#dc2626" : "#B45309" }}>{pendingHandovers.length}</div>
                 <div className="text-[11px] text-slate-400">machine{pendingHandovers.length === 1 ? "" : "s"} waiting for the next department</div>
               </div>
               {overdueHandovers.length > 0 && (
@@ -13187,14 +13285,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 const canAccept = canAcceptHandover(canDo, h.toDepartment);
                 const statusLabel = overdue    ? { text: "🚦 ON HOLD",        color: "#dc2626", bg: "rgba(239,68,68,0.18)",  bd: "rgba(239,68,68,0.5)"  }
                                    : approaching ? { text: "⚠ Deadline Soon",  color: "#fcd34d", bg: "rgba(234,179,8,0.18)",  bd: "rgba(234,179,8,0.5)"  }
-                                   :              { text: "⏳ Awaiting Accept", color: "#c2410c", bg: "rgba(249,115,22,0.14)", bd: "rgba(249,115,22,0.4)" };
+                                   :              { text: "⏳ Awaiting Accept", color: "#B45309", bg: "rgba(217, 119, 6,0.14)", bd: "rgba(217, 119, 6,0.4)" };
                 return (
                   <div key={h.id}
                        className="flex items-center gap-4 flex-wrap rounded-xl px-4 py-3"
                        style={{ background: overdue ? "rgba(239,68,68,0.08)" : "rgba(17,24,39,0.04)", border: `1px solid ${overdue ? "rgba(239,68,68,0.35)" : "rgba(17,24,39,0.10)"}` }}>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[14px] font-black text-white">{h.bomKey}</span>
+                        <span className="text-[14px] font-black text-slate-900">{h.bomKey}</span>
                         {h.serialNo && <span className="text-[12px] text-blue-300 font-mono">S/N {h.serialNo}</span>}
                         <span className="text-[10px] font-black px-2 py-0.5 rounded-full"
                               style={{ background: statusLabel.bg, color: statusLabel.color, border: `1px solid ${statusLabel.bd}` }}>
@@ -13204,7 +13302,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                       <div className="text-[11px] text-slate-400 mt-1">
                         <span className="font-semibold text-slate-500">{h.fromDepartment}</span>
                         <span className="mx-1.5 text-slate-500">→</span>
-                        <span className="font-bold text-orange-300">{h.toDepartment}</span>
+                        <span className="font-bold text-amber-700">{h.toDepartment}</span>
                         <span className="text-slate-500 ml-2">· sent {formatDuration(sentMin)} ago</span>
                         {overdue && <span className="text-red-400 font-bold ml-2">· HOLD for {formatDuration(heldMin)}</span>}
                         {approaching && <span className="text-yellow-300 font-bold ml-2">· {minsLeft} min to deadline</span>}
@@ -13216,7 +13314,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                     </div>
                     {canAccept && onAcceptHandover ? (
                       <button onClick={() => openAcceptModal(h)}
-                              className="text-[12px] font-black text-white px-5 py-2.5 rounded-xl transition-all hover:scale-105"
+                              className="text-[12px] font-black text-slate-900 px-5 py-2.5 rounded-xl transition-all hover:scale-105"
                               style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 4px 14px rgba(34,197,94,0.35)", minWidth: 160 }}>
                         ✓ Accept Machine
                       </button>
@@ -13480,7 +13578,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           // act on and a card that never moved.
           const holdCount = askedFor.filter((h) => isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick)).length;
           const cards = [
-            { key: "pendingAccept", label: "To Accept",           value: pendingNotOverdue, sub: "waiting for next dept",  color: "#f97316", bg: "rgba(249,115,22,0.08)" },
+            { key: "pendingAccept", label: "To Accept",           value: pendingNotOverdue, sub: "waiting for next dept",  color: "#D97706", bg: "rgba(217, 119, 6,0.08)" },
             { key: "hold",          label: "On HOLD",            value: holdCount,         sub: "accept deadline passed", color: "#dc2626", bg: "rgba(239,68,68,0.1)"  },
             { key: "onRack",        label: "On Rack",            value: awaitingRelease.length, sub: "awaiting head release", color: "#6366f1", bg: "rgba(99,102,241,0.08)" },
             { key: "active",        label: "Active Builds",      value: active.length,       sub: "in production",           color: "#b45309", bg: "rgba(251,191,36,0.08)" },
@@ -13512,7 +13610,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         <div>
           <div className="flex items-center justify-between mb-3">
             <div>
-              <div className="text-sm font-black text-white">Production Rack View</div>
+              <div className="text-sm font-black text-slate-900">Production Rack View</div>
               <div className="text-[10px] text-slate-500 mt-0.5">Ready-to-start machines waiting on the rack for each model</div>
             </div>
             <div className="text-[10px] text-slate-500">
@@ -13530,7 +13628,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           {rackData.length === 0 ? (
             <div className="bg-white border border-slate-200 rounded-xl py-10 text-center">
               <div className="text-3xl mb-2">📦</div>
-              <div className="text-xs font-bold text-white mb-1">No Machine Models Defined</div>
+              <div className="text-xs font-bold text-slate-900 mb-1">No Machine Models Defined</div>
               <div className="text-[10px] text-slate-500">Create a BOM definition from <button onClick={() => onNavigate("outward")} className="text-blue-400 underline hover:text-blue-300">Outward</button> to start tracking racks.</div>
             </div>
           ) : (
@@ -13567,7 +13665,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   >
                     <div className="flex items-start justify-between mb-2.5">
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-black text-white">{r.key}</div>
+                        <div className="text-sm font-black text-slate-900">{r.key}</div>
                         <div className="text-[10px] text-slate-500 truncate mt-0.5">{r.label}</div>
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -13663,7 +13761,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         {filtered.length === 0 && (
           <div className="bg-white border border-slate-200 rounded-xl py-20 text-center">
             <div className="text-5xl mb-4">🔧</div>
-            <div className="text-sm font-bold text-white mb-2">No Machines Tracked</div>
+            <div className="text-sm font-bold text-slate-900 mb-2">No Machines Tracked</div>
             {filter === "completed" ? (
               <div className="text-[11px] text-slate-500">No completed machines yet.</div>
             ) : (
@@ -13686,7 +13784,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             const isExpanded = expanded === machine.id;
             const selStage   = stageMap[machine.id] || "";
             const futureStages = MACHINE_STAGES.filter((_, i) => i > curIdx);
-            const stageColor = STAGE_COLORS[machine.stage] || "#E8553D";
+            const stageColor = STAGE_COLORS[machine.stage] || "#D71920";
             const pct = isComplete ? 100 : Math.round((curIdx / (MACHINE_STAGES.length - 1)) * 100);
             // Phase 1 — open pending items, split by what they block.
             //   fault: someone found something wrong and called the department
@@ -13710,12 +13808,12 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
                     {/* Machine identity */}
                     <div className="flex items-center gap-3 flex-shrink-0">
-                      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[11px] font-black text-white flex-shrink-0"
+                      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[11px] font-black text-slate-900 flex-shrink-0"
                            style={{ background: stageColor + "1a", border: `1px solid ${stageColor}45` }}>
                         {machine.bomKey}
                       </div>
                       <div>
-                        <div className="text-sm font-bold text-white">{machine.bomLabel}</div>
+                        <div className="text-sm font-bold text-slate-900">{machine.bomLabel}</div>
                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           <span className="text-[10px] font-mono text-blue-400 font-bold">S/N: {machine.serialNo}</span>
                           <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
@@ -13801,7 +13899,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           <button onClick={() => handleStageUpdate(machine)}
                                   disabled={!selStage}
                                   className="text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                                  style={{ background: selStage ? "linear-gradient(135deg,#E8553D,#CC4A33)" : "transparent", borderColor: selStage ? "rgba(232,85,61,0.4)" : "rgba(17,24,39,0.10)", color: selStage ? "white" : "#6b7280" }}>
+                                  style={{ background: selStage ? "linear-gradient(135deg,#D71920,#B01218)" : "transparent", borderColor: selStage ? "rgba(215, 25, 32,0.4)" : "rgba(17,24,39,0.10)", color: selStage ? "white" : "#6b7280" }}>
                             Update
                           </button>
                         </>
@@ -13821,7 +13919,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         && pickTemplate(checklistTemplates, machine.bomKey, machine.currentDepartment || machine.stage, "during_work") && (
                         <button onClick={() => openDuringWorkModal(machine)}
                                 className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
-                                style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 10px rgba(232,85,61,0.3)" }}
+                                style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 10px rgba(215, 25, 32,0.3)" }}
                                 title="During-Work Checks">
                           📋 During-Work Checks
                         </button>
@@ -13860,8 +13958,8 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           </button>
                         ) : (
                           <button onClick={() => openFinishModal(machine)}
-                                  className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
-                                  style={{ background: "linear-gradient(135deg,#f97316,#ea580c)", boxShadow: "0 0 10px rgba(249,115,22,0.3)" }}
+                                  className="text-[11px] font-black text-slate-900 px-3 py-1.5 rounded-lg transition-all"
+                                  style={{ background: "linear-gradient(135deg,#D97706,#B45309)", boxShadow: "0 0 10px rgba(217, 119, 6,0.3)" }}
                                   title={`Finish ${machine.currentDepartment || machine.stage} → ${nextDepartment(machine.currentDepartment || machine.stage)}`}>
                             Finish & Transfer →
                           </button>
@@ -13915,7 +14013,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           </span>
                         ) : (
                           <span className="text-[10px] font-black px-2 py-1 rounded-lg"
-                                style={{ background: "rgba(249,115,22,0.12)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.35)" }}>
+                                style={{ background: "rgba(217, 119, 6,0.12)", color: "#B45309", border: "1px solid rgba(217, 119, 6,0.35)" }}>
                             ⏳ Awaiting accept
                           </span>
                         );
@@ -13923,7 +14021,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                       {/* Migration 032 — Certificate view button for Trial-completed machines */}
                       {isComplete && machine.trialCertificate && (
                         <button onClick={() => setTrialCertViewModal(machine)}
-                                className="text-[10px] font-bold text-white px-2 py-1.5 rounded-lg border transition-all"
+                                className="text-[10px] font-bold text-slate-900 px-2 py-1.5 rounded-lg border transition-all"
                                 style={{ background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.35)", color: "#67e8f9" }}
                                 title="View Trial Certificate">
                           📋 Certificate
@@ -14050,13 +14148,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         <div className="relative pl-5">
                           <div className="absolute left-2 top-0 bottom-0 w-px" style={{ background: "rgba(17,24,39,0.06)" }} />
                           {[...machine.history].reverse().map((h, i) => {
-                            const sc = STAGE_COLORS[h.stage] || "#E8553D";
+                            const sc = STAGE_COLORS[h.stage] || "#D71920";
                             return (
                               <div key={i} className="relative mb-3 last:mb-0">
                                 <div className="absolute -left-[13px] top-1 w-2.5 h-2.5 rounded-full flex-shrink-0"
                                      style={{ background: sc + "22", border: `1.5px solid ${sc}`, boxShadow: i === 0 ? `0 0 8px ${sc}55` : "none" }} />
                                 <div className="flex items-center gap-3 flex-wrap">
-                                  <span className="text-[10px] font-bold text-white">{h.stage}</span>
+                                  <span className="text-[10px] font-bold text-slate-900">{h.stage}</span>
                                   {i === 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: sc+"18", color: sc, border: `1px solid ${sc}30` }}>Current</span>}
                                   <span className="text-[9px] text-slate-600 font-mono ml-auto">{h.date}</span>
                                 </div>
@@ -14152,7 +14250,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           {machinePendingItems.length > 0 && (
                             <div className="space-y-1.5">
                               {machinePendingItems.map((p) => (
-                                <div key={p.id} className="rounded px-2 py-1.5" style={{ background: p.status === "resolved" ? "rgba(34,197,94,0.06)" : "rgba(249,115,22,0.08)", border: `1px solid ${p.status === "resolved" ? "rgba(34,197,94,0.25)" : "rgba(249,115,22,0.3)"}` }}>
+                                <div key={p.id} className="rounded px-2 py-1.5" style={{ background: p.status === "resolved" ? "rgba(34,197,94,0.06)" : "rgba(217, 119, 6,0.08)", border: `1px solid ${p.status === "resolved" ? "rgba(34,197,94,0.25)" : "rgba(217, 119, 6,0.3)"}` }}>
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className="text-[11px] text-slate-700 flex-1">{p.description}</span>
                                     {p.status === "resolved" ? (
@@ -14260,9 +14358,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setEditRackModal(null)}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-               style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 40px 80px rgba(17,24,39,0.22)" }}>
+               style={{ background: "var(--surface-elevated)", border: "1px solid rgba(215, 25, 32,0.4)", boxShadow: "0 40px 80px rgba(17,24,39,0.22)" }}>
             <div className="px-5 py-4 border-b border-slate-200"
-                 style={{ background: "rgba(232,85,61,0.06)" }}>
+                 style={{ background: "rgba(215, 25, 32,0.06)" }}>
               <div className="text-sm font-black text-blue-300">✏️ Edit Rack Capacity</div>
               <div className="text-[10px] text-slate-500 mt-0.5">
                 {editRackModal.key} · {editRackModal.label}
@@ -14288,7 +14386,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                       setEditRackModal(null);
                     }
                   }}
-                  className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none transition-all text-right font-mono"
+                  className="w-full px-3 py-2 rounded-lg text-sm text-slate-900 outline-none transition-all text-right font-mono"
                   style={{ background: "rgba(17,24,39,0.04)", border: "1px solid var(--border-rim)" }}
                 />
                 <div className="text-[10px] text-slate-600 mt-1">0 = no rack tracking. The card disappears from Production Rack View when capacity drops to 0.</div>
@@ -14308,7 +14406,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         setEditRackModal(null);
                       }}
                       className="text-[11px] font-bold px-4 py-1.5 rounded-lg text-white border transition-all"
-                      style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", borderColor: "rgba(99,130,255,0.5)" }}>
+                      style={{ background: "linear-gradient(135deg,#D71920,#B01218)", borderColor: "rgba(176, 18, 24,0.5)" }}>
                 Save
               </button>
             </div>
@@ -14341,7 +14439,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               {deleteRackConfirm.ready > 0 ? (
                 <>
                   <div className="text-slate-500">
-                    This rack has <span className="font-bold text-white">{deleteRackConfirm.ready}</span> machine{deleteRackConfirm.ready === 1 ? "" : "s"} waiting on it.
+                    This rack has <span className="font-bold text-slate-900">{deleteRackConfirm.ready}</span> machine{deleteRackConfirm.ready === 1 ? "" : "s"} waiting on it.
                   </div>
                   <div className="text-slate-400">
                     <span className="font-bold text-amber-300">Remove rack machines first</span> (open the rack card → Start Production modal → ✕ Remove From Rack). Then return here to delete.
@@ -14459,7 +14557,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 Cancel
               </button>
               <button type="button" onClick={submit} disabled={raiseBusy}
-                      className="flex-[2] h-11 rounded-lg text-[13px] font-black text-white transition-all disabled:opacity-50"
+                      className="flex-[2] h-11 rounded-lg text-[13px] font-black text-slate-900 transition-all disabled:opacity-50"
                       style={{ background: "linear-gradient(135deg,#ef4444,#dc2626)" }}>
                 {raiseBusy ? "Sending…" : (raiseDept ? `Call ${raiseDept}` : "Send")}
               </button>
@@ -14479,7 +14577,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: "rgba(34,197,94,0.15)" }}>▶</div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-black text-white">Start Production</div>
+                <div className="text-sm font-black text-slate-900">Start Production</div>
                 <div className="text-[10px] text-slate-500 mt-0.5 truncate">{startProd.key} — {startProd.label}</div>
               </div>
               <button onClick={() => setStartProd(null)} className="text-slate-500 hover:text-slate-900 transition-colors text-lg leading-none">✕</button>
@@ -14511,7 +14609,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                               style={{ background: sel ? "#16a34a" : "transparent", border: `1.5px solid ${sel ? "#16a34a" : "rgba(17,24,39,0.22)"}`, color: "var(--text)" }}>
                           {sel ? "✓" : ""}
                         </span>
-                        <span className="text-[12px] font-mono font-bold text-white flex-1 truncate">{m.serialNo || "(no serial)"}</span>
+                        <span className="text-[12px] font-mono font-bold text-slate-900 flex-1 truncate">{m.serialNo || "(no serial)"}</span>
                         <span className="text-[9px] text-slate-500 flex-shrink-0">Issued {m.createdDate}</span>
                       </button>
                       {/* Feature 3: remove from rack — stock is reversed via the
@@ -14543,7 +14641,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 Cancel
               </button>
               <button onClick={confirmStartProd}
-                className="flex-1 py-2.5 rounded-xl text-xs font-black text-white transition-all"
+                className="flex-1 py-2.5 rounded-xl text-xs font-black text-slate-900 transition-all"
                 style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.35)" }}>
                 ▶ Start Production
               </button>
@@ -14821,6 +14919,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                       Checklist · {finishModal.template.name}
                       <span className="text-slate-400 font-normal ml-1">(unchecked items need a remark)</span>
                     </div>
+                    <ChecklistBulkBar
+                      answers={finishModal.answers}
+                      onSetAll={(v) => setFinishModal((prev) => prev ? { ...prev, answers: setAllAnswers(prev.answers, v) } : prev)}
+                    />
                     <div className="space-y-2 max-h-56 overflow-y-auto">
                       {finishModal.answers.map((a, i) => (
                         <div key={i} className={`rounded-md px-2 py-2 border ${a.checked ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 border-slate-200"}`}>
@@ -14884,7 +14986,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   Cancel
                 </button>
                 <button onClick={submitFinishTransfer} disabled={transferBusy || (isOverrun && !narration.trim())}
-                        className="text-[12px] font-bold text-white bg-orange-500 hover:bg-orange-600 px-5 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" style={{ color: "#fff" }}>
+                        className="text-[12px] font-bold text-white bg-amber-600 hover:bg-amber-700 px-5 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" style={{ color: "#fff" }}>
                   {transferBusy ? "⏳ Sending…" : `Finish & Transfer → ${toDepartment}`}
                 </button>
               </div>
@@ -14933,7 +15035,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                  style={{ background: "var(--surface-elevated)", border: "1px solid rgba(34,197,94,0.4)", boxShadow: "0 40px 80px rgba(17,24,39,0.22)", maxHeight: "90vh" }}>
               <div className="px-6 py-5 border-b border-slate-200 flex-shrink-0"
                    style={{ background: "linear-gradient(90deg,rgba(34,197,94,0.10),rgba(22,163,74,0.05))" }}>
-                <div className="text-sm font-black text-white">Accept into {handover.toDepartment}</div>
+                <div className="text-sm font-black text-slate-900">Accept into {handover.toDepartment}</div>
                 <div className="text-[11px] text-slate-400 mt-0.5">{handover.bomKey}{handover.serialNo ? ` · S/N ${handover.serialNo}` : ""}</div>
               </div>
               <div className="p-5 space-y-4 flex-1 overflow-y-auto">
@@ -14961,13 +15063,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                onChange={(e) => setField({ password: e.target.value, error: "" })}
                                onKeyDown={(e) => { if (e.key === "Enter") submitAcceptHandover(); }}
                                placeholder="Password"
-                               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[12px] text-white placeholder-slate-500 outline-none focus:border-green-500/60" />
+                               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[12px] text-slate-900 placeholder-slate-500 outline-none focus:border-green-500/60" />
                         <div className="text-[10px] text-slate-500 mt-1">Your saved signature will be attached to this acceptance record.</div>
                       </div>
                     ) : (
                       <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(34,197,94,0.07)", border: "1px solid rgba(34,197,94,0.3)" }}>
                         <div className="text-[11px] font-bold text-emerald-200">
-                          Accepting as <span className="text-white">{currentUser?.fullName || currentUser?.username || "you"}</span>
+                          Accepting as <span className="text-slate-900">{currentUser?.fullName || currentUser?.username || "you"}</span>
                         </div>
                         <div className="text-[10px] text-slate-400 mt-0.5">
                           Your saved signature will be attached. No password required for routine acceptance.
@@ -14981,9 +15083,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                     )}
                     {/* Phase B — carry-forward: show previously unresolved items for this machine */}
                     {(pendingHandoverItems || []).filter((p) => p.machineId === handover.machineId && p.status === "open").length > 0 && (
-                      <div className="rounded-lg px-3 py-2" style={{ background: "rgba(249,115,22,0.07)", border: "1px solid rgba(249,115,22,0.3)" }}>
-                        <div className="text-[10px] font-bold text-orange-300 uppercase tracking-wide mb-1">⏳ Pending items carried forward from previous departments</div>
-                        <ul className="list-disc list-inside text-[11px] text-orange-100 space-y-0.5">
+                      <div className="rounded-lg px-3 py-2" style={{ background: "rgba(217, 119, 6,0.07)", border: "1px solid rgba(217, 119, 6,0.3)" }}>
+                        <div className="text-[10px] font-bold text-amber-700 uppercase tracking-wide mb-1">⏳ Pending items carried forward from previous departments</div>
+                        <ul className="list-disc list-inside text-[11px] text-amber-800 space-y-0.5">
                           {(pendingHandoverItems || []).filter((p) => p.machineId === handover.machineId && p.status === "open").map((p) => (
                             <li key={p.id}><span className="font-semibold">{p.raisedInDepartment}:</span> {p.description}</li>
                           ))}
@@ -14997,13 +15099,17 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         follow the same "unchecked needs remark" rule as
                         Finish & Transfer. */}
                     {acceptModal.checklistTemplate && (acceptModal.checklistAnswers || []).length > 0 && (
-                      <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(232,85,61,0.05)", border: "1px solid rgba(232,85,61,0.3)" }}>
+                      <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(215, 25, 32,0.05)", border: "1px solid rgba(215, 25, 32,0.3)" }}>
                         <div className="text-[10px] font-bold text-blue-200 uppercase tracking-wider mb-1">
                           📋 {acceptModal.checklistTemplate.name || "Before-Receive Checklist"}
                         </div>
                         <div className="text-[10px] text-slate-400 mb-2">
                           Tick each step after you check it. Any step you can't tick needs a short reason.
                         </div>
+                        <ChecklistBulkBar
+                          answers={acceptModal.checklistAnswers}
+                          onSetAll={(v) => setField({ checklistAnswers: setAllAnswers(acceptModal.checklistAnswers, v), error: "" })}
+                        />
                         <div className="space-y-1.5">
                           {acceptModal.checklistAnswers.map((a, i) => (
                             <div key={a.id || i} className="rounded-md px-2 py-1.5"
@@ -15014,14 +15120,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                        className="accent-emerald-500 w-4 h-4 mt-0.5" />
                                 <span className="flex-1 text-[11px] text-slate-700 leading-relaxed">
                                   {a.label}
-                                  {a.required && <span className="ml-1 text-[9px] font-bold text-orange-300">• Must do</span>}
+                                  {a.required && <span className="ml-1 text-[9px] font-bold text-amber-700">• Must do</span>}
                                 </span>
                               </label>
                               {!a.checked && (
                                 <input type="text" value={a.remark || ""}
                                        onChange={(e) => setField({ checklistAnswers: setAnswerRemark(acceptModal.checklistAnswers, i, e.target.value), error: "" })}
                                        placeholder="Why not? (short note)"
-                                       className="mt-1 w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] text-white placeholder-slate-500 outline-none focus:border-blue-500/60" />
+                                       className="mt-1 w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-900 placeholder-slate-500 outline-none focus:border-blue-500/60" />
                               )}
                             </div>
                           ))}
@@ -15038,7 +15144,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                             <input type="text" value={desc}
                                    onChange={(e) => setField({ pendingItemsToRaise: (acceptModal.pendingItemsToRaise || []).map((d, idx) => idx === i ? e.target.value : d) })}
                                    placeholder={`Pending item ${i + 1} (e.g. missing fasteners, incomplete wiring)`}
-                                   className="flex-1 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-white placeholder-slate-500 outline-none focus:border-orange-500/60" />
+                                   className="flex-1 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-900 placeholder-slate-500 outline-none focus:border-amber-500/60" />
                             <button type="button"
                                     onClick={() => setField({ pendingItemsToRaise: (acceptModal.pendingItemsToRaise || []).filter((_, idx) => idx !== i) })}
                                     className="text-[11px] text-slate-500 hover:text-red-400 px-1">×</button>
@@ -15095,7 +15201,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 </button>
                 {!needSig && (
                   <button onClick={submitAcceptHandover} disabled={busy || (workflow.require_password_at_accept && !password)}
-                          className="text-[12px] font-black text-white px-6 py-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-[12px] font-black text-slate-900 px-6 py-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                           style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 4px 14px rgba(34,197,94,0.35)" }}>
                     {busy ? "⏳ Accepting…" : (workflow.require_password_at_accept ? "Verify & Accept" : "Confirm Acceptance")}
                   </button>
@@ -15115,10 +15221,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(10px)" }}
                onClick={(e) => e.target === e.currentTarget && !busy && setDuringWorkModal(null)}>
             <div className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col"
-                 style={{ background: "var(--surface-elevated)", border: "1px solid rgba(232,85,61,0.4)", boxShadow: "0 40px 80px rgba(17,24,39,0.22)", maxHeight: "90vh" }}>
+                 style={{ background: "var(--surface-elevated)", border: "1px solid rgba(215, 25, 32,0.4)", boxShadow: "0 40px 80px rgba(17,24,39,0.22)", maxHeight: "90vh" }}>
               <div className="px-6 py-4 border-b border-slate-200 flex-shrink-0"
-                   style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.12),rgba(204,74,51,0.05))" }}>
-                <div className="text-sm font-black text-white">📋 During-Work Checks</div>
+                   style={{ background: "linear-gradient(90deg,rgba(215, 25, 32,0.12),rgba(176, 18, 24,0.05))" }}>
+                <div className="text-sm font-black text-slate-900">📋 During-Work Checks</div>
                 <div className="text-[11px] text-slate-400 mt-0.5">{machine.bomKey}{machine.serialNo ? ` · S/N ${machine.serialNo}` : ""} · {machine.currentDepartment || machine.stage}</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">{template?.name || "Checks"}</div>
               </div>
@@ -15126,6 +15232,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 <div className="text-[10px] text-slate-400 mb-1">
                   Tick each step after you check it. Any step you can't tick needs a short reason.
                 </div>
+                <ChecklistBulkBar
+                  answers={answers}
+                  onSetAll={(v) => setField({ answers: setAllAnswers(answers, v), error: "" })}
+                />
                 {answers.map((a, i) => (
                   <div key={a.id || i} className="rounded-md px-2 py-1.5"
                        style={{ background: "rgba(17,24,39,0.03)", border: `1px solid ${a.checked ? "rgba(34,197,94,0.3)" : "rgba(17,24,39,0.10)"}` }}>
@@ -15135,14 +15245,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                              className="accent-emerald-500 w-4 h-4 mt-0.5" />
                       <span className="flex-1 text-[11px] text-slate-700 leading-relaxed">
                         {a.label}
-                        {a.required && <span className="ml-1 text-[9px] font-bold text-orange-300">• Must do</span>}
+                        {a.required && <span className="ml-1 text-[9px] font-bold text-amber-700">• Must do</span>}
                       </span>
                     </label>
                     {!a.checked && (
                       <input type="text" value={a.remark || ""}
                              onChange={(e) => setField({ answers: setAnswerRemark(answers, i, e.target.value), error: "" })}
                              placeholder="Why not? (short note)"
-                             className="mt-1 w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] text-white placeholder-slate-500 outline-none focus:border-blue-500/60" />
+                             className="mt-1 w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-900 placeholder-slate-500 outline-none focus:border-blue-500/60" />
                     )}
                   </div>
                 ))}
@@ -15161,7 +15271,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 </button>
                 <button onClick={submitDuringWork} disabled={busy}
                         className="text-xs font-black text-white px-4 py-1.5 rounded-lg transition-all disabled:opacity-50"
-                        style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 0 14px rgba(232,85,61,0.3)" }}>
+                        style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 14px rgba(215, 25, 32,0.3)" }}>
                   {busy ? "Saving…" : "✓ Save Checks"}
                 </button>
               </div>
@@ -15389,7 +15499,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
     setConfirmFulfill(null);
   });
 
-  const AC = { full: "#22c55e", partial: "#f97316", none: "#ef4444" };
+  const AC = { full: "#22c55e", partial: "#D97706", none: "#ef4444" };
   const AL = { full: "Ready",   partial: "Partial Stock", none: "Waiting" };
 
   // BOM View Modal
@@ -15404,10 +15514,10 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
         <div className="bg-white rounded-2xl w-full max-w-lg mx-4 overflow-hidden" style={{ border: "1px solid var(--border-rim)", boxShadow: "0 32px 80px rgba(17,24,39,0.18)", animation: "slideUp 0.25s ease both" }}>
           <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid rgba(17,24,39,0.08)", background: "rgba(17,24,39,0.03)" }}>
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[10px] font-black text-slate-900 flex-shrink-0"
                    style={{ background: bom.color + "22", border: `1px solid ${bom.color}55` }}>{viewBOM}</div>
               <div>
-                <div className="text-sm font-bold text-white">{viewBOM} — {bom.label}</div>
+                <div className="text-sm font-bold text-slate-900">{viewBOM} — {bom.label}</div>
                 <div className="text-[11px] text-slate-500">{bom.items.length} components</div>
               </div>
             </div>
@@ -15419,7 +15529,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
               <div key={code} className="flex items-center gap-3 px-3 py-2.5 rounded-lg"
                    style={{ background: "rgba(17,24,39,0.03)", border: `1px solid ${ok ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.15)"}` }}>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[11px] font-semibold text-white truncate">{inv?.name || code}</div>
+                  <div className="text-[11px] font-semibold text-slate-900 truncate">{inv?.name || code}</div>
                   <div className="text-[9px] font-mono text-slate-500 mt-0.5">{code} · {qty} {inv?.unit || "—"} / unit</div>
                 </div>
                 <div className="text-right flex-shrink-0 mr-2">
@@ -15445,7 +15555,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
              style={{ background: "var(--surface-raised)", border: `1px solid ${toast.type === "error" ? "rgba(239,68,68,0.45)" : "rgba(34,197,94,0.45)"}`, boxShadow: "0 20px 60px rgba(17,24,39,0.14)", animation: "slideUp 0.3s ease both" }}>
           <span className="text-lg">{toast.type === "error" ? "⚠️" : "✅"}</span>
           <div>
-            <div className="text-xs font-bold text-white">{toast.text}</div>
+            <div className="text-xs font-bold text-slate-900">{toast.text}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">{toast.sub}</div>
           </div>
           <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-500 text-xs">✕</button>
@@ -15480,15 +15590,15 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                onClick={(e) => e.target === e.currentTarget && setConfirmFulfill(null)}>
             <div className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col"
                  style={{ maxHeight: "90vh", background: "var(--surface-elevated)",
-                          border: `1px solid ${criticalRows.length ? "rgba(249,115,22,0.5)" : "rgba(34,197,94,0.4)"}`,
+                          border: `1px solid ${criticalRows.length ? "rgba(217, 119, 6,0.5)" : "rgba(34,197,94,0.4)"}`,
                           boxShadow: "0 40px 100px rgba(17,24,39,0.22)" }}>
               {/* Header */}
               <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between flex-shrink-0"
                    style={{ background: criticalRows.length
-                     ? "linear-gradient(90deg,rgba(249,115,22,0.14),rgba(234,88,12,0.06))"
+                     ? "linear-gradient(90deg,rgba(217, 119, 6,0.14),rgba(234,88,12,0.06))"
                      : "linear-gradient(90deg,rgba(34,197,94,0.12),rgba(21,128,61,0.05))" }}>
                 <div>
-                  <div className="text-sm font-black text-white flex items-center gap-2">
+                  <div className="text-sm font-black text-slate-900 flex items-center gap-2">
                     {criticalRows.length ? "🔒" : "✅"} Pending Stock Confirmation
                   </div>
                   <div className="text-[11px] text-slate-400 mt-0.5">
@@ -15506,7 +15616,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                 {/* Critical items — require configured input */}
                 {criticalRows.length > 0 && (
                   <div className="space-y-2">
-                    <div className="text-[10px] font-black uppercase tracking-wider" style={{ color: "#c2410c" }}>
+                    <div className="text-[10px] font-black uppercase tracking-wider" style={{ color: "#B45309" }}>
                       Critical items — {criticalRows.length} line{criticalRows.length === 1 ? "" : "s"} need confirmation
                     </div>
                     {criticalRows.map((entry) => {
@@ -15516,22 +15626,22 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                       return (
                         <div key={`crit-${entry.issueId || entry.bomKey}-${entry.code}`}
                              className="rounded-xl px-4 py-3"
-                             style={{ background: rowReady ? "rgba(34,197,94,0.06)" : "rgba(249,115,22,0.04)",
-                                      border: `1px solid ${rowReady ? "rgba(34,197,94,0.35)" : "rgba(249,115,22,0.28)"}` }}>
+                             style={{ background: rowReady ? "rgba(34,197,94,0.06)" : "rgba(217, 119, 6,0.04)",
+                                      border: `1px solid ${rowReady ? "rgba(34,197,94,0.35)" : "rgba(217, 119, 6,0.28)"}` }}>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[12px] font-bold text-white">{entry.name}</span>
+                            <span className="text-[12px] font-bold text-slate-900">{entry.name}</span>
                             <span className="text-[10px] font-mono text-slate-500">{entry.code}</span>
-                            <span className="text-[10px] font-bold" style={{ color: rowReady ? "#15803d" : "#c2410c" }}>
+                            <span className="text-[10px] font-bold" style={{ color: rowReady ? "#15803d" : "#B45309" }}>
                               {entry.canIssue} {entry.unit}
                             </span>
                             {entry.canIssue < entry.pendingQty && (
                               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                    style={{ background: "rgba(249,115,22,0.12)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.3)" }}>
+                                    style={{ background: "rgba(217, 119, 6,0.12)", color: "#B45309", border: "1px solid rgba(217, 119, 6,0.3)" }}>
                                 partial · {entry.pendingQty - entry.canIssue} {entry.unit} will stay pending
                               </span>
                             )}
                             <span className="ml-auto text-[9px] font-black uppercase tracking-wider"
-                                  style={{ color: rowReady ? "#15803d" : "#c2410c" }}>
+                                  style={{ color: rowReady ? "#15803d" : "#B45309" }}>
                               {rowReady ? "✓ Confirmed" : type === "serial" ? "Serial Number Entry" : "Checkbox Confirmation"}
                             </span>
                           </div>
@@ -15563,11 +15673,11 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                                                setLine(entry.code, { serials: next });
                                              }}
                                              placeholder={`Serial #${idx + 1}`}
-                                             className="bg-slate-50 rounded-md px-2 py-1.5 text-[11px] text-white outline-none modal-input"
+                                             className="bg-slate-50 rounded-md px-2 py-1.5 text-[11px] text-slate-900 outline-none modal-input"
                                              style={{ fontFamily: "'Inter',system-ui,sans-serif",
                                                       border: (alreadyUsed || dupeInBatch) ? "1px solid rgba(239,68,68,0.7)" : "1px solid rgba(17,24,39,0.10)" }} />
                                       {alreadyUsed && <span className="text-[9px] text-red-400 font-semibold">Already issued</span>}
-                                      {dupeInBatch && !alreadyUsed && <span className="text-[9px] text-orange-400 font-semibold">Duplicate in list</span>}
+                                      {dupeInBatch && !alreadyUsed && <span className="text-[9px] text-amber-700 font-semibold">Duplicate in list</span>}
                                     </div>
                                   );
                                 })}
@@ -15590,11 +15700,11 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                       <div key={`nc-${entry.issueId || entry.bomKey}-${entry.code}`}
                            className="rounded-lg px-3 py-2 flex items-center gap-2 flex-wrap"
                            style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.06)" }}>
-                        <span className="text-[11px] font-semibold text-white">{entry.name}</span>
+                        <span className="text-[11px] font-semibold text-slate-900">{entry.name}</span>
                         <span className="text-[9px] font-mono text-slate-600">{entry.code}</span>
                         {cf.mode === "all" && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                style={{ background: "rgba(232,85,61,0.1)", color: "#F7A992", border: "1px solid rgba(232,85,61,0.25)" }}>
+                                style={{ background: "rgba(215, 25, 32,0.1)", color: "#F7A992", border: "1px solid rgba(215, 25, 32,0.25)" }}>
                             {entry.bomKey}{entry.serialNo ? ` · ${entry.serialNo}` : ""}
                           </span>
                         )}
@@ -15603,7 +15713,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                         </span>
                         {entry.canIssue < entry.pendingQty && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                style={{ background: "rgba(249,115,22,0.1)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.3)" }}>
+                                style={{ background: "rgba(217, 119, 6,0.1)", color: "#B45309", border: "1px solid rgba(217, 119, 6,0.3)" }}>
                             partial
                           </span>
                         )}
@@ -15634,7 +15744,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                     Cancel
                   </button>
                   <button onClick={commitConfirm} disabled={!ready}
-                          className="text-xs font-black text-white px-4 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-xs font-black text-slate-900 px-4 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                           style={{ background: !ready ? "#1f2937" : "linear-gradient(135deg,#16a34a,#15803d)",
                                    boxShadow: !ready ? "none" : "0 0 14px rgba(34,197,94,0.3)" }}>
                     {!ready ? "🔒 Complete Confirmations" : "✓ Confirm & Issue"}
@@ -15652,9 +15762,9 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
 
         {/* Summary */}
         <div className="grid grid-cols-3 gap-4">
-          <div className="p-5 rounded-xl" style={{ background: "rgba(249,115,22,0.06)", border: "1px solid rgba(249,115,22,0.2)" }}>
-            <div className="text-[9px] font-bold text-orange-500 uppercase tracking-[0.08em] mb-1">Pending Machines</div>
-            <div className="text-4xl font-black text-orange-400 mb-1">{groups.length}</div>
+          <div className="p-5 rounded-xl" style={{ background: "rgba(217, 119, 6,0.06)", border: "1px solid rgba(217, 119, 6,0.2)" }}>
+            <div className="text-[9px] font-bold text-amber-600 uppercase tracking-[0.08em] mb-1">Pending Machines</div>
+            <div className="text-4xl font-black text-amber-700 mb-1">{groups.length}</div>
             <div className="text-[10px] text-slate-500">builds with shortfalls</div>
           </div>
           <div className="p-5 rounded-xl" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.2)" }}>
@@ -15672,20 +15782,20 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
         {groups.length === 0 ? (
           <div className="bg-white border border-slate-200 rounded-xl py-20 text-center" style={{ animation: "fadeIn 0.4s ease both" }}>
             <div className="text-5xl mb-4">✅</div>
-            <div className="text-sm font-bold text-white mb-2">No Pending Materials</div>
+            <div className="text-sm font-bold text-slate-900 mb-2">No Pending Materials</div>
             <div className="text-[11px] text-slate-500">All BOM issues are fully fulfilled. Issue a BOM from Outward to track shortfalls here.</div>
           </div>
         ) : (
           <>
             <div className="flex items-center justify-between">
               <div className="text-[11px] text-slate-500">
-                <span className="font-bold text-white">{groups.length}</span> machine{groups.length !== 1 ? "s" : ""} waiting ·{" "}
-                <span className="font-bold text-orange-400">{enriched.length} items</span> pending
+                <span className="font-bold text-slate-900">{groups.length}</span> machine{groups.length !== 1 ? "s" : ""} waiting ·{" "}
+                <span className="font-bold text-amber-700">{enriched.length} items</span> pending
               </div>
               <div className="flex items-center gap-2">
                 {availN > 0 && canDo("pending","fulfill") && (
                   <button onClick={openFulfillAll}
-                          className="text-[11px] font-bold text-white px-4 py-1.5 rounded-lg transition-all"
+                          className="text-[11px] font-bold text-slate-900 px-4 py-1.5 rounded-lg transition-all"
                           style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.25)" }}>
                     ✓ Issue All Available ({availN})
                   </button>
@@ -15703,10 +15813,10 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
               {groups.map((group) => {
                 const gStatus   = getGroupStatus(group);
                 const gCanN     = group.items.filter((e) => e.canIssue > 0).length;
-                const gSC       = gStatus === "ready" ? "#22c55e" : gStatus === "partial" ? "#f97316" : "#ef4444";
+                const gSC       = gStatus === "ready" ? "#22c55e" : gStatus === "partial" ? "#D97706" : "#ef4444";
                 const gLabel    = gStatus === "ready" ? "All Ready" : gStatus === "partial" ? "Partially Available" : "Awaiting Stock";
                 const machine   = machineByIssue[String(group.issueId)] || null;
-                const stageColor = machine ? (STAGE_COLORS[machine.stage] || "#E8553D") : "#E8553D";
+                const stageColor = machine ? (STAGE_COLORS[machine.stage] || "#D71920") : "#D71920";
                 const bom        = bomDefs?.[group.bomKey];
 
                 return (
@@ -15717,18 +15827,18 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                     <div className="px-5 py-4" style={{ background: "rgba(17,24,39,0.03)", borderBottom: "1px solid rgba(17,24,39,0.06)" }}>
                       <div className="flex items-center gap-4 flex-wrap">
                         {/* BOM badge */}
-                        <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[11px] font-black text-white flex-shrink-0"
-                             style={{ background: (bom?.color || "#f97316") + "22", border: `1px solid ${(bom?.color || "#f97316")}50` }}>
+                        <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[11px] font-black text-slate-900 flex-shrink-0"
+                             style={{ background: (bom?.color || "#D97706") + "22", border: `1px solid ${(bom?.color || "#D97706")}50` }}>
                           {group.bomKey}
                         </div>
 
                         {/* Machine identity */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-bold text-white">{group.bomLabel}</span>
+                            <span className="text-sm font-bold text-slate-900">{group.bomLabel}</span>
                             {group.serialNo && (
                               <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full"
-                                    style={{ background: "rgba(232,85,61,0.12)", color: "#F7A992", border: "1px solid rgba(232,85,61,0.25)" }}>
+                                    style={{ background: "rgba(215, 25, 32,0.12)", color: "#F7A992", border: "1px solid rgba(215, 25, 32,0.25)" }}>
                                 S/N: {group.serialNo}
                               </span>
                             )}
@@ -15752,7 +15862,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {gCanN > 0 && canDo("pending","fulfill") && (
                             <button onClick={() => openGiveAllForGroup(group)}
-                                    className="text-[10px] font-bold text-white px-3 py-1.5 rounded-lg border transition-all whitespace-nowrap"
+                                    className="text-[10px] font-bold text-slate-900 px-3 py-1.5 rounded-lg border transition-all whitespace-nowrap"
                                     style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", borderColor: "rgba(34,197,94,0.3)" }}>
                               Give All ({gCanN})
                             </button>
@@ -15780,7 +15890,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                             <tr key={idx} className="border-b border-slate-200 last:border-0 hover:bg-transparent transition-colors">
                               <td className="px-4 py-3 text-[10px] font-mono font-bold text-blue-400 whitespace-nowrap">{entry.code}</td>
                               <td className="px-4 py-3">
-                                <div className="text-xs font-semibold text-white">{entry.name}</div>
+                                <div className="text-xs font-semibold text-slate-900">{entry.name}</div>
                                 <div className="text-[9px] text-slate-600 mt-0.5 font-mono">{entry.category}</div>
                               </td>
                               <td className="px-4 py-3 text-[10px] font-mono tabular-nums text-slate-400 whitespace-nowrap">
@@ -15791,8 +15901,8 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                                   {entry.liveStock} <span style={{ color: AC[entry.avail] + "99", fontWeight: 400 }}>{entry.unit}</span>
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-[10px] font-bold font-mono tabular-nums text-orange-400 whitespace-nowrap">
-                                {entry.pendingQty} <span className="text-orange-400/60 font-normal">{entry.unit}</span>
+                              <td className="px-4 py-3 text-[10px] font-bold font-mono tabular-nums text-amber-700 whitespace-nowrap">
+                                {entry.pendingQty} <span className="text-amber-700 font-normal">{entry.unit}</span>
                               </td>
                               <td className="px-4 py-3">
                                 <span className="text-[9px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
@@ -15803,7 +15913,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                               <td className="px-4 py-3">
                                 {entry.avail !== "none" && canDo("pending","fulfill") ? (
                                   <button onClick={() => openGiveMaterial(entry)}
-                                          className="text-[10px] font-bold text-white px-3 py-1.5 rounded-lg border whitespace-nowrap transition-all flex items-center gap-1"
+                                          className="text-[10px] font-bold text-slate-900 px-3 py-1.5 rounded-lg border whitespace-nowrap transition-all flex items-center gap-1"
                                           style={{ background: entry.avail === "full" ? "linear-gradient(135deg,#16a34a,#15803d)" : "linear-gradient(135deg,#d97706,#b45309)", borderColor: entry.avail === "full" ? "rgba(34,197,94,0.3)" : "rgba(217,119,6,0.3)", boxShadow: entry.avail === "full" ? "0 0 10px rgba(34,197,94,0.18)" : "0 0 10px rgba(217,119,6,0.15)" }}>
                                     {entry.isCritical && <span title="Critical item — confirmation required">🔒</span>}
                                     {entry.avail === "full" ? "✓ Give Material" : `Issue ${entry.canIssue} ${entry.unit}`}
@@ -15842,28 +15952,28 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
 // ─── HISTORY & REPORTS ────────────────────────────────────────────────────────
 
 const AUDIT_META = {
-  po_created:        { label: "PO Created",        icon: "📋", color: "#E8553D", module: "Purchase"   },
+  po_created:        { label: "PO Created",        icon: "📋", color: "#D71920", module: "Purchase"   },
   po_approved:       { label: "PO Approved",        icon: "✅", color: "#22c55e", module: "Purchase"   },
   po_rejected:       { label: "PO Rejected",        icon: "❌", color: "#ef4444", module: "Purchase"   },
-  po_ordered:        { label: "Order Placed",        icon: "🚚", color: "#CC4A33", module: "Purchase"   },
+  po_ordered:        { label: "Order Placed",        icon: "🚚", color: "#B01218", module: "Purchase"   },
   po_received:       { label: "PO Received",         icon: "📥", color: "#10b981", module: "Purchase"   },
   po_deleted:        { label: "PO Deleted",          icon: "🗑️", color: "#64748b", module: "Purchase"   },
   inward_manual:     { label: "Manual Inward",       icon: "📥", color: "#10b981", module: "Inward"     },
   outward_bom:       { label: "BOM Issued",          icon: "📤", color: "#f59e0b", module: "Outward"    },
-  outward_manual:    { label: "Manual Outward",      icon: "📤", color: "#c2410c", module: "Outward"    },
+  outward_manual:    { label: "Manual Outward",      icon: "📤", color: "#B45309", module: "Outward"    },
   stock_adjust:      { label: "Stock Adjusted",      icon: "🔢", color: "#8b5cf6", module: "Inventory"  },
   inventory_add:     { label: "Item Added",          icon: "➕", color: "#22c55e", module: "Inventory"  },
-  inventory_edit:    { label: "Item Edited",         icon: "✏️", color: "#E8553D", module: "Inventory"  },
+  inventory_edit:    { label: "Item Edited",         icon: "✏️", color: "#D71920", module: "Inventory"  },
   inventory_delete:  { label: "Item Deleted",        icon: "🗑️", color: "#ef4444", module: "Inventory"  },
   inventory_archive: { label: "Item Archived",        icon: "📦", color: "#64748b", module: "Inventory"  },
   bom_updated:       { label: "BOM Updated",         icon: "⚙️", color: "#f59e0b", module: "BOM"        },
   pending_fulfilled: { label: "Pending Fulfilled",   icon: "✅", color: "#22c55e", module: "Pending"    },
   pending_cleared:   { label: "Pending Cleared",     icon: "🧹", color: "#64748b", module: "Pending"    },
-  machine_created:   { label: "Machine Created",     icon: "🏭", color: "#E8553D", module: "Machine"    },
-  machine_stage:     { label: "Stage Updated",       icon: "🔄", color: "#CC4A33", module: "Machine"    },
+  machine_created:   { label: "Machine Created",     icon: "🏭", color: "#D71920", module: "Machine"    },
+  machine_stage:     { label: "Stage Updated",       icon: "🔄", color: "#B01218", module: "Machine"    },
   machine_completed: { label: "Completed",           icon: "🏆", color: "#22c55e", module: "Machine"    },
   vendor_add:        { label: "Vendor Added",        icon: "➕", color: "#22c55e", module: "Vendor"     },
-  vendor_edit:       { label: "Vendor Updated",      icon: "✏️", color: "#E8553D", module: "Vendor"     },
+  vendor_edit:       { label: "Vendor Updated",      icon: "✏️", color: "#D71920", module: "Vendor"     },
   vendor_delete:     { label: "Vendor Deleted",      icon: "🗑️", color: "#ef4444", module: "Vendor"     },
   role_changed:      { label: "Role Changed",        icon: "👤", color: "#8b5cf6", module: "Settings"   },
 };
@@ -16242,7 +16352,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
   const machineStatus = (() => {
     const c = { completed: 0, active: 0 };
     machineLog.forEach((m) => { c[m.status] = (c[m.status] || 0) + 1; });
-    return [{ name: "Active", value: c.active || 0, fill: "#E8553D" }, { name: "Completed", value: c.completed || 0, fill: "#22c55e" }];
+    return [{ name: "Active", value: c.active || 0, fill: "#D71920" }, { name: "Completed", value: c.completed || 0, fill: "#22c55e" }];
   })();
   const stageBreakdown = (() => {
     const c = {};
@@ -16313,7 +16423,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="text-sm font-bold text-white">Activity Log</div>
+                <div className="text-sm font-bold text-slate-900">Activity Log</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">{activityRows.length} records — every ERP action is permanently logged here</div>
               </div>
               <HRExportBar onCSV={()=>hrExportCSV(activityExport,activityCols,"activity-log")} onExcel={()=>hrExportExcel(activityExport,activityCols,"activity-log")} onPDF={()=>hrExportPDF("Activity Log",activityExport,activityCols)} />
@@ -16333,7 +16443,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: meta.color + "18", color: meta.color }}>{meta.label}</span>
-                          <span className="text-xs font-medium text-white">{a.action}</span>
+                          <span className="text-xs font-medium text-slate-900">{a.action}</span>
                           {a.ref && <span className="text-[10px] text-slate-500 font-mono">{a.ref}</span>}
                         </div>
                         <div className="flex items-center gap-3 mt-1 flex-wrap">
@@ -16358,7 +16468,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="text-sm font-bold text-white">Purchase History</div>
+                <div className="text-sm font-bold text-slate-900">Purchase History</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">{purchaseRows.length} purchase orders</div>
               </div>
               <HRExportBar onCSV={()=>hrExportCSV(purchaseExport,purchaseCols,"purchase-history")} onExcel={()=>hrExportExcel(purchaseExport,purchaseCols,"purchase-history")} onPDF={()=>hrExportPDF("Purchase History",purchaseExport,purchaseCols)} />
@@ -16368,7 +16478,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
             ) : (
               <div className="space-y-3">
                 {purchaseRows.map((p) => {
-                  const STATUS_COLOR = { pending:"#f59e0b", approved:"#E8553D", ordered:"#CC4A33", received:"#22c55e", rejected:"#ef4444", overdue:"#f97316" };
+                  const STATUS_COLOR = { pending:"#f59e0b", approved:"#D71920", ordered:"#B01218", received:"#22c55e", rejected:"#ef4444", overdue:"#D97706" };
                   const sc = STATUS_COLOR[p.status] || "#64748b";
                   const totalAmt = (p.amount||0).toLocaleString("en-IN");
                   return (
@@ -16378,15 +16488,15 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                           <div className="w-9 h-9 rounded-lg flex items-center justify-center text-sm flex-shrink-0" style={{ background: sc+"18", border:`1px solid ${sc}30` }}>🛒</div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="text-sm font-black text-white">{p.id}</span>
+                              <span className="text-sm font-black text-slate-900">{p.id}</span>
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize" style={{ background:sc+"18", color:sc }}>{p.status}</span>
                             </div>
                             <div className="text-xs text-slate-400 mt-0.5">{p.vendor}</div>
                           </div>
                         </div>
                         <div className="flex items-center gap-6 flex-wrap text-right">
-                          <div><div className="text-[10px] text-slate-500">Items</div><div className="text-xs font-bold text-white">{(p.lineItems||[]).length}</div></div>
-                          <div><div className="text-[10px] text-slate-500">Total Qty</div><div className="text-xs font-bold text-white">{(p.lineItems||[]).reduce((s,l)=>s+(l.qty||0),0)}</div></div>
+                          <div><div className="text-[10px] text-slate-500">Items</div><div className="text-xs font-bold text-slate-900">{(p.lineItems||[]).length}</div></div>
+                          <div><div className="text-[10px] text-slate-500">Total Qty</div><div className="text-xs font-bold text-slate-900">{(p.lineItems||[]).reduce((s,l)=>s+(l.qty||0),0)}</div></div>
                           <div><div className="text-[10px] text-slate-500">Amount</div><div className="text-sm font-black" style={{color:sc}}>₹{totalAmt}</div></div>
                         </div>
                       </div>
@@ -16420,7 +16530,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="text-sm font-bold text-white">Machine History</div>
+                <div className="text-sm font-bold text-slate-900">Machine History</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">{machineRows.length} machines tracked</div>
               </div>
               <HRExportBar onCSV={()=>hrExportCSV(machineExport,machineCols,"machine-history")} onExcel={()=>hrExportExcel(machineExport,machineCols,"machine-history")} onPDF={()=>hrExportPDF("Machine History",machineExport,machineCols)} />
@@ -16431,7 +16541,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
               <div className="space-y-3">
                 {machineRows.map((m) => {
                   const isComplete = m.status === "completed";
-                  const STAGE_C = { "BOM Issued":"#E8553D","Assembly":"#CC4A33","Mechanical":"#8b5cf6","Electrical":"#f59e0b","Trial":"#c2410c","Ready":"#22c55e" };
+                  const STAGE_C = { "BOM Issued":"#D71920","Assembly":"#B01218","Mechanical":"#8b5cf6","Electrical":"#f59e0b","Trial":"#B45309","Ready":"#22c55e" };
                   const stageColor = STAGE_C[m.stage] || "#64748b";
                   return (
                     <div key={m.id} className="rounded-xl p-4" style={CARD_STYLE}>
@@ -16440,7 +16550,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                           <div className="w-9 h-9 rounded-lg flex items-center justify-center text-lg flex-shrink-0" style={{ background:stageColor+"18", border:`1px solid ${stageColor}30` }}>🔧</div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="text-sm font-black text-white">{m.bomKey}</span>
+                              <span className="text-sm font-black text-slate-900">{m.bomKey}</span>
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:stageColor+"18", color:stageColor }}>{m.stage}</span>
                               {isComplete && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:"rgba(34,197,94,0.12)", color:"#15803d" }}>✓ Completed</span>}
                             </div>
@@ -16448,9 +16558,9 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                           </div>
                         </div>
                         <div className="flex items-center gap-5 text-right flex-wrap">
-                          <div><div className="text-[10px] text-slate-500">Created</div><div className="text-[11px] font-bold text-white">{m.createdDate}</div></div>
+                          <div><div className="text-[10px] text-slate-500">Created</div><div className="text-[11px] font-bold text-slate-900">{m.createdDate}</div></div>
                           {isComplete && <div><div className="text-[10px] text-slate-500">Completed</div><div className="text-[11px] font-bold" style={{color:"#15803d"}}>{m.completedDate}</div></div>}
-                          <div><div className="text-[10px] text-slate-500">Steps</div><div className="text-[11px] font-bold text-white">{(m.history||[]).length}</div></div>
+                          <div><div className="text-[10px] text-slate-500">Steps</div><div className="text-[11px] font-bold text-slate-900">{(m.history||[]).length}</div></div>
                         </div>
                       </div>
                       {/* Stage timeline */}
@@ -16482,7 +16592,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="text-sm font-bold text-white">Inventory Movement History</div>
+                <div className="text-sm font-bold text-slate-900">Inventory Movement History</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">{invRows.length} movements — inward, outward, BOM issues</div>
               </div>
               <HRExportBar onCSV={()=>hrExportCSV(invExport,invCols,"inventory-movement")} onExcel={()=>hrExportExcel(invExport,invCols,"inventory-movement")} onPDF={()=>hrExportPDF("Inventory Movement",invExport,invCols)} />
@@ -16505,7 +16615,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                       <div className="font-black text-base" style={{color:isIn?"#047857":"#dc2626"}}>{r.direction}</div>
                       <div className="text-slate-400 font-mono text-[10px]">{r.code}</div>
                       <div className="text-slate-500 truncate">{r.item || r.name || r.label || "—"}</div>
-                      <div className="text-right font-bold text-white">{r.qty}</div>
+                      <div className="text-right font-bold text-slate-900">{r.qty}</div>
                       <div className="text-slate-500">{r.unit}</div>
                       <div className="text-slate-400 truncate text-[10px]">{r.vendor || "—"}</div>
                       <div className="text-slate-500 truncate text-[10px]">{r.refCol}</div>
@@ -16522,7 +16632,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="text-sm font-bold text-white">Current Stock Report</div>
+                <div className="text-sm font-bold text-slate-900">Current Stock Report</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">{stockReportRows.length} items — live on-hand / reserved / available</div>
               </div>
               <HRExportBar onCSV={()=>hrExportCSV(stockReportExport,stockReportCols,"current-stock")} onExcel={()=>hrExportExcel(stockReportExport,stockReportCols,"current-stock")} onPDF={()=>hrExportPDF("Current Stock Report",stockReportExport,stockReportCols)} />
@@ -16563,7 +16673,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="text-sm font-bold text-white">Low Stock Report</div>
+                <div className="text-sm font-bold text-slate-900">Low Stock Report</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">{lowStockRows.length} items at/below minimum or reorder level — order soon</div>
               </div>
               <HRExportBar onCSV={()=>hrExportCSV(lowStockExport,lowStockCols,"low-stock")} onExcel={()=>hrExportExcel(lowStockExport,lowStockCols,"low-stock")} onPDF={()=>hrExportPDF("Low Stock Report",lowStockExport,lowStockCols)} />
@@ -16586,7 +16696,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                         {lowStockCols.map((c) => (
                           <td key={c.key} className={`px-3 py-2 whitespace-nowrap ${c.key==="code"?"font-mono text-slate-400 text-[10px]":"text-slate-500"}`}>
                             {c.key === "status_label"
-                              ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: r.status==="critical"?"rgba(239,68,68,0.15)":r.status==="warning"?"rgba(245,158,11,0.15)":"rgba(251,146,60,0.15)", color: r.status==="critical"?"#dc2626":r.status==="warning"?"#b45309":"#c2410c" }}>{r[c.key]}</span>
+                              ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: r.status==="critical"?"rgba(239,68,68,0.15)":r.status==="warning"?"rgba(245,158,11,0.15)":"rgba(251,146,60,0.15)", color: r.status==="critical"?"#dc2626":r.status==="warning"?"#b45309":"#B45309" }}>{r[c.key]}</span>
                               : (r[c.key] ?? "—")}
                           </td>
                         ))}
@@ -16604,7 +16714,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="text-sm font-bold text-white">Vendor History</div>
+                <div className="text-sm font-bold text-slate-900">Vendor History</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">{vendorRows.length} vendors — purchase value and delivery performance</div>
               </div>
               <HRExportBar onCSV={()=>hrExportCSV(vendorExport,vendorCols,"vendor-history")} onExcel={()=>hrExportExcel(vendorExport,vendorCols,"vendor-history")} onPDF={()=>hrExportPDF("Vendor History",vendorExport,vendorCols)} />
@@ -16620,18 +16730,18 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                     <div key={v.vendor} className="rounded-xl p-4" style={CARD_STYLE}>
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="text-sm font-black text-white">{v.vendor}</div>
+                          <div className="text-sm font-black text-slate-900">{v.vendor}</div>
                           {vd.phone && <div className="text-[10px] text-slate-500 mt-0.5">📞 {vd.phone}</div>}
                           {vd.email && <div className="text-[10px] text-slate-500">✉ {vd.email}</div>}
                           {vd.category && <div className="text-[10px] text-slate-600 mt-1">{vd.category}</div>}
                         </div>
                         <div className="text-right">
-                          <div className="text-xs font-black text-white">₹{v.value.toLocaleString("en-IN")}</div>
+                          <div className="text-xs font-black text-slate-900">₹{v.value.toLocaleString("en-IN")}</div>
                           <div className="text-[10px] text-slate-500">Total Value</div>
                         </div>
                       </div>
                       <div className="mt-3 grid grid-cols-3 gap-3">
-                        <div className="rounded-lg p-2 text-center" style={{ background:"rgba(232,85,61,0.08)" }}>
+                        <div className="rounded-lg p-2 text-center" style={{ background:"rgba(215, 25, 32,0.08)" }}>
                           <div className="text-sm font-black text-blue-400">{v.orders}</div>
                           <div className="text-[9px] text-slate-500">Orders</div>
                         </div>
@@ -16674,7 +16784,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="text-sm font-bold text-white">Pending Material History</div>
+                <div className="text-sm font-bold text-slate-900">Pending Material History</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">{pendingCurrentRows.length} pending · {pendingFulfilledRows.length} fulfilled</div>
               </div>
               <HRExportBar onCSV={()=>hrExportCSV(pendingExport,pendingCols,"pending-history")} onExcel={()=>hrExportExcel(pendingExport,pendingCols,"pending-history")} onPDF={()=>hrExportPDF("Pending History",pendingExport,pendingCols)} />
@@ -16694,9 +16804,9 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                     <div className="text-slate-500">{p.name}</div>
                     <div className="text-slate-500 text-[10px]">{p.bomKey}</div>
                     <div className="text-slate-500 font-mono text-[10px]">{p.serialNo || "—"}</div>
-                    <div className="text-right font-bold text-white">{p.pendingQty}</div>
+                    <div className="text-right font-bold text-slate-900">{p.pendingQty}</div>
                     <div className="text-center">
-                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={p.status==="Fulfilled"?{background:"rgba(34,197,94,0.12)",color:"#15803d"}:{background:"rgba(249,115,22,0.12)",color:"#c2410c"}}>{p.status}</span>
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={p.status==="Fulfilled"?{background:"rgba(34,197,94,0.12)",color:"#15803d"}:{background:"rgba(217, 119, 6,0.12)",color:"#B45309"}}>{p.status}</span>
                     </div>
                   </div>
                 ))}
@@ -16711,8 +16821,8 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
             {/* KPI summary */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { label:"Total PO Value",  value:`₹${pos.reduce((s,p)=>s+(p.amount||0),0).toLocaleString("en-IN")}`, icon:"💰", color:"#E8553D" },
-                { label:"Total POs",       value:pos.length,                                                           icon:"📋", color:"#CC4A33" },
+                { label:"Total PO Value",  value:`₹${pos.reduce((s,p)=>s+(p.amount||0),0).toLocaleString("en-IN")}`, icon:"💰", color:"#D71920" },
+                { label:"Total POs",       value:pos.length,                                                           icon:"📋", color:"#B01218" },
                 { label:"Machines Tracked",value:machineLog.length,                                                    icon:"🔧", color:"#22c55e" },
                 { label:"Inward Entries",  value:inwardLog.length,                                                     icon:"📥", color:"#10b981" },
               ].map((k) => (
@@ -16729,16 +16839,16 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Monthly Purchase */}
               <div className="rounded-xl p-4" style={CARD_STYLE}>
-                <div className="text-xs font-bold text-white mb-3">Monthly Purchase Value (₹)</div>
+                <div className="text-xs font-bold text-slate-900 mb-3">Monthly Purchase Value (₹)</div>
                 {monthlyPurchase.length === 0 ? <div className="text-center text-slate-600 py-8 text-xs">No data</div> : (
                   <ResponsiveContainer width="100%" height={180}>
                     <AreaChart data={monthlyPurchase} margin={{top:4,right:4,left:0,bottom:4}}>
-                      <defs><linearGradient id="hrPG" x1="0" y1="0" x2="0" y2="1"><stop offset="10%" stopColor="#E8553D" stopOpacity={0.25}/><stop offset="95%" stopColor="#E8553D" stopOpacity={0}/></linearGradient></defs>
+                      <defs><linearGradient id="hrPG" x1="0" y1="0" x2="0" y2="1"><stop offset="10%" stopColor="#D71920" stopOpacity={0.25}/><stop offset="95%" stopColor="#D71920" stopOpacity={0}/></linearGradient></defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.04)" />
                       <XAxis dataKey="month" tick={{fill:"#475569",fontSize:9}} axisLine={false} tickLine={false} />
                       <YAxis tick={{fill:"#475569",fontSize:9}} axisLine={false} tickLine={false} />
                       <Tooltip contentStyle={{background:"var(--surface-elevated)",border:"1px solid var(--border-rim)",borderRadius:8,fontSize:11}} />
-                      <Area type="monotone" dataKey="amount" stroke="#E8553D" strokeWidth={2} fill="url(#hrPG)" name="Amount ₹" />
+                      <Area type="monotone" dataKey="amount" stroke="#D71920" strokeWidth={2} fill="url(#hrPG)" name="Amount ₹" />
                     </AreaChart>
                   </ResponsiveContainer>
                 )}
@@ -16746,7 +16856,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
 
               {/* Vendor Wise Purchase */}
               <div className="rounded-xl p-4" style={CARD_STYLE}>
-                <div className="text-xs font-bold text-white mb-3">Vendor-wise Purchase Value (₹)</div>
+                <div className="text-xs font-bold text-slate-900 mb-3">Vendor-wise Purchase Value (₹)</div>
                 {vendorPurchase.length === 0 ? <div className="text-center text-slate-600 py-8 text-xs">No data</div> : (
                   <ResponsiveContainer width="100%" height={180}>
                     <BarChart data={vendorPurchase} margin={{top:4,right:4,left:0,bottom:4}}>
@@ -16754,7 +16864,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                       <XAxis dataKey="name" tick={{fill:"#475569",fontSize:8}} axisLine={false} tickLine={false} />
                       <YAxis tick={{fill:"#475569",fontSize:9}} axisLine={false} tickLine={false} />
                       <Tooltip contentStyle={{background:"var(--surface-elevated)",border:"1px solid var(--border-rim)",borderRadius:8,fontSize:11}} />
-                      <Bar dataKey="value" fill="#CC4A33" radius={[4,4,0,0]} name="Amount ₹" />
+                      <Bar dataKey="value" fill="#B01218" radius={[4,4,0,0]} name="Amount ₹" />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -16762,7 +16872,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
 
               {/* Machine Production */}
               <div className="rounded-xl p-4" style={CARD_STYLE}>
-                <div className="text-xs font-bold text-white mb-1">Machine Production Report</div>
+                <div className="text-xs font-bold text-slate-900 mb-1">Machine Production Report</div>
                 <div className="text-[10px] text-slate-500 mb-3">{machineLog.filter(m=>m.status==="completed").length} completed · {machineLog.filter(m=>m.status!=="completed").length} active</div>
                 {machineLog.length === 0 ? <div className="text-center text-slate-600 py-8 text-xs">No machines tracked yet</div> : (
                   <div className="space-y-2">
@@ -16771,10 +16881,10 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                         <div className="w-20 text-[10px] text-slate-400">{s.name}</div>
                         <div className="flex-1 h-5 rounded-full overflow-hidden" style={{background:"rgba(17,24,39,0.04)"}}>
                           <div className="h-full rounded-full flex items-center pl-2 transition-all" style={{width:`${machineLog.length ? (s.value/machineLog.length*100) : 0}%`, background:s.fill, minWidth:s.value>0?24:0}}>
-                            {s.value > 0 && <span className="text-[9px] font-black text-white">{s.value}</span>}
+                            {s.value > 0 && <span className="text-[9px] font-black text-slate-900">{s.value}</span>}
                           </div>
                         </div>
-                        <div className="text-xs font-bold text-white w-6 text-right">{s.value}</div>
+                        <div className="text-xs font-bold text-slate-900 w-6 text-right">{s.value}</div>
                       </div>
                     ))}
                     {stageBreakdown.length > 0 && (
@@ -16782,7 +16892,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                         <div className="text-[9px] text-slate-600 mb-2 uppercase tracking-wider">Active by Stage</div>
                         <div className="flex flex-wrap gap-2">
                           {stageBreakdown.map((s) => {
-                            const STAGE_C={"BOM Issued":"#E8553D","Assembly":"#CC4A33","Mechanical":"#8b5cf6","Electrical":"#f59e0b","Trial":"#c2410c","Ready":"#22c55e"};
+                            const STAGE_C={"BOM Issued":"#D71920","Assembly":"#B01218","Mechanical":"#8b5cf6","Electrical":"#f59e0b","Trial":"#B45309","Ready":"#22c55e"};
                             const c = STAGE_C[s.stage]||"#64748b";
                             return <span key={s.stage} className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{background:c+"18",color:c}}>{s.stage}: {s.count}</span>;
                           })}
@@ -16795,7 +16905,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
 
               {/* Inventory Consumption */}
               <div className="rounded-xl p-4" style={CARD_STYLE}>
-                <div className="text-xs font-bold text-white mb-3">Top 10 — Inventory Consumption (Outward)</div>
+                <div className="text-xs font-bold text-slate-900 mb-3">Top 10 — Inventory Consumption (Outward)</div>
                 {invConsumption.length === 0 ? <div className="text-center text-slate-600 py-8 text-xs">No outward records yet</div> : (
                   <div className="space-y-1.5">
                     {invConsumption.map((it, i) => {
@@ -16809,7 +16919,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                               <div className="h-full rounded-full" style={{width:`${(it.qty/max)*100}%`, background:`hsl(${220-i*20},70%,55%)`}} />
                             </div>
                           </div>
-                          <div className="text-[10px] font-bold text-white w-8 text-right">{it.qty}</div>
+                          <div className="text-[10px] font-bold text-slate-900 w-8 text-right">{it.qty}</div>
                         </div>
                       );
                     })}
@@ -16819,7 +16929,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
 
               {/* Inward Report */}
               <div className="rounded-xl p-4" style={CARD_STYLE}>
-                <div className="text-xs font-bold text-white mb-3">Inward Report — Monthly Volume</div>
+                <div className="text-xs font-bold text-slate-900 mb-3">Inward Report — Monthly Volume</div>
                 {inwardByMonth.length === 0 ? <div className="text-center text-slate-600 py-8 text-xs">No inward data</div> : (
                   <ResponsiveContainer width="100%" height={160}>
                     <BarChart data={inwardByMonth} margin={{top:4,right:4,left:0,bottom:4}}>
@@ -16835,17 +16945,17 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
 
               {/* Pending Material Report */}
               <div className="rounded-xl p-4" style={CARD_STYLE}>
-                <div className="text-xs font-bold text-white mb-3">Pending Material Report</div>
+                <div className="text-xs font-bold text-slate-900 mb-3">Pending Material Report</div>
                 <div className="flex items-center gap-4 mb-3">
-                  <div className="rounded-lg px-3 py-2 text-center" style={{background:"rgba(249,115,22,0.08)"}}>
-                    <div className="text-lg font-black text-orange-400">{pendingLog.length}</div>
+                  <div className="rounded-lg px-3 py-2 text-center" style={{background:"rgba(217, 119, 6,0.08)"}}>
+                    <div className="text-lg font-black text-amber-700">{pendingLog.length}</div>
                     <div className="text-[9px] text-slate-500">Open Pending</div>
                   </div>
                   <div className="rounded-lg px-3 py-2 text-center" style={{background:"rgba(34,197,94,0.08)"}}>
                     <div className="text-lg font-black text-green-400">{pendingFulfilled.length}</div>
                     <div className="text-[9px] text-slate-500">Fulfilled</div>
                   </div>
-                  <div className="rounded-lg px-3 py-2 text-center" style={{background:"rgba(232,85,61,0.08)"}}>
+                  <div className="rounded-lg px-3 py-2 text-center" style={{background:"rgba(215, 25, 32,0.08)"}}>
                     <div className="text-lg font-black text-blue-400">{[...new Set(pendingLog.map(p=>p.issueId).filter(Boolean))].length}</div>
                     <div className="text-[9px] text-slate-500">Machines Pending</div>
                   </div>
@@ -16855,7 +16965,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                     {pendingLog.slice(0,6).map((p,i) => (
                       <div key={i} className="flex items-center justify-between text-[10px]">
                         <span className="text-slate-400 truncate">{p.name || p.code}</span>
-                        <span className="text-orange-400 font-bold ml-2 flex-shrink-0">×{p.pendingQty}</span>
+                        <span className="text-amber-700 font-bold ml-2 flex-shrink-0">×{p.pendingQty}</span>
                       </div>
                     ))}
                     {pendingLog.length > 6 && <div className="text-[9px] text-slate-600">+{pendingLog.length-6} more</div>}
@@ -16866,13 +16976,13 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
 
             {/* Outward Report table */}
             <div className="rounded-xl p-4" style={CARD_STYLE}>
-              <div className="text-xs font-bold text-white mb-3">Outward Report — Recent BOM Issues & Manual</div>
+              <div className="text-xs font-bold text-slate-900 mb-3">Outward Report — Recent BOM Issues & Manual</div>
               {outwardLog.length === 0 ? <div className="text-center text-slate-600 py-6 text-xs">No outward entries</div> : (
                 <div className="space-y-1.5">
                   {outwardLog.slice(0,10).map((e,i) => (
                     <div key={i} className="flex items-center justify-between py-1.5 border-b border-slate-200 text-xs">
                       <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={e.type==="bom"?{background:"rgba(245,158,11,0.12)",color:"#b45309"}:{background:"rgba(251,146,60,0.12)",color:"#c2410c"}}>{e.type==="bom"?"BOM":"Manual"}</span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={e.type==="bom"?{background:"rgba(245,158,11,0.12)",color:"#b45309"}:{background:"rgba(251,146,60,0.12)",color:"#B45309"}}>{e.type==="bom"?"BOM":"Manual"}</span>
                         <span className="text-slate-500">{e.ref}</span>
                         {e.serialNo && <span className="text-slate-500 font-mono text-[10px]">S/N:{e.serialNo}</span>}
                       </div>
@@ -16897,7 +17007,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
 
 const ROLE_CONFIG = {
   Admin: {
-    label: "Admin", icon: "👑", color: "#CC4A33", badge: "Full Access",
+    label: "Admin", icon: "👑", color: "#B01218", badge: "Full Access",
     pages: ["dashboard","inventory","inward","outward","pending","pipeline","machines","vendors","analytics","ai","history","settings"],
     actions: {
       inventory: { add: true,  edit: true,  delete: true,  adjust: true  },
@@ -16910,7 +17020,7 @@ const ROLE_CONFIG = {
     },
   },
   "Purchase Manager": {
-    label: "Purchase Manager", icon: "🛒", color: "#E8553D", badge: "Purchase",
+    label: "Purchase Manager", icon: "🛒", color: "#D71920", badge: "Purchase",
     pages: ["dashboard","inventory","inward","pipeline","vendors","history","analytics"],
     actions: {
       inventory: { add: false, edit: false, delete: false, adjust: false },
@@ -16965,7 +17075,7 @@ function EmptyState({ icon = "📭", title = "Nothing here yet", desc = "", acti
 
 // ─── LOADING SPINNER ─────────────────────────────────────────────────────────
 
-function Spinner({ size = 20, color = "#E8553D" }) {
+function Spinner({ size = 20, color = "#D71920" }) {
   return (
     <div className="animate-spin" style={{ width: size, height: size, borderRadius: "50%", border: `2px solid rgba(17,24,39,0.10)`, borderTopColor: color }} />
   );
@@ -17035,12 +17145,12 @@ function GlobalSearch({ items, pos, vendorList, machineLog, onClose, onNavigate 
       })),
     },
     {
-      type: "po", label: "Purchase Orders", color: "#E8553D",
+      type: "po", label: "Purchase Orders", color: "#D71920",
       total: matchedPOs.length,
       rows: matchedPOs.slice(0, LIMIT).map((p) => {
-        const stClr = { pending:"#f59e0b", approved:"#E8553D", ordered:"#8b5cf6", received:"#22c55e", rejected:"#ef4444" }[p.status] || "#64748b";
+        const stClr = { pending:"#f59e0b", approved:"#D71920", ordered:"#8b5cf6", received:"#22c55e", rejected:"#ef4444" }[p.status] || "#64748b";
         return {
-          nav: "pipeline", icon: "🛒", color: "#E8553D",
+          nav: "pipeline", icon: "🛒", color: "#D71920",
           label: p.id,
           badge: { text: p.status, bg: stClr + "20", color: stClr },
           sub: `${p.vendor}  ·  ₹${(p.amount || 0).toLocaleString("en-IN")}  ·  ${p.date || ""}`,
@@ -17048,12 +17158,12 @@ function GlobalSearch({ items, pos, vendorList, machineLog, onClose, onNavigate 
       }),
     },
     {
-      type: "vendor", label: "Vendors", color: "#CC4A33",
+      type: "vendor", label: "Vendors", color: "#B01218",
       total: matchedVendors.length,
       rows: matchedVendors.slice(0, LIMIT).map((v) => ({
-        nav: "vendors", icon: "🏭", color: "#CC4A33",
+        nav: "vendors", icon: "🏭", color: "#B01218",
         label: v.name,
-        badge: v.category ? { text: v.category, bg: "#CC4A3320", color: "#CC4A33" } : null,
+        badge: v.category ? { text: v.category, bg: "#B0121820", color: "#B01218" } : null,
         sub: [v.contactPerson, v.phone, v.email].filter(Boolean).join("  ·  ") || "No contact info",
       })),
     },
@@ -17144,7 +17254,7 @@ function GlobalSearch({ items, pos, vendorList, machineLog, onClose, onNavigate 
                                style={{ background: r.color + "18", border: `1px solid ${r.color}28` }}>{r.icon}</div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 min-w-0">
-                              <span className="text-xs font-semibold text-white truncate">{r.label}</span>
+                              <span className="text-xs font-semibold text-slate-900 truncate">{r.label}</span>
                               {r.badge && (
                                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 capitalize"
                                       style={{ background: r.badge.bg, color: r.badge.color, border: `1px solid ${r.badge.color}30` }}>
@@ -17194,9 +17304,9 @@ function NotificationPanel({ notifications, dismissed, onClose, onNavigate, onDi
   const TYPE_CFG = {
     critical:      { label: "Critical Stock",     icon: "🔴", color: "#ef4444", nav: "inventory" },
     warning:       { label: "Low Stock Alert",    icon: "🟠", color: "#f59e0b", nav: "inventory" },
-    approval:      { label: "Approval Pending",   icon: "📋", color: "#E8553D", nav: "pipeline" },
+    approval:      { label: "Approval Pending",   icon: "📋", color: "#D71920", nav: "pipeline" },
     followup:      { label: "Follow-Up Due",      icon: "📞", color: "#8b5cf6", nav: "pipeline" },
-    pending_alert: { label: "Pending Materials",  icon: "⏳", color: "#f97316", nav: "pending" },
+    pending_alert: { label: "Pending Materials",  icon: "⏳", color: "#D97706", nav: "pending" },
     machine_ready: { label: "Machine Ready",      icon: "🏆", color: "#22c55e", nav: "machines" },
   };
   const active = notifications.filter((n) => !dismissed.has(n.id));
@@ -17450,8 +17560,7 @@ export default function App() {
   const rtMach    = useCallback(() => { fetchMachines().then((m) => m && setMachineLog(m)); }, []);
   const rtPending = useCallback(() => { fetchPending().then((p) => p && setPendingLog(p)); }, []);
   // Phase A — handovers refresh. Falls back silently if table doesn't exist
-  // (store handles the error). Not wired through useRealtimeTables yet; the
-  // handover handlers below re-fetch locally after each write.
+  // (store handles the error).
   const rtHandovers = useCallback(() => { fetchHandovers().then((h) => { if (h) setHandovers(h); }); }, []);
   useRealtimeTables({
     onItemsChange:     reconcileItems,
@@ -17461,6 +17570,12 @@ export default function App() {
     onOutwardChange:   rtOutward,
     onMachinesChange:  rtMach,
     onPendingChange:   rtPending,
+    // handover_events — this callback existed and was never passed in, so the
+    // one table that carries work from one department to the next was the one
+    // table with no live subscription. The handover handlers re-fetch locally
+    // after a write, which covers the SENDER's own screen and nobody else's:
+    // the receiving department's tablet learned nothing until it was reloaded.
+    onHandoversChange: rtHandovers,
     // onAuditChange omitted — AuditHistoryPage re-fetches itself via subscribeAudit
   });
 
@@ -17644,18 +17759,18 @@ export default function App() {
               <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>Retry, or sign in again.</div>
             </div>
           </div>
-          <div style={{ background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.18)", borderRadius: 10, padding: 10, fontSize: 11, color: "#cbd5e1", marginBottom: 14 }}>
+          <div style={{ background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.18)", borderRadius: 10, padding: 10, fontSize: 11, color: "#4b5563", marginBottom: 14 }}>
             {authLoadError}
           </div>
           <div className="flex gap-2">
             <button onClick={retryAuthLoad}
                     className="flex-1 py-2 rounded-xl text-xs font-semibold text-white"
-                    style={{ background: "linear-gradient(135deg,#E8553D,#CC4A33)", boxShadow: "0 4px 12px rgba(204,74,51,0.35)" }}>
+                    style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 4px 12px rgba(176, 18, 24,0.35)" }}>
               ↻ Retry
             </button>
             <button onClick={() => { try { localStorage.removeItem("erp_session"); } catch {} try { localStorage.removeItem("erp_supabase_session"); } catch {} try { window.location.reload(); } catch {} }}
                     className="flex-1 py-2 rounded-xl text-xs font-semibold"
-                    style={{ background: "rgba(17,24,39,0.04)", border: "1px solid var(--border-rim)", color: "#e5e7eb" }}>
+                    style={{ background: "rgba(17,24,39,0.04)", border: "1px solid var(--border-rim)", color: "#374151" }}>
               Sign in again
             </button>
           </div>
@@ -17667,7 +17782,7 @@ export default function App() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--surface-base)", color: "var(--text)", fontFamily: "Inter, system-ui, sans-serif" }}>
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 rounded-full animate-spin" style={{ border: "3px solid rgba(204,74,51,0.15)", borderTopColor: "#CC4A33" }} />
+          <div className="w-8 h-8 rounded-full animate-spin" style={{ border: "3px solid rgba(176, 18, 24,0.15)", borderTopColor: "#B01218" }} />
           <div style={{ fontSize: 11, color: "#64748b", letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 700 }}>
             Restoring session{supabaseMode ? "" : ""}…
           </div>
@@ -18563,7 +18678,7 @@ export default function App() {
     if (bomDefs[k]) return { success: false, error: "A BOM with this key already exists" };
     if (!(def.label || "").trim()) return { success: false, error: "Machine Model Name is required" };
     if (!(def.items || []).length) return { success: false, error: "At least one component is required" };
-    const palette = ["#E8553D","#CC4A33","#8b5cf6","#ec4899","#f59e0b","#22c55e","#0e7490","#14b8a6","#f97316","#a855f7"];
+    const palette = ["#D71920","#B01218","#8b5cf6","#ec4899","#f59e0b","#22c55e","#0e7490","#14b8a6","#D97706","#a855f7"];
     const color = def.color || palette[Object.keys(bomDefs).length % palette.length];
     const newBom = {
       label: def.label.trim(),
@@ -18592,7 +18707,7 @@ export default function App() {
     let newKey = `${srcKey}-COPY`;
     let n = 2;
     while (bomDefs[newKey]) { newKey = `${srcKey}-COPY-${n++}`; }
-    const palette = ["#E8553D","#CC4A33","#8b5cf6","#ec4899","#f59e0b","#22c55e","#0e7490","#14b8a6","#f97316","#a855f7"];
+    const palette = ["#D71920","#B01218","#8b5cf6","#ec4899","#f59e0b","#22c55e","#0e7490","#14b8a6","#D97706","#a855f7"];
     const newBom = {
       label:        src.label ? `${src.label} (Copy)` : newKey,
       color:        palette[Object.keys(bomDefs).length % palette.length],
@@ -19977,11 +20092,11 @@ export default function App() {
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
              onClick={(e) => e.target === e.currentTarget && setShowShortcuts(false)}>
           <div className="w-full max-w-2xl rounded-2xl overflow-hidden"
-               style={{ background: "var(--surface-elevated)", border: "1px solid rgba(204,74,51,0.4)", boxShadow: "0 40px 80px rgba(17,24,39,0.22)" }}>
+               style={{ background: "var(--surface-elevated)", border: "1px solid rgba(176, 18, 24,0.4)", boxShadow: "0 40px 80px rgba(17,24,39,0.22)" }}>
             <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between"
-                 style={{ background: "linear-gradient(90deg,rgba(232,85,61,0.10),rgba(204,74,51,0.05))" }}>
+                 style={{ background: "linear-gradient(90deg,rgba(215, 25, 32,0.10),rgba(176, 18, 24,0.05))" }}>
               <div>
-                <div className="text-sm font-black text-white">⌨ Keyboard Shortcuts</div>
+                <div className="text-sm font-black text-slate-900">⌨ Keyboard Shortcuts</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">Press <kbd className="px-1 py-0.5 text-[9px] font-mono rounded bg-slate-100 border border-slate-200">Esc</kbd> to close</div>
               </div>
               <button onClick={() => setShowShortcuts(false)} className="text-slate-500 hover:text-slate-900 transition-colors text-lg leading-none">✕</button>

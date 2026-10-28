@@ -1,4 +1,4 @@
-// Realtime subscriptions for 5 critical tables.
+// Realtime subscriptions for the tables the UI must never show stale.
 // Each handler receives the postgres_changes payload and triggers a re-fetch via the
 // store callbacks passed in. Keep payload-handling simple: refetch on any change is
 // safer than per-row diffing and keeps the React state authoritative.
@@ -23,6 +23,7 @@ export function useRealtimeTables({
   onAuditChange,
   onMachinesChange,
   onPendingChange,
+  onHandoversChange,
 } = {}) {
   useEffect(() => {
     if (!isSupabaseEnabled()) return;
@@ -48,6 +49,16 @@ export function useRealtimeTables({
     wire("audit_log",        onAuditChange);
     wire("machine_log",      onMachinesChange);
     wire("pending_log",      onPendingChange);
+    // handover_events — the department-to-department baton.
+    //
+    // This was the one table in the workflow with no subscription, and the
+    // omission was invisible on a desktop where people reload all day. On the
+    // factory floor it is not: Assembly sends a machine on, and the tablet
+    // standing in Mechanical goes on showing nothing at all until somebody
+    // thinks to pull-to-refresh. The receiving department cannot accept work it
+    // cannot see. Wiring it is the difference between a shared tablet being a
+    // live queue and being a stale screenshot.
+    wire("handover_events",  onHandoversChange);
 
     ch.subscribe((status) => {
       if (status === "SUBSCRIBED")   console.info(`[realtime] subscribed to ${wired.length} tables:`, wired.join(", "));
@@ -55,5 +66,5 @@ export function useRealtimeTables({
     });
 
     return () => { try { c.removeChannel(ch); } catch {} };
-  }, [onItemsChange, onMovementsChange, onPosChange, onInwardChange, onOutwardChange, onAuditChange, onMachinesChange, onPendingChange]);
+  }, [onItemsChange, onMovementsChange, onPosChange, onInwardChange, onOutwardChange, onAuditChange, onMachinesChange, onPendingChange, onHandoversChange]);
 }
