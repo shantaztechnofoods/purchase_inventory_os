@@ -66,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-28-ui-final";
+const APP_BUILD = "2026-10-29-print-fix";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -492,7 +492,7 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
 
   return (
     <aside
-      className={`${collapsed ? "w-16" : "w-60"} flex flex-col flex-shrink-0 transition-all duration-300 overflow-hidden relative`}
+      className={`${collapsed ? "w-16" : "w-60"} no-print flex flex-col flex-shrink-0 transition-all duration-300 overflow-hidden relative`}
       style={{ background: "var(--surface-nav)", borderRight: "1px solid var(--border-subtle)" }}
     >
       <div className="absolute right-0 top-28 bottom-28 w-px pointer-events-none"
@@ -639,7 +639,7 @@ function Topbar({ title, subtitle, children }) {
   const timeStr = time.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
   return (
-    <div className="flex-shrink-0 flex items-center gap-4 px-6 py-3.5"
+    <div className="flex-shrink-0 no-print flex items-center gap-4 px-6 py-3.5"
          style={{ background: "var(--surface-card)", borderBottom: "1px solid var(--border-subtle)" }}>
       <div className="flex-1 min-w-0">
         <h1 className="text-[14px] font-semibold tracking-tight leading-none" style={{ color: "var(--text-strong)" }}>{title}</h1>
@@ -10739,7 +10739,7 @@ function AtoZMachineReport({
             const relatedPending = machinePending.filter((p) => String(p.raisedInHandoverId) === String(h.id));
             const workers = Array.isArray(h.workedBy) ? h.workedBy : [];
             return (
-              <div key={h.id} className="rounded-lg p-3"
+              <div key={h.id} className="rounded-lg p-3 print-block"
                    style={{ background: "rgba(16,185,129,0.04)", border: "1px solid rgba(16,185,129,0.25)" }}>
                 <div className="flex items-center gap-2 flex-wrap mb-2">
                   <span className="text-[12px] font-black text-white">{h.fromDepartment}</span>
@@ -11192,8 +11192,12 @@ function ReportCenterPage({
   const activeExport = exportable[tab] || { rows: [], file: "shantaz-report" };
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      {/* Print styles — hide chrome, keep content */}
+    <div className="flex-1 page-scroll overflow-y-auto">
+      {/* Report-specific print styles. The shell-level rules (unclip the scroll
+          containers, hide the nav rail and Topbar) live in index.css under
+          @media print — this block only handles ink: force black on white so the
+          dark-ish UI palette doesn't print as grey blocks, and keep table rows
+          whole across page breaks. */}
       <style>{`
         @media print {
           .no-print { display: none !important; }
@@ -11202,6 +11206,10 @@ function ReportCenterPage({
           .report-area * { color: #000 !important; background: #fff !important; border-color: #ccc !important; }
           .report-area table { page-break-inside: auto; }
           .report-area tr { page-break-inside: avoid; }
+          /* Signature canvases render as transparent bitmaps; the blanket
+             "background: #fff" above is what keeps the stroke readable. Give them
+             a border so an empty-looking box still reads as a signature field. */
+          .report-area canvas, .report-area img { border: 1px solid #ccc !important; }
         }
       `}</style>
 
@@ -19422,7 +19430,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden"
+    <div className="app-shell flex h-screen overflow-hidden"
          style={{ background: "var(--surface-base)", color: "var(--text)", fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif", fontFeatureSettings: '"cv02","cv03","cv04","cv11"' }}>
 
       {/* Sidebar in its own boundary — historically the blast site (UserProfileMenu
