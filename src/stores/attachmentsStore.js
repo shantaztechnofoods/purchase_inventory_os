@@ -134,8 +134,21 @@ export async function deleteAttachment(id) {
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
   // Fetch to learn storage_path
   const { data: existing } = await c.from("machine_attachments").select("storage_path").eq("id", id).maybeSingle();
-  const { error } = await c.from("machine_attachments").delete().eq("id", id);
+  // `.select("id")` is load-bearing: without it PostgREST answers a DELETE
+  // that matched ZERO rows with no error and no data, and this function
+  // reported success for a delete that never happened. Zero rows means either
+  // no such id or an RLS policy hiding the row from this user — both are
+  // failures the caller must see. Same trap as machinesStore.deleteMachine.
+  //
+  // The check sits BEFORE the storage cleanup on purpose: if the row survived,
+  // removing its file would leave a live attachment row pointing at nothing.
+  const { data, error } = await c.from("machine_attachments").delete().eq("id", id).select("id");
   if (error) { console.error("[attachments:delete] row failed", error); return { success: false, error: error.message }; }
+  if (!Array.isArray(data) || data.length === 0) {
+    const msg = `attachment ${id} was not deleted — no such row, or it is not visible to this user`;
+    console.error("[attachments:delete] matched no rows", { id });
+    return { success: false, error: msg, noRows: true };
+  }
   if (existing?.storage_path) {
     await c.storage.from(BUCKET).remove([existing.storage_path]).catch(() => {});
   }

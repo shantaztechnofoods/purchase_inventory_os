@@ -77,8 +77,18 @@ export async function updatePending(id, updates) {
   const row = {};
   if (updates.pendingQty != null) row.pending_qty = updates.pendingQty;
   if (updates.issueQty   != null) row.issue_qty   = updates.issueQty;
-  const { error } = await c.from("pending_log").update(row).eq("id", id);
+  // `.select("id")` is load-bearing: without it PostgREST answers an UPDATE
+  // that matched ZERO rows with no error and no data, and this function
+  // reported success for a write that never happened. Zero rows means either
+  // no such id or an RLS policy hiding the row from this user — both are
+  // failures the caller must see. Same trap as machinesStore.updateMachine.
+  const { data, error } = await c.from("pending_log").update(row).eq("id", id).select("id");
   if (error) { console.error("[pending:update] failed", error); return { success: false, error: error.message }; }
+  if (!Array.isArray(data) || data.length === 0) {
+    const msg = `pending entry ${id} was not updated — no such row, or it is not visible to this user`;
+    console.error("[pending:update] matched no rows", { id });
+    return { success: false, error: msg, noRows: true };
+  }
   console.info("[pending:update] ok");
   return { success: true };
 }
@@ -90,6 +100,10 @@ export async function updatePendingBomKey(oldKey, newKey, newLabel) {
     return { success: true };
   }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
+  // NO zero-row check here, deliberately. This is a BOM-rename cascade keyed
+  // on bom_key, not on a row id: it legitimately updates MANY rows, and ZERO
+  // when the renamed BOM has no pending entries yet. Treating that as an error
+  // would make every rename of a fresh BOM report a failure.
   const { error } = await c.from("pending_log").update({ bom_key: newKey, bom_label: newLabel }).eq("bom_key", oldKey);
   if (error) { console.error("[pending:updateBomKey] failed", error); return { success: false, error: error.message }; }
   console.info("[pending:updateBomKey] ok");
@@ -100,8 +114,17 @@ export async function deletePending(id) {
   console.info("[pending:delete] start", { id });
   if (!isSupabaseEnabled()) { setLocal(getLocal().filter((p) => p.id !== id)); return { success: true }; }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
-  const { error } = await c.from("pending_log").delete().eq("id", id);
+  // Same zero-row trap as updatePending: a DELETE matching nothing is not an
+  // error to PostgREST. handleRemoveRackMachine reverses stock before calling
+  // this, so a silent no-op leaves the pending row behind still claiming the
+  // material is owed.
+  const { data, error } = await c.from("pending_log").delete().eq("id", id).select("id");
   if (error) { console.error("[pending:delete] failed", error); return { success: false, error: error.message }; }
+  if (!Array.isArray(data) || data.length === 0) {
+    const msg = `pending entry ${id} was not deleted — no such row, or it is not visible to this user`;
+    console.error("[pending:delete] matched no rows", { id });
+    return { success: false, error: msg, noRows: true };
+  }
   console.info("[pending:delete] ok");
   return { success: true };
 }
@@ -110,6 +133,9 @@ export async function clearAllPending() {
   console.info("[pending:clearAll] start");
   if (!isSupabaseEnabled()) { setLocal([]); return { success: true }; }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
+  // NO zero-row check here, deliberately. This is a "clear the whole log"
+  // sweep; an already-empty pending log matches zero rows and that is the
+  // correct, successful outcome.
   const { error } = await c.from("pending_log").delete().not("id", "is", null);
   if (error) { console.error("[pending:clearAll] failed", error); return { success: false, error: error.message }; }
   console.info("[pending:clearAll] ok");

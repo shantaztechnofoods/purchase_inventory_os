@@ -58,12 +58,24 @@ export async function overrideRating(id, { rating, reason, overriddenBy }) {
     return { success: true };
   }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
-  const { error } = await c.from("department_ratings").update({
+  // `.select("id")` is load-bearing: without it PostgREST answers an UPDATE
+  // that matched ZERO rows with no error and no data, and this function
+  // reported success for a write that never happened. Zero rows means either
+  // no such id or an RLS policy hiding the row from this user — both are
+  // failures the caller must see. Same trap as machinesStore.updateMachine.
+  // An override that silently did nothing is the worst case here: the operator
+  // is told the rating was corrected on the record, and it was not.
+  const { data, error } = await c.from("department_ratings").update({
     rating: Math.max(0, Math.min(5, Math.floor(Number(rating) || 0))),
     override_reason: reason || null,
     overridden_by: overriddenBy || null,
     overridden_at: new Date().toISOString(),
-  }).eq("id", id);
+  }).eq("id", id).select("id");
   if (error) { console.error("[ratings:override] failed", error); return { success: false, error: error.message }; }
+  if (!Array.isArray(data) || data.length === 0) {
+    const msg = `rating ${id} was not overridden — no such row, or it is not visible to this user`;
+    console.error("[ratings:override] matched no rows", { id });
+    return { success: false, error: msg, noRows: true };
+  }
   return { success: true };
 }
