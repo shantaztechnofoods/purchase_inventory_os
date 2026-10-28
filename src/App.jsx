@@ -12848,7 +12848,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           const openAssigned = (pendingHandoverItems || []).filter((p) => p.status === "open");
           if (openAssigned.length === 0) return null;
           const byDept = openAssigned.reduce((acc, p) => {
-            const d = p.assignedDepartment || "— कोई नहीं चुना · unassigned";
+            const d = p.assignedDepartment || "Unassigned";
             (acc[d] = acc[d] || []).push(p);
             return acc;
           }, {});
@@ -12858,11 +12858,11 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                  style={{ background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.35)" }}>
               <div className="flex items-baseline gap-3 flex-wrap mb-3">
                 <div className="text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "#dc2626" }}>
-                  बुलाया गया है · Departments called
+                  Departments called
                 </div>
                 <div className="text-3xl font-black" style={{ color: "#dc2626" }}>{openAssigned.length}</div>
                 <div className="text-[11px] text-slate-500">
-                  खुली गड़बड़{openAssigned.length === 1 ? "" : "ें"} — जब तक ठीक न हो, वो मशीन आगे नहीं जाएगी
+                  open issue{openAssigned.length === 1 ? "" : "s"} — each machine stays put until its issues are resolved
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
@@ -12884,14 +12884,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                   style={{ background: "rgba(239,68,68,0.05)" }}>
                             <div className="text-[11px] text-slate-700 leading-snug">{p.description}</div>
                             <div className="text-[9px] text-slate-500 mt-0.5">
-                              {mm ? `${mm.bomKey}${mm.serialNo ? ` · ${mm.serialNo}` : ""} · ${mm.currentDepartment || mm.stage} में` : `Machine #${p.machineId}`}
-                              {p.raisedInDepartment ? ` · ${p.raisedInDepartment} ने बताया` : ""}
+                              {mm ? `${mm.bomKey}${mm.serialNo ? ` · ${mm.serialNo}` : ""} · in ${mm.currentDepartment || mm.stage}` : `Machine #${p.machineId}`}
+                              {p.raisedInDepartment ? ` · reported by ${p.raisedInDepartment}` : ""}
                             </div>
                           </button>
                         );
                       })}
                       {list.length > 4 && (
-                        <div className="text-[10px] text-slate-500 px-2">और {list.length - 4} …</div>
+                        <div className="text-[10px] text-slate-500 px-2">+{list.length - 4} more</div>
                       )}
                     </div>
                   </div>
@@ -13430,7 +13430,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                   {/* Phase 1 — who has been called to fix this. */}
                                   {p.assignedDepartment && p.status !== "resolved" && (
                                     <div className="text-[10px] font-bold mt-1" style={{ color: "#dc2626" }}>
-                                      {p.assignedDepartment} को बुलाया गया · {p.assignedDepartment} called
+                                      {p.assignedDepartment} called
                                     </div>
                                   )}
                                   <div className="text-[9px] text-slate-500 mt-0.5">
@@ -13653,8 +13653,8 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         );
         const submit = async () => {
           const desc = raiseText.trim();
-          if (!desc)      { setRaiseErr("क्या गड़बड़ है, वो लिखिए — describe the issue."); return; }
-          if (!raiseDept) { setRaiseErr("किस डिपार्टमेंट को बुलाना है, वो चुनिए — choose a department."); return; }
+          if (!desc)      { setRaiseErr("Describe the issue."); return; }
+          if (!raiseDept) { setRaiseErr("Choose the department that must fix it."); return; }
           setRaiseBusy(true); setRaiseErr("");
           const r = await onRaisePendingItem({
             machineId: m.id, description: desc,
@@ -13663,7 +13663,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           setRaiseBusy(false);
           if (r && r.success === false) { setRaiseErr(r.error || "Could not save the issue."); return; }
           setRaiseModal(null);
-          showToast(`${m.bomKey}${m.serialNo ? ` — ${m.serialNo}` : ""}`, `${raiseDept} को बुलाया गया · machine is now blocked`);
+          showToast(`${m.bomKey}${m.serialNo ? ` — ${m.serialNo}` : ""}`, `${raiseDept} called · machine is now blocked`);
         };
         return (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4"
@@ -13671,33 +13671,33 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
              onClick={(e) => e.target === e.currentTarget && !raiseBusy && setRaiseModal(null)}>
           <div className="w-full max-w-lg rounded-2xl p-6"
                style={{ background: "var(--surface-raised)", border: "1px solid rgba(239,68,68,0.35)", boxShadow: "0 24px 70px rgba(17,24,39,0.2)" }}>
-            <h3 className="text-base font-black text-slate-800 mb-1">गड़बड़ दर्ज करें · Report an issue</h3>
+            <h3 className="text-base font-black text-slate-800 mb-1">Report an issue</h3>
             <p className="text-[11px] text-slate-500 mb-4">
-              {m.bomKey}{m.serialNo ? ` · S/N ${m.serialNo}` : ""} · {here} में
+              {m.bomKey}{m.serialNo ? ` · S/N ${m.serialNo}` : ""} · in {here}
             </p>
 
             <label htmlFor="raise-desc" className="block text-[11px] font-bold text-slate-600 mb-1.5">
-              क्या गड़बड़ है · What is wrong
+              What is wrong
             </label>
             <textarea id="raise-desc" rows={3} value={raiseText} disabled={raiseBusy}
                       onChange={(e) => setRaiseText(e.target.value)}
-                      placeholder="जैसे: गियरबॉक्स से आवाज़ आ रही है"
+                      placeholder="e.g. noise coming from the gearbox"
                       className="w-full rounded-lg px-3 py-2.5 text-[13px] text-slate-800 outline-none resize-y"
                       style={{ background: "var(--surface-elevated)", border: "1px solid rgba(17,24,39,0.12)" }} />
 
             <label htmlFor="raise-dept" className="block text-[11px] font-bold text-slate-600 mt-4 mb-1.5">
-              किस डिपार्टमेंट को बुलाना है · Which department must fix it
+              Which department must fix it
             </label>
             <select id="raise-dept" value={raiseDept} disabled={raiseBusy}
                     onChange={(e) => setRaiseDept(e.target.value)}
                     className="w-full rounded-lg px-3 h-11 text-[13px] text-slate-800 outline-none"
                     style={{ background: "var(--surface-elevated)", border: "2px solid rgba(239,68,68,0.45)" }}>
-              <option value="">— चुनिए · choose —</option>
+              <option value="">— choose —</option>
               {deptChoices.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
 
             <p className="text-[11px] text-slate-500 mt-3">
-              मशीन {here} में ही रहेगी। जब तक ये ठीक नहीं होता, Finish &amp; Transfer बंद रहेगा.
+              The machine stays in {here}. Finish &amp; Transfer stays blocked until this is resolved.
             </p>
 
             {raiseErr && (
@@ -13711,12 +13711,12 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               <button type="button" onClick={() => setRaiseModal(null)} disabled={raiseBusy}
                       className="flex-1 h-11 rounded-lg text-[13px] font-bold text-slate-600 border transition-all disabled:opacity-40"
                       style={{ borderColor: "rgba(17,24,39,0.12)" }}>
-                रहने दें
+                Cancel
               </button>
               <button type="button" onClick={submit} disabled={raiseBusy}
                       className="flex-[2] h-11 rounded-lg text-[13px] font-black text-white transition-all disabled:opacity-50"
                       style={{ background: "linear-gradient(135deg,#ef4444,#dc2626)" }}>
-                {raiseBusy ? "भेजा जा रहा है…" : (raiseDept ? `${raiseDept} को भेजें` : "भेजें")}
+                {raiseBusy ? "Sending…" : (raiseDept ? `Call ${raiseDept}` : "Send")}
               </button>
             </div>
           </div>
