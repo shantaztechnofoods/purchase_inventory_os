@@ -12626,10 +12626,24 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   // myDepartments is empty for admins and for anyone not assigned to a
   // department, and those users see everything exactly as before.
   const myDepartments = Array.isArray(currentUser?.departments) ? currentUser.departments.filter(Boolean) : [];
-  const canScopeToMine = myDepartments.length > 0;
-  // Admins land on the full list; a worker lands on their own work.
-  const [scope, setScope] = useState(() => (canScopeToMine && !isAdminUser) ? "mine" : "all");
-  const scopeMine = scope === "mine" && canScopeToMine;
+  const hasDepartments = myDepartments.length > 0;
+  // A floor login is one that works machines through the handover chain and is
+  // not an admin. It is LOCKED to its own departments: no "All machines"
+  // switch, and no machines at all when no department has been assigned.
+  // Failing open here was a real bug — a Production login created without a
+  // department saw the whole factory, which is the opposite of the intent and
+  // is easy to cause by forgetting one click.
+  const isFloorLogin = !isAdminUser
+    && (canDo("machines", "accept") || canDo("machines", "finishTransfer"));
+  // The first department that actually does work — machines are started onto
+  // it from the rack. Derived, so adding a stage ahead of Assembly keeps this
+  // correct.
+  const FIRST_WORK_DEPARTMENT = DEPARTMENT_SEQUENCE.find((d) => d !== "BOM Issued");
+  const [scope, setScope] = useState(() => (!isAdminUser && hasDepartments) ? "mine" : "all");
+  const scopeMine = isFloorLogin || (scope === "mine" && hasDepartments);
+  // Only office and admin logins get to switch; a floor login has nothing to
+  // switch to.
+  const showScopeSwitch = !isFloorLogin && hasDepartments;
   const inMyDept = (m) => myDepartments.includes(m.currentDepartment || m.stage);
 
   // Machine Tracker shows ONLY machines that have STARTED production (left the rack).
@@ -12881,7 +12895,34 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         {/* ── Phase 1 — My Work scope switch ──
             Only shown to people who actually belong to a department. Admins and
             unassigned users never see it and keep the full list. */}
-        {canScopeToMine && (
+        {/* A floor login with no department assigned must see nothing, not
+            everything. Say so plainly rather than silently showing an empty
+            page the operator cannot explain. */}
+        {isFloorLogin && !hasDepartments && (
+          <div className="rounded-2xl p-8 text-center"
+               style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.4)" }}>
+            <div className="text-sm font-black" style={{ color: "#b45309" }}>No department assigned to this login</div>
+            <div className="text-[12px] text-slate-600 mt-1.5 max-w-md mx-auto">
+              Until an admin sets a department on this user in User Management, there is no work to show here.
+            </div>
+          </div>
+        )}
+
+        {isFloorLogin && hasDepartments && (
+          <div className="flex items-baseline gap-3 flex-wrap">
+            <span className="text-[13px] font-black text-slate-800">{myDepartments.join(", ")}</span>
+            {(() => {
+              const n = myTakeIn.length + myWorking.length + myToFix.length + myOwed.length;
+              return (
+                <span className="text-[12px] text-slate-600">
+                  {n === 0 ? "nothing needs you right now" : `${n} machine${n === 1 ? "" : "s"} need${n === 1 ? "s" : ""} you`}
+                </span>
+              );
+            })()}
+          </div>
+        )}
+
+        {showScopeSwitch && (
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex rounded-xl p-1" style={{ background: "rgba(17,24,39,0.05)" }}>
               <button type="button" onClick={() => setScope("mine")}
@@ -12979,7 +13020,11 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             the item sat inside one machine's History panel where only someone
             already looking at that machine would see it. */}
         {(() => {
-          const openAssigned = (pendingHandoverItems || []).filter((p) => p.status === "open");
+          const openAssigned = (pendingHandoverItems || [])
+            .filter((p) => p.status === "open")
+            // A floor login is only shown what has been called to its own
+            // departments; the rest of the factory is not its business.
+            .filter((p) => !scopeMine || myDepartments.includes(p.assignedDepartment));
           if (openAssigned.length === 0) return null;
           const byDept = openAssigned.reduce((acc, p) => {
             const d = p.assignedDepartment || "Unassigned";
@@ -13066,7 +13111,11 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           );
         })()}
 
-        {/* ── Production Rack View ── */}
+        {/* ── Production Rack View ──
+            Machines waiting on the rack to be started. Starting a build is the
+            first working department's job, so a floor login elsewhere in the
+            line has no use for this and it is hidden from them. */}
+        {(!isFloorLogin || myDepartments.includes(FIRST_WORK_DEPARTMENT)) && (
         <div>
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -13202,6 +13251,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             </div>
           )}
         </div>
+        )}
 
         {/* "All Machines" quick toggle — kept as a small chip because the
             summary cards above cover the five main categories but don't offer
