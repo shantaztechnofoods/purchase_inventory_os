@@ -6,6 +6,8 @@ import {
   LayoutDashboard, Package, ArrowDownToLine, ArrowUpFromLine, Hourglass,
   RefreshCw, Wrench, Factory, BarChart3, Bot, ScrollText, TrendingUp,
   ShieldCheck, Settings, User, KeyRound, Menu, X,
+  Boxes, AlertOctagon, AlertTriangle, Wallet, Cog, CircleCheckBig,
+  ClipboardList, PhoneCall,
 } from "lucide-react";
 import { useAuth } from "./auth/AuthContext.jsx";
 // Migration 029 — list employees + save their department assignments.
@@ -72,7 +74,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-29-ui-foundation";
+const APP_BUILD = "2026-10-29-dashboard-icons";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -819,16 +821,20 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
   // Active machines (in-progress builds that need stage updates)
   const activeMachines = machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").slice(0, 4);
 
+  // Same reasoning as the navigation: these nine tiles are the first thing
+  // anyone sees, and emoji rendered in nine different device fonts is what made
+  // the dashboard look assembled rather than designed. Stroked icons take each
+  // tile's own colour instead of fighting it.
   const kpis = [
-    { label: "Total SKUs",        value: totalSKUs,                                              icon: "📦", color: "#E8553D", nav: "inventory",  sub: `${safeItems.length} safe` },
-    { label: "Critical Stock",    value: criticalN,                                              icon: "🔴", color: "#ef4444", nav: "inventory",  sub: `${warningItems.length} warning`,  alert: criticalN > 0 },
-    { label: "Pending POs",       value: pendingPOs.length,                                      icon: "⚠️", color: "#f97316", nav: "pipeline",   sub: "awaiting approval",               alert: pendingPOs.length > 0 },
-    { label: "Open PO Value",     value: fmtVal(openPOValue),                                    icon: "💰", color: "#22c55e", nav: "pipeline",   sub: `${pos.filter(p=>p.status!=="received").length} open` },
-    { label: "In Production",     value: machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").length, icon: "⚙️", color: "#CC4A33", nav: "machines",   sub: "machines active" },
-    { label: "Machines Ready",    value: machineLog.filter((m) => m.status === "completed").length, icon: "🏆", color: "#22c55e", nav: "machines", sub: "completed" },
-    { label: "Pending Materials", value: pendingLog.length,                                      icon: "⏳", color: "#f97316", nav: "pending",    sub: "items pending",                   alert: pendingLog.length > 0 },
-    { label: "Pending Approvals", value: pos.filter((p) => p.status === "pending").length,       icon: "📋", color: "#E8553D", nav: "pipeline",   sub: "awaiting review",                 alert: pos.filter((p) => p.status === "pending").length > 0 },
-    { label: "In Follow Up",      value: followUps.length,                                       icon: "📞", color: "#8b5cf6", nav: "pipeline",   sub: "orders tracked" },
+    { label: "Total SKUs",        value: totalSKUs,                                              Icon: Boxes,        color: "#E8553D", nav: "inventory",  sub: `${safeItems.length} safe` },
+    { label: "Critical Stock",    value: criticalN,                                              Icon: AlertOctagon, color: "#ef4444", nav: "inventory",  sub: `${warningItems.length} warning`,  alert: criticalN > 0 },
+    { label: "Pending POs",       value: pendingPOs.length,                                      Icon: AlertTriangle,color: "#f97316", nav: "pipeline",   sub: "awaiting approval",               alert: pendingPOs.length > 0 },
+    { label: "Open PO Value",     value: fmtVal(openPOValue),                                    Icon: Wallet,       color: "#22c55e", nav: "pipeline",   sub: `${pos.filter(p=>p.status!=="received").length} open` },
+    { label: "In Production",     value: machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").length, Icon: Cog, color: "#CC4A33", nav: "machines",   sub: "machines active" },
+    { label: "Machines Ready",    value: machineLog.filter((m) => m.status === "completed").length, Icon: CircleCheckBig, color: "#22c55e", nav: "machines", sub: "completed" },
+    { label: "Pending Materials", value: pendingLog.length,                                      Icon: Hourglass,    color: "#f97316", nav: "pending",    sub: "items pending",                   alert: pendingLog.length > 0 },
+    { label: "Pending Approvals", value: pos.filter((p) => p.status === "pending").length,       Icon: ClipboardList,color: "#E8553D", nav: "pipeline",   sub: "awaiting review",                 alert: pos.filter((p) => p.status === "pending").length > 0 },
+    { label: "In Follow Up",      value: followUps.length,                                       Icon: PhoneCall,    color: "#8b5cf6", nav: "pipeline",   sub: "orders tracked" },
   ];
 
   const EmptyState = ({ icon, title, sub }) => (
@@ -857,7 +863,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
               style={{ background: kpi.color + "0d", border: `1px solid ${kpi.alert ? kpi.color + "44" : kpi.color + "22"}` }}
               onMouseEnter={(e) => { e.currentTarget.style.background = kpi.color + "18"; e.currentTarget.style.borderColor = kpi.color + "44"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = kpi.color + "0d"; e.currentTarget.style.borderColor = kpi.alert ? kpi.color + "44" : kpi.color + "22"; }}>
-              <div className="text-lg mb-1.5">{kpi.icon}</div>
+              <div className="mb-1.5" style={{ color: kpi.color }}><kpi.Icon size={18} strokeWidth={2} aria-hidden="true" /></div>
               <div className="text-xl font-bold tabular-nums" style={{ color: kpi.alert ? kpi.color : "var(--text-strong)" }}>{kpi.value}</div>
               <div className="text-[10px] font-semibold mt-1 leading-tight tracking-[0.03em]" style={{ color: "var(--text-muted)" }}>{kpi.label}</div>
               <div className="text-[9px] mt-0.5 truncate" style={{ color: "var(--text-dim)" }}>{kpi.sub}</div>
@@ -13716,9 +13722,16 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                 style={{ background: stageColor + "18", color: stageColor, border: `1px solid ${stageColor}35` }}>
                             {machine.stage}
                           </span>
+                          {/* "4/6 — 60%" read as an arithmetic error, because the
+                              two numbers count different things: 4 of 6 is which
+                              STAGE the machine is at, 60% is how far along the
+                              five GAPS between them it has travelled. Both are
+                              right and 4/6 is not 60%, so side by side they
+                              looked broken. The bar below already carries the
+                              percentage; this chip now carries only the step. */}
                           <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
                                 style={{ background: "rgba(17,24,39,0.04)", color: "#6b7280", border: "1px solid var(--border-rim)" }}>
-                            {curIdx + 1}/{MACHINE_STAGES.length} — {pct}%
+                            Step {curIdx + 1} of {MACHINE_STAGES.length}
                           </span>
                           {isComplete && (
                             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background:"rgba(34,197,94,0.12)", color:"#15803d", border:"1px solid rgba(34,197,94,0.25)" }}>
