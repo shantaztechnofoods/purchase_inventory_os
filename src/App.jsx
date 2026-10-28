@@ -42,7 +42,7 @@ import { fetchTemplates, createTemplate, updateTemplate, deleteTemplate, fetchRe
 import { fetchPendingItems, createPendingItem, resolvePendingItem } from "./stores/pendingItemsStore.js";
 import { fetchAllAttachments, fetchAttachmentsForMachine, uploadAttachment, signedUrlFor, deleteAttachment } from "./stores/attachmentsStore.js";
 import { fetchRatings, createRating, overrideRating } from "./stores/ratingsStore.js";
-import { computeDepartmentRating, formatRatingBadge, summarizeMachineRatings } from "./utils/ratingLogic.js";
+import { computeDepartmentRating, formatRatingBadge, summarizeMachineRatings, buildDepartmentScoreboard } from "./utils/ratingLogic.js";
 import { startChecklistResponse, toggleAnswer, setAnswerRemark, validateChecklistAnswers, snapshotResponse, pickTemplate, duplicateTemplateItems } from "./utils/checklistLogic.js";
 import { useRealtimeTables } from "./realtime/useRealtimeTables.js";
 import { fetchRecentMovements, MOVEMENT_META } from "./stores/stockMovementsStore.js";
@@ -11416,6 +11416,11 @@ function ReportCenterPage({
             tables stacked in the order you would ask them. */}
         {tab === "stuck" && (
           <div className="space-y-5">
+            <DepartmentScoreboard
+              rows={buildDepartmentScoreboard(filteredHandovers, filteredRatings)}
+              openIssues={filteredPending.filter((p) => p.status === "open")}
+              waitingNow={filteredHandovers.filter((h) => h.status === "pending")}
+            />
             <ReportTable title="Took longer than allowed" rows={delayRows} />
             <ReportTable title="Accepted late — the next department left it waiting" rows={holdRows} />
             <ReportTable title="Issues raised and still open" rows={pendingRows} />
@@ -11489,77 +11494,87 @@ function ReportCenterPage({
   );
 }
 
-// ── Department scoreboard ────────────────────────────────────────────────────
-// "Where it sticks" used to be four CSV-shaped tables. Every number was in
-// there, but nobody could answer the question the tab is named after without
-// reading all four and doing the arithmetic in their head.
-//
-// This is the answer instead: one row per department, worst first. Each row is
-// built from the handovers that department SENT, which is the work it owns —
-// how often it finished inside its allowance, how far over it ran when it
-// didn't, how long the next department left it waiting, and the stars it was
-// given. Sorting by score puts the department that needs attention at the top.
-function buildDepartmentScoreboard(handovers = [], ratings = []) {
-  const byDept = new Map();
-
-  const row = (dept) => {
-    if (!byDept.has(dept)) {
-      byDept.set(dept, {
-        department: dept, handovers: 0, onTime: 0, overran: 0,
-        overrunMinutes: 0, heldMinutes: 0, heldCount: 0,
-        ratingSum: 0, ratingCount: 0, openIssues: 0,
-      });
-    }
-    return byDept.get(dept);
-  };
-
-  for (const h of handovers) {
-    if (!h || !h.fromDepartment) continue;
-    const r = row(h.fromDepartment);
-    r.handovers += 1;
-    const over = Number(h.overrunMinutes) || 0;
-    if (over > 0) { r.overran += 1; r.overrunMinutes += over; } else { r.onTime += 1; }
-
-    // How long the RECEIVING department sat on it past the accept window.
-    // Charged to the receiver, not the sender — it is the receiver's delay.
-    if (h.sentAt && h.toDepartment) {
-      const until = h.acceptedAt ? Date.parse(h.acceptedAt) : Date.now();
-      const waited = Math.max(0, Math.floor((until - Date.parse(h.sentAt)) / 60000));
-      const held = Math.max(0, waited - (Number(h.acceptTimeoutMinutes) || 0));
-      if (held > 0) {
-        const rec = row(h.toDepartment);
-        rec.heldMinutes += held;
-        rec.heldCount += 1;
-      }
-    }
+// The scoreboard itself. Worst department first, because the first thing on
+// the page should be the thing that needs attention.
+function DepartmentScoreboard({ rows = [], openIssues = [], waitingNow = [] }) {
+  if (!rows.length) {
+    return (
+      <div className="rounded-xl py-14 text-center" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.10)" }}>
+        <div className="text-sm font-bold text-slate-400 mb-1">Department scoreboard</div>
+        <div className="text-[11px] text-slate-600">No handovers match the current filters.</div>
+      </div>
+    );
   }
 
-  for (const rt of ratings) {
-    if (!rt || !rt.department) continue;
-    const n = Number(rt.rating);
-    if (!Number.isFinite(n)) continue;
-    const r = row(rt.department);
-    r.ratingSum += n;
-    r.ratingCount += 1;
-  }
+  const issuesFor  = (dept) => openIssues.filter((p) => p.raisedInDepartment === dept).length;
+  const waitingFor = (dept) => waitingNow.filter((h) => h.toDepartment === dept).length;
+  const mins = (m) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`);
 
-  return [...byDept.values()]
-    .map((r) => ({
-      ...r,
-      onTimePct: r.handovers ? Math.round((r.onTime / r.handovers) * 100) : null,
-      avgOverrun: r.overran ? Math.round(r.overrunMinutes / r.overran) : 0,
-      avgHeld: r.heldCount ? Math.round(r.heldMinutes / r.heldCount) : 0,
-      avgRating: r.ratingCount ? Math.round((r.ratingSum / r.ratingCount) * 10) / 10 : null,
-    }))
-    // Worst first: lowest rating, then worst on-time record. Departments with
-    // no rating yet sort to the bottom rather than to the top as a false 0 —
-    // "no data" is not "bad".
-    .sort((a, b) => {
-      if (a.avgRating === null && b.avgRating !== null) return 1;
-      if (b.avgRating === null && a.avgRating !== null) return -1;
-      if (a.avgRating !== b.avgRating) return (a.avgRating ?? 0) - (b.avgRating ?? 0);
-      return (a.onTimePct ?? 0) - (b.onTimePct ?? 0);
-    });
+  // Colour the on-time figure rather than every cell — one signal, read in a
+  // glance, instead of a wall of traffic lights.
+  const onTimeColor = (pct) => (pct === null ? "#64748b" : pct >= 90 ? "#15803d" : pct >= 70 ? "#c2410c" : "#dc2626");
+
+  return (
+    <div className="rounded-xl p-4" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.10)" }}>
+      <div className="flex items-baseline gap-2 flex-wrap mb-1">
+        <div className="text-sm font-bold text-slate-700">Department scoreboard</div>
+        <div className="text-[10px] text-slate-500">worst first · within the selected dates</div>
+      </div>
+      <div className="text-[11px] text-slate-500 mb-3">
+        Each row is the work that department handed on. Time is charged to whoever owned it:
+        running over is the sender's, keeping the next department waiting is the receiver's.
+      </div>
+
+      <div className="rounded-lg overflow-x-auto" style={{ border: "1px solid rgba(17,24,39,0.08)" }}>
+        <table className="w-full min-w-[640px]">
+          <thead>
+            <tr style={{ background: "rgba(17,24,39,0.03)" }}>
+              {["Department", "Handed on", "On time", "Avg overrun", "Made others wait", "Open issues", "Stars"].map((h, i) => (
+                <th key={h} className={`px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500 ${i === 0 ? "text-left" : "text-right"}`}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const issues  = issuesFor(r.department);
+              const waiting = waitingFor(r.department);
+              return (
+                <tr key={r.department} className="border-t border-slate-200">
+                  <td className="px-3 py-2 text-[12px] font-bold" style={{ color: STAGE_COLORS[r.department] || "#334155" }}>
+                    {r.department}
+                    {waiting > 0 && (
+                      <span className="ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full align-middle"
+                            style={{ background: "rgba(249,115,22,0.12)", color: "#c2410c", border: "1px solid rgba(249,115,22,0.3)" }}>
+                        {waiting} waiting now
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-[11px] text-right font-mono text-slate-600">{r.handovers}</td>
+                  <td className="px-3 py-2 text-[12px] text-right font-black" style={{ color: onTimeColor(r.onTimePct) }}>
+                    {r.onTimePct === null ? "—" : `${r.onTimePct}%`}
+                  </td>
+                  <td className="px-3 py-2 text-[11px] text-right font-mono text-slate-600">
+                    {r.overran ? mins(r.avgOverrun) : "—"}
+                    {r.overran > 0 && <span className="text-slate-400"> ×{r.overran}</span>}
+                  </td>
+                  <td className="px-3 py-2 text-[11px] text-right font-mono text-slate-600">
+                    {r.heldCount ? `${mins(r.avgHeld)} ×${r.heldCount}` : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-[11px] text-right font-mono"
+                      style={{ color: issues > 0 ? "#dc2626" : "#64748b" }}>
+                    {issues || "—"}
+                  </td>
+                  <td className="px-3 py-2 text-[11px] text-right font-bold text-yellow-600" style={{ letterSpacing: "0.06em" }}>
+                    {r.avgRating === null ? "—" : `${formatRatingBadge(r.avgRating)} ${r.avgRating}`}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 function ReportKPI({ label, value, color = "#E8553D", suffix = "" }) {
