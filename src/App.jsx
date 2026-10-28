@@ -13537,6 +13537,103 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   return (
                   <div className="px-5 pb-5 pt-1" style={{ borderTop: "1px solid rgba(17,24,39,0.04)" }}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {/* ── Phase 1 — Production report ──
+                          Where this machine stalled and why, pulled from data
+                          already recorded: each department's handover timings,
+                          its acceptance delay, and the rating that fell out of
+                          them. The point is not to score people — it is to
+                          find the step that keeps costing time, so the cause
+                          can be fixed. */}
+                      <div className="md:col-span-2">
+                        <div className="flex items-baseline gap-3 flex-wrap mb-3">
+                          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Production report</div>
+                          {ratingSummary.average != null && (
+                            <span className="text-[12px] font-black" style={{ color: ratingSummary.average >= 4.5 ? "#15803d" : ratingSummary.average >= 3.5 ? "#b45309" : "#dc2626" }}>
+                              {formatRatingBadge(Math.round(ratingSummary.average))} {ratingSummary.average} / 5
+                            </span>
+                          )}
+                        </div>
+                        {(() => {
+                          const hs = (handovers || [])
+                            .filter((h) => String(h.machineId) === String(machine.id))
+                            .slice().sort((a, b) => String(a.sentAt || "").localeCompare(String(b.sentAt || "")));
+                          if (!hs.length) {
+                            return <div className="text-[10px] text-slate-500 mb-4">No department has handed this machine on yet.</div>;
+                          }
+                          const stalls = [];
+                          const rows = hs.map((h) => {
+                            const expected = Number(h.expectedDurationMinutes) || 0;
+                            const actual   = Number(h.actualDurationMinutes)   || 0;
+                            const overrun  = Math.max(0, actual - expected);
+                            // How long the receiving department left it sitting
+                            // before accepting. Measured to the accept, not to
+                            // now, so a finished machine reports what happened.
+                            const waited   = (h.sentAt && h.acceptedAt)
+                              ? Math.max(0, Math.floor((Date.parse(h.acceptedAt) - Date.parse(h.sentAt)) / 60000))
+                              : null;
+                            const held     = (waited != null)
+                              ? Math.max(0, waited - (Number(h.acceptTimeoutMinutes) || 0))
+                              : 0;
+                            const rating   = (deptRatings || []).find((r) => String(r.handoverId) === String(h.id));
+                            if (overrun > 0) stalls.push(`${h.fromDepartment} took ${formatDuration(overrun)} longer than its ${formatDuration(expected)} allowance`);
+                            if (held > 0)    stalls.push(`${h.toDepartment} accepted ${formatDuration(held)} after its deadline`);
+                            return { h, expected, actual, overrun, held, rating };
+                          });
+                          return (
+                            <>
+                              {stalls.length > 0 && (
+                                <div className="rounded-lg px-3 py-2.5 mb-3"
+                                     style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.3)" }}>
+                                  <div className="text-[10px] font-black mb-1" style={{ color: "#dc2626" }}>Where it lost time</div>
+                                  <ul className="list-disc pl-4 space-y-0.5">
+                                    {stalls.map((t, i) => <li key={i} className="text-[11px] text-slate-700">{t}</li>)}
+                                  </ul>
+                                </div>
+                              )}
+                              {stalls.length === 0 && (
+                                <div className="rounded-lg px-3 py-2 mb-3 text-[11px]"
+                                     style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.3)", color: "#15803d" }}>
+                                  Ran clean — every department finished inside its allowance and accepted on time.
+                                </div>
+                              )}
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-[11px]" style={{ minWidth: 520 }}>
+                                  <thead>
+                                    <tr className="text-left text-slate-500">
+                                      <th scope="col" className="font-bold pb-1.5 pr-3">Department</th>
+                                      <th scope="col" className="font-bold pb-1.5 pr-3">Took</th>
+                                      <th scope="col" className="font-bold pb-1.5 pr-3">Allowed</th>
+                                      <th scope="col" className="font-bold pb-1.5 pr-3">Next dept waited</th>
+                                      <th scope="col" className="font-bold pb-1.5">Stars</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {rows.map(({ h, expected, actual, overrun, held, rating }) => (
+                                      <tr key={h.id} style={{ borderTop: "1px solid rgba(17,24,39,0.06)" }}>
+                                        <td className="py-1.5 pr-3 font-bold text-slate-700">{h.fromDepartment}</td>
+                                        <td className="py-1.5 pr-3" style={{ color: overrun > 0 ? "#dc2626" : "#15803d" }}>
+                                          {formatDuration(actual)}
+                                        </td>
+                                        <td className="py-1.5 pr-3 text-slate-500">{formatDuration(expected)}</td>
+                                        <td className="py-1.5 pr-3" style={{ color: held > 0 ? "#dc2626" : "#6b7280" }}>
+                                          {held > 0 ? `${formatDuration(held)} late` : "on time"}
+                                        </td>
+                                        <td className="py-1.5 font-bold" style={{ color: rating ? (rating.rating >= 4 ? "#15803d" : "#dc2626") : "#9ca3af" }}>
+                                          {rating ? `${rating.rating}/5` : "—"}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                              <div className="text-[10px] text-slate-500 mt-2">
+                                A star is lost for finishing late, for the next department accepting late, and for leaving an issue unresolved.
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+
                       {/* Stage history */}
                       <div>
                         <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-3">Stage History</div>
