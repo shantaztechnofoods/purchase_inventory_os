@@ -35,6 +35,9 @@ function toRow(h) {
   if (h.mainEmployeeId            !== undefined) row.main_employee_id            = h.mainEmployeeId || null;
   if (h.mainEmployeeSignatureId   !== undefined) row.main_employee_signature_id  = h.mainEmployeeSignatureId || null;
   if (h.mainEmployeeSignatureSvg  !== undefined) row.main_employee_signature_svg = h.mainEmployeeSignatureSvg || null;
+  // Migration 036 — a handover parked on the rack until a production head
+  // releases it. Same strip-on-retry treatment for pre-036 schemas.
+  if (h.releaseRequired           !== undefined) row.release_required           = !!h.releaseRequired;
   return row;
 }
 function fromRow(r) {
@@ -48,6 +51,10 @@ function fromRow(r) {
     sentBy:                    r.sent_by || null,
     sentBySignatureId:         r.sent_by_signature_id || null,
     sentAt:                    r.sent_at || null,
+    // Migration 036 — rack release. Pre-036 rows read as a straight push.
+    releaseRequired:           r.release_required === true,
+    releasedAt:                r.released_at || null,
+    releasedBy:                r.released_by || null,
     expectedDurationMinutes:   Number(r.expected_duration_minutes) || 0,
     actualDurationMinutes:     Number(r.actual_duration_minutes)   || 0,
     overrunMinutes:            Number(r.overrun_minutes)           || 0,  // generated col
@@ -85,6 +92,34 @@ function getLocal() { try { const s = localStorage.getItem(LOCAL_KEY); if (s) re
 function setLocal(a) { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(a)); } catch {} }
 
 // Returns all handovers, newest-first.
+// Migration 036 — a production head releases a machine from the rack to the
+// department waiting for it. Only ever moves a handover forward: the guard on
+// released_at makes a second click a no-op rather than a second release.
+export async function releaseHandover(id, { releasedBy }) {
+  const stamp = new Date().toISOString();
+  if (!isSupabaseEnabled()) {
+    const all = getLocal().map((h) => h.id === id && !h.releasedAt
+      ? { ...h, releasedAt: stamp, releasedBy: releasedBy || null }
+      : h);
+    setLocal(all);
+    return { success: true, handover: all.find((h) => h.id === id) || null };
+  }
+  const c = getSupabase(); if (!c) return { success: false, error: "no client" };
+  const { data, error } = await c.from("handover_events")
+    .update({ released_at: stamp, released_by: releasedBy || null })
+    .eq("id", id).eq("status", "pending").is("released_at", null)
+    .select().maybeSingle();
+  if (error) {
+    console.error("[handovers:release] failed", error);
+    if (isMissingColumnError(error)) {
+      return { success: false, error: "Rack release needs migration 036. Ask an admin to apply it." };
+    }
+    return { success: false, error: error.message };
+  }
+  if (!data) return { success: false, error: "Already released, or no longer waiting." };
+  return { success: true, handover: fromRow(data) };
+}
+
 export async function fetchHandovers() {
   const mode = isSupabaseEnabled() ? "SUPABASE" : "LOCAL";
   console.info("[handovers:load] start", { mode });
@@ -132,13 +167,16 @@ export async function createHandover(h) {
   // Migration 029 — retry without the new columns when the schema hasn't
   // been migrated yet. Keeps the create path working against pre-029 DBs.
   if (error && isMissingColumnError(error)) {
-    console.warn("[handovers:create] migration 029 columns missing — retrying without worked_by/main_employee");
+    console.warn("[handovers:create] migration 029/036 columns missing — retrying without them");
     const slim = { ...fullRow };
     delete slim.worked_by;
     delete slim.worked_by_snapshot;
     delete slim.main_employee_id;
     delete slim.main_employee_signature_id;
     delete slim.main_employee_signature_svg;
+    // Migration 036. Dropping it means the handover becomes a straight push:
+    // safe, just not the rack behaviour, until the migration is applied.
+    delete slim.release_required;
     ({ data, error } = await c.from("handover_events").insert(slim).select().single());
   }
   if (error) {

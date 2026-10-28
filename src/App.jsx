@@ -12371,7 +12371,11 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
   // Pending handovers filtered to those awaiting acceptance.
   const pendingHandovers = (handovers || []).filter((h) => h && h.status === "pending");
-  const overdueHandovers = pendingHandovers.filter((h) => isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick));
+  // Migration 036 — sent, but parked on the rack until a production head
+  // releases it to the receiving department. Pre-036 rows read as false.
+  const isAwaitingRelease = (h) => !!(h && h.releaseRequired && !h.releasedAt);
+  const overdueHandovers = pendingHandovers.filter((h) =>
+    !isAwaitingRelease(h) && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick));
 
   const showToast = (text, sub) => { setToast({ text, sub }); setTimeout(() => setToast(null), 3000); };
 
@@ -12680,20 +12684,27 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   //                        silently derived from Overdue)
   // All computed from live state; recompute on every minute tick (nowTick).
   const machineHandover = (m) => (handovers || []).find((h) => h.id === m.pendingHandoverId && h.status === "pending");
+  // Migration 036 — a handover waiting on the rack has been sent but not yet
+  // released by a production head. Nobody has been asked to accept it, so its
+  // acceptance clock must not run: for Shantaz a machine can sit on the rack
+  // for days and that is normal, not late.
   const pendingAccept   = started.filter((m) => {
     const h = machineHandover(m);
-    return h && !isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
+    return h && !isAwaitingRelease(h) && !isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
   });
-  const overdueMachines = started.filter((m) => {
+  const onHold          = started.filter((m) => {
     const h = machineHandover(m);
-    return h && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
+    return h && !isAwaitingRelease(h) && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
   });
-  const onHold          = [];   // no explicit HOLD state in the schema yet
+  const onRackMachines  = started.filter((m) => {
+    const h = machineHandover(m);
+    return h && isAwaitingRelease(h);
+  });
   const filtered  = filter === "active" ? active
                    : filter === "completed" ? completed
                    : filter === "pendingAccept" ? pendingAccept
-                   : filter === "overdue" ? overdueMachines
                    : filter === "hold" ? onHold
+                   : filter === "onRack" ? onRackMachines
                    : started;
 
   const stageIdx = (s) => MACHINE_STAGES.indexOf(s);
@@ -13081,15 +13092,22 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         })()}
 
         {(() => {
-          const pendingNotOverdue = pendingHandovers.filter((h) => !isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick)).length;
-          const overdueCount = overdueHandovers.length;
-          // Phase B placeholder: no explicit HOLD state in the schema yet.
-          // When a future workflow adds a 'held' status, this count fills in.
-          const holdCount = 0;
+          // A machine waiting on the rack for a production head to release it
+          // is NOT waiting to be accepted — nobody has been asked yet, so no
+          // acceptance clock runs on it and it is counted separately.
+          const awaitingRelease = pendingHandovers.filter(isAwaitingRelease);
+          const askedFor        = pendingHandovers.filter((h) => !isAwaitingRelease(h));
+          const pendingNotOverdue = askedFor.filter((h) => !isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick)).length;
+          // HOLD is derived, not stored: a handover is on hold once the
+          // receiving department has let its acceptance window pass. The old
+          // code showed this under "Overdue" and left a separate HOLD card
+          // hard-coded to 0, which meant the floor saw an alarm it could not
+          // act on and a card that never moved.
+          const holdCount = askedFor.filter((h) => isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick)).length;
           const cards = [
-            { key: "pendingAccept", label: "Pending Acceptance", value: pendingNotOverdue, sub: "waiting for next dept", color: "#f97316", bg: "rgba(249,115,22,0.08)" },
-            { key: "overdue",       label: "Overdue",            value: overdueCount,       sub: "accept deadline passed", color: "#dc2626", bg: "rgba(239,68,68,0.1)"  },
-            { key: "hold",          label: "On HOLD",            value: holdCount,          sub: "explicit hold state",     color: "#a78bfa", bg: "rgba(168,139,250,0.08)" },
+            { key: "pendingAccept", label: "To Accept",           value: pendingNotOverdue, sub: "waiting for next dept",  color: "#f97316", bg: "rgba(249,115,22,0.08)" },
+            { key: "hold",          label: "On HOLD",            value: holdCount,         sub: "accept deadline passed", color: "#dc2626", bg: "rgba(239,68,68,0.1)"  },
+            { key: "onRack",        label: "On Rack",            value: awaitingRelease.length, sub: "awaiting head release", color: "#6366f1", bg: "rgba(99,102,241,0.08)" },
             { key: "active",        label: "Active Builds",      value: active.length,       sub: "in production",           color: "#b45309", bg: "rgba(251,191,36,0.08)" },
             { key: "completed",     label: "Completed",          value: completed.length,    sub: "ready for delivery",      color: "#15803d", bg: "rgba(34,197,94,0.08)" },
           ];
