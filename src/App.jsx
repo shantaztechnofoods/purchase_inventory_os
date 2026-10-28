@@ -66,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-28-premium-ui-v6";
+const APP_BUILD = "2026-10-28-vendor-ui-v7";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -4834,7 +4834,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
 
       <Topbar title="Vendor Management" subtitle={`${activeVendors.length} suppliers · ${activeVendors.filter((v) => v.status === "preferred").length} preferred`}>
         <input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)}
-               placeholder="Search vendors..." className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-500 placeholder-slate-600 outline-none w-44" />
+               placeholder="Search vendors..." className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 outline-none w-44 focus:border-[#d71920]/40 focus:outline-none transition-colors" />
         {canDo("vendors","add") && (
           <button onClick={() => setShowImport(true)}
                   className="text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-all flex items-center gap-1.5">
@@ -4847,7 +4847,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
       <div className="p-6 space-y-6">
         {/* Stats — driven by active (non-archived) vendors */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <MetricCard label="Total Vendors"  value={activeVendors.length.toString()} icon="🏭" barPct={100} barColor="#E8553D" />
+          <MetricCard label="Total Vendors"  value={activeVendors.length.toString()} icon="🏭" barPct={100} barColor="#d71920" />
           <MetricCard label="Preferred"      value={activeVendors.filter((v) => v.status === "preferred").length.toString()} icon="⭐" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "preferred").length / activeVendors.length) * 100) : 0} barColor="#22c55e" valueColor="#15803d" />
           <MetricCard label="Under Review"   value={activeVendors.filter((v) => v.status === "review").length.toString()} icon="🔍" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "review").length / activeVendors.length) * 100) : 0} barColor="#f97316" valueColor="#d97706" />
           <MetricCard label="Poor"           value={activeVendors.filter((v) => v.status === "poor").length.toString()} icon="⚠️" barPct={activeVendors.length ? Math.round((activeVendors.filter((v) => v.status === "poor").length / activeVendors.length) * 100) : 0} barColor="#ef4444" valueColor="#dc2626" />
@@ -4858,59 +4858,69 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
           <div className={`${profileVendor ? "xl:col-span-2" : ""} grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 content-start`}>
             {filtered.map((v) => (
               <div key={v.id}
-                   className={`bg-white border rounded-xl p-4 cursor-pointer card-hover ${profileVendor?.id === v.id ? "border-blue-500/40 shadow-[0_0_20px_rgba(232,85,61,0.07)]" : "border-slate-200"}`}
+                   className={`bg-white border rounded-xl cursor-pointer card-hover transition-all overflow-hidden ${profileVendor?.id === v.id ? "border-[#d71920]/40 shadow-[0_0_0_3px_rgba(215,25,32,0.06),0_2px_8px_rgba(17,24,39,0.08)]" : "border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300"}`}
                    onClick={() => setProfileVendor(profileVendor?.id === v.id ? null : v)}>
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1 min-w-0 mr-2">
-                    <div className="text-[13px] font-black text-white truncate leading-tight">{v.name}</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">📍 {v.location || "—"}{v.years != null ? ` · ${v.years} yr${v.years !== 1 ? "s" : ""}` : ""}</div>
-                    {v.contactPerson && <div className="text-[10px] text-slate-500 mt-0.5">👤 {v.contactPerson}</div>}
+                {/* Brand accent strip — only on selected card */}
+                {profileVendor?.id === v.id && <div className="h-0.5 w-full" style={{ background: "#d71920" }} />}
+
+                <div className="p-4">
+                  {/* Header: vendor name + status badges */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1 min-w-0 mr-3">
+                      <div className="text-[14px] font-bold text-[#111827] truncate leading-tight mb-0.5">{v.name}</div>
+                      <div className="text-[11px] text-slate-500">📍 {v.location || "—"}{v.years != null ? ` · ${v.years} yr${v.years !== 1 ? "s" : ""}` : ""}</div>
+                      {v.contactPerson && <div className="text-[10px] text-slate-400 mt-0.5">👤 {v.contactPerson}</div>}
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <StatusBadge status={v.status} />
+                      {v.priority && (
+                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full border"
+                              style={{
+                                color: v.priority === "Preferred" ? "#b45309" : v.priority === "Approved" ? "#047857" : "#6b7280",
+                                background: v.priority === "Preferred" ? "rgba(251,191,36,0.08)" : v.priority === "Approved" ? "rgba(52,211,153,0.08)" : "rgba(148,163,184,0.08)",
+                                borderColor: v.priority === "Preferred" ? "rgba(251,191,36,0.3)" : v.priority === "Approved" ? "rgba(52,211,153,0.3)" : "rgba(148,163,184,0.25)",
+                              }}>
+                          {v.priority === "Preferred" ? "⭐ Preferred" : v.priority === "Approved" ? "✅ Approved" : "🔘 Backup"}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <StatusBadge status={v.status} />
-                    {v.priority && (
-                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full border"
-                            style={{
-                              color: v.priority === "Preferred" ? "#b45309" : v.priority === "Approved" ? "#047857" : "#6b7280",
-                              background: v.priority === "Preferred" ? "rgba(251,191,36,0.08)" : v.priority === "Approved" ? "rgba(52,211,153,0.08)" : "rgba(148,163,184,0.08)",
-                              borderColor: v.priority === "Preferred" ? "rgba(251,191,36,0.3)" : v.priority === "Approved" ? "rgba(52,211,153,0.3)" : "rgba(148,163,184,0.25)",
-                            }}>
-                        {v.priority === "Preferred" ? "⭐ Preferred" : v.priority === "Approved" ? "✅ Approved" : "🔘 Backup"}
+
+                  {/* Rating + performance in a unified metrics row */}
+                  <div className="bg-slate-50 rounded-lg px-3 py-2.5 mb-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-0.5">
+                        {[1,2,3,4,5].map((s) => (
+                          <span key={s} className={`text-[13px] ${s <= Math.round(Number(v.rating) || 0) ? "text-amber-400" : "text-slate-300"}`}>★</span>
+                        ))}
+                        <span className="text-[11px] text-slate-600 ml-1.5 font-semibold tabular-nums">{v.rating != null && !isNaN(v.rating) ? v.rating : "—"}</span>
+                      </div>
+                      <span className="text-[11px] font-bold tabular-nums" style={{ color: perfColor(Number(v.performance) || 0) }}>
+                        {v.performance != null && !isNaN(v.performance) ? `${v.performance}%` : "—"}
                       </span>
-                    )}
+                    </div>
+                    <div>
+                      <div className="h-1.5 bg-white rounded-full overflow-hidden border border-slate-200">
+                        <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.max(0, Number(v.performance) || 0))}%`, background: perfColor(Number(v.performance) || 0) }} />
+                      </div>
+                      <div className="text-[9px] text-slate-400 mt-1">On-time delivery</div>
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-0.5 mb-3">
-                  {[1,2,3,4,5].map((s) => (
-                    <span key={s} className={`text-sm ${s <= Math.round(Number(v.rating) || 0) ? "text-amber-400" : "text-slate-300"}`}>★</span>
-                  ))}
-                  <span className="text-[10px] text-slate-500 ml-1.5 font-semibold">{v.rating != null && !isNaN(v.rating) ? v.rating : "—"}</span>
-                </div>
-
-                <div className="mb-3.5">
-                  <div className="flex justify-between text-[10px] mb-1.5">
-                    <span className="text-slate-500">On-time delivery</span>
-                    <span className="font-bold tabular-nums" style={{ color: perfColor(Number(v.performance) || 0) }}>
-                      {v.performance != null && !isNaN(v.performance) ? `${v.performance}%` : "—"}
-                    </span>
+                  {/* Tags */}
+                  <div className="flex flex-wrap gap-1 mb-3">
+                    {[v.category, v.leadDays != null ? `Lead: ${v.leadDays}d` : null, v.annualValue || null, `${vendorPOCounts[v.name] || 0} POs`].filter(Boolean).map((tag) => (
+                      <span key={tag} className="text-[9px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">{tag}</span>
+                    ))}
                   </div>
-                  <div className="h-1 bg-slate-50 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.max(0, Number(v.performance) || 0))}%`, background: perfColor(Number(v.performance) || 0) }} />
+
+                  {/* Action buttons */}
+                  <div className="flex gap-1.5 pt-2.5 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
+                    <Btn variant="wa"    size="xs" onClick={() => { const r = openVendorWhatsApp(v); if (!r.ok) showToast(waErrorToast(r.error)); }}>📱 WA</Btn>
+                    <Btn variant="mail"  size="xs">✉️</Btn>
+                    {canDo("vendors","edit")   && <Btn variant="ghost" size="xs" onClick={() => { setEditingVendor(v); setShowModal(true); }}>✏️</Btn>}
+                    {canDo("vendors","delete") && <Btn variant="red"   size="xs" onClick={() => setConfirmDelete(v)}>🗑</Btn>}
                   </div>
-                </div>
-
-                <div className="flex flex-wrap gap-1 mb-3.5">
-                  {[v.category, v.leadDays != null ? `Lead: ${v.leadDays}d` : null, v.annualValue || null, `${vendorPOCounts[v.name] || 0} POs`].filter(Boolean).map((tag) => (
-                    <span key={tag} className="text-[9px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">{tag}</span>
-                  ))}
-                </div>
-
-                <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
-                  <Btn variant="wa"    size="xs" onClick={() => { const r = openVendorWhatsApp(v); if (!r.ok) showToast(waErrorToast(r.error)); }}>📱 WA</Btn>
-                  <Btn variant="mail"  size="xs">✉️</Btn>
-                  {canDo("vendors","edit")   && <Btn variant="ghost" size="xs" onClick={() => { setEditingVendor(v); setShowModal(true); }}>✏️</Btn>}
-                  {canDo("vendors","delete") && <Btn variant="red"   size="xs" onClick={() => setConfirmDelete(v)}>🗑</Btn>}
                 </div>
               </div>
             ))}
@@ -4953,36 +4963,39 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
             const roleColor  = (r) => r === "Preferred" ? "#b45309" : r === "Approved" ? "#047857" : r === "Backup" ? "#6b7280" : "#64748b";
 
             return (
-              <div className="bg-white border border-blue-500/20 rounded-xl p-5 space-y-5 self-start sticky top-4 overflow-y-auto max-h-[calc(100vh-120px)]">
+              <div className="bg-white border border-[#d71920]/20 rounded-xl overflow-hidden self-start sticky top-4 overflow-y-auto max-h-[calc(100vh-120px)]" style={{ boxShadow: "0 2px 12px rgba(17,24,39,0.06)" }}>
+                {/* Brand accent strip */}
+                <div className="h-0.5 w-full" style={{ background: "#d71920" }} />
 
+                <div className="p-5 space-y-5">
                 {/* Header */}
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="text-sm font-black text-white">{v.name}</div>
+                    <div className="text-[15px] font-bold text-[#111827] leading-tight">{v.name}</div>
                     <div className="text-[11px] text-slate-500 mt-0.5">{v.category}</div>
                   </div>
-                  <button onClick={() => setProfileVendor(null)} className="text-slate-600 hover:text-slate-500 text-sm leading-none">✕</button>
+                  <button onClick={() => setProfileVendor(null)} className="text-slate-400 hover:text-slate-600 text-sm leading-none transition-colors">✕</button>
                 </div>
 
                 {/* Summary stats */}
                 <div>
-                  <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-2">Purchase History</div>
+                  <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.08em] mb-2">Purchase History</div>
                   <div className="grid grid-cols-2 gap-2">
                     {[
-                      ["Total POs",    vendorPOs.length,                                            "#E8553D"],
-                      ["Total Value",  `₹${totalValue.toLocaleString("en-IN")}`,                    "#22c55e"],
-                      ["Pending",      pendingPOs.length,                                           "#f97316"],
-                      ["Received",     receivedPOs.length,                                          "#8b5cf6"],
+                      ["Total POs",   vendorPOs.length,                               "#d71920"],
+                      ["Total Value", `₹${totalValue.toLocaleString("en-IN")}`,        "#15803d"],
+                      ["Pending",     pendingPOs.length,                               "#d97706"],
+                      ["Received",    receivedPOs.length,                              "#6d28d9"],
                     ].map(([lbl, val, col]) => (
                       <div key={lbl} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                        <div className="text-[9px] text-slate-600 uppercase tracking-wide mb-1">{lbl}</div>
-                        <div className="text-[13px] font-black tabular-nums leading-tight" style={{ color: col }}>{val}</div>
+                        <div className="text-[9px] text-slate-500 uppercase tracking-wide mb-1">{lbl}</div>
+                        <div className="text-[13px] font-bold tabular-nums leading-tight" style={{ color: col }}>{val}</div>
                       </div>
                     ))}
                   </div>
                   {lastPoDate && (
-                    <div className="mt-2 text-[11px] text-slate-500">
-                      Last received: <span className="text-white font-semibold">{lastPoDate}</span>
+                    <div className="mt-2 text-[11px] text-slate-600">
+                      Last received: <span className="font-semibold text-[#111827]">{lastPoDate}</span>
                     </div>
                   )}
                 </div>
@@ -4993,16 +5006,16 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                   {v.contactPerson && <div className="text-[11px] text-slate-500">👤 {v.contactPerson}</div>}
                   <div className="text-[11px] text-slate-500">📞 {v.phone}</div>
                   <div className="text-[11px] text-slate-500">✉️ {v.email}</div>
-                  {v.gst     && <div className="text-[11px] text-slate-400">GST: <span className="font-mono text-slate-500">{v.gst}</span></div>}
-                  {v.address && <div className="text-[11px] text-slate-400">📍 {v.address}</div>}
+                  {v.gst     && <div className="text-[11px] text-slate-500">GST: <span className="font-mono text-slate-600">{v.gst}</span></div>}
+                  {v.address && <div className="text-[11px] text-slate-500">📍 {v.address}</div>}
                 </div>
 
                 {/* Terms */}
                 <div className="grid grid-cols-2 gap-3">
-                  {[["Payment", v.paymentTerms], ["Lead Time", `${v.leadDays} days`]].map(([lbl, val]) => (
+                  {[["Payment", v.paymentTerms || "—"], ["Lead Time", v.leadDays != null ? `${v.leadDays} days` : "—"]].map(([lbl, val]) => (
                     <div key={lbl} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                      <div className="text-[9px] text-slate-600 uppercase tracking-wide mb-1">{lbl}</div>
-                      <div className="text-xs font-bold text-white">{val}</div>
+                      <div className="text-[9px] text-slate-500 uppercase tracking-wide mb-1">{lbl}</div>
+                      <div className="text-xs font-bold text-[#111827]">{val}</div>
                     </div>
                   ))}
                 </div>
@@ -5020,7 +5033,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                         <div key={item.code} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
                           <div className="flex items-start justify-between gap-2 mb-1.5">
                             <div className="min-w-0 flex-1">
-                              <div className="text-[11px] font-semibold text-white truncate">{item.name}</div>
+                              <div className="text-[11px] font-semibold text-[#111827] truncate">{item.name}</div>
                               <div className="text-[10px] text-slate-500">{item.code} · {item.category}</div>
                             </div>
                             <div className="flex flex-col items-end gap-1 shrink-0">
@@ -5053,7 +5066,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                     </div>
                     <div className="space-y-1.5">
                       {pendingPOs.slice(0, 5).map((po) => (
-                        <div key={po.id} className="flex items-center justify-between p-2 rounded-lg bg-orange-500/[0.05] border border-orange-500/20">
+                        <div key={po.id} className="flex items-center justify-between p-2 rounded-lg bg-amber-50 border border-amber-200">
                           <div>
                             <div className="text-[11px] font-mono font-bold text-blue-400">{po.id}</div>
                             <div className="text-[10px] text-slate-500">
@@ -5083,10 +5096,9 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                     <div className="space-y-1.5 mb-2">
                       <input value={vendorPOSearch} onChange={(e) => setVendorPOSearch(e.target.value)}
                              placeholder="Search PO id, item…"
-                             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-slate-600 outline-none focus:border-blue-500/40" />
+                             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] text-[#111827] placeholder-slate-400 outline-none focus:border-[#d71920]/40 transition-colors" />
                       <select value={vendorPOStatus} onChange={(e) => setVendorPOStatus(e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] text-white outline-none"
-                              style={{ background: "var(--surface-elevated)" }}>
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] text-[#111827] outline-none">
                         <option value="all">All statuses</option>
                         {["draft","pending","approved","ordered","received","overdue","rejected","review"].map((s) => <option key={s} value={s}>{s}</option>)}
                       </select>
@@ -5134,7 +5146,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                         </div>
                         {!filterActive && filteredVendorPOs.length > 8 && (
                           <button onClick={() => setVendorPOExpanded((x) => !x)}
-                                  className="w-full mt-2 text-[10px] font-bold py-1.5 rounded-lg text-blue-300 border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-all">
+                                  className="w-full mt-2 text-[10px] font-bold py-1.5 rounded-lg border border-slate-200 hover:border-[#d71920]/30 hover:bg-[#d71920]/5 transition-all" style={{ color: "#d71920" }}>
                             {vendorPOExpanded ? `▲ Show fewer (hide ${filteredVendorPOs.length - 8})` : `▼ Show all ${filteredVendorPOs.length}`}
                           </button>
                         )}
@@ -5145,11 +5157,12 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
 
                 {/* Notes */}
                 {v.notes && (
-                  <div className="p-3 rounded-lg bg-orange-500/[0.06] border border-orange-500/20">
-                    <div className="text-[9px] font-black text-orange-400 uppercase tracking-wide mb-1">Notes</div>
-                    <div className="text-[11px] text-slate-500">{v.notes}</div>
+                  <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                    <div className="text-[9px] font-black uppercase tracking-wide mb-1" style={{ color: "#d71920" }}>Notes</div>
+                    <div className="text-[11px] text-slate-700">{v.notes}</div>
                   </div>
                 )}
+                </div>{/* end p-5 space-y-5 */}
               </div>
             );
           })()}
