@@ -66,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-28-premium-ui-v5";
+const APP_BUILD = "2026-10-28-premium-ui-v6";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -4724,7 +4724,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
         || (v.location || "").toLowerCase().includes(q);
   });
 
-  const perfColor = (p) => p > 85 ? "#22c55e" : p > 65 ? "#E8553D" : p > 50 ? "#f97316" : "#ef4444";
+  const perfColor = (p) => p > 85 ? "#15803d" : p > 65 ? "#d97706" : p > 50 ? "#c2410c" : "#dc2626";
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -4863,7 +4863,7 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 min-w-0 mr-2">
                     <div className="text-[13px] font-black text-white truncate leading-tight">{v.name}</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">📍 {v.location} · {v.years} yr{v.years !== 1 ? "s" : ""}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">📍 {v.location || "—"}{v.years != null ? ` · ${v.years} yr${v.years !== 1 ? "s" : ""}` : ""}</div>
                     {v.contactPerson && <div className="text-[10px] text-slate-500 mt-0.5">👤 {v.contactPerson}</div>}
                   </div>
                   <div className="flex flex-col items-end gap-1">
@@ -4883,23 +4883,25 @@ function VendorsPage({ vendorList, pos, items, onAddVendor, onEditVendor, onDele
 
                 <div className="flex items-center gap-0.5 mb-3">
                   {[1,2,3,4,5].map((s) => (
-                    <span key={s} className={`text-sm ${s <= Math.round(v.rating) ? "text-amber-400" : "text-slate-700"}`}>★</span>
+                    <span key={s} className={`text-sm ${s <= Math.round(Number(v.rating) || 0) ? "text-amber-400" : "text-slate-300"}`}>★</span>
                   ))}
-                  <span className="text-[10px] text-slate-500 ml-1.5 font-semibold">{v.rating}</span>
+                  <span className="text-[10px] text-slate-500 ml-1.5 font-semibold">{v.rating != null && !isNaN(v.rating) ? v.rating : "—"}</span>
                 </div>
 
                 <div className="mb-3.5">
                   <div className="flex justify-between text-[10px] mb-1.5">
                     <span className="text-slate-500">On-time delivery</span>
-                    <span className="font-bold tabular-nums" style={{ color: perfColor(v.performance) }}>{v.performance}%</span>
+                    <span className="font-bold tabular-nums" style={{ color: perfColor(Number(v.performance) || 0) }}>
+                      {v.performance != null && !isNaN(v.performance) ? `${v.performance}%` : "—"}
+                    </span>
                   </div>
                   <div className="h-1 bg-slate-50 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${v.performance}%`, background: perfColor(v.performance) }} />
+                    <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.max(0, Number(v.performance) || 0))}%`, background: perfColor(Number(v.performance) || 0) }} />
                   </div>
                 </div>
 
                 <div className="flex flex-wrap gap-1 mb-3.5">
-                  {[v.category, `Lead: ${v.leadDays}d`, v.annualValue, `${vendorPOCounts[v.name] || 0} POs`].map((tag) => (
+                  {[v.category, v.leadDays != null ? `Lead: ${v.leadDays}d` : null, v.annualValue || null, `${vendorPOCounts[v.name] || 0} POs`].filter(Boolean).map((tag) => (
                     <span key={tag} className="text-[9px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">{tag}</span>
                   ))}
                 </div>
@@ -5292,8 +5294,15 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
   const monthOrder = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const monthlyMap = {};
   pos.forEach((p) => {
-    const parts = (p.date || "").split(" ");
-    const month = parts[1] || "?";
+    const dateStr = p.date || "";
+    const parts   = dateStr.split(" ");
+    // "5 May 2025" → parts[1] = "May"; ISO "2025-05-15" → fall through to Date parse
+    let month = (parts.length >= 3 && monthOrder.includes(parts[1])) ? parts[1] : null;
+    if (!month) {
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) month = monthOrder[d.getMonth()];
+    }
+    if (!month) return; // skip unparseable dates — do not add a "?" bucket
     if (!monthlyMap[month]) monthlyMap[month] = { month, value: 0, orders: 0 };
     monthlyMap[month].value  += Math.round((p.amount || p.subtotal || 0) / 1000);
     monthlyMap[month].orders += 1;

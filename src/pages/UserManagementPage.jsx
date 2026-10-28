@@ -250,7 +250,7 @@ export default function UserManagementPage({ canDo }) {
              style={{
                background: toast.type === "error" ? "rgba(239,68,68,0.15)" : "rgba(34,197,94,0.15)",
                border: `1px solid ${toast.type === "error" ? "rgba(239,68,68,0.4)" : "rgba(34,197,94,0.4)"}`,
-               color: toast.type === "error" ? "#fca5a5" : "#86efac",
+               color: toast.type === "error" ? "#dc2626" : "#15803d",
                animation: "slideUp 0.2s ease both",
              }}>
           <span>{toast.type === "error" ? "❌" : "✅"}</span>
