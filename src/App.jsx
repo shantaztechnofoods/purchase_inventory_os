@@ -12305,10 +12305,24 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   // Migration 029 — list of all users (for the Finish-modal worker + Main
   // Employee pickers). Empty array when Supabase isn't enabled or the list
   // hasn't loaded yet; UI falls back to a text hint in that case.
-  allUsers = [] }) {
+  allUsers = [],
+  // Phase 1 — raise a pending item mid-work (Trial finds a fault that belongs
+  // to an earlier department). Optional: the button hides when absent.
+  onRaisePendingItem }) {
   const [filter,   setFilter]   = useState("active");
   const [expanded, setExpanded] = useState(null);
   const [stageMap, setStageMap] = useState({});
+  // Phase 1 — "Update Stage" is a legacy Phase-A escape hatch that skips the
+  // whole handover chain (no signature, no checklist, no rating, no handover
+  // row). It stays for admins to correct mistakes and is hidden from operators,
+  // who use Finish & Transfer. Role keys mirror authStore.DEFAULT_ROLES.
+  const isAdminUser = currentUser?.role === "super_admin" || currentUser?.role === "Admin";
+  // Phase 1 — raise-issue modal: { machine } while open.
+  const [raiseModal, setRaiseModal] = useState(null);
+  const [raiseText,  setRaiseText]  = useState("");
+  const [raiseDept,  setRaiseDept]  = useState("");
+  const [raiseErr,   setRaiseErr]   = useState("");
+  const [raiseBusy,  setRaiseBusy]  = useState(false);
   const [toast,    setToast]    = useState(null);
   const [startProd, setStartProd] = useState(null); // rack object { key, label, ready, capacity }
   const [startSel,  setStartSel]  = useState(() => new Set()); // selected rack-machine ids
@@ -12825,6 +12839,68 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               Completed          = status == completed
             Clicking a card sets the main-list filter; current filter card
             is outlined. */}
+        {/* ── Phase 1 — Departments that have been called ──
+            Open faults grouped by the department that must come and fix them.
+            Without this the responsible department never learns it is needed:
+            the item sat inside one machine's History panel where only someone
+            already looking at that machine would see it. */}
+        {(() => {
+          const openAssigned = (pendingHandoverItems || []).filter((p) => p.status === "open");
+          if (openAssigned.length === 0) return null;
+          const byDept = openAssigned.reduce((acc, p) => {
+            const d = p.assignedDepartment || "— कोई नहीं चुना · unassigned";
+            (acc[d] = acc[d] || []).push(p);
+            return acc;
+          }, {});
+          const machineOf = (id) => machineLog.find((m) => String(m.id) === String(id)) || null;
+          return (
+            <div className="rounded-2xl p-5"
+                 style={{ background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.35)" }}>
+              <div className="flex items-baseline gap-3 flex-wrap mb-3">
+                <div className="text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "#dc2626" }}>
+                  बुलाया गया है · Departments called
+                </div>
+                <div className="text-3xl font-black" style={{ color: "#dc2626" }}>{openAssigned.length}</div>
+                <div className="text-[11px] text-slate-500">
+                  खुली गड़बड़{openAssigned.length === 1 ? "" : "ें"} — जब तक ठीक न हो, वो मशीन आगे नहीं जाएगी
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
+                {Object.entries(byDept).map(([dept, list]) => (
+                  <div key={dept} className="rounded-xl p-3"
+                       style={{ background: "var(--surface-raised)", border: "1px solid rgba(239,68,68,0.25)" }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-[12px] font-black text-slate-800">{dept}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                            style={{ background: "rgba(239,68,68,0.12)", color: "#dc2626" }}>{list.length}</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {list.slice(0, 4).map((p) => {
+                        const mm = machineOf(p.machineId);
+                        return (
+                          <button key={p.id} type="button"
+                                  onClick={() => { if (mm) { setFilter("active"); setExpanded(mm.id); } }}
+                                  className="w-full text-left rounded-lg px-2 py-1.5 transition-all hover:brightness-95"
+                                  style={{ background: "rgba(239,68,68,0.05)" }}>
+                            <div className="text-[11px] text-slate-700 leading-snug">{p.description}</div>
+                            <div className="text-[9px] text-slate-500 mt-0.5">
+                              {mm ? `${mm.bomKey}${mm.serialNo ? ` · ${mm.serialNo}` : ""} · ${mm.currentDepartment || mm.stage} में` : `Machine #${p.machineId}`}
+                              {p.raisedInDepartment ? ` · ${p.raisedInDepartment} ने बताया` : ""}
+                            </div>
+                          </button>
+                        );
+                      })}
+                      {list.length > 4 && (
+                        <div className="text-[10px] text-slate-500 px-2">और {list.length - 4} …</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         {(() => {
           const pendingNotOverdue = pendingHandovers.filter((h) => !isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick)).length;
           const overdueCount = overdueHandovers.length;
@@ -13035,6 +13111,11 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             const futureStages = MACHINE_STAGES.filter((_, i) => i > curIdx);
             const stageColor = STAGE_COLORS[machine.stage] || "#E8553D";
             const pct = isComplete ? 100 : Math.round((curIdx / (MACHINE_STAGES.length - 1)) * 100);
+            // Phase 1 — unresolved faults block the handover. Trial (or any
+            // department) raises a fault against the department responsible;
+            // the machine stays put until that department resolves it.
+            const machineOpenItems = (pendingHandoverItems || [])
+              .filter((p) => String(p.machineId) === String(machine.id) && p.status === "open");
 
             return (
               <div key={machine.id} className="bg-white rounded-xl overflow-hidden transition-all"
@@ -13115,7 +13196,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-                      {!isComplete && futureStages.length > 0 && canDo("machines","updateStage") && (
+                      {/* Phase 1 — admin-only. Update Stage bypasses the entire
+                          handover chain; operators must use Finish & Transfer so
+                          the signature, checklist and rating are always captured. */}
+                      {!isComplete && futureStages.length > 0 && isAdminUser && canDo("machines","updateStage") && (
                         <>
                           <select value={selStage}
                                   onChange={(e) => setStageMap((p) => ({ ...p, [machine.id]: e.target.value }))}
@@ -13152,13 +13236,36 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           📋 During-Work Checks
                         </button>
                       )}
-                      {!isComplete && nextDepartment(machine.currentDepartment || machine.stage) && !machine.pendingHandoverId && canFinishTransfer(canDo) && onFinishTransfer && (
-                        <button onClick={() => openFinishModal(machine)}
-                                className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
-                                style={{ background: "linear-gradient(135deg,#f97316,#ea580c)", boxShadow: "0 0 10px rgba(249,115,22,0.3)" }}
-                                title={`Finish ${machine.currentDepartment || machine.stage} → ${nextDepartment(machine.currentDepartment || machine.stage)}`}>
-                          Finish & Transfer →
+                      {/* Phase 1 — report a fault to the department responsible.
+                          Lets Trial call Mechanical back without the machine
+                          itself moving backwards, which is how Shantaz works. */}
+                      {!isComplete && machine.stage !== "BOM Issued" && !machine.pendingHandoverId && onRaisePendingItem && canDo("machines","accept") && (
+                        <button onClick={() => { setRaiseModal({ machine }); setRaiseText(""); setRaiseDept(""); setRaiseErr(""); }}
+                                className="text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all"
+                                style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.35)", color: "#dc2626" }}
+                                title="Report a fault and call the department responsible">
+                          Report Issue
                         </button>
+                      )}
+                      {!isComplete && nextDepartment(machine.currentDepartment || machine.stage) && !machine.pendingHandoverId && canFinishTransfer(canDo) && onFinishTransfer && (
+                        machineOpenItems.length > 0 ? (
+                          /* Phase 1 — blocked while faults are open. Disabled rather
+                             than hidden, so the operator can see WHY the machine
+                             cannot move and how many items remain. */
+                          <button type="button" disabled
+                                  className="text-[11px] font-black px-3 py-1.5 rounded-lg border cursor-not-allowed"
+                                  style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.3)", color: "#dc2626" }}
+                                  title={`${machineOpenItems.length} open issue${machineOpenItems.length === 1 ? "" : "s"} must be resolved before this machine can move on. Open History to resolve them.`}>
+                            Blocked · {machineOpenItems.length} open issue{machineOpenItems.length === 1 ? "" : "s"}
+                          </button>
+                        ) : (
+                          <button onClick={() => openFinishModal(machine)}
+                                  className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
+                                  style={{ background: "linear-gradient(135deg,#f97316,#ea580c)", boxShadow: "0 0 10px rgba(249,115,22,0.3)" }}
+                                  title={`Finish ${machine.currentDepartment || machine.stage} → ${nextDepartment(machine.currentDepartment || machine.stage)}`}>
+                            Finish & Transfer →
+                          </button>
+                        )
                       )}
                       {machine.pendingHandoverId && (() => {
                         const h = (handovers || []).find((x) => x.id === machine.pendingHandoverId && x.status === "pending");
@@ -13320,6 +13427,12 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                       )
                                     )}
                                   </div>
+                                  {/* Phase 1 — who has been called to fix this. */}
+                                  {p.assignedDepartment && p.status !== "resolved" && (
+                                    <div className="text-[10px] font-bold mt-1" style={{ color: "#dc2626" }}>
+                                      {p.assignedDepartment} को बुलाया गया · {p.assignedDepartment} called
+                                    </div>
+                                  )}
                                   <div className="text-[9px] text-slate-500 mt-0.5">
                                     From {p.raisedInDepartment}{p.resolvedInDepartment ? ` · Resolved in ${p.resolvedInDepartment}` : ""}
                                     {p.resolutionNotes ? ` · "${p.resolutionNotes}"` : ""}
@@ -13525,6 +13638,91 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           </div>
         </div>
       )}
+
+      {/* ── Phase 1 — Report Issue Modal ──
+          Raises a pending item against the department that must come and fix
+          it. The machine does not move; the responsible department is called
+          to it. Blocks Finish & Transfer until resolved. */}
+      {raiseModal && (() => {
+        const m = raiseModal.machine;
+        const here = m.currentDepartment || m.stage;
+        // Any production department except the one reporting — you do not call
+        // yourself. "BOM Issued" and "Ready" are not departments that do work.
+        const deptChoices = DEPARTMENT_SEQUENCE.filter(
+          (d) => d !== "BOM Issued" && d !== "Ready" && d !== here
+        );
+        const submit = async () => {
+          const desc = raiseText.trim();
+          if (!desc)      { setRaiseErr("क्या गड़बड़ है, वो लिखिए — describe the issue."); return; }
+          if (!raiseDept) { setRaiseErr("किस डिपार्टमेंट को बुलाना है, वो चुनिए — choose a department."); return; }
+          setRaiseBusy(true); setRaiseErr("");
+          const r = await onRaisePendingItem({
+            machineId: m.id, description: desc,
+            assignedDepartment: raiseDept, raisedInDepartment: here,
+          });
+          setRaiseBusy(false);
+          if (r && r.success === false) { setRaiseErr(r.error || "Could not save the issue."); return; }
+          setRaiseModal(null);
+          showToast(`${m.bomKey}${m.serialNo ? ` — ${m.serialNo}` : ""}`, `${raiseDept} को बुलाया गया · machine is now blocked`);
+        };
+        return (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+             style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
+             onClick={(e) => e.target === e.currentTarget && !raiseBusy && setRaiseModal(null)}>
+          <div className="w-full max-w-lg rounded-2xl p-6"
+               style={{ background: "var(--surface-raised)", border: "1px solid rgba(239,68,68,0.35)", boxShadow: "0 24px 70px rgba(17,24,39,0.2)" }}>
+            <h3 className="text-base font-black text-slate-800 mb-1">गड़बड़ दर्ज करें · Report an issue</h3>
+            <p className="text-[11px] text-slate-500 mb-4">
+              {m.bomKey}{m.serialNo ? ` · S/N ${m.serialNo}` : ""} · {here} में
+            </p>
+
+            <label htmlFor="raise-desc" className="block text-[11px] font-bold text-slate-600 mb-1.5">
+              क्या गड़बड़ है · What is wrong
+            </label>
+            <textarea id="raise-desc" rows={3} value={raiseText} disabled={raiseBusy}
+                      onChange={(e) => setRaiseText(e.target.value)}
+                      placeholder="जैसे: गियरबॉक्स से आवाज़ आ रही है"
+                      className="w-full rounded-lg px-3 py-2.5 text-[13px] text-slate-800 outline-none resize-y"
+                      style={{ background: "var(--surface-elevated)", border: "1px solid rgba(17,24,39,0.12)" }} />
+
+            <label htmlFor="raise-dept" className="block text-[11px] font-bold text-slate-600 mt-4 mb-1.5">
+              किस डिपार्टमेंट को बुलाना है · Which department must fix it
+            </label>
+            <select id="raise-dept" value={raiseDept} disabled={raiseBusy}
+                    onChange={(e) => setRaiseDept(e.target.value)}
+                    className="w-full rounded-lg px-3 h-11 text-[13px] text-slate-800 outline-none"
+                    style={{ background: "var(--surface-elevated)", border: "2px solid rgba(239,68,68,0.45)" }}>
+              <option value="">— चुनिए · choose —</option>
+              {deptChoices.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+
+            <p className="text-[11px] text-slate-500 mt-3">
+              मशीन {here} में ही रहेगी। जब तक ये ठीक नहीं होता, Finish &amp; Transfer बंद रहेगा.
+            </p>
+
+            {raiseErr && (
+              <div className="mt-3 text-[11px] font-bold px-3 py-2 rounded-lg"
+                   style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", color: "#dc2626" }}>
+                {raiseErr}
+              </div>
+            )}
+
+            <div className="flex gap-2 mt-5">
+              <button type="button" onClick={() => setRaiseModal(null)} disabled={raiseBusy}
+                      className="flex-1 h-11 rounded-lg text-[13px] font-bold text-slate-600 border transition-all disabled:opacity-40"
+                      style={{ borderColor: "rgba(17,24,39,0.12)" }}>
+                रहने दें
+              </button>
+              <button type="button" onClick={submit} disabled={raiseBusy}
+                      className="flex-[2] h-11 rounded-lg text-[13px] font-black text-white transition-all disabled:opacity-50"
+                      style={{ background: "linear-gradient(135deg,#ef4444,#dc2626)" }}>
+                {raiseBusy ? "भेजा जा रहा है…" : (raiseDept ? `${raiseDept} को भेजें` : "भेजें")}
+              </button>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
 
       {/* ── Start Production Modal ── */}
       {startProd && (
@@ -18398,6 +18596,40 @@ export default function App() {
   };
 
   // ── Phase B — Pending-item resolution ─────────────────────────────────────
+  // Phase 1 — raise a fault mid-work against the department that must fix it.
+  // Distinct from the Accept-time pending items: those blame the previous
+  // department at handover, this one calls any department back to a machine
+  // that is already being worked on. The machine never moves backwards.
+  const handleRaisePendingItem = async ({ machineId, description, assignedDepartment, raisedInDepartment }) => {
+    if (!currentUser?.id) return { success: false, error: "Not authenticated" };
+    const desc = String(description || "").trim();
+    if (!desc) return { success: false, error: "Describe the issue." };
+    const machine = machineLog.find((m) => m.id === machineId);
+    if (!machine) return { success: false, error: "Machine not found" };
+    const res = await createPendingItem({
+      machineId,
+      raisedInHandoverId: null,
+      raisedInDepartment: raisedInDepartment || machine.currentDepartment || machine.stage || "",
+      raisedBy: currentUser.id,
+      description: desc,
+      assignedDepartment: assignedDepartment || null,
+    });
+    if (!res.success) return res;
+    setPendingHandoverItems((prev) => [res.item, ...prev]);
+    logAudit({
+      type: "pending_item_raised", module: "Machine",
+      action: `Issue raised${assignedDepartment ? ` for ${assignedDepartment}` : ""}: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}`,
+      ref: machine.bomKey, serialNo: machine.serialNo || "",
+      details: {
+        machineId, itemId: res.item?.id,
+        raisedInDepartment: raisedInDepartment || machine.currentDepartment || machine.stage || "",
+        assignedDepartment: assignedDepartment || null,
+        description: desc,
+      },
+    });
+    return res;
+  };
+
   const handleResolvePendingItem = async (id, { notes }) => {
     const machine = (() => {
       const p = pendingHandoverItems.find((x) => x.id === id);
@@ -18642,6 +18874,8 @@ export default function App() {
                               onUploadAttachment={handleUploadAttachment}
                               onDeleteAttachment={handleDeleteAttachment}
                               onResolvePendingItem={handleResolvePendingItem}
+                              /* Phase 1 — raise a fault mid-work */
+                              onRaisePendingItem={handleRaisePendingItem}
                               /* Migration 028 */
                               onSubmitDuringWorkChecklist={handleSubmitDuringWorkChecklist}
                               /* Migration 029 */
