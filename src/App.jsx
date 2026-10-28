@@ -66,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-29-worker-names";
+const APP_BUILD = "2026-10-29-issue-guard";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -8516,7 +8516,11 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   // 2026-10-22 — navigate to another page (e.g. Inventory from the Critical
   // Items review). Optional; falls back to a no-op so BOMDrawer still works
   // when the host page doesn't wire it in.
-  onNavigate = () => {} }) {
+  onNavigate = () => {},
+  // Called when a stock movement is rejected during the issue commit. The
+  // drawer has already closed by then, so the message has to go somewhere that
+  // outlives it — the persistent save-error banner on the app shell.
+  onStockIssueFailed = () => {} }) {
   const [search,       setSearch]       = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [catCollapsed, setCatCollapsed] = useState({});
@@ -8724,8 +8728,16 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 <div className="text-[9px] text-slate-600">{item.unit}</div>
               </div>
               <div className="flex justify-end pr-2">
+                {/* onWheel blurs on purpose. A focused number input changes its
+                    value on wheel scroll, and this one sits in a long scrolling
+                    list, under modals that do not trap focus, on tablets where
+                    people scroll with a thumb — so a quantity can be scrolled
+                    away without anyone touching it, and `parseInt("") || 0`
+                    turns an emptied field into a committed zero. Blurring means
+                    scrolling scrolls and typing types. */}
                 <input type="number" min="0" max={item.available} value={item.issueQty}
                        onChange={(e) => setIssueQtys((p) => ({ ...p, [item.code]: Math.min(item.available, Math.max(0, parseInt(e.target.value,10)||0)) }))}
+                       onWheel={(e) => e.currentTarget.blur()}
                        disabled={!rowChecked}
                        className="w-[58px] bg-slate-50 border rounded-lg px-2 py-1 text-xs text-white outline-none text-right modal-input disabled:opacity-30 transition-colors"
                        style={{ fontFamily:"'Inter',system-ui,sans-serif", borderColor: rowChecked && item.overQty > 0 ? "rgba(251,191,36,0.55)" : rowChecked && item.issueQty < item.required ? "rgba(249,115,22,0.45)" : "rgba(17,24,39,0.10)" }} />
@@ -8824,14 +8836,64 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
         return;
       }
     }
+    // ── Guard: a confirmed critical line may not commit as zero ─────────────
+    //
+    // On 2026-10-29 a BOM was issued with four lines. The screen showed TUBE
+    // HEATER as HAVE 6 / NEED 2 / ISSUE 2, its critical checkbox was ticked in
+    // the confirmation modal, and the footer read "Issuing 11 units". By the
+    // time this function ran its commit loop that line held issueQty 0 and
+    // pendingQty 2: the stock never moved, a Pending Stock shortfall was filed
+    // for a part that was sitting on the shelf, and the outward log recorded
+    // three items instead of four. Nothing was shown to the operator. The
+    // pending_log row carried the item's real name, unit and category, which
+    // proves the item was found and `issueQtys` had been zeroed — most likely
+    // by a wheel scroll over the focused quantity box (now blurred on wheel
+    // above), though that is the leading explanation rather than a proven one.
+    //
+    // Whatever zeroes it, the contract is simple and worth enforcing on its
+    // own: an operator who has just physically verified a controlled part, or
+    // typed its serial numbers, has said that part is going into this machine.
+    // Committing it as zero contradicts what they confirmed, so refuse and say
+    // so rather than quietly turning it into a shortfall.
+    const contradicted = criticalLines.filter((l) => {
+      const line = checkedE.find((e) => e.code === l.code);
+      return line && line.issueQty <= 0;
+    });
+    if (contradicted.length > 0) {
+      setCriticalErr(
+        `${contradicted.map((l) => l.name).join(", ")}: you confirmed ${contradicted.length === 1 ? "this item" : "these items"}, ` +
+        `but the quantity to issue is now 0. Nothing has been issued. Check the quantity column and try again.`
+      );
+      setShowCriticalModal(true);
+      return;
+    }
+
     setShowDestChoice(false);
     setDestError("");
     setCriticalErr("");
     setIssuing(true);
     const issued = []; const pending = [];
+    // handleUpdateStock returns { success:false } when the movement is rejected
+    // — insufficient stock, a concurrent edit, an RLS refusal. That answer used
+    // to be thrown away: the loop pushed the line into `issued` regardless, and
+    // the outward log then claimed stock had left the store when it had not.
+    // Collect the rejections and tell the operator. (handleManualSubmit already
+    // checks this return value; this path did not.)
+    const stockFailures = [];
     checkedE.forEach((item) => {
-      if (item.issueQty > 0 && item.inv)
-        handleUpdateStock(item.inv.category, item.code, -item.issueQty, `BOM: ${bomKey}`);
+      if (item.issueQty > 0 && item.inv) {
+        Promise.resolve(handleUpdateStock(item.inv.category, item.code, -item.issueQty, `BOM: ${bomKey}`))
+          .then((res) => {
+            if (res && res.success === false) {
+              stockFailures.push(`${item.name}: ${res.error || "movement rejected"}`);
+              onStockIssueFailed?.(bomKey, stockFailures.slice());
+            }
+          })
+          .catch((err) => {
+            stockFailures.push(`${item.name}: ${err?.message || err}`);
+            onStockIssueFailed?.(bomKey, stockFailures.slice());
+          });
+      }
       if (item.issueQty > 0) {
         // Attach criticalInput so handleAddOutward can persist it in the
         // outward_log.items jsonb array (no second migration needed).
@@ -9666,7 +9728,9 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
   checklistTemplates = [], onCreateChecklistTemplate, onUpdateChecklistTemplate, onDeleteChecklistTemplate,
   // 2026-10-22 — navigate out of Outward (used by BOM Edit → Critical Items
   // "→ Open Inventory" button). Optional; falls back to no-op.
-  onNavigate = () => {} }) {
+  onNavigate = () => {},
+  // Surfaces a rejected stock movement after the issue drawer has closed.
+  onStockIssueFailed = () => {} }) {
   // Feature 3: confirm + remove rack machine. The button only appears when a
   // remover prop is provided AND the operator has the permission. Stays in
   // local state so the confirmation persists across re-renders of the modal.
@@ -10098,6 +10162,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
           canConfigChecklist={canConfigChecklist}
           outwardLog={outwardLog}
           onNavigate={onNavigate}
+          onStockIssueFailed={onStockIssueFailed}
         />
       )}
 
@@ -19680,7 +19745,10 @@ export default function App() {
                               onCreateChecklistTemplate={handleCreateChecklistTemplate}
                               onUpdateChecklistTemplate={handleUpdateChecklistTemplate}
                               onDeleteChecklistTemplate={handleDeleteChecklistTemplate}
-                              onNavigate={setActivePage} />,
+                              onNavigate={setActivePage}
+                              onStockIssueFailed={(bomKey, failures) =>
+                                flashSaveError(`Issue ${bomKey}`,
+                                  `${failures.length} line${failures.length === 1 ? "" : "s"} did not leave stores — ${failures.join("; ")}`)} />,
     pending:   <PendingPage   pendingLog={pendingLog} items={items} bomDefs={bomDefs}
                               machineLog={machineLog}
                               onFulfillPending={handleFulfillPending}

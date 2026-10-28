@@ -359,6 +359,14 @@ const USER_FACING_STRINGS = [
   // They are replaced by one audited section plus the trial certificate, which
   // the report never showed at all. These assertions take their place so the
   // sections cannot quietly disappear the way the old ones were meant not to.
+  // 2026-10-29 — BOM issue guards. A confirmed critical line committing as
+  // zero silently filed a Pending Stock shortfall for a part that was on the
+  // shelf, and the outward log recorded three of four items. These three
+  // assertions pin the guard, the wheel-blur on the quantity box, and the
+  // stock-rejection channel so none of them can be quietly dropped.
+  "but the quantity to issue is now 0",
+  "onWheel",
+  "did not leave stores",
   "Critical Parts Fitted",
   "Serial numbers / verification",
   "Given later from Pending Stock",
