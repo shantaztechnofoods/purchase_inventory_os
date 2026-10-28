@@ -15,7 +15,7 @@ export const DEFAULT_ROLES = {
       outward:   { bom: true,  manual: true,  editBOM: true  },
       // Phase A: finishTransfer + accept + configDept are additive; existing
       // updateStage callers continue to work.
-      machines:  { updateStage: true,  finishTransfer: true,  accept: true,  configDept: true },
+      machines:  { updateStage: true,  finishTransfer: true,  accept: true,  configDept: true, release: true },
       vendors:   { add: true,  edit: true,  delete: true  },
       inward:    { submit: true  },
       pending:   { fulfill: true,  clear: true  },
@@ -73,6 +73,31 @@ export const DEFAULT_ROLES = {
       vendors:   { add: false, edit: false, delete: false },
       inward:    { submit: false },
       pending:   { fulfill: true,  clear: false },
+      users:     { view: false, create: false, edit: false, delete: false },
+      roles:     { view: false, create: false, edit: false, delete: false },
+    },
+  },
+  // The production head runs the line but does not work it. They see every
+  // machine and every department, and they decide when a machine comes off
+  // the rack and into Mechanical — that call is theirs, not the floor's.
+  //
+  // They deliberately CANNOT finishTransfer or accept. Letting the head sign
+  // on a department's behalf would empty the signature of meaning: the whole
+  // value of the checklist-and-signature chain is that the person who did the
+  // work is the person who signed for it. updateStage is off for the same
+  // reason — skipping a stage bypasses that chain, and it stays an admin-only
+  // correction tool.
+  "Production Head": {
+    label: "Production Head", icon: "🏭", color: "#6366f1", badge: "Production Head",
+    pages: ["dashboard", "machines", "history", "reports"],
+    actions: {
+      inventory: { add: false, edit: false, delete: false, adjust: false },
+      pipeline:  { create: false, approve: false, reject: false, ordered: false, receive: false, delete: false },
+      outward:   { bom: false, manual: false, editBOM: false },
+      machines:  { updateStage: false, finishTransfer: false, accept: false, configDept: false, release: true },
+      vendors:   { add: false, edit: false, delete: false },
+      inward:    { submit: false },
+      pending:   { fulfill: false, clear: false },
       users:     { view: false, create: false, edit: false, delete: false },
       roles:     { view: false, create: false, edit: false, delete: false },
     },

@@ -34,7 +34,7 @@ import { getMySignature, saveMySignature, reauthenticateByPassword } from "./sto
 import {
   DEPARTMENT_SEQUENCE, DEFAULT_DEPT_DURATIONS, DEFAULT_ACCEPT_TIMEOUT_MINUTES,
   readDeptWorkflowSettings, writeDeptWorkflowSettings,
-  nextDepartment, computeElapsedMinutes, computeOverrun, isHoldOverdue, heldMinutes,
+  nextDepartment, computeElapsedMinutes, computeOverrun, isHoldOverdue, heldMinutes, RACK_RELEASE_HOPS,
   formatDuration, canAcceptHandover, canFinishTransfer, canConfigureDept,
 } from "./utils/handoverLogic.js";
 // Phase B
@@ -12308,7 +12308,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   allUsers = [],
   // Phase 1 — raise a pending item mid-work (Trial finds a fault that belongs
   // to an earlier department). Optional: the button hides when absent.
-  onRaisePendingItem }) {
+  onRaisePendingItem,
+  // Migration 036 — a production head releases a machine off the rack.
+  onReleaseHandover }) {
   const [filter,   setFilter]   = useState("active");
   const [expanded, setExpanded] = useState(null);
   const [stageMap, setStageMap] = useState({});
@@ -12371,7 +12373,11 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
   // Pending handovers filtered to those awaiting acceptance.
   const pendingHandovers = (handovers || []).filter((h) => h && h.status === "pending");
-  const overdueHandovers = pendingHandovers.filter((h) => isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick));
+  // Migration 036 — sent, but parked on the rack until a production head
+  // releases it to the receiving department. Pre-036 rows read as false.
+  const isAwaitingRelease = (h) => !!(h && h.releaseRequired && !h.releasedAt);
+  const overdueHandovers = pendingHandovers.filter((h) =>
+    !isAwaitingRelease(h) && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick));
 
   const showToast = (text, sub) => { setToast({ text, sub }); setTimeout(() => setToast(null), 3000); };
 
@@ -12663,7 +12669,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     String(p.machineId) === String(m.id) && p.status === "open"
     && (kind === "owed" ? p.kind === "owed" : p.kind !== "owed")
     && myDepartments.includes(p.assignedDepartment));
-  const myTakeIn  = startedAll.filter((m) => m.status !== "completed" && handoverToMine(m));
+  // "Take in" means the machine is actually waiting on this department. One
+  // parked on the rack has not been released yet, so it is not theirs to pick
+  // up and it stays out of this list until the production head says so.
+  const myTakeIn  = startedAll.filter((m) => {
+    if (m.status === "completed" || !handoverToMine(m)) return false;
+    const h = (handovers || []).find((x) => x.id === m.pendingHandoverId && x.status === "pending");
+    return !isAwaitingRelease(h);
+  });
   const myWorking = startedAll.filter((m) => m.status !== "completed" && !m.pendingHandoverId && inMyDept(m));
   const myToFix   = startedAll.filter((m) => m.status !== "completed" && openItemsFor(m, "fault").length > 0);
   const myOwed    = startedAll.filter((m) => m.status !== "completed" && openItemsFor(m, "owed").length > 0);
@@ -12680,20 +12693,27 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   //                        silently derived from Overdue)
   // All computed from live state; recompute on every minute tick (nowTick).
   const machineHandover = (m) => (handovers || []).find((h) => h.id === m.pendingHandoverId && h.status === "pending");
+  // Migration 036 — a handover waiting on the rack has been sent but not yet
+  // released by a production head. Nobody has been asked to accept it, so its
+  // acceptance clock must not run: for Shantaz a machine can sit on the rack
+  // for days and that is normal, not late.
   const pendingAccept   = started.filter((m) => {
     const h = machineHandover(m);
-    return h && !isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
+    return h && !isAwaitingRelease(h) && !isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
   });
-  const overdueMachines = started.filter((m) => {
+  const onHold          = started.filter((m) => {
     const h = machineHandover(m);
-    return h && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
+    return h && !isAwaitingRelease(h) && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
   });
-  const onHold          = [];   // no explicit HOLD state in the schema yet
+  const onRackMachines  = started.filter((m) => {
+    const h = machineHandover(m);
+    return h && isAwaitingRelease(h);
+  });
   const filtered  = filter === "active" ? active
                    : filter === "completed" ? completed
                    : filter === "pendingAccept" ? pendingAccept
-                   : filter === "overdue" ? overdueMachines
                    : filter === "hold" ? onHold
+                   : filter === "onRack" ? onRackMachines
                    : started;
 
   const stageIdx = (s) => MACHINE_STAGES.indexOf(s);
@@ -12955,6 +12975,40 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           </div>
         )}
 
+        {/* ── Migration 036 — released off the rack, waiting to be picked up ──
+            The production head has named this machine. It is the clearest
+            instruction on the floor, so it sits above everything else. */}
+        {scopeMine && (() => {
+          const justReleased = startedAll.filter((m) => {
+            if (m.status === "completed") return false;
+            const h = (handovers || []).find((x) => x.id === m.pendingHandoverId && x.status === "pending");
+            return h && h.releaseRequired && h.releasedAt && myDepartments.includes(h.toDepartment);
+          });
+          if (!justReleased.length) return null;
+          return (
+            <div className="rounded-2xl p-5"
+                 style={{ background: "rgba(99,102,241,0.07)", border: "2px solid rgba(99,102,241,0.45)" }}>
+              <div className="text-[11px] font-bold uppercase tracking-[0.1em] mb-2" style={{ color: "#4f46e5" }}>
+                Pick up from the rack
+              </div>
+              <div className="space-y-2">
+                {justReleased.map((m) => (
+                  <button key={m.id} type="button" onClick={() => setExpanded(expanded === m.id ? null : m.id)}
+                          className="w-full text-left rounded-xl px-4 py-3 transition-all hover:brightness-95"
+                          style={{ background: "var(--surface-raised)", border: "1px solid rgba(99,102,241,0.3)" }}>
+                    <div className="text-[15px] font-black text-slate-800">
+                      {m.bomKey}{m.serialNo ? ` · ${m.serialNo}` : ""}
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      Assembled and on the rack — the production head has released it to you
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* ── Phase 1 — My Work buckets ──
             Four plain questions, in the order they matter: is anyone blocked
             waiting on me, is something handed to me, what am I building, what
@@ -13081,15 +13135,22 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         })()}
 
         {(() => {
-          const pendingNotOverdue = pendingHandovers.filter((h) => !isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick)).length;
-          const overdueCount = overdueHandovers.length;
-          // Phase B placeholder: no explicit HOLD state in the schema yet.
-          // When a future workflow adds a 'held' status, this count fills in.
-          const holdCount = 0;
+          // A machine waiting on the rack for a production head to release it
+          // is NOT waiting to be accepted — nobody has been asked yet, so no
+          // acceptance clock runs on it and it is counted separately.
+          const awaitingRelease = pendingHandovers.filter(isAwaitingRelease);
+          const askedFor        = pendingHandovers.filter((h) => !isAwaitingRelease(h));
+          const pendingNotOverdue = askedFor.filter((h) => !isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick)).length;
+          // HOLD is derived, not stored: a handover is on hold once the
+          // receiving department has let its acceptance window pass. The old
+          // code showed this under "Overdue" and left a separate HOLD card
+          // hard-coded to 0, which meant the floor saw an alarm it could not
+          // act on and a card that never moved.
+          const holdCount = askedFor.filter((h) => isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick)).length;
           const cards = [
-            { key: "pendingAccept", label: "Pending Acceptance", value: pendingNotOverdue, sub: "waiting for next dept", color: "#f97316", bg: "rgba(249,115,22,0.08)" },
-            { key: "overdue",       label: "Overdue",            value: overdueCount,       sub: "accept deadline passed", color: "#dc2626", bg: "rgba(239,68,68,0.1)"  },
-            { key: "hold",          label: "On HOLD",            value: holdCount,          sub: "explicit hold state",     color: "#a78bfa", bg: "rgba(168,139,250,0.08)" },
+            { key: "pendingAccept", label: "To Accept",           value: pendingNotOverdue, sub: "waiting for next dept",  color: "#f97316", bg: "rgba(249,115,22,0.08)" },
+            { key: "hold",          label: "On HOLD",            value: holdCount,         sub: "accept deadline passed", color: "#dc2626", bg: "rgba(239,68,68,0.1)"  },
+            { key: "onRack",        label: "On Rack",            value: awaitingRelease.length, sub: "awaiting head release", color: "#6366f1", bg: "rgba(99,102,241,0.08)" },
             { key: "active",        label: "Active Builds",      value: active.length,       sub: "in production",           color: "#b45309", bg: "rgba(251,191,36,0.08)" },
             { key: "completed",     label: "Completed",          value: completed.length,    sub: "ready for delivery",      color: "#15803d", bg: "rgba(34,197,94,0.08)" },
           ];
@@ -13479,6 +13540,34 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                       )}
                       {machine.pendingHandoverId && (() => {
                         const h = (handovers || []).find((x) => x.id === machine.pendingHandoverId && x.status === "pending");
+                        // Migration 036 — parked on the rack. Nobody has been
+                        // asked to accept it yet, so no clock and no alarm;
+                        // the production head decides when it moves.
+                        if (h && isAwaitingRelease(h)) {
+                          return (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-black px-2 py-1 rounded-lg"
+                                    style={{ background: "rgba(99,102,241,0.12)", color: "#4f46e5", border: "1px solid rgba(99,102,241,0.4)" }}>
+                                On rack · assembled
+                              </span>
+                              {canDo("machines", "release") && onReleaseHandover && (
+                                <button onClick={async () => {
+                                          const r = await onReleaseHandover(h.id);
+                                          if (r && r.success === false) showToast("Could not release", r.error || "");
+                                          else showToast(`${machine.bomKey}${machine.serialNo ? ` — ${machine.serialNo}` : ""}`, `${h.toDepartment} can now pick it up`);
+                                        }}
+                                        className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
+                                        style={{ background: "linear-gradient(135deg,#6366f1,#4f46e5)", boxShadow: "0 0 10px rgba(99,102,241,0.3)" }}
+                                        title={`Tell ${h.toDepartment} to pick this machine up off the rack`}>
+                                  Send to {h.toDepartment} →
+                                </button>
+                              )}
+                              {!canDo("machines", "release") && (
+                                <span className="text-[10px] text-slate-500">waiting for the production head</span>
+                              )}
+                            </div>
+                          );
+                        }
                         const machineOverdue = h && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
                         return machineOverdue ? (
                           <span className="text-[10px] font-black px-2 py-1 rounded-lg"
@@ -13519,6 +13608,103 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   return (
                   <div className="px-5 pb-5 pt-1" style={{ borderTop: "1px solid rgba(17,24,39,0.04)" }}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {/* ── Phase 1 — Production report ──
+                          Where this machine stalled and why, pulled from data
+                          already recorded: each department's handover timings,
+                          its acceptance delay, and the rating that fell out of
+                          them. The point is not to score people — it is to
+                          find the step that keeps costing time, so the cause
+                          can be fixed. */}
+                      <div className="md:col-span-2">
+                        <div className="flex items-baseline gap-3 flex-wrap mb-3">
+                          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Production report</div>
+                          {ratingSummary.average != null && (
+                            <span className="text-[12px] font-black" style={{ color: ratingSummary.average >= 4.5 ? "#15803d" : ratingSummary.average >= 3.5 ? "#b45309" : "#dc2626" }}>
+                              {formatRatingBadge(Math.round(ratingSummary.average))} {ratingSummary.average} / 5
+                            </span>
+                          )}
+                        </div>
+                        {(() => {
+                          const hs = (handovers || [])
+                            .filter((h) => String(h.machineId) === String(machine.id))
+                            .slice().sort((a, b) => String(a.sentAt || "").localeCompare(String(b.sentAt || "")));
+                          if (!hs.length) {
+                            return <div className="text-[10px] text-slate-500 mb-4">No department has handed this machine on yet.</div>;
+                          }
+                          const stalls = [];
+                          const rows = hs.map((h) => {
+                            const expected = Number(h.expectedDurationMinutes) || 0;
+                            const actual   = Number(h.actualDurationMinutes)   || 0;
+                            const overrun  = Math.max(0, actual - expected);
+                            // How long the receiving department left it sitting
+                            // before accepting. Measured to the accept, not to
+                            // now, so a finished machine reports what happened.
+                            const waited   = (h.sentAt && h.acceptedAt)
+                              ? Math.max(0, Math.floor((Date.parse(h.acceptedAt) - Date.parse(h.sentAt)) / 60000))
+                              : null;
+                            const held     = (waited != null)
+                              ? Math.max(0, waited - (Number(h.acceptTimeoutMinutes) || 0))
+                              : 0;
+                            const rating   = (deptRatings || []).find((r) => String(r.handoverId) === String(h.id));
+                            if (overrun > 0) stalls.push(`${h.fromDepartment} took ${formatDuration(overrun)} longer than its ${formatDuration(expected)} allowance`);
+                            if (held > 0)    stalls.push(`${h.toDepartment} accepted ${formatDuration(held)} after its deadline`);
+                            return { h, expected, actual, overrun, held, rating };
+                          });
+                          return (
+                            <>
+                              {stalls.length > 0 && (
+                                <div className="rounded-lg px-3 py-2.5 mb-3"
+                                     style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.3)" }}>
+                                  <div className="text-[10px] font-black mb-1" style={{ color: "#dc2626" }}>Where it lost time</div>
+                                  <ul className="list-disc pl-4 space-y-0.5">
+                                    {stalls.map((t, i) => <li key={i} className="text-[11px] text-slate-700">{t}</li>)}
+                                  </ul>
+                                </div>
+                              )}
+                              {stalls.length === 0 && (
+                                <div className="rounded-lg px-3 py-2 mb-3 text-[11px]"
+                                     style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.3)", color: "#15803d" }}>
+                                  Ran clean — every department finished inside its allowance and accepted on time.
+                                </div>
+                              )}
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-[11px]" style={{ minWidth: 520 }}>
+                                  <thead>
+                                    <tr className="text-left text-slate-500">
+                                      <th scope="col" className="font-bold pb-1.5 pr-3">Department</th>
+                                      <th scope="col" className="font-bold pb-1.5 pr-3">Took</th>
+                                      <th scope="col" className="font-bold pb-1.5 pr-3">Allowed</th>
+                                      <th scope="col" className="font-bold pb-1.5 pr-3">Next dept waited</th>
+                                      <th scope="col" className="font-bold pb-1.5">Stars</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {rows.map(({ h, expected, actual, overrun, held, rating }) => (
+                                      <tr key={h.id} style={{ borderTop: "1px solid rgba(17,24,39,0.06)" }}>
+                                        <td className="py-1.5 pr-3 font-bold text-slate-700">{h.fromDepartment}</td>
+                                        <td className="py-1.5 pr-3" style={{ color: overrun > 0 ? "#dc2626" : "#15803d" }}>
+                                          {formatDuration(actual)}
+                                        </td>
+                                        <td className="py-1.5 pr-3 text-slate-500">{formatDuration(expected)}</td>
+                                        <td className="py-1.5 pr-3" style={{ color: held > 0 ? "#dc2626" : "#6b7280" }}>
+                                          {held > 0 ? `${formatDuration(held)} late` : "on time"}
+                                        </td>
+                                        <td className="py-1.5 font-bold" style={{ color: rating ? (rating.rating >= 4 ? "#15803d" : "#dc2626") : "#9ca3af" }}>
+                                          {rating ? `${rating.rating}/5` : "—"}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                              <div className="text-[10px] text-slate-500 mt-2">
+                                A star is lost for finishing late, for the next department accepting late, and for leaving an issue unresolved.
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+
                       {/* Stage history */}
                       <div>
                         <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-3">Stage History</div>
@@ -18491,6 +18677,14 @@ export default function App() {
       mainEmployeeSignatureSvg: mainEmployeeSignatureSvg || null,
     };
 
+    // Migration 036 — the rack hop. Assembly puts the assembled machine back
+    // on the rack and it waits there until a production head releases it, so
+    // this handover is created parked rather than pushed. Which hop that is
+    // comes from settings, defaulting to the one Shantaz described.
+    payload.releaseRequired = RACK_RELEASE_HOPS.some(
+      (hop) => hop.from === fromDepartment && hop.to === toDepartment
+    );
+
     const res = await handoverCreate(payload);
     if (!res.success) return res;
 
@@ -18906,6 +19100,28 @@ export default function App() {
     return res;
   };
 
+  // Migration 036 — a production head takes a machine off the rack and tells
+  // the waiting department to pick it up. Does not touch the machine's stage:
+  // the department still accepts it properly, with its checklist and
+  // signature, exactly as on any other hop.
+  const handleReleaseHandover = async (handoverId) => {
+    if (!currentUser?.id) return { success: false, error: "Not authenticated" };
+    const h = (handovers || []).find((x) => x.id === handoverId);
+    const res = await releaseHandover(handoverId, { releasedBy: currentUser.id });
+    if (!res.success) return res;
+    setHandovers((prev) => prev.map((x) => x.id === handoverId
+      ? { ...x, releasedAt: res.handover?.releasedAt || new Date().toISOString(), releasedBy: currentUser.id }
+      : x));
+    const machine = machineLog.find((m) => String(m.id) === String(h?.machineId));
+    logAudit({
+      type: "handover_released", module: "Machine",
+      action: `Released from rack to ${h?.toDepartment || "next dept"}: ${machine?.bomKey || ""}${machine?.serialNo ? ` [${machine.serialNo}]` : ""}`,
+      ref: machine?.bomKey || "", serialNo: machine?.serialNo || "",
+      details: { handoverId, machineId: h?.machineId, toDepartment: h?.toDepartment },
+    });
+    return res;
+  };
+
   const handleResolvePendingItem = async (id, { notes }) => {
     const machine = (() => {
       const p = pendingHandoverItems.find((x) => x.id === id);
@@ -19152,6 +19368,8 @@ export default function App() {
                               onResolvePendingItem={handleResolvePendingItem}
                               /* Phase 1 — raise a fault mid-work */
                               onRaisePendingItem={handleRaisePendingItem}
+                              /* Migration 036 — release a machine off the rack */
+                              onReleaseHandover={handleReleaseHandover}
                               /* Migration 028 */
                               onSubmitDuringWorkChecklist={handleSubmitDuringWorkChecklist}
                               /* Migration 029 */

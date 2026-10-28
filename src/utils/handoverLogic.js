@@ -21,6 +21,22 @@ export const DEFAULT_DEPT_DURATIONS = Object.freeze({
   "Electrical": { minutes: 1 * 24 * 60 },  // 1 day
   "Trial":      { minutes: 8 * 60 },        // 8 hours
 });
+// Migration 036 — the hops where the machine waits on the rack instead of
+// being pushed straight to the next department.
+//
+// Shantaz runs a pull system at exactly one point in the line: Assembly takes
+// material off the rack, assembles it, and puts the machine BACK on the rack,
+// where seven or eight wait at a time. Mechanical starts on one only when the
+// production head says so. Every later hop is a direct handover, where the
+// acceptance deadline is real and a late accept is worth flagging.
+export const RACK_RELEASE_HOPS = Object.freeze([
+  Object.freeze({ from: "Assembly", to: "Mechanical" }),
+]);
+
+export function isRackReleaseHop(fromDepartment, toDepartment) {
+  return RACK_RELEASE_HOPS.some((h) => h.from === fromDepartment && h.to === toDepartment);
+}
+
 export const DEFAULT_ACCEPT_TIMEOUT_MINUTES = 120; // 2 hours
 // Password re-auth at Accept is OFF by default per 2026-10-19 UX pass:
 // routine machine acceptance should be a single-click confirmation for

@@ -222,6 +222,8 @@ const AUDIT_EVENT_TYPES = [
   // Phase B — checklists / pending items / attachments / ratings
   "checklist_template_created", "checklist_template_updated", "checklist_template_deleted",
   "pending_item_raised", "pending_item_resolved",
+  // Migration 036 — a production head releases a machine off the rack.
+  "handover_released",
   "attachment_uploaded", "attachment_deleted",
   "department_rated", "rating_overridden",
   // Migration 028 — BOM-wise reusable checklist submission audit split by stage.
