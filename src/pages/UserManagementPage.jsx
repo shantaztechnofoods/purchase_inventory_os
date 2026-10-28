@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useAuth } from "../auth/AuthContext.jsx";
-import { hashPassword, getRoleLabel, getRoleColor, fetchAllUsers } from "../auth/authStore.js";
+import { hashPassword, getRoleLabel, getRoleColor, fetchAllUsers, updateUserDepartments } from "../auth/authStore.js";
+import { DEPARTMENT_SEQUENCE } from "../utils/handoverLogic.js";
 import { appendAuditWithUser } from "../auth/auditStore.js";
 import { isSupabaseEnabled } from "../config/env.js";
 import { adminCreateUser, adminDeactivateUser, adminDeleteUser, adminResetPassword } from "../stores/adminApi.js";
@@ -9,7 +10,11 @@ function genId() {
   return "u_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
-const EMPTY_FORM = { mobile: "", username: "", password: "", role: "Admin", status: "active" };
+// The departments a login can belong to. "BOM Issued" is the rack and "Ready"
+// is a finished machine; neither is a place where anyone works.
+const WORK_DEPARTMENTS = DEPARTMENT_SEQUENCE.filter((d) => d !== "BOM Issued" && d !== "Ready");
+
+const EMPTY_FORM = { mobile: "", username: "", password: "", role: "Admin", status: "active", departments: [] };
 
 export default function UserManagementPage({ canDo }) {
   const { currentUser, users, setUsers, roles } = useAuth();
@@ -43,7 +48,8 @@ export default function UserManagementPage({ canDo }) {
 
   const openEdit = (user) => {
     setEditUser(user);
-    setForm({ mobile: user.mobile || "", username: user.username, password: "", role: user.role, status: user.status });
+    setForm({ mobile: user.mobile || "", username: user.username, password: "", role: user.role, status: user.status,
+              departments: Array.isArray(user.departments) ? user.departments : [] });
     setErrors({});
     setShowModal(true);
   };
@@ -58,6 +64,24 @@ export default function UserManagementPage({ canDo }) {
     const dup = users.find((x) => x.username === u && x.id !== editUser?.id);
     if (dup) e.username = `Username "${u}" is already taken`;
     return e;
+  };
+
+  // A department login is the department head's login. Saved to
+  // users.departments (migration 029), which is what scopes the Machine
+  // Tracker's "My work" view to that department's machines.
+  const sameDepts = (a, b) => {
+    const A = [...(a || [])].sort().join("|");
+    const B = [...(b || [])].sort().join("|");
+    return A === B;
+  };
+  const persistDepartments = async (userId, departments) => {
+    const res = await updateUserDepartments(userId, departments);
+    if (res && res.success === false) {
+      showToast(res.error || "Could not save departments", "error");
+      return false;
+    }
+    setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, departments: [...departments] } : u));
+    return true;
   };
 
   const handleSave = async () => {
@@ -79,6 +103,16 @@ export default function UserManagementPage({ canDo }) {
           ref: editUser.id, oldValue: oldSnap, newValue: newSnap,
           details: { passwordChanged: !!form.password },
         });
+        if (!sameDepts(editUser.departments, form.departments)) {
+          await persistDepartments(editUser.id, form.departments);
+          appendAuditWithUser({
+            type: "user_edit", module: "User Mgmt",
+            action: `Departments set for ${username}: ${form.departments.join(", ") || "none"}`,
+            ref: editUser.id,
+            oldValue: { departments: editUser.departments || [] },
+            newValue: { departments: form.departments },
+          });
+        }
         showToast(`Updated ${username}`);
       } else if (isSupabaseEnabled()) {
         const username = form.username.trim().toLowerCase();
@@ -100,6 +134,16 @@ export default function UserManagementPage({ canDo }) {
           return;
         }
         const list = await fetchAllUsers(); if (list) setUsers(list);
+        // adminCreateUser does not take departments, so set them right after.
+        const created = (list || []).find((u) => u.username === username);
+        if (created && form.departments.length) {
+          await persistDepartments(created.id, form.departments);
+          appendAuditWithUser({
+            type: "user_create", module: "User Mgmt",
+            action: `Departments set for ${username}: ${form.departments.join(", ")}`,
+            ref: created.id, newValue: { departments: form.departments },
+          });
+        }
         showToast(`Created ${username}`);
       } else {
         const username = form.username.trim().toLowerCase();
@@ -107,12 +151,13 @@ export default function UserManagementPage({ canDo }) {
           id: genId(), username, fullName: username,
           mobile: form.mobile.trim(), password: hashPassword(form.password),
           role: form.role, status: form.status, lastLogin: null,
+          departments: [...form.departments],
         };
         setUsers((prev) => [...prev, newUser]);
         appendAuditWithUser({
           type: "user_create", module: "User Mgmt",
           action: `User Created: ${username}`, ref: newUser.id,
-          newValue: { username, role: newUser.role, status: newUser.status, mobile: newUser.mobile },
+          newValue: { username, role: newUser.role, status: newUser.status, mobile: newUser.mobile, departments: newUser.departments },
         });
         showToast(`Created ${username}`);
       }
@@ -414,6 +459,40 @@ export default function UserManagementPage({ canDo }) {
                   ))}
                 </select>
               </div>
+              {/* Department(s) this login belongs to. A department login is the
+                  head's login: it decides which machines the Machine Tracker
+                  shows them. Leave empty for office roles — they see
+                  everything, as before. */}
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                  Department
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {WORK_DEPARTMENTS.map((d) => {
+                    const on = (form.departments || []).includes(d);
+                    return (
+                      <button key={d} type="button"
+                              aria-pressed={on}
+                              onClick={() => setForm((f) => {
+                                const cur = f.departments || [];
+                                return { ...f, departments: cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d] };
+                              })}
+                              className="text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all"
+                              style={on
+                                ? { background: "rgba(232,85,61,0.12)", border: "1px solid rgba(232,85,61,0.5)", color: "#CC4A33" }
+                                : { background: "rgba(26,31,46,0.04)", border: "1px solid rgba(26,31,46,0.12)", color: "#64748b" }}>
+                        {d}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1.5">
+                  {(form.departments || []).length === 0
+                    ? "No department — this login sees every machine. Right for office and admin roles."
+                    : `This login opens on ${form.departments.join(" and ")} work only.`}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Status</label>
                 <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
