@@ -66,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-28-ui-phase1";
+const APP_BUILD = "2026-10-28-ui-phase2";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -700,9 +700,6 @@ function MetricCard({ label, value, delta, deltaUp, icon, barPct, barColor, valu
       {/* Top accent line */}
       <div className="absolute top-0 left-5 right-5 h-px pointer-events-none"
            style={{ background: `linear-gradient(90deg, transparent, ${color}80, transparent)` }} />
-      {/* Corner ambient — slightly stronger for better visual depth */}
-      <div className="absolute -top-10 -right-10 w-28 h-28 rounded-full pointer-events-none"
-           style={{ background: color, filter: "blur(38px)", opacity: 0.09 }} />
       {/* Icon */}
       {icon && (
         <div className="absolute top-4 right-4 w-9 h-9 rounded-xl flex items-center justify-center text-base transition-transform duration-200"
@@ -710,7 +707,7 @@ function MetricCard({ label, value, delta, deltaUp, icon, barPct, barColor, valu
           {icon}
         </div>
       )}
-      <div className="text-[9.5px] font-semibold uppercase tracking-[0.14em] mb-2.5" style={{ color: "var(--text-muted)" }}>{label}</div>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.09em] mb-2.5" style={{ color: "var(--text-muted)" }}>{label}</div>
       <div className="text-[26px] font-bold leading-none mb-1.5 kpi-value"
            style={{ fontFamily: "'Inter','SF Pro Text',system-ui,sans-serif", color: valueColor || "var(--text-strong)" }}>
         {value}
@@ -728,7 +725,6 @@ function MetricCard({ label, value, delta, deltaUp, icon, barPct, barColor, valu
                style={{
                  width: `${Math.min(barPct, 100)}%`,
                  background: `linear-gradient(90deg, ${color}55, ${color})`,
-                 boxShadow: `0 0 8px ${color}50`,
                }} />
         </div>
       )}
@@ -806,9 +802,9 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
 
   const EmptyState = ({ icon, title, sub }) => (
     <div className="py-10 text-center">
-      <div className="text-3xl mb-2">{icon}</div>
-      <div className="text-sm font-bold text-green-700">{title}</div>
-      <div className="text-[11px] text-slate-500 mt-1">{sub}</div>
+      <div className="text-3xl mb-2" style={{ opacity: 0.55 }}>{icon}</div>
+      <div className="text-sm font-semibold mb-0.5" style={{ color: "var(--text-strong)" }}>{title}</div>
+      <div className="text-[11px] mt-1" style={{ color: "var(--text-dim)" }}>{sub}</div>
     </div>
   );
 
@@ -15976,9 +15972,9 @@ const ROLE_CONFIG = {
 function EmptyState({ icon = "📭", title = "Nothing here yet", desc = "", action = null }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-6 text-center select-none">
-      <div className="text-5xl mb-4" style={{ opacity: 0.3 }}>{icon}</div>
-      <div className="text-sm font-bold text-slate-400 mb-1.5">{title}</div>
-      {desc && <div className="text-xs text-slate-600 max-w-xs leading-relaxed">{desc}</div>}
+      <div className="text-5xl mb-4" style={{ opacity: 0.45 }}>{icon}</div>
+      <div className="text-sm font-semibold mb-1.5" style={{ color: "var(--text-strong)" }}>{title}</div>
+      {desc && <div className="text-xs max-w-xs leading-relaxed" style={{ color: "var(--text-dim)" }}>{desc}</div>}
       {action && <div className="mt-5">{action}</div>}
     </div>
   );
