@@ -45,10 +45,10 @@ export const DEFAULT_ROLES = {
       inventory: { add: false, edit: false, delete: false, adjust: true  },
       pipeline:  { create: false, approve: false, reject: false, ordered: false, receive: false, delete: false },
       outward:   { bom: true,  manual: true,  editBOM: false },
-      // Phase A auto-map (design doc §5.5 / §12.2): anyone who currently has
-      // updateStage keeps finishTransfer + accept so capability is preserved.
-      // configDept stays admin-only.
-      machines:  { updateStage: true,  finishTransfer: true,  accept: true,  configDept: false },
+      // Phase A auto-map (design doc §5.5 / §12.2): finishTransfer + accept
+      // carry the capability. updateStage is admin-only — see the note on the
+      // Production role.
+      machines:  { updateStage: false, finishTransfer: true,  accept: true,  configDept: false },
       vendors:   { add: false, edit: false, delete: false },
       inward:    { submit: true  },
       pending:   { fulfill: true,  clear: true  },
@@ -56,14 +56,20 @@ export const DEFAULT_ROLES = {
       roles:     { view: false, create: false, edit: false, delete: false },
     },
   },
+  // A department login (assembly / mechanical / electrical / trial) held by
+  // that department's head. Deliberately narrow: the Machine Tracker is the
+  // only screen their job needs, and purchase rates, vendors and stock
+  // valuation are not theirs to see. updateStage is OFF — skipping a stage
+  // bypasses the handover chain (signature, checklist, rating), so it is an
+  // admin-only correction tool. Finish & Transfer is the route forward.
   Production: {
     label: "Production", icon: "🔧", color: "#f59e0b", badge: "Production",
-    pages: ["dashboard","inventory","outward","pending","machines","history","reports"],
+    pages: ["machines"],
     actions: {
       inventory: { add: false, edit: false, delete: false, adjust: false },
       pipeline:  { create: false, approve: false, reject: false, ordered: false, receive: false, delete: false },
       outward:   { bom: true,  manual: false, editBOM: false },
-      machines:  { updateStage: true,  finishTransfer: true,  accept: true,  configDept: false },
+      machines:  { updateStage: false, finishTransfer: true,  accept: true,  configDept: false },
       vendors:   { add: false, edit: false, delete: false },
       inward:    { submit: false },
       pending:   { fulfill: true,  clear: false },

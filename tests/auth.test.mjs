@@ -130,10 +130,30 @@ test("Outward: Store Manager and Production can issue BOM; Purchase Manager cann
   assert.equal(resolveCanDo(purchMgr,   DEFAULT_ROLES, "outward", "bom"), false);
 });
 
-test("Machines: Store Manager and Production can update stage; Purchase Manager cannot", () => {
-  assert.equal(resolveCanDo(storeMgr,   DEFAULT_ROLES, "machines", "updateStage"), true);
-  assert.equal(resolveCanDo(production, DEFAULT_ROLES, "machines", "updateStage"), true);
+// Changed deliberately: updateStage skips the whole handover chain — no
+// handover row, no signature, no checklist, no department rating — and used to
+// let any operator move a machine straight to Ready. It is now an admin-only
+// correction tool. Operators move machines with Finish & Transfer, which is
+// asserted below and still granted to both floor roles.
+test("Machines: updateStage is admin-only; no operator role may skip a stage", () => {
+  assert.equal(resolveCanDo(adminUser,  DEFAULT_ROLES, "machines", "updateStage"), true);
+  assert.equal(resolveCanDo(storeMgr,   DEFAULT_ROLES, "machines", "updateStage"), false);
+  assert.equal(resolveCanDo(production, DEFAULT_ROLES, "machines", "updateStage"), false);
   assert.equal(resolveCanDo(purchMgr,   DEFAULT_ROLES, "machines", "updateStage"), false);
+});
+
+test("Machines: Store Manager and Production keep the proper route forward", () => {
+  assert.equal(resolveCanDo(storeMgr,   DEFAULT_ROLES, "machines", "finishTransfer"), true);
+  assert.equal(resolveCanDo(production, DEFAULT_ROLES, "machines", "finishTransfer"), true);
+  assert.equal(resolveCanDo(storeMgr,   DEFAULT_ROLES, "machines", "accept"), true);
+  assert.equal(resolveCanDo(production, DEFAULT_ROLES, "machines", "accept"), true);
+  assert.equal(resolveCanDo(purchMgr,   DEFAULT_ROLES, "machines", "finishTransfer"), false);
+});
+
+// A department login opens on the Machine Tracker and nothing else: purchase
+// rates, vendors and stock valuation are not a department head's business.
+test("Production role sees only the Machine Tracker", () => {
+  assert.deepEqual(DEFAULT_ROLES.Production.pages, ["machines"]);
 });
 
 test("Inward: Admin, Purchase Manager and Store Manager can submit; Production cannot", () => {
