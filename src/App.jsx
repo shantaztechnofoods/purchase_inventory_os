@@ -66,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-29-reliability";
+const APP_BUILD = "2026-10-29-worker-names";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -10623,13 +10623,20 @@ function AtoZMachineReport({
 
   // Workers / Main Employee name resolution — snapshot first (survives rename
   // or deactivation), uuid fallback for pre-029 rows.
+  // A snapshot entry is one of two shapes, written side by side in Finish &
+  // Transfer: an ERP login carries { fullName, username }, a factory worker
+  // carries { type: "emp", name }. Only the first was read, so now that the
+  // factory workers reach the report at all they printed as their raw ids —
+  // "emp:65471c12-d062-4790-82a3-4929eed1f2ef" where a name should be.
   const nameFromSnap = (uid, snapshot) => {
     if (!uid) return "";
     if (Array.isArray(snapshot)) {
       const s = snapshot.find((x) => x && x.id === uid);
-      if (s && (s.fullName || s.username)) return s.fullName || s.username;
+      if (s && (s.fullName || s.username || s.name)) return s.fullName || s.username || s.name;
     }
-    return uid;
+    // Last resort for an id with no snapshot entry: strip the "emp:" marker so
+    // the reader sees a bare identifier rather than an internal prefix.
+    return String(uid).startsWith("emp:") ? String(uid).slice(4) : uid;
   };
 
   // Rating lookup (sender dept gets rated when the receiver accepts).
@@ -13967,14 +13974,20 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                             String(h.machineId) === String(machine.id)
                             && workerIdsOf(h).length > 0);
                           if (!machineHandovers.length) return null;
+                          // Same two snapshot shapes as the A-to-Z report: an
+                          // ERP login has fullName/username, a factory worker
+                          // has { type: "emp", name }. Reading only the first
+                          // printed raw "emp:<uuid>" ids here too.
                           const nameOf = (uid, snapshot) => {
                             if (Array.isArray(snapshot)) {
                               const s = snapshot.find((x) => x && x.id === uid);
                               if (s && s.fullName) return s.fullName;
                               if (s && s.username) return s.username;
+                              if (s && s.name)     return s.name;
                             }
                             const u = (allUsers || []).find((x) => x.id === uid);
-                            return u ? (u.fullName || u.username || uid) : uid;
+                            if (u) return u.fullName || u.username || uid;
+                            return String(uid).startsWith("emp:") ? String(uid).slice(4) : uid;
                           };
                           return (
                             <div>
