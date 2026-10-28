@@ -42,7 +42,7 @@ export default function LoginPage() {
           </div>
           <div className="text-[15px] font-bold tracking-[0.12em]" style={{ color: "var(--text-strong)" }}>SHANTAZ</div>
           <div className="text-[10px] font-semibold tracking-[0.18em] mt-0.5"
-               style={{ background: "linear-gradient(90deg,#F18A75,#B01218)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+               style={{ background: "linear-gradient(90deg,#B01218,#B01218)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
             TECHNOFOODS ERP
           </div>
         </div>
@@ -122,7 +122,7 @@ export default function LoginPage() {
             {/* Error */}
             {error && (
               <div className="px-3.5 py-2.5 rounded-xl text-[12px]"
-                   style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.22)", color: "#F87171" }}>
+                   style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.22)", color: "#b91c1c" }}>
                 {error}
               </div>
             )}

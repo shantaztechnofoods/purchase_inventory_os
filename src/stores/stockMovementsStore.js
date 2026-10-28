@@ -8,13 +8,13 @@ export const MOVEMENT_TYPES = [
 ];
 
 export const MOVEMENT_META = {
-  purchase_in:       { label: "Purchase In",       sign: "+", color: "#22c55e" },
-  production_output: { label: "Production Output",  sign: "+", color: "#10b981" },
-  return_in:         { label: "Return In",          sign: "+", color: "#14b8a6" },
-  production_issue:  { label: "Production Issue",    sign: "−", color: "#f59e0b" },
-  sales_out:         { label: "Sales Out",          sign: "−", color: "#ef4444" },
-  return_out:        { label: "Return Out",         sign: "−", color: "#fb923c" },
-  manual_adjustment: { label: "Manual Adjustment",  sign: "±", color: "#8b5cf6" },
+  purchase_in:       { label: "Purchase In",       sign: "+", color: "#15803d" },
+  production_output: { label: "Production Output",  sign: "+", color: "#047857" },
+  return_in:         { label: "Return In",          sign: "+", color: "#0f766e" },
+  production_issue:  { label: "Production Issue",    sign: "−", color: "#b45309" },
+  sales_out:         { label: "Sales Out",          sign: "−", color: "#b91c1c" },
+  return_out:        { label: "Return Out",         sign: "−", color: "#b45309" },
+  manual_adjustment: { label: "Manual Adjustment",  sign: "±", color: "#6d28d9" },
 };
 
 // Capture current user for movement attribution (set from AuthContext)

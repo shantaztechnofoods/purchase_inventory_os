@@ -7,7 +7,7 @@ export const checkPassword = (pw, hash) => hashPassword(pw) === hash;
 
 export const DEFAULT_ROLES = {
   Admin: {
-    label: "Admin", icon: "👑", color: "#6366f1", badge: "Full Access",
+    label: "Admin", icon: "👑", color: "#4338ca", badge: "Full Access",
     pages: ["dashboard","inventory","inward","outward","pending","pipeline","machines","vendors","analytics","ai","history","reports","audit","settings","users","roles"],
     actions: {
       inventory: { add: true,  edit: true,  delete: true,  adjust: true  },
@@ -24,7 +24,7 @@ export const DEFAULT_ROLES = {
     },
   },
   "Purchase Manager": {
-    label: "Purchase Manager", icon: "🛒", color: "#3b82f6", badge: "Purchase",
+    label: "Purchase Manager", icon: "🛒", color: "#1d4ed8", badge: "Purchase",
     pages: ["dashboard","inventory","inward","pipeline","vendors","history","reports","analytics"],
     actions: {
       inventory: { add: false, edit: false, delete: false, adjust: false },
@@ -39,7 +39,7 @@ export const DEFAULT_ROLES = {
     },
   },
   "Store Manager": {
-    label: "Store Manager", icon: "📦", color: "#22c55e", badge: "Store",
+    label: "Store Manager", icon: "📦", color: "#15803d", badge: "Store",
     pages: ["dashboard","inventory","inward","outward","pending","machines","history","reports"],
     actions: {
       inventory: { add: false, edit: false, delete: false, adjust: true  },
@@ -63,7 +63,7 @@ export const DEFAULT_ROLES = {
   // bypasses the handover chain (signature, checklist, rating), so it is an
   // admin-only correction tool. Finish & Transfer is the route forward.
   Production: {
-    label: "Production", icon: "🔧", color: "#f59e0b", badge: "Production",
+    label: "Production", icon: "🔧", color: "#b45309", badge: "Production",
     pages: ["machines"],
     actions: {
       inventory: { add: false, edit: false, delete: false, adjust: false },
@@ -88,7 +88,7 @@ export const DEFAULT_ROLES = {
   // reason — skipping a stage bypasses that chain, and it stays an admin-only
   // correction tool.
   "Production Head": {
-    label: "Production Head", icon: "🏭", color: "#6366f1", badge: "Production Head",
+    label: "Production Head", icon: "🏭", color: "#4338ca", badge: "Production Head",
     pages: ["dashboard", "machines", "history", "reports"],
     actions: {
       inventory: { add: false, edit: false, delete: false, adjust: false },

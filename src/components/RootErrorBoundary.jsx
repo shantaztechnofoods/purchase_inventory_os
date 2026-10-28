@@ -63,7 +63,7 @@ export default class RootErrorBoundary extends Component {
         style={{
           minHeight: "100vh",
           background: "#F7F3EB",
-          color: "#e5e7eb",
+          color: "#374151",
           fontFamily: "Inter, system-ui, -apple-system, sans-serif",
           padding: "48px 16px",
           display: "flex",
@@ -85,7 +85,7 @@ export default class RootErrorBoundary extends Component {
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
             <div style={{ fontSize: 28 }}>⚠️</div>
             <div>
-              <div style={{ color: "#f87171", fontWeight: 800, fontSize: 14 }}>
+              <div style={{ color: "#b91c1c", fontWeight: 800, fontSize: 14 }}>
                 The app hit an unrecoverable render error
               </div>
               <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>
@@ -107,11 +107,11 @@ export default class RootErrorBoundary extends Component {
               wordBreak: "break-word",
               maxHeight: 280,
               overflow: "auto",
-              color: "#cbd5e1",
+              color: "#4b5563",
               marginBottom: 16,
             }}
           >
-            <div style={{ color: "#fca5a5", fontWeight: 700, marginBottom: 4 }}>
+            <div style={{ color: "#b91c1c", fontWeight: 700, marginBottom: 4 }}>
               {(error?.name || "Error") + ": " + message}
             </div>
             {stack && (
@@ -142,7 +142,7 @@ export default class RootErrorBoundary extends Component {
                 fontWeight: 700,
                 padding: "6px 12px",
                 borderRadius: 8,
-                color: "#fca5a5",
+                color: "#b91c1c",
                 background: "rgba(239,68,68,0.06)",
                 border: "1px solid rgba(239,68,68,0.35)",
                 cursor: "pointer",

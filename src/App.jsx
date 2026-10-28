@@ -76,7 +76,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-29-red-theme-readable";
+const APP_BUILD = "2026-10-29-contrast-pass";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -131,7 +131,7 @@ const bomDefinitions = {
   },
   "KM-20": {
     label: "Kneading Machine 20L",
-    color: "#8b5cf6",
+    color: "#6d28d9",
     items: [
       { code: "OIL-046",  qty: 4 },
       { code: "BRG-6205", qty: 2 },
@@ -142,7 +142,7 @@ const bomDefinitions = {
   },
   "TM-600": {
     label: "Table Mixer 600",
-    color: "#22c55e",
+    color: "#15803d",
     items: [
       { code: "OIL-046",  qty: 2 },
       { code: "BRG-001",  qty: 2 },
@@ -152,7 +152,7 @@ const bomDefinitions = {
   },
   "ARM-800": {
     label: "Arm Mixer 800",
-    color: "#D97706",
+    color: "#b45309",
     items: [
       { code: "OIL-HYD46", qty: 5 },
       { code: "BRG-6205",  qty: 2 },
@@ -163,7 +163,7 @@ const bomDefinitions = {
   },
   "ARM-900": {
     label: "Arm Mixer 900",
-    color: "#ef4444",
+    color: "#b91c1c",
     items: [
       { code: "OIL-HYD46", qty: 8 },
       { code: "BRG-6205",  qty: 4 },
@@ -321,16 +321,16 @@ const monthlyPOData = [
 
 const stockDistribution = [
   { name: "Safe", value: 1147, color: "#D71920" },
-  { name: "Warning", value: 67, color: "#D97706" },
-  { name: "Critical", value: 34, color: "#ef4444" },
+  { name: "Warning", value: 67, color: "#b45309" },
+  { name: "Critical", value: 34, color: "#b91c1c" },
 ];
 
 const spendByCategory = [
   { name: "Lubricants", value: 38, color: "#D71920" },
-  { name: "Bearings", value: 24, color: "#a78bfa" },
-  { name: "Electrical", value: 18, color: "#D97706" },
-  { name: "Belts", value: 12, color: "#22c55e" },
-  { name: "Seals", value: 8, color: "#ef4444" },
+  { name: "Bearings", value: 24, color: "#6d28d9" },
+  { name: "Electrical", value: 18, color: "#b45309" },
+  { name: "Belts", value: 12, color: "#15803d" },
+  { name: "Seals", value: 8, color: "#b91c1c" },
 ];
 
 const turnoverData = [
@@ -415,8 +415,8 @@ const buildInitialHistory = (trend) => {
 
 const statusConfig = {
   critical: { label: "CRITICAL",  bg: "", text: "", border: "", dot: "#dc2626",   style: { background: "rgba(220,38,38,0.08)",   color: "#dc2626", border: "1px solid rgba(220,38,38,0.22)" } },
-  warning:  { label: "WARNING",   bg: "", text: "", border: "", dot: "#d97706",   style: { background: "rgba(217,119,6,0.08)",   color: "#b45309", border: "1px solid rgba(217,119,6,0.22)" } },
-  safe:     { label: "SAFE",      bg: "", text: "", border: "", dot: "#16a34a",   style: { background: "rgba(22,163,74,0.08)",   color: "#15803d", border: "1px solid rgba(22,163,74,0.22)" } },
+  warning:  { label: "WARNING",   bg: "", text: "", border: "", dot: "#b45309",   style: { background: "rgba(217,119,6,0.08)",   color: "#b45309", border: "1px solid rgba(217,119,6,0.22)" } },
+  safe:     { label: "SAFE",      bg: "", text: "", border: "", dot: "#15803d",   style: { background: "rgba(22,163,74,0.08)",   color: "#15803d", border: "1px solid rgba(22,163,74,0.22)" } },
   approved: { label: "APPROVED",  bg: "", text: "", border: "",                   style: { background: "rgba(22,163,74,0.08)",   color: "#15803d", border: "1px solid rgba(22,163,74,0.22)" } },
   pending:  { label: "PENDING",   bg: "", text: "", border: "",                   style: { background: "rgba(217,119,6,0.08)",   color: "#b45309", border: "1px solid rgba(217,119,6,0.22)" } },
   review:   { label: "IN REVIEW", bg: "", text: "", border: "",                   style: { background: "rgba(37,99,235,0.08)",   color: "#2563eb", border: "1px solid rgba(37,99,235,0.22)" } },
@@ -699,7 +699,7 @@ const Btn = ({ variant = "ghost", size = "sm", onClick, children, className = ""
     ghost:   "text-slate-700 border-slate-200 bg-white hover:text-slate-900 hover:bg-slate-50 hover:border-slate-300",
     green:   "bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:border-green-300",
     red:     "bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300",
-    wa:      "bg-[#22c55e] text-slate-900 border-[#16a34a] hover:bg-[#16a34a]",
+    wa:      "bg-[#15803d] text-white border-[#166534] hover:bg-[#166534]",
     mail:    "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300",
     orange:  "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300",
     purple:  "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 hover:border-purple-300",
@@ -829,14 +829,14 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
   // tile's own colour instead of fighting it.
   const kpis = [
     { label: "Total SKUs",        value: totalSKUs,                                              Icon: Boxes,        color: "#D71920", nav: "inventory",  sub: `${safeItems.length} safe` },
-    { label: "Critical Stock",    value: criticalN,                                              Icon: AlertOctagon, color: "#ef4444", nav: "inventory",  sub: `${warningItems.length} warning`,  alert: criticalN > 0 },
-    { label: "Pending POs",       value: pendingPOs.length,                                      Icon: AlertTriangle,color: "#D97706", nav: "pipeline",   sub: "awaiting approval",               alert: pendingPOs.length > 0 },
-    { label: "Open PO Value",     value: fmtVal(openPOValue),                                    Icon: Wallet,       color: "#22c55e", nav: "pipeline",   sub: `${pos.filter(p=>p.status!=="received").length} open` },
+    { label: "Critical Stock",    value: criticalN,                                              Icon: AlertOctagon, color: "#b91c1c", nav: "inventory",  sub: `${warningItems.length} warning`,  alert: criticalN > 0 },
+    { label: "Pending POs",       value: pendingPOs.length,                                      Icon: AlertTriangle,color: "#b45309", nav: "pipeline",   sub: "awaiting approval",               alert: pendingPOs.length > 0 },
+    { label: "Open PO Value",     value: fmtVal(openPOValue),                                    Icon: Wallet,       color: "#15803d", nav: "pipeline",   sub: `${pos.filter(p=>p.status!=="received").length} open` },
     { label: "In Production",     value: machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").length, Icon: Cog, color: "#B01218", nav: "machines",   sub: "machines active" },
-    { label: "Machines Ready",    value: machineLog.filter((m) => m.status === "completed").length, Icon: CircleCheckBig, color: "#22c55e", nav: "machines", sub: "completed" },
-    { label: "Pending Materials", value: pendingLog.length,                                      Icon: Hourglass,    color: "#D97706", nav: "pending",    sub: "items pending",                   alert: pendingLog.length > 0 },
+    { label: "Machines Ready",    value: machineLog.filter((m) => m.status === "completed").length, Icon: CircleCheckBig, color: "#15803d", nav: "machines", sub: "completed" },
+    { label: "Pending Materials", value: pendingLog.length,                                      Icon: Hourglass,    color: "#b45309", nav: "pending",    sub: "items pending",                   alert: pendingLog.length > 0 },
     { label: "Pending Approvals", value: pos.filter((p) => p.status === "pending").length,       Icon: ClipboardList,color: "#D71920", nav: "pipeline",   sub: "awaiting review",                 alert: pos.filter((p) => p.status === "pending").length > 0 },
-    { label: "In Follow Up",      value: followUps.length,                                       Icon: PhoneCall,    color: "#8b5cf6", nav: "pipeline",   sub: "orders tracked" },
+    { label: "In Follow Up",      value: followUps.length,                                       Icon: PhoneCall,    color: "#6d28d9", nav: "pipeline",   sub: "orders tracked" },
   ];
 
   const EmptyState = ({ icon, title, sub }) => (
@@ -1080,7 +1080,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
           ) : (
             <div className="space-y-1.5">
               {recentMoves.map((m) => {
-                const meta = MOVEMENT_META[m.movementType] || { label: m.movementType, sign: "±", color: "#8b5cf6" };
+                const meta = MOVEMENT_META[m.movementType] || { label: m.movementType, sign: "±", color: "#6d28d9" };
                 const isIn = m.qty > 0;
                 return (
                   <div key={m.id} className="flex items-center gap-3 px-3 py-2 rounded-lg" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.04)" }}>
@@ -1096,7 +1096,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="text-[11px] font-black font-mono" style={{ color: isIn ? "#16a34a" : "#dc2626", fontVariantNumeric: "tabular-nums" }}>
+                      <div className="text-[11px] font-black font-mono" style={{ color: isIn ? "#15803d" : "#dc2626", fontVariantNumeric: "tabular-nums" }}>
                         {isIn ? "+" : ""}{m.qty}
                       </div>
                       <div className="text-[9px] text-slate-400">→ {m.afterStock}</div>
@@ -1191,7 +1191,7 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
           {/* Quantity input */}
           <div>
             <div className="text-[11px] font-medium tracking-tight mb-1.5"
-                 style={{ color: "#F7A992" }}>
+                 style={{ color: "#b01218" }}>
               Quantity
             </div>
             <input ref={inputRef} type="number" min="1" value={qty}
@@ -1212,7 +1212,7 @@ function QuickStockModal({ item, mode, onConfirm, onClose }) {
               <div>
                 <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.06em] mb-0.5">New Stock</div>
                 <div className="text-sm font-black font-mono"
-                     style={{ color: previewStatus === "critical" ? "#ef4444" : previewStatus === "warning" ? "#D97706" : "#F18A75", fontFamily: "'Inter',system-ui,sans-serif", fontVariantNumeric: "tabular-nums" }}>
+                     style={{ color: previewStatus === "critical" ? "#b91c1c" : previewStatus === "warning" ? "#b45309" : "#B01218", fontFamily: "'Inter',system-ui,sans-serif", fontVariantNumeric: "tabular-nums" }}>
                   {newStock} <span className="text-xs font-semibold text-slate-500">{item.unit}</span>
                 </div>
               </div>
@@ -1387,7 +1387,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
             ].map(({ label, value, mono, full, highlight }) => (
               <div key={label} className={`px-3.5 py-3 rounded-xl ${full ? "col-span-2" : ""}`}
                    style={{ background: highlight ? "rgba(34,197,94,0.04)" : "rgba(17,24,39,0.03)", border: highlight ? "1px solid rgba(34,197,94,0.18)" : "1px solid rgba(17,24,39,0.06)" }}>
-                <div className="text-[9px] font-black uppercase tracking-[0.06em] mb-1" style={{ color: highlight ? "#16a34a" : "#64748b" }}>{label}</div>
+                <div className="text-[9px] font-black uppercase tracking-[0.06em] mb-1" style={{ color: highlight ? "#15803d" : "#64748b" }}>{label}</div>
                 <div className={`text-xs font-semibold ${highlight ? "text-green-700" : ""} ${mono ? "font-mono" : ""}`}
                      style={{ ...(mono ? { fontFamily: "'Inter','SF Pro Text',system-ui,sans-serif", letterSpacing: "0.04em" } : {}), ...(!highlight ? { color: "var(--text-strong)" } : {}) }}>
                   {value}
@@ -1456,7 +1456,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                        onChange={e => setAdjustQty(e.target.value)}
                        onKeyDown={e => e.key === "Enter" && handleAdjust()}
                        placeholder="Enter quantity"
-                       className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input"
+                       className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-500 outline-none modal-input"
                        style={{ fontVariantNumeric: "tabular-nums" }} />
                 <button onClick={handleAdjust}
                         className="px-4 py-2 rounded-xl text-xs font-bold text-white transition-all duration-200"
@@ -1778,14 +1778,14 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
 
             // Type badge config
             const txnCfg = (t) => {
-              if (t === "Purchase Receipt") return { color: "#22c55e",  bg: "rgba(34,197,94,0.12)",   brd: "rgba(34,197,94,0.3)",   icon: "📥" };
+              if (t === "Purchase Receipt") return { color: "#15803d",  bg: "rgba(34,197,94,0.12)",   brd: "rgba(34,197,94,0.3)",   icon: "📥" };
               if (t === "BOM Issue")        return { color: "#D71920",  bg: "rgba(215, 25, 32,0.12)",  brd: "rgba(215, 25, 32,0.3)",  icon: "🔧" };
-              if (t === "Manual Outward")   return { color: "#D97706",  bg: "rgba(217, 119, 6,0.12)",  brd: "rgba(217, 119, 6,0.3)",  icon: "📤" };
+              if (t === "Manual Outward")   return { color: "#b45309",  bg: "rgba(217, 119, 6,0.12)",  brd: "rgba(217, 119, 6,0.3)",  icon: "📤" };
               if (t === "Stock In")         return { color: "#15803d",  bg: "rgba(74,222,128,0.10)",  brd: "rgba(74,222,128,0.25)", icon: "⬆️" };
-              if (t === "Stock Out")        return { color: "#ef4444",  bg: "rgba(239,68,68,0.10)",   brd: "rgba(239,68,68,0.25)",  icon: "⬇️" };
+              if (t === "Stock Out")        return { color: "#b91c1c",  bg: "rgba(239,68,68,0.10)",   brd: "rgba(239,68,68,0.25)",  icon: "⬇️" };
               if (t === "Opening Stock")    return { color: "#64748b",  bg: "rgba(100,116,139,0.10)", brd: "rgba(100,116,139,0.2)", icon: "🏁" };
               if (t === "Auto-fulfill pending") return { color: "#0e7490", bg: "rgba(6,182,212,0.10)", brd: "rgba(6,182,212,0.25)", icon: "⚡" };
-              return                               { color: "#8b5cf6",  bg: "rgba(139,92,246,0.10)",  brd: "rgba(139,92,246,0.25)", icon: "✦" };
+              return                               { color: "#6d28d9",  bg: "rgba(139,92,246,0.10)",  brd: "rgba(139,92,246,0.25)", icon: "✦" };
             };
 
             const filterBtns = [
@@ -2093,7 +2093,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
   };
 
   const inp = (err) =>
-    `w-full bg-slate-50 border ${err ? "border-red-500/60" : "border-slate-200"} rounded-xl px-4 py-3 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none leading-relaxed modal-input`;
+    `w-full bg-slate-50 border ${err ? "border-red-500/60" : "border-slate-200"} rounded-xl px-4 py-3 text-xs text-slate-900 placeholder-slate-500 outline-none leading-relaxed modal-input`;
 
   const computedStatus = (() => {
     const s = Number(form.stock);
@@ -2103,7 +2103,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
   })();
 
   const Label = ({ text, req }) => (
-    <div className="text-[11px] font-medium tracking-tight mb-1.5" style={{ color: "#F7A992" }}>
+    <div className="text-[11px] font-medium tracking-tight mb-1.5" style={{ color: "#b01218" }}>
       {text}{req && <span className="text-red-400 ml-0.5">*</span>}
     </div>
   );
@@ -2635,10 +2635,10 @@ function ItemImportModal({ items, onImport, onClose }) {
                 ].map(({ label, req, hint }) => (
                   <div key={label} className="flex items-center gap-2">
                     <span className="text-[10px] font-mono font-semibold"
-                          style={{ color: req ? "#F7A992" : "#64748b" }}>{label}</span>
+                          style={{ color: req ? "#B01218" : "#64748b" }}>{label}</span>
                     <span className="text-[9px] px-1.5 py-0.5 rounded-full"
                           style={{ background: req ? "rgba(215, 25, 32,0.15)" : "rgba(17,24,39,0.04)",
-                                   color: req ? "#F7A992" : "#475569",
+                                   color: req ? "#B01218" : "#475569",
                                    border: req ? "1px solid rgba(215, 25, 32,0.3)" : "1px solid rgba(17,24,39,0.06)" }}>
                       {hint}
                     </span>
@@ -3555,10 +3555,10 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
     });
   };
 
-  const inpCls = `bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
+  const inpCls = `bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 placeholder-slate-500 outline-none modal-input`;
   const selStyle = { background: "var(--surface-input)", color: "var(--text)" };
   const PLabel = ({ text, req }) => (
-    <div className="text-[11px] font-medium tracking-tight mb-1.5" style={{ color: "#F7A992" }}>
+    <div className="text-[11px] font-medium tracking-tight mb-1.5" style={{ color: "#b01218" }}>
       {text}{req && <span className="text-red-400 ml-0.5">*</span>}
     </div>
   );
@@ -3673,12 +3673,12 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
               <div className="col-span-2">
                 {/* Label row — shows item-filter badge when active */}
                 <div className="flex items-center gap-2 mb-1.5">
-                  <div className="text-[11px] font-medium tracking-tight" style={{ color: "#F7A992" }}>
+                  <div className="text-[11px] font-medium tracking-tight" style={{ color: "#b01218" }}>
                     Vendor<span className="text-red-400 ml-0.5">*</span>
                   </div>
                   {addCode && itemLinkedVendors.length > 0 && (
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                          style={{ background: "rgba(176, 18, 24,0.12)", color: "#a5b4fc", border: "1px solid rgba(176, 18, 24,0.22)" }}>
+                          style={{ background: "rgba(176, 18, 24,0.12)", color: "#4338ca", border: "1px solid rgba(176, 18, 24,0.22)" }}>
                       {itemLinkedVendors.length} linked · {addCodeItem?.name}
                     </span>
                   )}
@@ -4077,7 +4077,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
             ].map(({ label, value, mono }) => (
               <div key={label} className="px-3.5 py-3 rounded-xl" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.06)" }}>
                 <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.06em] mb-1">{label}</div>
-                <div className={`text-xs font-semibold text-[#f0f6ff] ${mono ? "font-mono" : ""}`}>{value}</div>
+                <div className={`text-xs font-semibold text-slate-900 ${mono ? "font-mono" : ""}`}>{value}</div>
               </div>
             ))}
           </div>
@@ -4446,10 +4446,10 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
                 ].map(({ label, req, hint }) => (
                   <div key={label} className="flex items-center gap-2">
                     <span className="text-[10px] font-mono font-semibold"
-                          style={{ color: req ? "#F7A992" : "#64748b" }}>{label}</span>
+                          style={{ color: req ? "#B01218" : "#64748b" }}>{label}</span>
                     <span className="text-[9px] px-1.5 py-0.5 rounded-full"
                           style={{ background: req ? "rgba(215, 25, 32,0.15)" : "rgba(17,24,39,0.04)",
-                                   color: req ? "#F7A992" : "#475569",
+                                   color: req ? "#B01218" : "#475569",
                                    border: req ? "1px solid rgba(215, 25, 32,0.3)" : "1px solid rgba(17,24,39,0.06)" }}>
                       {hint}
                     </span>
@@ -4586,12 +4586,12 @@ function VendorModal({ initialVendor, onSave, onClose }) {
 
   const ILabel = ({ text, req }) => (
     <div className="text-[11px] font-medium tracking-tight mb-1.5"
-         style={{ color: "#F7A992" }}>
+         style={{ color: "#b01218" }}>
       {text}{req && <span className="text-red-400 ml-0.5">*</span>}
     </div>
   );
   const inpCls = (err) =>
-    `w-full bg-slate-50 border ${err ? "border-red-500/60" : "border-slate-200"} rounded-xl px-4 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
+    `w-full bg-slate-50 border ${err ? "border-red-500/60" : "border-slate-200"} rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 outline-none modal-input`;
   const selStyle = { background: "var(--surface-input)", color: "var(--text)" };
 
   return (
@@ -5329,9 +5329,9 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
   const warnCount = allItems.filter((i) => i.status === "warning").length;
   const safeCount = allItems.filter((i) => i.status === "safe").length;
   const stockDist = [
-    { name: "Safe",     value: safeCount, color: "#22c55e" },
-    { name: "Warning",  value: warnCount, color: "#D97706" },
-    { name: "Critical", value: critCount, color: "#ef4444" },
+    { name: "Safe",     value: safeCount, color: "#15803d" },
+    { name: "Warning",  value: warnCount, color: "#b45309" },
+    { name: "Critical", value: critCount, color: "#b91c1c" },
   ];
 
   // Live PO spend metrics
@@ -5596,10 +5596,10 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
   ];
 
   const aiStats = [
-    { label: "Reorder Accuracy", pct: 94, color: "#22c55e" },
+    { label: "Reorder Accuracy", pct: 94, color: "#15803d" },
     { label: "Demand Forecast",  pct: 87, color: "#D71920" },
     { label: "Vendor Scoring",   pct: 91, color: "#D71920" },
-    { label: "Price Prediction", pct: 78, color: "#D97706" },
+    { label: "Price Prediction", pct: 78, color: "#b45309" },
   ];
 
   return (
@@ -5685,9 +5685,9 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
             <div className="space-y-3">
               {[
                 { label: "Total SKUs",    value: allItems.length,    color: "#D71920" },
-                { label: "Critical",      value: critItems.length,   color: "#ef4444" },
-                { label: "Warning",       value: warnItems.length,   color: "#D97706" },
-                { label: "Pending POs",   value: pendingPOs.length,  color: "#a78bfa" },
+                { label: "Critical",      value: critItems.length,   color: "#b91c1c" },
+                { label: "Warning",       value: warnItems.length,   color: "#b45309" },
+                { label: "Pending POs",   value: pendingPOs.length,  color: "#6d28d9" },
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-3">
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: item.color }} />
@@ -5994,7 +5994,7 @@ function DeptEmployeesRow({ dept, assigned, notAssigned, canConfig, onSaveUserDe
           {assigned.map((u) => (
             <span key={u.id}
                   className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full"
-                  style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.3)", color: "#86efac" }}>
+                  style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.3)", color: "#15803d" }}>
               {u.fullName || u.username}
               {canConfig && (
                 <button onClick={() => removeWorker(u)} disabled={busy}
@@ -7694,11 +7694,11 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               {viewPO.activityLog?.length > 0 && (() => {
                 const iconCfg = {
                   "Created PO":     { icon: "📄", color: "#D71920" },
-                  "Approved":       { icon: "✅", color: "#22c55e" },
-                  "Rejected":       { icon: "❌", color: "#ef4444" },
-                  "Order Placed":   { icon: "📋", color: "#8b5cf6" },
-                  "Follow Up Done": { icon: "🔔", color: "#D97706" },
-                  "Received":       { icon: "📦", color: "#22c55e" },
+                  "Approved":       { icon: "✅", color: "#15803d" },
+                  "Rejected":       { icon: "❌", color: "#b91c1c" },
+                  "Order Placed":   { icon: "📋", color: "#6d28d9" },
+                  "Follow Up Done": { icon: "🔔", color: "#b45309" },
+                  "Received":       { icon: "📦", color: "#15803d" },
                 };
                 return (
                   <div>
@@ -7937,9 +7937,9 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               {/* Stats grid */}
               <div className="px-5 pt-4 grid grid-cols-2 gap-2">
                 {[
-                  { label: "Current Stock", value: `${item.stock} ${item.unit}`, color: item.status === "critical" ? "#ef4444" : "#D97706" },
+                  { label: "Current Stock", value: `${item.stock} ${item.unit}`, color: item.status === "critical" ? "#b91c1c" : "#b45309" },
                   { label: "Min Stock",     value: `${item.min} ${item.unit}`,   color: "#6b7280" },
-                  { label: "Shortage",      value: `${shortage} ${item.unit}`,   color: "#D97706" },
+                  { label: "Shortage",      value: `${shortage} ${item.unit}`,   color: "#b45309" },
                   { label: "Recommended",   value: `${recommendedQty} ${item.unit}`, color: "#D71920" },
                 ].map(s => (
                   <div key={s.label} className="px-3 py-2.5 rounded-xl" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.06)" }}>
@@ -8007,12 +8007,12 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
   const newStock     = selectedItem && parsedQty > 0 ? selectedItem.stock + parsedQty : null;
 
   const inpCls = (err) =>
-    `w-full bg-slate-50 border ${err ? "border-red-500/60" : "border-slate-200"} rounded-xl px-4 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
+    `w-full bg-slate-50 border ${err ? "border-red-500/60" : "border-slate-200"} rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 outline-none modal-input`;
   const selStyle = { background: "var(--surface-input)", color: "var(--text)" };
 
   const ILabel = ({ text, req }) => (
     <div className="text-[11px] font-medium tracking-tight mb-1.5"
-         style={{ color: "#F7A992" }}>
+         style={{ color: "#b01218" }}>
       {text}{req && <span className="text-red-400 ml-0.5">*</span>}
     </div>
   );
@@ -8954,7 +8954,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               </div>
               <div className="text-right pr-4">
                 {item.overQty > 0
-                  ? <><span className="text-[11px] font-bold font-mono" style={{color:"#b45309",fontFamily:"'Inter',system-ui,sans-serif"}}>+{item.overQty}</span><div className="text-[9px] font-bold" style={{color:"#d97706"}}>over</div></>
+                  ? <><span className="text-[11px] font-bold font-mono" style={{color:"#b45309",fontFamily:"'Inter',system-ui,sans-serif"}}>+{item.overQty}</span><div className="text-[9px] font-bold" style={{color:"#b45309"}}>over</div></>
                   : item.pendingQty > 0
                     ? <><span className="text-[11px] font-bold font-mono text-amber-700" style={{fontFamily:"'Inter',system-ui,sans-serif"}}>{item.pendingQty}</span><div className="text-[9px] text-slate-600">{item.unit}</div></>
                     : <span className="text-[10px] text-green-400 font-bold">✓</span>
@@ -9204,7 +9204,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             <div className="text-sm font-black text-slate-900">{bomKey} — {bom.label}</div>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               {serialNo && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:"rgba(215, 25, 32,0.12)", color:"#F7A992", border:"1px solid rgba(215, 25, 32,0.25)" }}>S/N: {serialNo}</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:"rgba(215, 25, 32,0.12)", color:"#b01218", border:"1px solid rgba(215, 25, 32,0.25)" }}>S/N: {serialNo}</span>
               )}
               <span className="text-[10px] text-slate-500">{enriched.length} components</span>
               {readyN > 0   && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(34,197,94,0.12)",  color: "#15803d",  border: "1px solid rgba(34,197,94,0.22)"  }}>{readyN} ready</span>}
@@ -9240,7 +9240,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               <button key={f} onClick={() => setFilterStatus(f)}
                       className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg border transition-all"
                       style={ filterStatus === f
-                        ? { background: f === "all" ? "rgba(215, 25, 32,0.15)" : SB[f], borderColor: f === "all" ? "rgba(215, 25, 32,0.4)" : SC[f] + "55", color: f === "all" ? "#F18A75" : SC[f] }
+                        ? { background: f === "all" ? "rgba(215, 25, 32,0.15)" : SB[f], borderColor: f === "all" ? "rgba(215, 25, 32,0.4)" : SC[f] + "55", color: f === "all" ? "#B01218" : SC[f] }
                         : { background: "transparent", borderColor: "rgba(17,24,39,0.06)", color: "#64748b" } }>
                 {f === "all" ? `All (${enriched.length})` : `${SL[f]} (${enriched.filter(i=>i.status===f).length})`}
               </button>
@@ -9284,13 +9284,13 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                     style={{
                       background: showChecklistPanel ? "rgba(139,92,246,0.14)" : "rgba(139,92,246,0.05)",
                       borderColor: showChecklistPanel ? "rgba(139,92,246,0.55)" : "rgba(139,92,246,0.25)",
-                      color: "#c4b5fd",
+                      color: "#6d28d9",
                     }}
                   >
                     <span className="text-base">📋</span>
                     <span>Checklist</span>
                     <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
-                          style={{ background: "rgba(139,92,246,0.2)", color: "#ddd6fe" }}>
+                          style={{ background: "rgba(139,92,246,0.2)", color: "#6d28d9" }}>
                       {checklistCount} {checklistCount === 1 ? "set" : "sets"}
                     </span>
                     <span className="text-[11px] text-slate-400">{showChecklistPanel ? "▲ Hide" : "▼ Manage"}</span>
@@ -9307,7 +9307,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                     <span className="text-base">🔒</span>
                     <span>Critical Items</span>
                     <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
-                          style={{ background: "rgba(217, 119, 6,0.2)", color: "#fed7aa" }}>
+                          style={{ background: "rgba(217, 119, 6,0.2)", color: "#b45309" }}>
                       {criticalCount} in BOM
                     </span>
                     <span className="text-[11px] text-slate-400">{showCriticalPanel ? "▲ Hide" : "▼ View"}</span>
@@ -9365,7 +9365,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                             </div>
                             <div className="col-span-2 text-right">
                               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                    style={{ background: "rgba(217, 119, 6,0.15)", color: "#fed7aa", border: "1px solid rgba(217, 119, 6,0.3)" }}>
+                                    style={{ background: "rgba(217, 119, 6,0.15)", color: "#b45309", border: "1px solid rgba(217, 119, 6,0.3)" }}>
                                 {type}
                               </span>
                             </div>
@@ -10015,12 +10015,12 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
 
   const showToast = (text, sub) => { setToast({ text, sub }); setTimeout(() => setToast(null), 3500); };
 
-  const inpCls  = `w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-[#f0f6ff] placeholder-slate-500 outline-none modal-input`;
+  const inpCls  = `w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 outline-none modal-input`;
   const selStyle = { background: "var(--surface-input)", color: "var(--text)" };
 
   const OLabel = ({ text, req }) => (
     <div className="text-[11px] font-medium tracking-tight mb-1.5"
-         style={{ color: "#F7A992" }}>
+         style={{ color: "#b01218" }}>
       {text}{req && <span className="text-red-400 ml-0.5">*</span>}
     </div>
   );
@@ -10713,7 +10713,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                           Active Builds. */}
                       {noRackTracking && (
                         <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded-full"
-                              style={{ background: "rgba(139,92,246,0.12)", color: "#c4b5fd", border: "1px solid rgba(139,92,246,0.3)" }}>
+                              style={{ background: "rgba(139,92,246,0.12)", color: "#6d28d9", border: "1px solid rgba(139,92,246,0.3)" }}>
                           ▶ Direct production
                         </span>
                       )}
@@ -10842,7 +10842,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                       <td className="px-4 py-2 text-[10px] text-slate-500 font-mono">{entry.date}</td>
                       <td className="px-4 py-2">
                         <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
-                              style={{ background: entry.type === "bom" ? "rgba(217, 119, 6,0.1)" : "rgba(215, 25, 32,0.1)", color: entry.type === "bom" ? "#B45309" : "#F18A75", border: `1px solid ${entry.type === "bom" ? "rgba(217, 119, 6,0.2)" : "rgba(215, 25, 32,0.2)"}` }}>
+                              style={{ background: entry.type === "bom" ? "rgba(217, 119, 6,0.1)" : "rgba(215, 25, 32,0.1)", color: entry.type === "bom" ? "#B45309" : "#B01218", border: `1px solid ${entry.type === "bom" ? "rgba(217, 119, 6,0.2)" : "rgba(215, 25, 32,0.2)"}` }}>
                           {entry.type === "bom" ? "BOM" : "Manual"}
                         </span>
                       </td>
@@ -11165,10 +11165,10 @@ function AtoZMachineReport({
                 <div className="flex items-center gap-2 flex-wrap mb-2">
                   <span className="text-[12px] font-black text-slate-900">{h.fromDepartment}</span>
                   <span className="text-slate-500">→</span>
-                  <span className="text-[12px] font-black" style={{ color: STAGE_COLORS[h.toDepartment] || "#F18A75" }}>{h.toDepartment}</span>
+                  <span className="text-[12px] font-black" style={{ color: STAGE_COLORS[h.toDepartment] || "#B01218" }}>{h.toDepartment}</span>
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                         style={{ background: h.status === "accepted" ? "rgba(34,197,94,0.1)" : "rgba(217, 119, 6,0.1)",
-                                 color:      h.status === "accepted" ? "#86efac"              : "#B45309",
+                                 color:      h.status === "accepted" ? "#15803d"              : "#B45309",
                                  border: `1px solid ${h.status === "accepted" ? "rgba(34,197,94,0.3)" : "rgba(217, 119, 6,0.3)"}` }}>
                     {h.status === "accepted" ? "✓ Accepted" : h.status === "pending" ? "⏳ Pending" : h.status}
                   </span>
@@ -11212,7 +11212,7 @@ function AtoZMachineReport({
                         <span key={uid} className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                               style={{ background: uid === h.mainEmployeeId ? "rgba(234,179,8,0.14)" : "rgba(16,185,129,0.08)",
                                        border: `1px solid ${uid === h.mainEmployeeId ? "rgba(234,179,8,0.4)" : "rgba(16,185,129,0.3)"}`,
-                                       color: uid === h.mainEmployeeId ? "#fde68a" : "#86efac" }}>
+                                       color: uid === h.mainEmployeeId ? "#fde68a" : "#15803d" }}>
                           {uid === h.mainEmployeeId ? "⭐ " : ""}{nameFromSnap(uid, h.workedBySnapshot)}
                         </span>
                       ))}
@@ -11233,7 +11233,7 @@ function AtoZMachineReport({
 
                 {h.overrunNarration && (
                   <div className="mb-2 rounded px-2 py-1.5 text-[10px]"
-                       style={{ background: "rgba(234,179,8,0.08)", color: "#fde68a", border: "1px solid rgba(234,179,8,0.3)" }}>
+                       style={{ background: "rgba(234,179,8,0.08)", color: "#b45309", border: "1px solid rgba(234,179,8,0.3)" }}>
                     <strong>Overrun note:</strong> {h.overrunNarration}
                   </div>
                 )}
@@ -11815,7 +11815,7 @@ function ReportCenterPage({
         {tab === "factory" && <ReportTable title="Every handover, in full" rows={factoryRows} />}
         {tab === "customer" && (
           <>
-            <div className="rounded-lg px-3 py-2 text-[11px] no-print" style={{ background: "rgba(34,197,94,0.06)", color: "#86efac", border: "1px solid rgba(34,197,94,0.25)" }}>
+            <div className="rounded-lg px-3 py-2 text-[11px] no-print" style={{ background: "rgba(34,197,94,0.06)", color: "#15803d", border: "1px solid rgba(34,197,94,0.25)" }}>
               Customer-safe output. HOLD reasons, employee names, ratings, narration, and internal remarks are intentionally not shown.
             </div>
             <ReportTable title="Customer Progress Report" rows={customerRows} />
@@ -13468,7 +13468,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           <button onClick={() => onNavigate("machines_settings")}
                   title="Open Machine Tracker settings (deadlines, HOLD rules, checklists, employees)"
                   className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all"
-                  style={{ background: "rgba(215, 25, 32,0.1)", border: "1px solid rgba(215, 25, 32,0.35)", color: "#F7A992" }}>
+                  style={{ background: "rgba(215, 25, 32,0.1)", border: "1px solid rgba(215, 25, 32,0.35)", color: "#b01218" }}>
             ⚙️ Settings
           </button>
         )}
@@ -13506,7 +13506,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 const approaching = !overdue && minsLeft >= 0 && minsLeft <= 15;   // within 15 min of deadline
                 const canAccept = canAcceptHandover(canDo, h.toDepartment);
                 const statusLabel = overdue    ? { text: "🚦 ON HOLD",        color: "#dc2626", bg: "rgba(239,68,68,0.18)",  bd: "rgba(239,68,68,0.5)"  }
-                                   : approaching ? { text: "⚠ Deadline Soon",  color: "#fcd34d", bg: "rgba(234,179,8,0.18)",  bd: "rgba(234,179,8,0.5)"  }
+                                   : approaching ? { text: "⚠ Deadline Soon",  color: "#b45309", bg: "rgba(234,179,8,0.18)",  bd: "rgba(234,179,8,0.5)"  }
                                    :              { text: "⏳ Awaiting Accept", color: "#B45309", bg: "rgba(217, 119, 6,0.14)", bd: "rgba(217, 119, 6,0.4)" };
                 return (
                   <div key={h.id}
@@ -13800,9 +13800,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           // act on and a card that never moved.
           const holdCount = askedFor.filter((h) => isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick)).length;
           const cards = [
-            { key: "pendingAccept", label: "To Accept",           value: pendingNotOverdue, sub: "waiting for next dept",  color: "#D97706", bg: "rgba(217, 119, 6,0.08)" },
+            { key: "pendingAccept", label: "To Accept",           value: pendingNotOverdue, sub: "waiting for next dept",  color: "#b45309", bg: "rgba(217, 119, 6,0.08)" },
             { key: "hold",          label: "On HOLD",            value: holdCount,         sub: "accept deadline passed", color: "#dc2626", bg: "rgba(239,68,68,0.1)"  },
-            { key: "onRack",        label: "On Rack",            value: awaitingRelease.length, sub: "awaiting head release", color: "#6366f1", bg: "rgba(99,102,241,0.08)" },
+            { key: "onRack",        label: "On Rack",            value: awaitingRelease.length, sub: "awaiting head release", color: "#4338ca", bg: "rgba(99,102,241,0.08)" },
             { key: "active",        label: "Active Builds",      value: active.length,       sub: "in production",           color: "#b45309", bg: "rgba(251,191,36,0.08)" },
             { key: "completed",     label: "Completed",          value: completed.length,    sub: "ready for delivery",      color: "#15803d", bg: "rgba(34,197,94,0.08)" },
           ];
@@ -13857,9 +13857,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {rackData.map((r) => {
                 const STATE = {
-                  full:    { color: "#22c55e", bg: "rgba(34,197,94,0.08)",  border: "rgba(34,197,94,0.3)",  label: "Full",    icon: "✓" },
-                  partial: { color: "#f59e0b", bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.3)", label: "Partial", icon: "◐" },
-                  empty:   { color: "#ef4444", bg: "rgba(239,68,68,0.06)",  border: "rgba(239,68,68,0.22)", label: "Empty",   icon: "○" },
+                  full:    { color: "#15803d", bg: "rgba(34,197,94,0.08)",  border: "rgba(34,197,94,0.3)",  label: "Full",    icon: "✓" },
+                  partial: { color: "#b45309", bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.3)", label: "Partial", icon: "◐" },
+                  empty:   { color: "#b91c1c", bg: "rgba(239,68,68,0.06)",  border: "rgba(239,68,68,0.22)", label: "Empty",   icon: "○" },
                 }[r.state];
                 const pct = r.capacity > 0 ? Math.min(100, Math.round((r.ready / r.capacity) * 100)) : 0;
                 const canManage = !!(onUpdateBOM && bomDefs[r.key] && canDo("outward","bom"));
@@ -14084,13 +14084,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                      style={{
                                        background: done ? sc + "22" : "rgba(17,24,39,0.04)",
                                        border: `2px solid ${done ? sc : "rgba(17,24,39,0.10)"}`,
-                                       color: done ? sc : "rgba(17,24,39,0.22)",
+                                       color: done ? sc : "#6b7280",
                                        boxShadow: current ? `0 0 10px ${sc}55` : "none",
                                      }}>
                                   {done ? "✓" : idx + 1}
                                 </div>
-                                <div className="text-[7px] font-bold text-center leading-tight whitespace-nowrap"
-                                     style={{ color: done ? sc : "rgba(17,24,39,0.22)", maxWidth: 40 }}>
+                                <div className="text-[9px] font-bold text-center leading-tight whitespace-nowrap"
+                                     style={{ color: done ? sc : "#6b7280", maxWidth: 40 }}>
                                   {stage === "BOM Issued" ? "Issued" : stage}
                                 </div>
                               </div>
@@ -14244,7 +14244,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                       {isComplete && machine.trialCertificate && (
                         <button onClick={() => setTrialCertViewModal(machine)}
                                 className="text-[10px] font-bold text-slate-900 px-2 py-1.5 rounded-lg border transition-all"
-                                style={{ background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.35)", color: "#67e8f9" }}
+                                style={{ background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.35)", color: "#0e7490" }}
                                 title="View Trial Certificate">
                           📋 Certificate
                         </button>
@@ -15926,7 +15926,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                         <span className="text-[9px] font-mono text-slate-600">{entry.code}</span>
                         {cf.mode === "all" && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                style={{ background: "rgba(215, 25, 32,0.1)", color: "#F7A992", border: "1px solid rgba(215, 25, 32,0.25)" }}>
+                                style={{ background: "rgba(215, 25, 32,0.1)", color: "#b01218", border: "1px solid rgba(215, 25, 32,0.25)" }}>
                             {entry.bomKey}{entry.serialNo ? ` · ${entry.serialNo}` : ""}
                           </span>
                         )}
@@ -16060,7 +16060,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                             <span className="text-sm font-bold text-slate-900">{group.bomLabel}</span>
                             {group.serialNo && (
                               <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full"
-                                    style={{ background: "rgba(215, 25, 32,0.12)", color: "#F7A992", border: "1px solid rgba(215, 25, 32,0.25)" }}>
+                                    style={{ background: "rgba(215, 25, 32,0.12)", color: "#b01218", border: "1px solid rgba(215, 25, 32,0.25)" }}>
                                 S/N: {group.serialNo}
                               </span>
                             )}
@@ -16175,29 +16175,29 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
 
 const AUDIT_META = {
   po_created:        { label: "PO Created",        icon: "📋", color: "#D71920", module: "Purchase"   },
-  po_approved:       { label: "PO Approved",        icon: "✅", color: "#22c55e", module: "Purchase"   },
-  po_rejected:       { label: "PO Rejected",        icon: "❌", color: "#ef4444", module: "Purchase"   },
+  po_approved:       { label: "PO Approved",        icon: "✅", color: "#15803d", module: "Purchase"   },
+  po_rejected:       { label: "PO Rejected",        icon: "❌", color: "#b91c1c", module: "Purchase"   },
   po_ordered:        { label: "Order Placed",        icon: "🚚", color: "#B01218", module: "Purchase"   },
-  po_received:       { label: "PO Received",         icon: "📥", color: "#10b981", module: "Purchase"   },
+  po_received:       { label: "PO Received",         icon: "📥", color: "#047857", module: "Purchase"   },
   po_deleted:        { label: "PO Deleted",          icon: "🗑️", color: "#64748b", module: "Purchase"   },
-  inward_manual:     { label: "Manual Inward",       icon: "📥", color: "#10b981", module: "Inward"     },
-  outward_bom:       { label: "BOM Issued",          icon: "📤", color: "#f59e0b", module: "Outward"    },
+  inward_manual:     { label: "Manual Inward",       icon: "📥", color: "#047857", module: "Inward"     },
+  outward_bom:       { label: "BOM Issued",          icon: "📤", color: "#b45309", module: "Outward"    },
   outward_manual:    { label: "Manual Outward",      icon: "📤", color: "#B45309", module: "Outward"    },
-  stock_adjust:      { label: "Stock Adjusted",      icon: "🔢", color: "#8b5cf6", module: "Inventory"  },
-  inventory_add:     { label: "Item Added",          icon: "➕", color: "#22c55e", module: "Inventory"  },
+  stock_adjust:      { label: "Stock Adjusted",      icon: "🔢", color: "#6d28d9", module: "Inventory"  },
+  inventory_add:     { label: "Item Added",          icon: "➕", color: "#15803d", module: "Inventory"  },
   inventory_edit:    { label: "Item Edited",         icon: "✏️", color: "#D71920", module: "Inventory"  },
-  inventory_delete:  { label: "Item Deleted",        icon: "🗑️", color: "#ef4444", module: "Inventory"  },
+  inventory_delete:  { label: "Item Deleted",        icon: "🗑️", color: "#b91c1c", module: "Inventory"  },
   inventory_archive: { label: "Item Archived",        icon: "📦", color: "#64748b", module: "Inventory"  },
-  bom_updated:       { label: "BOM Updated",         icon: "⚙️", color: "#f59e0b", module: "BOM"        },
-  pending_fulfilled: { label: "Pending Fulfilled",   icon: "✅", color: "#22c55e", module: "Pending"    },
+  bom_updated:       { label: "BOM Updated",         icon: "⚙️", color: "#b45309", module: "BOM"        },
+  pending_fulfilled: { label: "Pending Fulfilled",   icon: "✅", color: "#15803d", module: "Pending"    },
   pending_cleared:   { label: "Pending Cleared",     icon: "🧹", color: "#64748b", module: "Pending"    },
   machine_created:   { label: "Machine Created",     icon: "🏭", color: "#D71920", module: "Machine"    },
   machine_stage:     { label: "Stage Updated",       icon: "🔄", color: "#B01218", module: "Machine"    },
-  machine_completed: { label: "Completed",           icon: "🏆", color: "#22c55e", module: "Machine"    },
-  vendor_add:        { label: "Vendor Added",        icon: "➕", color: "#22c55e", module: "Vendor"     },
+  machine_completed: { label: "Completed",           icon: "🏆", color: "#15803d", module: "Machine"    },
+  vendor_add:        { label: "Vendor Added",        icon: "➕", color: "#15803d", module: "Vendor"     },
   vendor_edit:       { label: "Vendor Updated",      icon: "✏️", color: "#D71920", module: "Vendor"     },
-  vendor_delete:     { label: "Vendor Deleted",      icon: "🗑️", color: "#ef4444", module: "Vendor"     },
-  role_changed:      { label: "Role Changed",        icon: "👤", color: "#8b5cf6", module: "Settings"   },
+  vendor_delete:     { label: "Vendor Deleted",      icon: "🗑️", color: "#b91c1c", module: "Vendor"     },
+  role_changed:      { label: "Role Changed",        icon: "👤", color: "#6d28d9", module: "Settings"   },
 };
 
 function hrExportCSV(rows, cols, filename) {
@@ -17045,8 +17045,8 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
               {[
                 { label:"Total PO Value",  value:`₹${pos.reduce((s,p)=>s+(p.amount||0),0).toLocaleString("en-IN")}`, icon:"💰", color:"#D71920" },
                 { label:"Total POs",       value:pos.length,                                                           icon:"📋", color:"#B01218" },
-                { label:"Machines Tracked",value:machineLog.length,                                                    icon:"🔧", color:"#22c55e" },
-                { label:"Inward Entries",  value:inwardLog.length,                                                     icon:"📥", color:"#10b981" },
+                { label:"Machines Tracked",value:machineLog.length,                                                    icon:"🔧", color:"#15803d" },
+                { label:"Inward Entries",  value:inwardLog.length,                                                     icon:"📥", color:"#047857" },
               ].map((k) => (
                 <div key={k.label} className="rounded-xl p-4" style={CARD_STYLE}>
                   <div className="flex items-center gap-2 mb-2">
@@ -17255,7 +17255,7 @@ const ROLE_CONFIG = {
     },
   },
   "Store Manager": {
-    label: "Store Manager", icon: "📦", color: "#22c55e", badge: "Store",
+    label: "Store Manager", icon: "📦", color: "#15803d", badge: "Store",
     pages: ["dashboard","inventory","inward","outward","pending","machines","history"],
     actions: {
       inventory: { add: false, edit: false, delete: false, adjust: true  },
@@ -17268,7 +17268,7 @@ const ROLE_CONFIG = {
     },
   },
   Production: {
-    label: "Production", icon: "🔧", color: "#f59e0b", badge: "Production",
+    label: "Production", icon: "🔧", color: "#b45309", badge: "Production",
     pages: ["dashboard","inventory","outward","pending","machines","history"],
     actions: {
       inventory: { add: false, edit: false, delete: false, adjust: false },
@@ -17357,7 +17357,7 @@ function GlobalSearch({ items, pos, vendorList, machineLog, onClose, onNavigate 
 
   const CATS = [
     {
-      type: "item", label: "Items & Inventory", color: "#22c55e",
+      type: "item", label: "Items & Inventory", color: "#15803d",
       total: matchedItems.length,
       rows: matchedItems.slice(0, LIMIT).map((i) => ({
         nav: "inventory", icon: "📦", color: SC[i.status] || "#64748b",
@@ -17390,12 +17390,12 @@ function GlobalSearch({ items, pos, vendorList, machineLog, onClose, onNavigate 
       })),
     },
     {
-      type: "machine", label: "Machines & Serial Numbers", color: "#8b5cf6",
+      type: "machine", label: "Machines & Serial Numbers", color: "#6d28d9",
       total: matchedMachines.length,
       rows: matchedMachines.slice(0, LIMIT).map((m) => {
         const stClr = { "In Progress":"#f59e0b", "Completed":"#22c55e", "Pending":"#64748b", "On Hold":"#ef4444" }[m.status] || "#64748b";
         return {
-          nav: "machines", icon: "🔧", color: "#8b5cf6",
+          nav: "machines", icon: "🔧", color: "#6d28d9",
           label: m.serialNo ? `${m.bomKey} — S/N: ${m.serialNo}` : m.bomKey,
           badge: { text: m.status, bg: stClr + "20", color: stClr },
           sub: `${m.bomLabel || m.bomKey}  ·  Stage: ${m.stage}`,
@@ -17524,12 +17524,12 @@ function GlobalSearch({ items, pos, vendorList, machineLog, onClose, onNavigate 
 
 function NotificationPanel({ notifications, dismissed, onClose, onNavigate, onDismiss, onDismissAll }) {
   const TYPE_CFG = {
-    critical:      { label: "Critical Stock",     icon: "🔴", color: "#ef4444", nav: "inventory" },
-    warning:       { label: "Low Stock Alert",    icon: "🟠", color: "#f59e0b", nav: "inventory" },
+    critical:      { label: "Critical Stock",     icon: "🔴", color: "#b91c1c", nav: "inventory" },
+    warning:       { label: "Low Stock Alert",    icon: "🟠", color: "#b45309", nav: "inventory" },
     approval:      { label: "Approval Pending",   icon: "📋", color: "#D71920", nav: "pipeline" },
-    followup:      { label: "Follow-Up Due",      icon: "📞", color: "#8b5cf6", nav: "pipeline" },
-    pending_alert: { label: "Pending Materials",  icon: "⏳", color: "#D97706", nav: "pending" },
-    machine_ready: { label: "Machine Ready",      icon: "🏆", color: "#22c55e", nav: "machines" },
+    followup:      { label: "Follow-Up Due",      icon: "📞", color: "#6d28d9", nav: "pipeline" },
+    pending_alert: { label: "Pending Materials",  icon: "⏳", color: "#b45309", nav: "pending" },
+    machine_ready: { label: "Machine Ready",      icon: "🏆", color: "#15803d", nav: "machines" },
   };
   const active = notifications.filter((n) => !dismissed.has(n.id));
   const byType = {};
@@ -18900,7 +18900,7 @@ export default function App() {
     if (bomDefs[k]) return { success: false, error: "A BOM with this key already exists" };
     if (!(def.label || "").trim()) return { success: false, error: "Machine Model Name is required" };
     if (!(def.items || []).length) return { success: false, error: "At least one component is required" };
-    const palette = ["#D71920","#B01218","#8b5cf6","#ec4899","#f59e0b","#22c55e","#0e7490","#14b8a6","#D97706","#a855f7"];
+    const palette = ["#D71920","#B01218","#6d28d9","#be185d","#b45309","#15803d","#0e7490","#0f766e","#B45309","#7e22ce"];
     const color = def.color || palette[Object.keys(bomDefs).length % palette.length];
     const newBom = {
       label: def.label.trim(),
@@ -18929,7 +18929,7 @@ export default function App() {
     let newKey = `${srcKey}-COPY`;
     let n = 2;
     while (bomDefs[newKey]) { newKey = `${srcKey}-COPY-${n++}`; }
-    const palette = ["#D71920","#B01218","#8b5cf6","#ec4899","#f59e0b","#22c55e","#0e7490","#14b8a6","#D97706","#a855f7"];
+    const palette = ["#D71920","#B01218","#6d28d9","#be185d","#b45309","#15803d","#0e7490","#0f766e","#B45309","#7e22ce"];
     const newBom = {
       label:        src.label ? `${src.label} (Copy)` : newKey,
       color:        palette[Object.keys(bomDefs).length % palette.length],
@@ -20379,9 +20379,14 @@ export default function App() {
 
       {/* Supabase misconfiguration banner — deployed build without DB env vars shows this
           instead of silently falling back to empty/demo data. */}
+      {/* Pinned to the BOTTOM, not the top. At top-0 with z-[200] and no body
+          offset it covered the Topbar, and on a phone that means it covered the
+          hamburger — the banner warning you the database is missing also made it
+          impossible to navigate away from the screen. pointer-events are off so
+          it can never swallow a tap meant for what is underneath. */}
       {!SUPA && (
-        <div className="fixed top-0 inset-x-0 z-[200] flex items-center justify-center gap-2 px-4 py-2 text-center"
-             style={{ background: "linear-gradient(90deg,#7f1d1d,#991b1b)", borderBottom: "1px solid rgba(239,68,68,0.5)" }}>
+        <div className="fixed bottom-0 inset-x-0 z-[200] flex items-center justify-center gap-2 px-4 py-2 text-center pointer-events-none"
+             style={{ background: "linear-gradient(90deg,#7f1d1d,#991b1b)", borderTop: "1px solid rgba(239,68,68,0.5)" }}>
           <span className="text-sm">⚠️</span>
           <span className="text-[11px] font-bold text-red-100">
             Live database not connected — set VITE_USE_SUPABASE, VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY in Vercel and redeploy.

@@ -27,7 +27,7 @@ const PAGE_LABELS = {
   audit: "Audit Trail", settings: "Settings", users: "User Management", roles: "Role Management",
 };
 
-const COLORS = ["#B01218","#D71920","#22c55e","#f59e0b","#ec4899","#14b8a6","#8b5cf6","#D97706"];
+const COLORS = ["#B01218","#D71920","#15803d","#b45309","#be185d","#0f766e","#6d28d9","#B45309"];
 const ICONS  = ["👑","🛒","📦","🔧","🔑","📊","🏭","⚙️","👤","🔐"];
 
 function makeEmptyRole() {
@@ -195,7 +195,7 @@ export default function RoleManagementPage({ canDo }) {
                 <span className="text-2xl">🔑</span>
                 <div>
                   <div className="font-bold text-sm" style={{ color: "var(--text-strong)" }}>Super Admin</div>
-                  <div className="text-[10px] mt-0.5" style={{ color: "#ec4899" }}>Full System Access</div>
+                  <div className="text-[10px] mt-0.5" style={{ color: "#be185d" }}>Full System Access</div>
                 </div>
               </div>
               <span className="px-2 py-0.5 rounded-full text-[9px] font-bold text-pink-300 uppercase tracking-wide" style={{ background: "rgba(236,72,153,0.15)" }}>Built-in</span>
