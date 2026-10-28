@@ -12912,7 +12912,12 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   // to an earlier department). Optional: the button hides when absent.
   onRaisePendingItem,
   // Migration 036 — a production head releases a machine off the rack.
-  onReleaseHandover }) {
+  onReleaseHandover,
+  // Material-arrived badge. A critical part issued later from Pending Stock is
+  // already recorded as a `pending_fulfilled` audit row, but nothing told the
+  // department waiting on it that it had arrived — they found out by asking.
+  // Read-only: the badge is derived, nothing new is stored.
+  auditLog = [] }) {
   const [filter,   setFilter]   = useState("active");
   const [expanded, setExpanded] = useState(null);
   const [stageMap, setStageMap] = useState({});
@@ -14019,6 +14024,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               .filter((p) => String(p.machineId) === String(machine.id) && p.status === "open");
             const machineOpenItems = machineOpenAll.filter((p) => p.kind !== "owed");
             const machineOwedItems = machineOpenAll.filter((p) => p.kind === "owed");
+            // Parts that were short at BOM issue and have since been given out
+            // of Pending Stock. Matched on serial number, the same way the
+            // machine report already matches them.
+            const arrivedItems = (auditLog || []).filter(
+              (a) => a && a.type === "pending_fulfilled"
+                  && machine.serialNo && String(a.serialNo || "") === String(machine.serialNo)
+            );
 
             return (
               <div key={machine.id} className="bg-white rounded-xl overflow-hidden transition-all"
@@ -14053,6 +14065,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                 style={{ background: "rgba(17,24,39,0.04)", color: "#6b7280", border: "1px solid var(--border-rim)" }}>
                             Step {curIdx + 1} of {MACHINE_STAGES.length}
                           </span>
+                          {arrivedItems.length > 0 && (
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
+                                  title={arrivedItems.map((a) => `${a.itemName || a.itemCode}${a.qty ? ` ×${a.qty}` : ""}`).join(", ")}
+                                  style={{ background: "rgba(21,128,61,0.10)", color: "#15803d", border: "1px solid rgba(21,128,61,0.35)" }}>
+                              📦 Material arrived ({arrivedItems.length})
+                            </span>
+                          )}
                           {isComplete && (
                             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background:"rgba(34,197,94,0.12)", color:"#15803d", border:"1px solid rgba(34,197,94,0.25)" }}>
                               ✓ Completed
@@ -20193,6 +20212,7 @@ export default function App() {
                               currentUser={currentUser}
                               /* Phase B props */
                               checklistTemplates={checklistTemplates}
+                              auditLog={auditLog}
                               pendingHandoverItems={pendingHandoverItems}
                               attachments={attachments}
                               deptRatings={deptRatings}
