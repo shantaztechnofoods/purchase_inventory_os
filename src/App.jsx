@@ -66,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-28-ui-phase3";
+const APP_BUILD = "2026-10-28-ui-phase4";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -1425,7 +1425,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                   Confirm
                 </button>
                 <button onClick={() => { setAdjustMode(null); setAdjustQty(""); }}
-                        className="px-3 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-slate-900 bg-slate-50 border border-slate-200 transition-all">
+                        className="px-3 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-50 border border-slate-200 transition-all">
                   Cancel
                 </button>
               </div>
@@ -1646,7 +1646,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                                 : <span className="text-slate-500">{u.dept || "Manual"}</span>}
                             </td>
                             <td className="px-2.5 py-1.5 text-[10px] font-mono">
-                              {u.serialNo ? <span className="text-blue-400">{u.serialNo}</span> : <span className="text-slate-700">—</span>}
+                              {u.serialNo ? <span className="text-blue-400">{u.serialNo}</span> : <span style={{ color: "var(--text-faint)" }}>—</span>}
                             </td>
                             <td className="px-2.5 py-1.5 text-[10px] font-mono font-bold text-orange-400">
                               -{u.qty} {item.unit}
@@ -2475,7 +2475,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
         {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between flex-shrink-0"
              style={{ background: "#f8f9fb" }}>
-          <div className="text-[10px] text-slate-500">Fields marked <span className="text-red-400">*</span> are required</div>
+          <div className="text-[10px] text-slate-500">Fields marked <span className="text-red-600">*</span> are required</div>
           <div className="flex gap-2">
             <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
             <button onClick={handleSave}
@@ -3160,7 +3160,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
               { key: "safe",     label: `Safe (${safeCount})`,             active: "bg-green-50 text-green-700 border border-green-200"      },
             ].map(({ key, label, active }) => (
               <button key={key} onClick={() => setStatusFilter(key)}
-                      className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-all ${statusFilter === key ? active : "text-slate-500 hover:text-slate-500"}`}>
+                      className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-all ${statusFilter === key ? active : "text-slate-600 hover:text-slate-900"}`}>
                 {label}
               </button>
             ))}
@@ -4097,7 +4097,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
               <div className="text-[10px] text-slate-500 mb-3">All line item quantities will be added to inventory stock automatically.</div>
               <div className="flex gap-2">
                 <button onClick={onMarkReceived} className="px-4 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: "rgba(34,197,94,0.8)", border: "1px solid rgba(34,197,94,0.5)", color: "#fff" }}>✅ Confirm Received</button>
-                <button onClick={() => setConfirmReceive(false)} className="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-900 bg-slate-50 border border-slate-200 transition-all">Cancel</button>
+                <button onClick={() => setConfirmReceive(false)} className="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-50 border border-slate-200 transition-all">Cancel</button>
               </div>
             </div>
           )}
@@ -4108,7 +4108,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
               <div className="text-[10px] text-slate-500 mb-3">This cannot be undone.</div>
               <div className="flex gap-2">
                 <button onClick={onDelete} className="px-4 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: "rgba(239,68,68,0.8)", border: "1px solid rgba(239,68,68,0.5)", color: "#fff" }}>Yes, Delete</button>
-                <button onClick={() => setConfirmDelete(false)} className="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-900 bg-slate-50 border border-slate-200 transition-all">Cancel</button>
+                <button onClick={() => setConfirmDelete(false)} className="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-50 border border-slate-200 transition-all">Cancel</button>
               </div>
             </div>
           )}
@@ -4254,7 +4254,7 @@ function PurchasePage({ pos, vendorList, items, onCreatePO, onUpdatePO, onReceiv
             </div>
             <input value={search} onChange={(e) => setSearch(e.target.value)}
               placeholder="🔍 Search PO / vendor..."
-              className="ml-auto bg-slate-50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-600 outline-none focus:border-blue-500/40 w-52" />
+              className="ml-auto bg-slate-50 border border-white/10 rounded-lg px-3 py-1.5 text-xs placeholder-slate-400 outline-none focus:border-blue-500/40 w-52" />
           </div>
 
           <div className="overflow-x-auto">
@@ -4475,10 +4475,10 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
                               : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-yellow-300" style={{ background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.25)" }}>↻ Update existing</span>}
                           </td>
                           <td className="px-3 py-2.5 text-[11px] font-semibold text-white whitespace-nowrap">{r.name}</td>
-                          <td className="px-3 py-2.5 text-[11px] text-slate-400 whitespace-nowrap">{r.contactPerson || <span className="text-slate-700">—</span>}</td>
-                          <td className="px-3 py-2.5 text-[11px] text-slate-400 whitespace-nowrap">{r.phone || <span className="text-slate-700">—</span>}</td>
-                          <td className="px-3 py-2.5 text-[11px] text-slate-400 max-w-[160px] truncate">{r.email || <span className="text-slate-700">—</span>}</td>
-                          <td className="px-3 py-2.5 text-[11px] text-slate-400 whitespace-nowrap">{r.gst || <span className="text-slate-700">—</span>}</td>
+                          <td className="px-3 py-2.5 text-[11px] text-slate-400 whitespace-nowrap">{r.contactPerson || <span style={{ color: "var(--text-faint)" }}>—</span>}</td>
+                          <td className="px-3 py-2.5 text-[11px] text-slate-400 whitespace-nowrap">{r.phone || <span style={{ color: "var(--text-faint)" }}>—</span>}</td>
+                          <td className="px-3 py-2.5 text-[11px] text-slate-400 max-w-[160px] truncate">{r.email || <span style={{ color: "var(--text-faint)" }}>—</span>}</td>
+                          <td className="px-3 py-2.5 text-[11px] text-slate-400 whitespace-nowrap">{r.gst || <span style={{ color: "var(--text-faint)" }}>—</span>}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -5616,7 +5616,7 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
               <input value={input} onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && send(input)}
                 placeholder="Ask about inventory, POs, vendors..."
-                className="flex-1 bg-slate-50 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-purple-500/40" />
+                className="flex-1 bg-slate-50 border border-white/10 rounded-lg px-3 py-2 text-xs placeholder-slate-400 outline-none focus:border-purple-500/40" />
               <Btn variant="primary" size="sm" onClick={() => send(input)}>Send ↗</Btn>
             </div>
           </div>
@@ -6055,7 +6055,7 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
             <input type="text" value={editing.name}
                    onChange={(e) => setEditing((prev) => prev ? { ...prev, name: e.target.value } : prev)}
                    placeholder="e.g. Raju Kumar"
-                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[12px] text-white placeholder-slate-600 outline-none focus:border-blue-500/40" />
+                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[12px] placeholder-slate-400 outline-none focus:border-blue-500/40" />
           </div>
           <div>
             <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Departments</label>
@@ -6697,7 +6697,7 @@ function POSearchCenter({
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Search</div>
             <input value={searchQ} onChange={(e) => { setSearchQ(e.target.value); setPage(0); }}
                    placeholder="PO number, vendor, item code, item name…"
-                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-blue-500/40" />
+                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs placeholder-slate-400 outline-none focus:border-blue-500/40" />
           </div>
           <div>
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Status</div>
@@ -6767,7 +6767,7 @@ function POSearchCenter({
                     <td className="px-4 py-3 text-xs font-mono font-bold text-blue-400 whitespace-nowrap">{po.id}</td>
                     <td className="px-4 py-3 text-xs font-semibold text-white max-w-[200px]"><div className="truncate">{po.vendor}</div></td>
                     <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap font-mono">{po.poDate || po.date || "—"}</td>
-                    <td className="px-4 py-3 text-[11px] text-slate-400 max-w-[180px]"><div className="truncate">{pt?.label || <span className="text-slate-700">—</span>}</div></td>
+                    <td className="px-4 py-3 text-[11px] text-slate-400 max-w-[180px]"><div className="truncate">{pt?.label || <span style={{ color: "var(--text-faint)" }}>—</span>}</div></td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
                             style={{ color: sc, background: `${sc}18`, border: `1px solid ${sc}38` }}>
@@ -7054,7 +7054,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
             { k: "search",   label: "🔍 Search" },
           ].map(({ k, label }) => (
             <button key={k} onClick={() => setViewMode(k)}
-                    className={`px-2.5 py-1 rounded-md text-[10.5px] font-bold transition-all ${viewMode === k ? "bg-blue-500/20 text-blue-300 border border-blue-500/40" : "text-slate-500 hover:text-slate-500"}`}>
+                    className={`px-2.5 py-1 rounded-md text-[10.5px] font-bold transition-all ${viewMode === k ? "bg-blue-500/20 text-blue-300 border border-blue-500/40" : "text-slate-600 hover:text-slate-900"}`}>
               {label}
             </button>
           ))}
@@ -7429,7 +7429,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
             )}
             <div className="flex gap-2 pt-1">
               <button onClick={cancelVendorWizard}
-                      className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-slate-900 transition-all"
+                      className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 transition-all"
                       style={{ background: "rgba(17,24,39,0.04)", border: "1px solid var(--border-rim)" }}>Cancel</button>
               <button onClick={confirmWizVendor} disabled={!vendorWizVendor}
                       className="flex-1 py-2.5 rounded-xl text-xs font-black text-white transition-all disabled:opacity-50"
@@ -7701,10 +7701,10 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               ⚠️ This will subtract the received quantities from inventory and revert the PO status. Action will be logged in audit history.
             </div>
             <div>
-              <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-1.5">Reason <span className="text-red-400">*</span></div>
+              <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-1.5">Reason <span className="text-red-600">*</span></div>
               <textarea value={reverseReason} onChange={e => { setReverseReason(e.target.value); setReverseErr(""); }} rows={3}
                 placeholder="e.g. Received by mistake / Wrong vendor / Test entry…"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 outline-none resize-none" />
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs placeholder-slate-400 outline-none resize-none" />
               {reverseErr && <div className="text-[10px] text-red-600 mt-1">{reverseErr}</div>}
             </div>
             <div className="flex gap-2">
@@ -7732,10 +7732,10 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
           <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background:"var(--surface-elevated)", border:"1px solid rgba(239,68,68,0.4)", boxShadow:"0 40px 80px rgba(17,24,39,0.22)", animation:"slideUp 0.25s ease both" }}>
             <div className="text-sm font-black text-white">❌ Reject PO</div>
             <div>
-              <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-1.5">Rejection Reason <span className="text-red-400">*</span></div>
+              <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-1.5">Rejection Reason <span className="text-red-600">*</span></div>
               <textarea value={rejectReason} onChange={e=>{setRejectReason(e.target.value);setRejectErr(false);}} rows={3}
                         placeholder="Enter reason for rejection..."
-                        className={`w-full bg-slate-50 border rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 outline-none resize-none modal-input ${rejectErr?"border-red-500/60":"border-slate-200"}`} />
+                        className={`w-full bg-slate-50 border rounded-xl px-4 py-2.5 text-xs placeholder-slate-400 outline-none resize-none modal-input ${rejectErr?"border-red-500/60":"border-slate-200"}`} />
               {rejectErr && <div className="text-[10px] text-red-600 mt-1">Reason is required</div>}
             </div>
             <div className="flex gap-2">
@@ -7757,7 +7757,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               <div className="text-[10px] text-slate-500 mt-1">{moModal.id} · {moModal.vendor} · ₹{(moModal.amount||0).toLocaleString("en-IN")}</div>
             </div>
             <div>
-              <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-2">ETA — Delivery in <span className="text-red-400">*</span></div>
+              <div className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-2">ETA — Delivery in <span className="text-red-600">*</span></div>
               <div className="grid grid-cols-4 gap-1.5 mb-2">
                 {[1,3,5,7].map(d=>(
                   <button key={d} onClick={()=>{setEta(String(d));setEtaCustom("");}}
@@ -7853,16 +7853,16 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               </div>
               {/* Qty input */}
               <div className="px-5 pt-4">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Order Quantity <span className="text-red-400">*</span></div>
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Order Quantity <span className="text-red-600">*</span></div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setQtyInput(v => String(Math.max(1, (parseInt(v, 10) || 0) - 1)))}
-                          className="w-9 h-9 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-white/10 border border-slate-200 transition-all text-lg font-bold flex items-center justify-center flex-shrink-0">−</button>
+                          className="w-9 h-9 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white/10 border border-slate-200 transition-all text-lg font-bold flex items-center justify-center flex-shrink-0">−</button>
                   <input type="number" min="1" value={qtyInput}
                          onChange={e => setQtyInput(e.target.value)}
                          className="flex-1 text-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-white outline-none modal-input"
                          style={{ fontVariantNumeric: "tabular-nums" }} />
                   <button onClick={() => setQtyInput(v => String((parseInt(v, 10) || 0) + 1))}
-                          className="w-9 h-9 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-white/10 border border-slate-200 transition-all text-lg font-bold flex items-center justify-center flex-shrink-0">+</button>
+                          className="w-9 h-9 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white/10 border border-slate-200 transition-all text-lg font-bold flex items-center justify-center flex-shrink-0">+</button>
                 </div>
                 {item.lastPurchaseRate > 0 && (
                   <div className="mt-2 px-3 py-2 rounded-xl flex justify-between items-center"
@@ -8401,9 +8401,9 @@ function BomChecklistSlots({
                     Must do
                   </label>
                   <button onClick={() => moveRow(idx, -1)} disabled={idx === 0 || busy}
-                          className="text-[10px] font-bold w-6 h-6 rounded border border-slate-200 bg-slate-50 text-slate-400 hover:text-slate-900 disabled:opacity-30">▲</button>
+                          className="text-[10px] font-bold w-6 h-6 rounded border border-slate-200 bg-slate-50 text-slate-600 hover:text-slate-900 disabled:opacity-30">▲</button>
                   <button onClick={() => moveRow(idx, 1)} disabled={idx === editing.items.length - 1 || busy}
-                          className="text-[10px] font-bold w-6 h-6 rounded border border-slate-200 bg-slate-50 text-slate-400 hover:text-slate-900 disabled:opacity-30">▼</button>
+                          className="text-[10px] font-bold w-6 h-6 rounded border border-slate-200 bg-slate-50 text-slate-600 hover:text-slate-900 disabled:opacity-30">▼</button>
                   <button onClick={() => removeRow(idx)} disabled={busy || editing.items.length === 1}
                           className="text-[10px] font-bold w-6 h-6 rounded border border-red-500/20 bg-red-500/10 text-red-300 hover:bg-red-500/20 disabled:opacity-30">✕</button>
                 </div>
@@ -8865,9 +8865,9 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
           {/* Units stepper */}
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(17,24,39,0.04)", border: "1px solid rgba(17,24,39,0.10)" }}>
             <span className="text-[10px] text-slate-400 mr-1">Units</span>
-            <button onClick={() => onUnitsChange(Math.max(1, units - 1))} className="w-6 h-6 rounded text-sm font-bold text-slate-400 hover:text-slate-900 hover:bg-white/10 transition-all">−</button>
+            <button onClick={() => onUnitsChange(Math.max(1, units - 1))} className="w-6 h-6 rounded text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-white/10 transition-all">−</button>
             <span className="text-sm font-black text-white w-8 text-center font-mono" style={{ fontFamily: "'Inter',system-ui,sans-serif" }}>{units}</span>
-            <button onClick={() => onUnitsChange(units + 1)} className="w-6 h-6 rounded text-sm font-bold text-slate-400 hover:text-slate-900 hover:bg-white/10 transition-all">+</button>
+            <button onClick={() => onUnitsChange(units + 1)} className="w-6 h-6 rounded text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-white/10 transition-all">+</button>
           </div>
 
           <button onClick={() => { if (editMode) { setEditMode(false); resetEditState(); } else { resetEditState(); setEditMode(true); } }}
@@ -9823,14 +9823,14 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
             </div>
             <div className="px-6 py-5 space-y-4">
               <div>
-                <div className="text-[11px] font-medium text-blue-300 mb-2">Serial Number <span className="text-red-400">*</span></div>
+                <div className="text-[11px] font-medium text-blue-300 mb-2">Serial Number <span className="text-red-600">*</span></div>
                 <input
                   autoFocus
                   value={pendingSerial}
                   onChange={(e) => { setPendingSerial(e.target.value); setSerialErr(""); }}
                   onKeyDown={(e) => e.key === "Enter" && confirmSerial()}
                   placeholder="e.g. SHT-KM10-2024-001"
-                  className="w-full bg-slate-50 border rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 outline-none transition-all"
+                  className="w-full bg-slate-50 border rounded-xl px-4 py-2.5 text-sm placeholder-slate-400 outline-none transition-all"
                   style={{ borderColor: serialErr ? "rgba(239,68,68,0.5)" : "rgba(17,24,39,0.10)", fontFamily: "'Inter',system-ui,sans-serif" }}
                 />
                 {serialErr && <div className="text-[11px] text-red-400 mt-1.5">{serialErr}</div>}
@@ -10166,7 +10166,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
 
             <div className="px-6 py-4 flex gap-2 flex-shrink-0" style={{ borderTop: "1px solid rgba(17,24,39,0.08)", background: "#f8f9fb" }}>
               <button onClick={() => setShowCreate(false)}
-                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-slate-900 transition-all"
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 transition-all"
                 style={{ background: "rgba(17,24,39,0.04)", border: "1px solid var(--border-rim)" }}>
                 Cancel
               </button>
@@ -12213,7 +12213,7 @@ function TrialCertificateModal({ machine, nowTick, workflow, busy, onClose, onSu
           </div>
           <TcStepper active={stage === "edit" ? 0 : 1} />
           <button type="button" aria-label="Close" onClick={() => !busy && onClose()}
-                  className="text-slate-400 hover:text-slate-900 text-xl leading-none px-1 transition-colors">✕</button>
+                  className="text-slate-600 hover:text-slate-900 text-xl leading-none px-1 transition-colors">✕</button>
         </header>
 
         <div ref={bodyRef} className="flex-1 overflow-y-auto bg-slate-50 p-4 md:p-5 space-y-4">
@@ -12281,7 +12281,7 @@ function TrialCertificatePrintModal({ machine, onClose }) {
             🖨 Print / Save as PDF
           </button>
           <button type="button" aria-label="Close" onClick={onClose}
-                  className="text-slate-400 hover:text-slate-900 text-xl leading-none px-1 transition-colors">✕</button>
+                  className="text-slate-600 hover:text-slate-900 text-xl leading-none px-1 transition-colors">✕</button>
         </header>
         <div className="flex-1 overflow-y-auto bg-slate-200/70 p-3 md:p-6">
           <TcPreviewFrame>
@@ -12929,7 +12929,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                               type="button"
                               onClick={(e) => { e.stopPropagation(); setRackActionsKey(rackActionsKey === r.key ? null : r.key); }}
                               title="Rack actions"
-                              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all"
+                              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all"
                               aria-haspopup="menu" aria-expanded={rackActionsKey === r.key}>
                               ⋮
                             </button>
@@ -13578,7 +13578,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         <button
                           onClick={(e) => { e.stopPropagation(); setRemoveRackConfirm({ machineId: m.id, serialNo: m.serialNo, bomKey: m.bomKey }); }}
                           title="Remove from rack (restore materials to stock)"
-                          className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-black text-red-400 hover:text-slate-900 hover:bg-red-500/20 transition-all flex-shrink-0"
+                          className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-black text-red-600 hover:text-red-800 hover:bg-red-500/20 transition-all flex-shrink-0"
                           style={{ border: "1px solid rgba(239,68,68,0.25)" }}>
                           🗑
                         </button>
@@ -13595,7 +13595,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
             <div className="flex gap-2">
               <button onClick={() => setStartProd(null)}
-                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-slate-900 transition-all"
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 transition-all"
                 style={{ background: "rgba(17,24,39,0.04)", border: "1px solid var(--border-rim)" }}>
                 Cancel
               </button>
@@ -14970,7 +14970,7 @@ function HRFilterBar({ search, setSearch, dateFrom, setDateFrom, dateTo, setDate
           className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none focus:border-blue-500/40 w-32" />
       )}
       {(search||dateFrom||dateTo||vendorFilter||itemFilter||machineFilter||serialFilter) && (
-        <button onClick={onReset} className="text-[10px] font-bold text-slate-500 hover:text-slate-500 px-2 py-1.5 rounded-lg border border-slate-200 hover:border-slate-200 transition-all">✕ Reset</button>
+        <button onClick={onReset} className="text-[10px] font-bold text-slate-600 hover:text-slate-900 px-2 py-1.5 rounded-lg border border-slate-200 hover:border-slate-200 transition-all">✕ Reset</button>
       )}
     </div>
   );
@@ -14979,9 +14979,9 @@ function HRFilterBar({ search, setSearch, dateFrom, setDateFrom, dateTo, setDate
 function HRExportBar({ onCSV, onExcel, onPDF }) {
   return (
     <div className="flex items-center gap-1.5">
-      <button onClick={onCSV}   className="text-[10px] font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-900 hover:border-slate-300 transition-all">CSV</button>
-      <button onClick={onExcel} className="text-[10px] font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-900 hover:border-slate-300 transition-all">Excel</button>
-      <button onClick={onPDF}   className="text-[10px] font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-900 hover:border-slate-300 transition-all">PDF</button>
+      <button onClick={onCSV}   className="text-[10px] font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 transition-all">CSV</button>
+      <button onClick={onExcel} className="text-[10px] font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 transition-all">Excel</button>
+      <button onClick={onPDF}   className="text-[10px] font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 transition-all">PDF</button>
     </div>
   );
 }
@@ -16125,7 +16125,7 @@ function GlobalSearch({ items, pos, vendorList, machineLog, onClose, onNavigate 
           <span className="text-slate-500 text-base flex-shrink-0">🔍</span>
           <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={handleKeyDown}
             placeholder="Search items, POs, vendors, machines, serial numbers…"
-            className="flex-1 bg-transparent text-sm text-white placeholder-slate-600 outline-none" />
+            className="flex-1 bg-transparent text-sm placeholder-slate-400 outline-none" />
           {q ? <button onClick={() => setQ("")} className="text-slate-600 hover:text-slate-400 text-xs transition-colors">✕</button> : null}
           <kbd className="text-[10px] text-slate-600 flex-shrink-0" style={{ background: "rgba(17,24,39,0.04)", border: "1px solid rgba(17,24,39,0.10)", borderRadius: 5, padding: "2px 6px" }}>ESC</kbd>
         </div>
