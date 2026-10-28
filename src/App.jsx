@@ -66,7 +66,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-28-premium-ui-v3";
+const APP_BUILD = "2026-10-28-premium-ui-v4";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -657,11 +657,11 @@ function Topbar({ title, subtitle, children }) {
 // ─── BUTTONS ─────────────────────────────────────────────────────────────────
 
 const Btn = ({ variant = "ghost", size = "sm", onClick, children, className = "", autoFocus = false, type = "button", title, disabled = false }) => {
-  const base = "inline-flex items-center gap-1.5 font-medium rounded-lg cursor-pointer border transition-all duration-150 active:scale-[0.96] select-none whitespace-nowrap";
+  const base = "inline-flex items-center gap-1.5 font-medium rounded-lg cursor-pointer border select-none whitespace-nowrap spring-tap focus-ring";
   const sizes = { xs: "text-[11px] px-2.5 py-1 leading-none", sm: "text-[12px] px-3 py-1.5", md: "text-[13px] px-4 py-2" };
   const variants = {
-    primary: "text-white border-transparent",
-    ghost:   "text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-50 hover:border-slate-300",
+    primary: "border-transparent btn-primary-brand",
+    ghost:   "text-slate-700 border-slate-200 bg-white hover:text-slate-900 hover:bg-slate-50 hover:border-slate-300",
     green:   "bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:border-green-300",
     red:     "bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300",
     wa:      "bg-[#22c55e] text-white border-[#16a34a] hover:bg-[#16a34a]",
@@ -669,18 +669,15 @@ const Btn = ({ variant = "ghost", size = "sm", onClick, children, className = ""
     orange:  "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 hover:border-orange-300",
     purple:  "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 hover:border-purple-300",
   };
-  const primaryStyle = variant === "primary" ? {
-    background: disabled ? "rgba(215,25,32,0.35)" : "linear-gradient(135deg,#d71920,#b01218)",
-    boxShadow: disabled ? "none" : "0 2px 12px rgba(215,25,32,0.22)",
-    color: "#ffffff",
+  const primaryStyle = variant === "primary" && disabled ? {
+    background: "rgba(215,25,32,0.35)", boxShadow: "none", color: "#ffffff",
   } : {};
-  const ghostStyle = {};
   const waStyle = variant === "wa" ? { color: "#ffffff" } : {};
   // eslint-disable-next-line jsx-a11y/no-autofocus
   return (
     <button type={type} onClick={onClick} autoFocus={autoFocus} title={title} disabled={disabled}
       className={`${base} ${sizes[size]} ${variants[variant]} ${className} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
-      style={{ ...primaryStyle, ...ghostStyle, ...waStyle }}>
+      style={{ ...primaryStyle, ...waStyle }}>
       {children}
     </button>
   );
@@ -688,34 +685,34 @@ const Btn = ({ variant = "ghost", size = "sm", onClick, children, className = ""
 
 // ─── METRIC CARD ─────────────────────────────────────────────────────────────
 
-function MetricCard({ label, value, delta, deltaUp, icon, barPct, barColor, valueColor, delay = 0 }) {
+function MetricCard({ label, value, delta, deltaUp, icon, barPct, barColor, valueColor, delay = 0, highlight = false }) {
   const color = barColor || "#E8553D";
   return (
     <div
-      className="rounded-2xl p-5 relative overflow-hidden card-hover"
+      className={`rounded-2xl p-5 relative overflow-hidden hover-lift ${highlight ? "gradient-border-static" : ""}`}
       style={{
         background: "var(--surface-card)",
-        border: "1px solid var(--border-subtle)",
+        border: highlight ? undefined : "1px solid var(--border-rim)",
         boxShadow: "var(--shadow-sm), var(--shadow-inset)",
-        animation: `slideUp 0.45s cubic-bezier(0.22,1,0.36,1) ${delay}ms both`,
+        animation: `slideUp 0.45s var(--ease-swift) ${delay}ms both`,
       }}
     >
       {/* Top accent line */}
       <div className="absolute top-0 left-5 right-5 h-px pointer-events-none"
-           style={{ background: `linear-gradient(90deg, transparent, ${color}70, transparent)` }} />
-      {/* Corner ambient */}
+           style={{ background: `linear-gradient(90deg, transparent, ${color}80, transparent)` }} />
+      {/* Corner ambient — slightly stronger for better visual depth */}
       <div className="absolute -top-10 -right-10 w-28 h-28 rounded-full pointer-events-none"
-           style={{ background: color, filter: "blur(36px)", opacity: 0.07 }} />
+           style={{ background: color, filter: "blur(38px)", opacity: 0.09 }} />
       {/* Icon */}
       {icon && (
-        <div className="absolute top-4 right-4 w-8 h-8 rounded-xl flex items-center justify-center text-sm"
-             style={{ background: color + "12", border: `1px solid ${color}20` }}>
+        <div className="absolute top-4 right-4 w-9 h-9 rounded-xl flex items-center justify-center text-base transition-transform duration-200"
+             style={{ background: color + "16", border: `1px solid ${color}26`, boxShadow: `0 2px 8px -2px ${color}22` }}>
           {icon}
         </div>
       )}
-      <div className="text-[9.5px] font-semibold uppercase tracking-[0.12em] mb-2.5" style={{ color: "var(--text-muted)" }}>{label}</div>
-      <div className={`text-[25px] font-bold leading-none mb-1.5 tabular-nums`}
-           style={{ fontFamily: "'Inter','SF Pro Text',system-ui,sans-serif", fontVariantNumeric: "tabular-nums", color: valueColor || "var(--text-strong)" }}>
+      <div className="text-[9.5px] font-semibold uppercase tracking-[0.14em] mb-2.5" style={{ color: "var(--text-muted)" }}>{label}</div>
+      <div className="text-[26px] font-bold leading-none mb-1.5 kpi-value"
+           style={{ fontFamily: "'Inter','SF Pro Text',system-ui,sans-serif", color: valueColor || "var(--text-strong)" }}>
         {value}
       </div>
       {delta && (
@@ -726,11 +723,12 @@ function MetricCard({ label, value, delta, deltaUp, icon, barPct, barColor, valu
         </div>
       )}
       {barPct !== undefined && (
-        <div className="mt-4 h-1 rounded-full overflow-hidden" style={{ background: "rgba(17,24,39,0.06)" }}>
+        <div className="mt-4 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(17,24,39,0.07)" }}>
           <div className="h-full rounded-full transition-all duration-700"
                style={{
                  width: `${Math.min(barPct, 100)}%`,
                  background: `linear-gradient(90deg, ${color}55, ${color})`,
+                 boxShadow: `0 0 8px ${color}50`,
                }} />
         </div>
       )}
