@@ -273,6 +273,17 @@ export default function UserManagementPage({ canDo }) {
     ...Object.entries(roles).map(([k, v]) => ({ value: k, label: v.label })),
   ];
 
+  // A department only means something for a role that can work a machine
+  // through the handover chain. Read it off the role itself rather than
+  // hard-coding role names, so a custom role created in Role Management
+  // behaves correctly too.
+  const roleWorksOnFloor = (() => {
+    if (form.role === "super_admin") return false;
+    const r = roles?.[form.role];
+    const m = r?.actions?.machines;
+    return !!(m && (m.finishTransfer || m.accept));
+  })();
+
   const filtered = users.filter((u) =>
     !search ||
     String(u.username || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -437,11 +448,15 @@ export default function UserManagementPage({ canDo }) {
                 {editUser && <div className="text-[10px] text-slate-600 mt-1">Username cannot be changed after creation</div>}
                 {errors.username && <div className="text-red-600 text-[10px] mt-1">{errors.username}</div>}
               </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Mobile Number</label>
-                <input value={form.mobile} onChange={(e) => setForm((f) => ({ ...f, mobile: e.target.value }))}
-                  placeholder="e.g. 9876543210" className={inputCls} style={inputStyle} />
-              </div>
+              {/* Optional, and never needed to create a login — kept on the edit
+                  form so an existing user can still have a number added. */}
+              {editUser && (
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Mobile Number</label>
+                  <input value={form.mobile} onChange={(e) => setForm((f) => ({ ...f, mobile: e.target.value }))}
+                    placeholder="e.g. 9876543210" className={inputCls} style={inputStyle} />
+                </div>
+              )}
               <div>
                 <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
                   {editUser ? "New Password (leave blank to keep current)" : "Password *"}
@@ -459,10 +474,11 @@ export default function UserManagementPage({ canDo }) {
                   ))}
                 </select>
               </div>
-              {/* Department(s) this login belongs to. A department login is the
-                  head's login: it decides which machines the Machine Tracker
-                  shows them. Leave empty for office roles — they see
-                  everything, as before. */}
+              {/* Department(s) this login belongs to. Only meaningful for a role
+                  that works on the Machine Tracker: it decides which machines
+                  that login opens on. An Admin or Purchase Manager has no
+                  department, so the picker is not shown to them at all. */}
+              {roleWorksOnFloor && (
               <div>
                 <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
                   Department
@@ -488,19 +504,25 @@ export default function UserManagementPage({ canDo }) {
                 </div>
                 <div className="text-[10px] text-slate-500 mt-1.5">
                   {(form.departments || []).length === 0
-                    ? "No department — this login sees every machine. Right for office and admin roles."
+                    ? "Pick one — without it this login sees every machine, not just its own."
                     : `This login opens on ${form.departments.join(" and ")} work only.`}
                 </div>
               </div>
+              )}
 
-              <div>
-                <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Status</label>
-                <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                  className={inputCls} style={inputStyle}>
-                  <option value="active" style={{ background: "#ffffff" }}>Active</option>
-                  <option value="disabled" style={{ background: "#ffffff" }}>Disabled</option>
-                </select>
-              </div>
+              {/* A new login is always active. Existing users are enabled and
+                  disabled with the button on their row in the list, so the
+                  dropdown only duplicated it. */}
+              {editUser && (
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Status</label>
+                  <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                    className={inputCls} style={inputStyle}>
+                    <option value="active" style={{ background: "#ffffff" }}>Active</option>
+                    <option value="disabled" style={{ background: "#ffffff" }}>Disabled</option>
+                  </select>
+                </div>
+              )}
 
               <div className="flex gap-2.5 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} disabled={submitting}
