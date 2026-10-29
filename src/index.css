@@ -540,9 +540,9 @@ tbody tr { transition: background-color 0.08s ease; }
 .sidebar-slate .sb-divider-top { border-top: 1px solid #1a2436; }
 
 .sidebar-slate .sb-logo {
-  background: linear-gradient(135deg, #f0353d, #c4151d);
-  color: #fff;
-  box-shadow: 0 4px 14px rgba(240, 53, 61, 0.4);
+  background: #ffffff;
+  color: #d71920;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
 }
 .sidebar-slate .sb-logo-name { color: #f8fafc; }
 .sidebar-slate .sb-logo-sub {
