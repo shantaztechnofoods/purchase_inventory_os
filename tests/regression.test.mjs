@@ -374,6 +374,7 @@ const USER_FACING_STRINGS = [
   "Critical Parts Fitted",
   "Serial numbers / verification",
   "Given later from Pending Stock",
+  "Material arrived",
   "Machine Trial Certificate",
   // Feature 1 — Responsive modals (2026-10-27)
   "Finish & Transfer",
