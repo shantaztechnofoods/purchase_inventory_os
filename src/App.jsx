@@ -5886,8 +5886,8 @@ function WhatsAppPage({ settings = {}, onSave }) {
     if (!localSettings.waApiKey || !localSettings.waOwnerPhone) return;
     setTestStatus("sending");
     try {
-      const { callFn } = await import("./stores/adminApi.js");
-      const res = await callFn("whatsapp-send", {
+      const { callWhatsAppFn } = await import("./stores/adminApi.js");
+      const res = await callWhatsAppFn("whatsapp-send", {
         to: localSettings.waOwnerPhone,
         message: "✅ Shantaz ERP — WhatsApp connected successfully!",
         apiKey: localSettings.waApiKey,
@@ -5944,8 +5944,8 @@ function WhatsAppPage({ settings = {}, onSave }) {
     setAgentInput("");
     setAgentLoading(true);
     try {
-      const { callFn } = await import("./stores/adminApi.js");
-      const res = await callFn("whatsapp-agent", {
+      const { callWhatsAppFn } = await import("./stores/adminApi.js");
+      const res = await callWhatsAppFn("whatsapp-agent", {
         messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
         trainingData,
         anthropicKey: localSettings.waAnthropicKey,
@@ -7306,11 +7306,12 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
               {settings.waApiKey && settings.waOwnerPhone && (
                 <button onClick={async () => {
                   try {
-                    const { callFn } = await import("./stores/adminApi.js");
-                    const res = await callFn("whatsapp-send", {
+                    const { callWhatsAppFn } = await import("./stores/adminApi.js");
+                    const res = await callWhatsAppFn("whatsapp-send", {
                       to: settings.waOwnerPhone,
                       message: `✅ Shantaz ERP WhatsApp Connected!\n\nTest message — ${new Date().toLocaleString("en-IN")}`,
                       apiKey: settings.waApiKey,
+                      pluginId: settings.waPluginId || "",
                       phoneId: settings.waPhoneId,
                     });
                     if (res && !res.error) alert("✅ Test message sent! Check WhatsApp.");
@@ -13733,13 +13734,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     if (!newOverdue.length) return;
     (async () => {
       try {
-        const { callFn } = await import("./stores/adminApi.js");
+        const { callWhatsAppFn } = await import("./stores/adminApi.js");
         for (const h of newOverdue) {
           const machine = machineLog.find((m) => String(m.id) === String(h.machineId));
           const msg = `🔴 Deadline Exceeded\nMachine: ${machine?.bomKey || "?"}${machine?.serialNo ? ` [${machine.serialNo}]` : ""}\n${h.fromDepartment} → ${h.toDepartment}\nWaiting: ${Math.round((Date.now() - new Date(h.sentAt).getTime()) / 60000)} min (limit ${h.acceptTimeoutMinutes || "?"} min)`;
           const phones = [settings.waOwnerPhone, settings.waGroupNumbers].filter(Boolean).join(",").split(",").map((p) => p.trim()).filter(Boolean);
           for (const phone of phones) {
-            callFn("whatsapp-send", { to: phone, message: msg, apiKey: settings.waApiKey, phoneId: settings.waPhoneId || "" })
+            callWhatsAppFn("whatsapp-send", { to: phone, message: msg, apiKey: settings.waApiKey, pluginId: settings.waPluginId || "", phoneId: settings.waPhoneId || "" })
               .catch((e) => console.warn("[WhatsApp] deadline alert failed", e));
           }
           waDeadlineAlertedRef.current.add(h.id);
@@ -21008,10 +21009,10 @@ export default function App() {
   const sendWhatsApp = async (to, message) => {
     if (!settings.waApiKey || !to || !message) return;
     try {
-      const { callFn } = await import("./stores/adminApi.js");
+      const { callWhatsAppFn } = await import("./stores/adminApi.js");
       const phones = String(to).split(",").map((p) => p.trim()).filter(Boolean);
       for (const phone of phones) {
-        callFn("whatsapp-send", {
+        callWhatsAppFn("whatsapp-send", {
           to: phone, message,
           apiKey: settings.waApiKey,
           pluginId: settings.waPluginId || "",

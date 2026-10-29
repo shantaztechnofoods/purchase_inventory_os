@@ -76,6 +76,40 @@ async function callFn(name, body) {
   return { success: true, ...data };
 }
 
+// WhatsApp relay via Vercel serverless functions (api/whatsapp-send.js,
+// api/whatsapp-agent.js) — NOT Supabase Edge Functions. These deploy with the
+// app on every push to main, so WhatsApp works in production without the
+// Supabase CLI. Same request body + { success, error, ... } response shape as
+// callFn(), so the WhatsApp call sites switch over by name only. The endpoint
+// is same-origin (/api/...), so no CORS and the API key never leaves our server
+// as a third-party browser request.
+export async function callWhatsAppFn(name, body) {
+  console.info(`[whatsappFn:${name}] start`, body && Object.keys(body));
+  try {
+    const resp = await fetch(`/api/${name}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    let data = {};
+    try { data = await resp.json(); } catch { /* non-JSON body */ }
+    if (!resp.ok) {
+      const err = data?.error || `${name} returned HTTP ${resp.status}`;
+      console.error(`[whatsappFn:${name}] FAILED`, { httpStatus: resp.status, responseBody: data });
+      return { success: false, error: err, httpStatus: resp.status, fullResponse: data };
+    }
+    if (data?.error) {
+      console.error(`[whatsappFn:${name}] returned error`, data.error);
+      return { success: false, error: data.error };
+    }
+    console.info(`[whatsappFn:${name}] ok`);
+    return { success: true, ...data };
+  } catch (thrown) {
+    console.error(`[whatsappFn:${name}] threw`, thrown);
+    return { success: false, error: `Network error calling ${name}: ${thrown?.message || String(thrown)}` };
+  }
+}
+
 export const adminCreateUser     = (p) => callFn("admin-create-user",     p);
 export const adminDeactivateUser = (p) => callFn("admin-deactivate-user", p);
 export const adminDeleteUser     = (p) => callFn("admin-delete-user",     p);
