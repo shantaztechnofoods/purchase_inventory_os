@@ -12932,6 +12932,41 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   const [raiseDept,  setRaiseDept]  = useState("");
   const [raiseErr,   setRaiseErr]   = useState("");
   const [raiseBusy,  setRaiseBusy]  = useState(false);
+  const [voiceActive, setVoiceActive] = useState(false);
+  const voiceRecRef = React.useRef(null);
+
+  // Voice input helper — Web Speech API (Hindi + English fallback)
+  const toggleVoice = React.useCallback((targetSetter) => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { setRaiseErr("Voice input is not supported in this browser."); return; }
+    if (voiceRecRef.current) {
+      voiceRecRef.current.stop();
+      voiceRecRef.current = null;
+      setVoiceActive(false);
+      return;
+    }
+    const rec = new SR();
+    rec.lang = "hi-IN";
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.onresult = (e) => {
+      let txt = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) txt += e.results[i][0].transcript;
+      }
+      if (txt) targetSetter((prev) => (prev ? prev + " " : "") + txt.trim());
+    };
+    rec.onerror = (e) => {
+      if (e.error !== "aborted") setRaiseErr("Voice error: " + e.error);
+      voiceRecRef.current = null;
+      setVoiceActive(false);
+    };
+    rec.onend = () => { voiceRecRef.current = null; setVoiceActive(false); };
+    rec.start();
+    voiceRecRef.current = rec;
+    setVoiceActive(true);
+  }, []);
+
   const [toast,    setToast]    = useState(null);
   const [issuePopup, setIssuePopup] = useState(null); // pendingHandoverItem for the detail popup
   const [startProd, setStartProd] = useState(null); // rack object { key, label, ready, capacity }
@@ -14815,13 +14850,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           });
           setRaiseBusy(false);
           if (r && r.success === false) { setRaiseErr(r.error || "Could not save the issue."); return; }
+          if (voiceRecRef.current) { voiceRecRef.current.stop(); voiceRecRef.current = null; setVoiceActive(false); }
           setRaiseModal(null);
           showToast(`${m.bomKey}${m.serialNo ? ` — ${m.serialNo}` : ""}`, `${raiseDept} called · machine is now blocked`);
         };
         return (
         <div className="modal-backdrop fixed inset-0 z-[70] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
-             onClick={(e) => e.target === e.currentTarget && !raiseBusy && setRaiseModal(null)}>
+             onClick={(e) => { if (e.target === e.currentTarget && !raiseBusy) { if (voiceRecRef.current) { voiceRecRef.current.stop(); voiceRecRef.current = null; setVoiceActive(false); } setRaiseModal(null); } }}>
           <div className="w-full max-w-lg rounded-2xl p-6"
                style={{ background: "var(--surface-raised)", border: "1px solid rgba(239,68,68,0.35)", boxShadow: "0 24px 70px rgba(17,24,39,0.2)" }}>
             <h3 className="text-base font-black text-slate-800 mb-1">Report an issue</h3>
@@ -14832,11 +14868,22 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             <label htmlFor="raise-desc" className="block text-[11px] font-bold text-slate-600 mb-1.5">
               What is wrong
             </label>
-            <textarea id="raise-desc" rows={3} value={raiseText} disabled={raiseBusy}
-                      onChange={(e) => setRaiseText(e.target.value)}
-                      placeholder="e.g. noise coming from the gearbox"
-                      className="w-full rounded-lg px-3 py-2.5 text-[13px] text-slate-800 outline-none resize-y"
-                      style={{ background: "var(--surface-elevated)", border: "1px solid rgba(17,24,39,0.12)" }} />
+            <div className="relative">
+              <textarea id="raise-desc" rows={3} value={raiseText} disabled={raiseBusy}
+                        onChange={(e) => setRaiseText(e.target.value)}
+                        placeholder={voiceActive ? "🎙 बोलिए… Listening…" : "e.g. noise coming from the gearbox · या हिंदी में बोलें 🎤"}
+                        className="w-full rounded-lg px-3 py-2.5 pr-12 text-[13px] text-slate-800 outline-none resize-y"
+                        style={{ background: "var(--surface-elevated)", border: voiceActive ? "2px solid #ef4444" : "1px solid rgba(17,24,39,0.12)" }} />
+              {(window.SpeechRecognition || window.webkitSpeechRecognition) && (
+                <button type="button" disabled={raiseBusy}
+                        onClick={() => toggleVoice(setRaiseText)}
+                        className="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center transition-all"
+                        style={{ background: voiceActive ? "#ef4444" : "rgba(239,68,68,0.1)", color: voiceActive ? "#fff" : "#ef4444" }}
+                        title={voiceActive ? "Stop voice" : "Voice input (Hindi)"}>
+                  {voiceActive ? "⏹" : "🎤"}
+                </button>
+              )}
+            </div>
 
             <label htmlFor="raise-dept" className="block text-[11px] font-bold text-slate-600 mt-4 mb-1.5">
               Which department must fix it
@@ -14861,7 +14908,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             )}
 
             <div className="flex gap-2 mt-5">
-              <button type="button" onClick={() => setRaiseModal(null)} disabled={raiseBusy}
+              <button type="button" onClick={() => { if (voiceRecRef.current) { voiceRecRef.current.stop(); voiceRecRef.current = null; setVoiceActive(false); } setRaiseModal(null); }} disabled={raiseBusy}
                       className="flex-1 h-11 rounded-lg text-[13px] font-bold text-slate-600 border transition-all disabled:opacity-40"
                       style={{ borderColor: "rgba(17,24,39,0.12)" }}>
                 Cancel
