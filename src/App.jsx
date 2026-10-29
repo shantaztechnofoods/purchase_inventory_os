@@ -15042,7 +15042,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         </button>
                       )}
                       {!isComplete && nextDepartment(machine.currentDepartment || machine.stage) && !machine.pendingHandoverId && canFinishTransfer(canDo) && onFinishTransfer && (
-                        machineOpenItems.length > 0 ? (
+                        /* A floor login is never blocked from moving a machine on:
+                           the shop floor must not stall at a button. Open faults
+                           still show as the "Go and fix" bucket + a heads-up, but
+                           they no longer freeze Finish & Transfer. Office/admin
+                           views keep the explicit block so a supervisor can see
+                           why a machine should not have moved. */
+                        (!isFloorLogin && machineOpenItems.length > 0) ? (
                           /* Phase 1 — blocked while faults are open. Disabled rather
                              than hidden, so the operator can see WHY the machine
                              cannot move and how many items remain. */
@@ -15052,7 +15058,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                   title={`${machineOpenItems.length} open issue${machineOpenItems.length === 1 ? "" : "s"} must be resolved before this machine can move on. Open History to resolve them.`}>
                             Blocked · {machineOpenItems.length} open issue{machineOpenItems.length === 1 ? "" : "s"}
                           </button>
-                        ) : (nextDepartment(machine.currentDepartment || machine.stage) === "Ready" && machineOwedItems.length > 0) ? (
+                        ) : (!isFloorLogin && nextDepartment(machine.currentDepartment || machine.stage) === "Ready" && machineOwedItems.length > 0) ? (
                           /* Phase 1 — a machine may move between departments with
                              work still owed on it, but it must not be presented as
                              ready for delivery while anything is outstanding. */
@@ -15064,10 +15070,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           </button>
                         ) : (
                           <button onClick={() => openFinishModal(machine)}
-                                  className="text-[11px] font-black text-slate-900 px-3 py-1.5 rounded-lg transition-all"
-                                  style={{ background: "linear-gradient(135deg,#D97706,#B45309)", boxShadow: "0 0 10px rgba(217, 119, 6,0.3)" }}
+                                  className={`font-black text-white rounded-lg transition-all ${isFloorLogin ? "text-[14px] px-5 py-2.5" : "text-[11px] px-3 py-1.5"}`}
+                                  style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 4px 14px -2px rgba(22,163,74,0.4)" }}
                                   title={`Finish ${machine.currentDepartment || machine.stage} → ${nextDepartment(machine.currentDepartment || machine.stage)}`}>
-                            Finish & Transfer →
+                            {isFloorLogin ? `✓ आगे भेजो → ${nextDepartment(machine.currentDepartment || machine.stage)}` : "Finish & Transfer →"}
                           </button>
                         )
                       )}
