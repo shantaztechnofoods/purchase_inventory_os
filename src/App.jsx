@@ -18594,6 +18594,49 @@ export default function App() {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
   }, []);
 
+  // ── slidePill enhancer (reel-inspired) ──
+  // For every `.filter-bar` segmented control, drop in a single `.slide-pill`
+  // element and glide it under the active tab, so switching tabs slides the
+  // highlight instead of snapping. Fully defensive: if a bar has no active tab
+  // or an unexpected shape, it is left exactly as the CSS renders it. Delegated
+  // click handling + a resize listener keep the pill aligned; a rAF after each
+  // render lets React settle the active class before we measure.
+  useEffect(() => {
+    let raf = 0;
+    const place = (bar) => {
+      try {
+        const active = bar.querySelector(".filter-tab.active");
+        if (!active) { bar.classList.remove("has-pill"); return; }
+        let pill = bar.querySelector(":scope > .slide-pill");
+        if (!pill) {
+          pill = document.createElement("div");
+          pill.className = "slide-pill";
+          bar.insertBefore(pill, bar.firstChild);
+        }
+        const l = active.offsetLeft, w = active.offsetWidth;
+        if (w > 0) {
+          pill.style.left = l + "px";
+          pill.style.width = w + "px";
+          bar.classList.add("has-pill");
+        }
+      } catch { /* leave bar as-is */ }
+    };
+    const placeAll = () => {
+      raf = requestAnimationFrame(() => {
+        document.querySelectorAll(".filter-bar").forEach(place);
+      });
+    };
+    placeAll();
+    const onClick = (e) => { if (e.target.closest(".filter-tab")) requestAnimationFrame(placeAll); };
+    document.addEventListener("click", onClick, true);
+    window.addEventListener("resize", placeAll);
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener("click", onClick, true);
+      window.removeEventListener("resize", placeAll);
+    };
+  });
+
   const [items, setItems] = useState(() => {
     // Supabase mode → start empty; the on-mount hydration is the source of truth (no demo flash).
     if (SUPA) return {};

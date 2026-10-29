@@ -659,12 +659,34 @@ body .filter-bar {
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
   padding: 3px;
+  position: relative;
 }
-body .filter-tab { border-radius: 7px; font-weight: 600; }
+body .filter-tab { border-radius: 7px; font-weight: 600; position: relative; z-index: 1; }
 body .filter-tab.active {
   background: #fff;
   color: var(--text-strong);
   box-shadow: 0 1px 3px rgba(15,23,42,0.1);
+}
+
+/* slidePill — sliding active indicator (reel-inspired). When the JS enhancer
+   positions a pill, the native active background hides so only the gliding
+   pill shows, sliding smoothly between tabs. */
+.slide-pill {
+  position: absolute;
+  top: 3px; bottom: 3px;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+  transition: left 0.3s var(--ease-swift), width 0.3s var(--ease-swift);
+  pointer-events: none;
+  z-index: 0;
+}
+body .filter-bar.has-pill .filter-tab.active {
+  background: transparent;
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .slide-pill { transition: none; }
 }
 
 /* Section headers inside pages — consistent weight */
