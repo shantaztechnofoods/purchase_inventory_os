@@ -84,6 +84,23 @@ export async function fetchPOs() {
   return out;
 }
 
+// Fresh single-row status read for a PO, straight from the DB. Used as a
+// cross-user race guard before receiving: another operator may have received
+// this PO a moment ago (status already "received" in the DB) while our
+// optimistic copy still shows it open. Null in local mode / on error → caller
+// falls back to the optimistic status check.
+export async function fetchPOStatus(id) {
+  if (!isSupabaseEnabled()) return null;
+  const c = getSupabase(); if (!c) return null;
+  try {
+    const { data, error } = await c.from("purchase_orders").select("status").eq("id", id).single();
+    if (error) return null;
+    return data?.status ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function createPO(po) {
   console.info("[pos:create] start", { id: po.id, purchaseType: po.purchaseType });
   if (!isSupabaseEnabled()) { setLocal([po, ...getLocal()]); return { success: true, po }; }

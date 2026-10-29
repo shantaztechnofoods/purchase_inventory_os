@@ -31,12 +31,12 @@ import { loadSettings, saveSettings } from "./stores/settingsStore.js";
 import { listVendors, createVendor, updateVendor, deleteVendor, archiveVendor, bulkCreateVendors } from "./stores/vendorsStore.js";
 import { fetchItems, createItem as itemCreate, updateItem as itemUpdate, deleteItem as itemDelete, updateStockAndHistory, addItemHistory } from "./stores/itemsStore.js";
 import { fetchBOMs, createBOM as bomCreate, updateBOM as bomUpdate, renameBOM as bomRename, deleteBOM as bomDelete } from "./stores/bomsStore.js";
-import { fetchPOs, createPO as poCreate, updatePO as poUpdate, deletePO as poDelete } from "./stores/posStore.js";
+import { fetchPOs, createPO as poCreate, updatePO as poUpdate, deletePO as poDelete, fetchPOStatus } from "./stores/posStore.js";
 import { fetchInward, createInward, bulkCreateInward, deleteInwardByPO } from "./stores/inwardStore.js";
 import { fetchOutward, createOutward, updateOutwardRef, deleteOutwardByIssueId } from "./stores/outwardStore.js";
 import { fetchPending, bulkCreatePending, updatePending as pendingUpdate, deletePending as pendingDelete, clearAllPending, updatePendingBomKey } from "./stores/pendingStore.js";
 import { fetchFollowUps, createFollowUp as followupCreate, updateFollowUp as followupUpdate, deleteFollowUpsByPO } from "./stores/followupsStore.js";
-import { fetchMachines, createMachine as machineCreate, updateMachine as machineUpdate, updateMachineBomKey, deleteMachine as machineDelete } from "./stores/machinesStore.js";
+import { fetchMachines, createMachine as machineCreate, updateMachine as machineUpdate, updateMachineBomKey, deleteMachine as machineDelete, fetchMachineLockState } from "./stores/machinesStore.js";
 import { fetchHandovers, createHandover as handoverCreate, acceptHandover as handoverAccept } from "./stores/handoverStore.js";
 import { getMySignature, saveMySignature, reauthenticateByPassword } from "./stores/signaturesStore.js";
 import {
@@ -19230,7 +19230,7 @@ export default function App() {
     }
   };
 
-  const handleReceivePO = (id) => {
+  const handleReceivePO = async (id) => {
     const po = pos.find((p) => p.id === id);
     if (!po) return;
     // Duplicate-write guard: already received, or a receive for this PO is already in flight.
@@ -19238,6 +19238,16 @@ export default function App() {
     if (receivingRef.current.has(id)) { console.warn("[App] handleReceivePO: receive already in flight, ignoring", id); return; }
     receivingRef.current.add(id);
     setTimeout(() => receivingRef.current.delete(id), 2000);  // self-heal so a later reverse→re-receive works
+    // Cross-user race guard: another operator may have received this PO moments
+    // ago on another device — the DB already shows "received" while our copy is
+    // stale. A fresh status read stops a double receive (which would double the
+    // stock). Null (local mode / read error) falls through to the check above.
+    const freshStatus = await fetchPOStatus(id);
+    if (freshStatus === "received") {
+      receivingRef.current.delete(id);
+      flashStockError(`${id}: already received by another operator. Refresh to see current status.`);
+      return;
+    }
     const dateStr = fmtDate(new Date());
 
     // Pre-compute how much of each received line item can fulfill pending entries
@@ -20497,6 +20507,17 @@ export default function App() {
     }
     transferringRef.current.add(machineId);
     setTimeout(() => transferringRef.current.delete(machineId), 3000);
+
+    // Cross-user race guard: another operator on another device may have opened
+    // a handover on this machine a moment ago — their write is in the DB even
+    // though our optimistic copy still shows it free. A fresh single-row read
+    // catches that before we create a duplicate handover. Null (local mode or
+    // read error) falls through to the optimistic check above.
+    const lockState = await fetchMachineLockState(machineId);
+    if (lockState && lockState.pendingHandoverId) {
+      transferringRef.current.delete(machineId);
+      return { success: false, error: "Another operator just moved this machine. Refresh to see its current stage." };
+    }
 
     const workflow = readDeptWorkflowSettings(settings);
 

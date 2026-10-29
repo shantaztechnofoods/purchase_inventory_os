@@ -87,6 +87,28 @@ export async function fetchMachines() {
   return out;
 }
 
+// Fresh single-row read of just a machine's pending_handover_id + status,
+// straight from the DB (no local cache). Used as a cross-user race guard
+// right before a transfer: if another operator already opened a handover on
+// this machine, their write is already in the DB even though our optimistic
+// state still shows it free. Returns null in local mode (no other users) and
+// on any error (caller then falls back to the optimistic check).
+export async function fetchMachineLockState(id) {
+  if (!isSupabaseEnabled()) return null;
+  const c = getSupabase(); if (!c) return null;
+  try {
+    const { data, error } = await c
+      .from("machine_log")
+      .select("pending_handover_id,status")
+      .eq("id", id)
+      .single();
+    if (error) return null;
+    return { pendingHandoverId: data?.pending_handover_id ?? null, status: data?.status ?? null };
+  } catch {
+    return null;
+  }
+}
+
 export async function createMachine(m) {
   console.info("[machines:create] start", { bomKey: m.bomKey, serialNo: m.serialNo });
   if (!isSupabaseEnabled()) { setLocal([m, ...getLocal()]); return { success: true, machine: m }; }
