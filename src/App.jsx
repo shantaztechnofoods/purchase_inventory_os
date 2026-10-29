@@ -5739,51 +5739,52 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
 
       <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chat */}
-        <div className="lg:col-span-2 bg-white border border-purple-500/20 rounded-xl overflow-hidden flex flex-col" style={{ height: "600px" }}>
-          <div className="bg-purple-500/10 border-b border-purple-500/20 p-4 flex items-center gap-3">
+        <div className="lg:col-span-2 section-card overflow-hidden flex flex-col" style={{ height: "600px" }}>
+          <div className="flex items-center gap-3 px-5 py-4" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
             <div className="relative">
-              <div className="w-8 h-8 rounded-full bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-sm">🤖</div>
-              <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 rounded-full border border-[#111622] animate-pulse" />
+              <div className="sec-icon" style={{ background: "rgba(124,58,237,0.1)", color: "#6d28d9" }}>🤖</div>
+              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 animate-pulse" style={{ borderColor: "var(--surface-card)" }} />
             </div>
             <div>
-              <div className="text-sm font-bold text-purple-400">Inventory AI</div>
-              <div className="text-[10px] text-slate-500">Analyzing {allItems.length} SKUs in real-time</div>
+              <div className="text-[14px] font-bold" style={{ color: "var(--text-strong)" }}>Inventory AI</div>
+              <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>Analyzing {allItems.length} SKUs in real-time</div>
             </div>
           </div>
 
-          <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-3" style={{ background: "var(--surface-base)" }}>
             {messages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[85%] text-xs leading-relaxed rounded-xl px-4 py-3 whitespace-pre-wrap ${
-                  msg.role === "user"
-                    ? "bg-blue-500/20 text-blue-100 border border-blue-500/30"
-                    : "bg-slate-50 text-slate-500 border border-slate-200"
-                }`}>
+                <div className="max-w-[85%] text-[13px] leading-relaxed rounded-2xl px-4 py-2.5 whitespace-pre-wrap shadow-sm"
+                  style={msg.role === "user"
+                    ? { background: "linear-gradient(135deg,#6d28d9,#5b21b6)", color: "#fff", borderBottomRightRadius: 6 }
+                    : { background: "var(--surface-card)", color: "var(--text)", border: "1px solid var(--border-subtle)", borderBottomLeftRadius: 6 }}>
                   {msg.text}
                 </div>
               </div>
             ))}
             {sending && (
               <div className="flex justify-start">
-                <div className="max-w-[85%] text-xs leading-relaxed rounded-xl px-4 py-3 whitespace-pre-wrap bg-slate-50 text-slate-500 border border-slate-200">
-                  🤖 Thinking…
+                <div className="max-w-[85%] text-[13px] leading-relaxed rounded-2xl px-4 py-2.5" style={{ background: "var(--surface-card)", color: "var(--text-dim)", border: "1px solid var(--border-subtle)" }}>
+                  <span className="animate-pulse">🤖 Thinking…</span>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="p-3 border-t border-slate-200">
+          <div className="p-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
             <div className="flex flex-wrap gap-1.5 mb-3">
               {quickActions.map((a) => (
                 <button key={a.label} onClick={() => send(a.query)}
-                  className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 hover:bg-purple-500/20 transition-colors">{a.label}</button>
+                  className="text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                  style={{ background: "rgba(124,58,237,0.08)", color: "#6d28d9", border: "1px solid rgba(124,58,237,0.2)" }}>{a.label}</button>
               ))}
             </div>
             <div className="flex gap-2">
               <input value={input} onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && send(input)}
                 placeholder="Ask about inventory, POs, vendors..."
-                className="flex-1 bg-slate-50 border border-white/10 rounded-lg px-3 py-2 text-xs placeholder-slate-400 outline-none focus:border-purple-500/40" />
+                className="flex-1 rounded-lg px-3 py-2.5 text-[13px] outline-none"
+                style={{ background: "var(--surface-base)", border: "1px solid var(--border-rim)", color: "var(--text)" }} />
               <Btn variant="primary" size="sm" onClick={() => send(input)}>Send ↗</Btn>
             </div>
           </div>
@@ -8750,10 +8751,11 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
 
       <div className="p-6 space-y-6">
         {/* ── Entry Form ── */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6" style={{ animation: "slideUp 0.4s ease both" }}>
-          <div className="flex items-center gap-2 mb-5">
-            <h2 className="text-sm font-extrabold text-slate-900">📥 New Inward Entry</h2>
-            <span className="text-[10px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded-full">GRN</span>
+        <div className="section-card p-6" style={{ animation: "slideUp 0.4s ease both" }}>
+          <div className="flex items-center gap-2.5 mb-5">
+            <div className="sec-icon" style={{ background: "rgba(5,150,105,0.1)", color: "#059669" }}>📥</div>
+            <h2 className="text-[14px] font-bold" style={{ color: "var(--text-strong)" }}>New Inward Entry</h2>
+            <span className="sp-pill sp-pill-green">GRN</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -12596,9 +12598,12 @@ function DepartmentScoreboard({ rows = [], openIssues = [], waitingNow = [] }) {
 
 function ReportKPI({ label, value, color = "#D71920", suffix = "" }) {
   return (
-    <div className="p-4 rounded-xl" style={{ background: `${color}10`, border: `1px solid ${color}33` }}>
-      <div className="text-[9px] font-bold uppercase tracking-[0.08em] mb-1" style={{ color }}>{label}</div>
-      <div className="text-3xl font-black mb-0.5" style={{ color }}>{value}{suffix}</div>
+    <div className="kpi-tile">
+      <div className="flex items-center justify-between mb-2">
+        <span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
+      </div>
+      <div className="text-[26px] font-extrabold tabular-nums leading-none tracking-[-0.02em]" style={{ color }}>{value}{suffix}</div>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.06em] mt-2" style={{ color: "var(--text-muted)" }}>{label}</div>
     </div>
   );
 }
