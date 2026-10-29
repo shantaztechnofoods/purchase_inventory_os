@@ -9690,7 +9690,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     return out;
   };
 
-  const doIssue = (chosenDest, { durationConfirmed = false } = {}) => {
+  const doIssue = async (chosenDest, { durationConfirmed = false } = {}) => {
     if (issuing) return;                    // duplicate production-issue guard
     // Critical-item gate (migration 026). Every critical line that is being
     // issued this round must have its confirmation ready (checkbox ticked, or
@@ -9770,26 +9770,16 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     setCriticalErr("");
     setIssuing(true);
     const issued = []; const pending = [];
-    // handleUpdateStock returns { success:false } when the movement is rejected
-    // — insufficient stock, a concurrent edit, an RLS refusal. That answer used
-    // to be thrown away: the loop pushed the line into `issued` regardless, and
-    // the outward log then claimed stock had left the store when it had not.
-    // Collect the rejections and tell the operator. (handleManualSubmit already
-    // checks this return value; this path did not.)
-    const stockFailures = [];
+    // Collect every stock move first, then commit them together. The old code
+    // fired each move fire-and-forget and called onIssue() regardless, so a
+    // rejected move (insufficient stock, concurrent edit, RLS refusal) still
+    // created the machine + outward log claiming stock had left the store when
+    // it had not. Now we AWAIT all moves: if any fail we roll back the ones that
+    // succeeded and abort — no machine, no phantom issue — and tell the operator.
+    const moves = [];
     checkedE.forEach((item) => {
       if (item.issueQty > 0 && item.inv) {
-        Promise.resolve(handleUpdateStock(item.inv.category, item.code, -item.issueQty, `BOM: ${bomKey}`))
-          .then((res) => {
-            if (res && res.success === false) {
-              stockFailures.push(`${item.name}: ${res.error || "movement rejected"}`);
-              onStockIssueFailed?.(bomKey, stockFailures.slice());
-            }
-          })
-          .catch((err) => {
-            stockFailures.push(`${item.name}: ${err?.message || err}`);
-            onStockIssueFailed?.(bomKey, stockFailures.slice());
-          });
+        moves.push({ category: item.inv.category, code: item.code, qty: item.issueQty, name: item.name });
       }
       if (item.issueQty > 0) {
         // Attach criticalInput so handleAddOutward can persist it in the
@@ -9809,6 +9799,29 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
       }
       if (item.pendingQty > 0) pending.push({ ...item });
     });
+
+    // Run the deductions and wait for every answer.
+    const results = await Promise.all(moves.map((m) =>
+      Promise.resolve(handleUpdateStock(m.category, m.code, -m.qty, `BOM: ${bomKey}`))
+        .then((res) => ({ m, ok: !(res && res.success === false), err: res?.error }))
+        .catch((err) => ({ m, ok: false, err: err?.message || String(err) }))
+    ));
+    const failures = results.filter((r) => !r.ok);
+    if (failures.length > 0) {
+      // Roll back the components that DID move, so we never leave the store
+      // short without a machine to account for it. Best-effort — these reversals
+      // succeed in local mode and almost always in Supabase mode too.
+      await Promise.all(results.filter((r) => r.ok).map((r) =>
+        Promise.resolve(handleUpdateStock(r.m.category, r.m.code, +r.m.qty, `BOM rollback: ${bomKey}`)).catch(() => {})
+      ));
+      setIssuing(false);
+      const msg = `Issue aborted — stock movement failed:\n${failures.map((f) => `${f.m.name}: ${f.err || "rejected"}`).join("\n")}`;
+      onStockIssueFailed?.(bomKey, failures.map((f) => `${f.m.name}: ${f.err || "rejected"}`));
+      setCriticalErr(msg);
+      setShowCriticalModal(true);
+      return;
+    }
+
     // Migration 027 — carry the per-machine duration overrides into the issue
     // payload. Only emitted when a serial is present (= machine will be
     // created). Non-serial manual outward sends nothing, matching legacy flow.
