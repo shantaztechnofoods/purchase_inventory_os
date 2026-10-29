@@ -511,14 +511,10 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
 
   return (
     <aside
-      className={`${collapsed ? "w-16" : "w-60"} app-sidebar${mobileOpen ? " is-open" : ""} no-print flex flex-col flex-shrink-0 transition-all duration-300 overflow-hidden relative`}
-      style={{ background: "var(--surface-nav)", borderRight: "1px solid var(--border-subtle)" }}
+      className={`${collapsed ? "w-16" : "w-60"} app-sidebar sidebar-slate${mobileOpen ? " is-open" : ""} no-print flex flex-col flex-shrink-0 transition-all duration-300 overflow-hidden relative`}
     >
-      <div className="absolute right-0 top-28 bottom-28 w-px pointer-events-none"
-           style={{ background: "linear-gradient(180deg, transparent, rgba(215,25,32,0.18), transparent)" }} />
-
       {/* ── Logo + Search/Notif ── */}
-      <div className="px-3 pt-4 pb-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+      <div className="px-3 pt-4 pb-3 flex-shrink-0 sb-divider">
         {!collapsed ? (
           <>
             {(() => {
@@ -529,15 +525,13 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
               const initial = name[0]?.toUpperCase() || "S";
               return (
                 <div className="flex items-center gap-2.5 mb-3">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-[12px] font-black overflow-hidden"
-                       style={{ background: "linear-gradient(135deg,#d71920,#b01218)", color: "#ffffff", boxShadow: "0 4px 12px rgba(215,25,32,0.32)" }}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-[13px] font-black overflow-hidden sb-logo">
                     {settings.logo ? <img src={settings.logo} alt="logo" className="w-full h-full object-contain" /> : initial}
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[12px] font-bold leading-none tracking-widest truncate" style={{ color: "#111827" }}>{line1}</div>
+                    <div className="text-[12px] font-extrabold leading-none tracking-widest truncate sb-logo-name">{line1}</div>
                     {line2 && (
-                      <div className="text-[9px] font-semibold leading-none tracking-widest mt-1.5 truncate"
-                           style={{ background: "linear-gradient(90deg,#d71920,#b01218)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                      <div className="text-[9px] font-semibold leading-none tracking-widest mt-1.5 truncate sb-logo-sub">
                         {line2}
                       </div>
                     )}
@@ -547,18 +541,16 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
             })()}
             <div className="flex items-center gap-1.5">
               <button onClick={onSearchOpen}
-                className="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] transition-all"
-                style={{ background: "#f8f9fb", border: "1px solid var(--border-rim)", color: "#64748b" }}>
-                <span className="text-xs">🔍</span><span className="flex-1" style={{ color: "#6b7280" }}>Search</span>
-                <kbd className="text-[9px] px-1 rounded" style={{ background: "#ffffff", color: "#64748b", border: "1px solid var(--border-rim)" }}>⌘K</kbd>
+                className="flex-1 flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-[11px] transition-all sb-search">
+                <span className="text-xs opacity-70">🔍</span><span className="flex-1 text-left">Search</span>
+                <kbd className="text-[9px] px-1.5 py-0.5 rounded sb-kbd">⌘K</kbd>
               </button>
               <button onClick={onNotifsOpen}
-                className="relative w-8 h-8 rounded-lg flex items-center justify-center transition-all flex-shrink-0"
-                style={{ background: "#f8f9fb", border: "1px solid var(--border-rim)", color: "#64748b" }}>
+                className="relative w-9 h-9 rounded-lg flex items-center justify-center transition-all flex-shrink-0 sb-iconbtn">
                 🔔
                 {notifCount > 0 && (
                   <span className="absolute -top-1 -right-1 text-[9px] font-black rounded-full flex items-center justify-center"
-                        style={{ background: "#ef4444", color: "#ffffff", minWidth: 16, height: 16, padding: "0 3px", boxShadow: "0 2px 8px rgba(239,68,68,0.4)" }}>
+                        style={{ background: "#ef4444", color: "#ffffff", minWidth: 16, height: 16, padding: "0 3px", boxShadow: "0 2px 8px rgba(239,68,68,0.5)" }}>
                     {notifCount > 9 ? "9+" : notifCount}
                   </span>
                 )}
@@ -567,22 +559,19 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
           </>
         ) : (
           <div className="flex flex-col items-center gap-2">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center text-[12px] font-black overflow-hidden"
-                 style={{ background: "linear-gradient(135deg,#d71920,#b01218)", color: "#ffffff", boxShadow: "0 4px 12px rgba(215,25,32,0.32)" }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-[13px] font-black overflow-hidden sb-logo">
               {settings.logo ? <img src={settings.logo} alt="logo" className="w-full h-full object-contain" /> : (settings.companyName?.[0]?.toUpperCase() || "S")}
             </div>
-            <button onClick={onNotifsOpen} className="relative w-8 h-8 rounded-lg flex items-center justify-center transition-all"
-                    style={{ background: "#f8f9fb", border: "1px solid var(--border-rim)", color: "#64748b" }}>
+            <button onClick={onNotifsOpen} className="relative w-9 h-9 rounded-lg flex items-center justify-center transition-all sb-iconbtn">
               🔔
               {notifCount > 0 && (
                 <span className="absolute -top-1 -right-1 text-[9px] font-black rounded-full flex items-center justify-center"
-                      style={{ background: "#ef4444", color: "#ffffff", minWidth: 15, height: 15, padding: "0 2px", boxShadow: "0 2px 6px rgba(239,68,68,0.4)" }}>
+                      style={{ background: "#ef4444", color: "#ffffff", minWidth: 15, height: 15, padding: "0 2px", boxShadow: "0 2px 6px rgba(239,68,68,0.5)" }}>
                   {notifCount > 9 ? "9+" : notifCount}
                 </span>
               )}
             </button>
-            <button onClick={onSearchOpen} className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
-                    style={{ background: "#f8f9fb", border: "1px solid var(--border-rim)", color: "#64748b" }}>🔍</button>
+            <button onClick={onSearchOpen} className="w-9 h-9 rounded-lg flex items-center justify-center transition-all sb-iconbtn">🔍</button>
           </div>
         )}
       </div>
@@ -594,34 +583,25 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
           return (
             <div key={item.id}>
               {item.section && !collapsed && (
-                <div className="px-2 pt-5 pb-1 text-[9px] font-bold tracking-[0.12em] uppercase"
-                     style={{ color: "#6b7280" }}>{item.section}</div>
+                <div className="px-2.5 pt-5 pb-1.5 text-[9px] font-bold tracking-[0.13em] uppercase sb-section">{item.section}</div>
               )}
               <button onClick={() => setActivePage(item.id)}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-all duration-150 relative group`}
-                style={isActive
-                  ? { background: "linear-gradient(90deg,rgba(215,25,32,0.10),rgba(215,25,32,0.04))", boxShadow: "inset 0 0 0 1px rgba(215,25,32,0.22)", color: "#d71920" }
-                  : { color: "#475569" }
-                }
-                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "#f1f3f6"; }}
-                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = ""; }}>
-                {isActive && <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full" style={{ background: "linear-gradient(180deg,#d71920,#b01218)" }} />}
-                <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
-                     style={isActive ? { background: "rgba(215,25,32,0.12)", border: "1px solid rgba(215,25,32,0.28)" } : {}}>
+                className={`sb-item w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-150 relative ${isActive ? "is-active" : ""}`}>
+                {isActive && <div className="sb-indicator" />}
+                <div className={`sb-icon w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${isActive ? "is-active" : ""}`}>
                   <item.Icon size={15} strokeWidth={isActive ? 2.4 : 2} aria-hidden="true" />
                 </div>
                 {!collapsed && (
                   <>
-                    <span className="flex-1 text-left text-[12.5px] font-medium tracking-[-0.01em]"
-                          style={{ color: isActive ? "#d71920" : "#475569" }}>
+                    <span className="flex-1 text-left text-[12.5px] font-medium tracking-[-0.01em]">
                       {item.label}
                     </span>
                     {(() => { const b = badges[item.id] ?? item.badge; return b > 0 ? (
                       <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight"
                             style={{
                               color: "#ffffff",
-                              background: item.id==="pending" ? "linear-gradient(135deg,#D97706,#B45309)" : item.id==="pipeline" ? "linear-gradient(135deg,#7c3aed,#6d28d9)" : item.id==="machines" ? "linear-gradient(135deg,#d71920,#b01218)" : "linear-gradient(135deg,#ef4444,#dc2626)",
-                              boxShadow:  item.id==="pending" ? "0 2px 6px rgba(217, 119, 6,0.35)" : item.id==="pipeline" ? "0 2px 6px rgba(124,58,237,0.35)" : item.id==="machines" ? "0 2px 6px rgba(215,25,32,0.35)" : "0 2px 6px rgba(239,68,68,0.35)",
+                              background: item.id==="pending" ? "linear-gradient(135deg,#f59e0b,#d97706)" : item.id==="pipeline" ? "linear-gradient(135deg,#818cf8,#6366f1)" : item.id==="machines" ? "linear-gradient(135deg,#f0353d,#dc2626)" : "linear-gradient(135deg,#ef4444,#dc2626)",
+                              boxShadow:  "0 2px 8px rgba(0,0,0,0.3)",
                             }}>{b}</span>
                     ) : null; })()}
                   </>
@@ -633,13 +613,10 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
       </nav>
 
       {/* ── User Profile Menu ── */}
-      <div className="px-3 pb-3 pt-2 relative" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+      <div className="px-3 pb-3 pt-2 relative sb-divider-top">
         <UserProfileMenu collapsed={collapsed} />
         <button onClick={() => setCollapsed(!collapsed)}
-          className="mt-1 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg transition-all text-[9px] font-bold tracking-[0.08em] uppercase"
-          style={{ color: "#6b7280" }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = "#f1f3f6"; e.currentTarget.style.color = "#475569"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = ""; e.currentTarget.style.color = "#6b7280"; }}>
+          className="sb-collapse mt-1 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg transition-all text-[9px] font-bold tracking-[0.08em] uppercase">
           {collapsed ? "▶" : <><span>◀</span><span>Collapse</span></>}
         </button>
       </div>

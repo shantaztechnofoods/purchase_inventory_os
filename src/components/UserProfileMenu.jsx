@@ -65,7 +65,7 @@ export default function UserProfileMenu({ collapsed = false }) {
       <button
         ref={triggerRef}
         onClick={() => setIsOpen((v) => !v)}
-        className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-xl transition-all ${collapsed ? "justify-center" : ""} ${isOpen ? "bg-slate-100" : "hover:bg-slate-50"}`}
+        className={`sb-user-trigger w-full flex items-center gap-2.5 px-2 py-2 rounded-xl transition-all ${collapsed ? "justify-center" : ""} ${isOpen ? "is-open" : ""}`}
         title={collapsed ? `${displayName} — ${roleLabel}` : ""}
       >
         {/* Avatar */}
@@ -82,21 +82,21 @@ export default function UserProfileMenu({ collapsed = false }) {
           </div>
           <div
             className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-[2px]"
-            style={{ borderColor: "#ffffff" }}
+            style={{ borderColor: "#0b1120" }}
           />
         </div>
 
         {!collapsed && (
           <>
             <div className="flex-1 min-w-0 text-left">
-              <div className="text-[11px] font-black truncate leading-none" style={{ color: "#0f141c" }}>{displayName}</div>
-              <div className="text-[9px] font-semibold mt-0.5 leading-none truncate" style={{ color: roleColor }}>
+              <div className="text-[11px] font-bold truncate leading-none sb-user-name">{displayName}</div>
+              <div className="text-[9px] font-semibold mt-1 leading-none truncate" style={{ color: roleColor }}>
                 {roleLabel}
               </div>
             </div>
             <span
-              className="text-[9px] flex-shrink-0 transition-transform duration-200"
-              style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", color: "#6b7280" }}
+              className="text-[9px] flex-shrink-0 transition-transform duration-200 sb-user-chevron"
+              style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}
             >
               ▲
             </span>

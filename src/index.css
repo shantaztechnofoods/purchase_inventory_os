@@ -528,6 +528,78 @@ tbody tr { transition: background-color 0.08s ease; }
 .pulse-dot     { animation: pulseDot     2s   ease-in-out infinite; }
 .tabular-nums  { font-variant-numeric: tabular-nums; }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   SLATE PRO SIDEBAR — deep navy rail, red glow active (2026-10-29)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.sidebar-slate {
+  background: #0b1120;
+  border-right: 1px solid #1e293b;
+  color: #cbd5e1;
+}
+.sidebar-slate .sb-divider { border-bottom: 1px solid #1a2436; }
+.sidebar-slate .sb-divider-top { border-top: 1px solid #1a2436; }
+
+.sidebar-slate .sb-logo {
+  background: linear-gradient(135deg, #f0353d, #c4151d);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(240, 53, 61, 0.4);
+}
+.sidebar-slate .sb-logo-name { color: #f8fafc; }
+.sidebar-slate .sb-logo-sub {
+  background: linear-gradient(90deg, #f0353d, #f87171);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.sidebar-slate .sb-search {
+  background: #141c2e;
+  border: 1px solid #243049;
+  color: #94a3b8;
+}
+.sidebar-slate .sb-search:hover { background: #1a2338; border-color: #2d3a56; }
+.sidebar-slate .sb-kbd { background: #0b1120; border: 1px solid #2d3a56; color: #94a3b8; }
+.sidebar-slate .sb-iconbtn {
+  background: #141c2e;
+  border: 1px solid #243049;
+  color: #cbd5e1;
+}
+.sidebar-slate .sb-iconbtn:hover { background: #1a2338; border-color: #2d3a56; }
+
+.sidebar-slate .sb-section { color: #475569; }
+
+.sidebar-slate .sb-item { color: #cbd5e1; }
+.sidebar-slate .sb-item:not(.is-active):hover { background: rgba(255, 255, 255, 0.05); color: #f1f5f9; }
+.sidebar-slate .sb-item.is-active {
+  background: linear-gradient(90deg, rgba(240, 53, 61, 0.16), rgba(240, 53, 61, 0.03));
+  color: #fff;
+  font-weight: 600;
+}
+.sidebar-slate .sb-indicator {
+  position: absolute; left: -8px; top: 7px; bottom: 7px; width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: #f0353d;
+  box-shadow: 0 0 12px rgba(240, 53, 61, 0.65);
+}
+.sidebar-slate .sb-icon { color: #94a3b8; }
+.sidebar-slate .sb-item:hover .sb-icon { color: #cbd5e1; }
+.sidebar-slate .sb-icon.is-active {
+  background: rgba(240, 53, 61, 0.14);
+  border: 1px solid rgba(240, 53, 61, 0.3);
+  color: #f87171;
+}
+
+.sidebar-slate .sb-user-trigger:hover { background: rgba(255, 255, 255, 0.05); }
+.sidebar-slate .sb-user-trigger.is-open { background: rgba(255, 255, 255, 0.08); }
+.sidebar-slate .sb-user-name { color: #f1f5f9; }
+.sidebar-slate .sb-user-chevron { color: #64748b; }
+
+.sidebar-slate .sb-collapse { color: #475569; }
+.sidebar-slate .sb-collapse:hover { background: rgba(255, 255, 255, 0.05); color: #94a3b8; }
+
+/* Sidebar scrollbar — subtle on dark */
+.sidebar-slate nav::-webkit-scrollbar { width: 4px; }
+.sidebar-slate nav::-webkit-scrollbar-thumb { background: #243049; border-radius: 8px; }
+
 /* ── Card hover — subtle elevation, no vertical translate ────────────────────── */
 .card-hover {
   transition: box-shadow 0.20s ease, border-color 0.20s ease;
@@ -1203,12 +1275,17 @@ tr:hover .row-actions,
 }
 .toast-close:hover { opacity: 1; }
 
-/* ── WARM PREMIUM SURFACE — subtle warm tint to replace cold grey ─────────
-   10,000 Cr company feel: warm off-white, not cold hospital white. ─────── */
+/* ── SLATE PRO SURFACE — cool refined neutrals (Stripe/Linear grade) ─────── */
 :root {
-  --surface-page:     #f9f8f6;
-  --surface-base:     #f9f8f6;
-  --surface-highlight: #f3f1ee;
+  --surface-page:      #f6f7f9;
+  --surface-base:      #f6f7f9;
+  --surface-highlight: #f1f3f6;
+  --border-subtle:     rgba(15, 23, 42, 0.08);
+  --border-rim:        rgba(15, 23, 42, 0.12);
+  /* Softer, more diffuse premium shadows */
+  --shadow-sm:  0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-md:  0 2px 8px -2px rgba(15, 23, 42, 0.08), 0 4px 16px -4px rgba(15, 23, 42, 0.08);
+  --shadow-lg:  0 8px 24px -8px rgba(15, 23, 42, 0.12), 0 4px 12px -4px rgba(15, 23, 42, 0.08);
 }
 
 /* ── HERO STAT — large featured numbers for dashboard ────────────────────── */
