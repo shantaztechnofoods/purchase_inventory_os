@@ -5848,7 +5848,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
   ];
 
   return (
-    <div className="flex h-[calc(100vh-64px)]" style={{ background: "var(--surface-base)" }}>
+    <div className="flex h-screen" style={{ background: "var(--surface-base)" }}>
       {/* ── LEFT: WhatsApp Sidebar ── */}
       <div className="w-[220px] flex-shrink-0 flex flex-col" style={{ background: "#075E54", color: "#fff" }}>
         {/* WA Header */}
