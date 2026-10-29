@@ -545,6 +545,61 @@ tbody tr { transition: background-color 0.08s ease; }
   box-shadow: var(--shadow-sm);
 }
 
+/* ═══ GLOBAL ENTERPRISE POLISH — applies to existing JSX without changes ═══ */
+
+/* All white rounded-xl cards get subtle shadow + hover lift automatically */
+body .bg-white.rounded-xl,
+body [class*="bg-white"][class*="rounded-xl"] {
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+@media (hover: hover) {
+  body .bg-white.rounded-xl:hover,
+  body [class*="bg-white"][class*="rounded-xl"]:hover {
+    box-shadow: var(--shadow-md);
+  }
+}
+
+/* All rounded-xl cards with colored bg tint get smooth hover */
+body [class*="rounded-xl"][class*="border"] {
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+
+/* Typography polish — headings get better weight/spacing */
+body .text-xl { font-weight: 700; letter-spacing: -0.02em; }
+body .text-2xl { font-weight: 800; letter-spacing: -0.025em; }
+body .text-3xl { font-weight: 800; letter-spacing: -0.03em; }
+
+/* All font-bold text gets slightly tighter tracking for premium feel */
+body .font-bold { letter-spacing: -0.01em; }
+body .font-black { letter-spacing: -0.02em; }
+
+/* Topbar polish — subtle bottom shadow for depth */
+body .flex-shrink-0.no-print {
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.04);
+}
+
+/* Badge polish — all small rounded-full badges get consistent styling */
+body .rounded-full.font-bold[class*="text-[10px]"] {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* Input fields — warmer background on focus for premium feel */
+input:focus, textarea:focus, select:focus {
+  background: #fffffe !important;
+}
+
+/* Modal panels — extra depth */
+.modal-panel {
+  box-shadow: var(--shadow-2xl);
+}
+
+/* Sidebar active item — stronger indicator */
+aside nav button[style*="background"] {
+  font-weight: 700 !important;
+}
+
 /* ── Page header bar ─────────────────────────────────────────────────────────── */
 .page-header {
   background: var(--surface-card);
