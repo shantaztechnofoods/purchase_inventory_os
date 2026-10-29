@@ -76,7 +76,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-29-material-arrived";
+const APP_BUILD = "2026-10-29-landing-fix";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -13743,29 +13743,43 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             return acc;
           }, {});
           const machineOf = (id) => machineLog.find((m) => String(m.id) === String(id)) || null;
+          // This panel sits above the machines, and with a handful of open
+          // issues it filled the entire first screen — you opened Machine
+          // Tracker and could not see a single machine. It is a heads-up, not
+          // the page.
+          //
+          // Same information, about half the height: the count is a chip rather
+          // than a 3xl numeral wedged between two words (which read as a broken
+          // sentence — "DEPARTMENTS CALLED 7 open issues"), tighter padding, a
+          // denser grid, and two issues per department before "+n more" instead
+          // of four. Nothing is lost; the full list is one click away on the
+          // machine itself, which is where it gets dealt with anyway.
           return (
-            <div className="rounded-2xl p-5"
+            <div className="rounded-xl p-3.5"
                  style={{ background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.35)" }}>
-              <div className="flex items-baseline gap-3 flex-wrap mb-3">
-                <div className="text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "#dc2626" }}>
+              <div className="flex items-center gap-2 flex-wrap mb-2.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "#b91c1c" }}>
                   Departments called
-                </div>
-                <div className="text-3xl font-black" style={{ color: "#dc2626" }}>{openAssigned.length}</div>
-                <div className="text-[11px] text-slate-500">
-                  open issue{openAssigned.length === 1 ? "" : "s"} — each machine stays put until its issues are resolved
-                </div>
+                </span>
+                <span className="text-[11px] font-black px-2 py-0.5 rounded-full"
+                      style={{ background: "rgba(239,68,68,0.14)", color: "#b91c1c" }}>
+                  {openAssigned.length} open
+                </span>
+                <span className="text-[10px] text-slate-500">
+                  each machine stays put until its issues are resolved
+                </span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
                 {Object.entries(byDept).map(([dept, list]) => (
-                  <div key={dept} className="rounded-xl p-3"
+                  <div key={dept} className="rounded-lg p-2.5"
                        style={{ background: "var(--surface-raised)", border: "1px solid rgba(239,68,68,0.25)" }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[12px] font-black text-slate-800">{dept}</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                            style={{ background: "rgba(239,68,68,0.12)", color: "#dc2626" }}>{list.length}</span>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[11px] font-black text-slate-800">{dept}</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                            style={{ background: "rgba(239,68,68,0.12)", color: "#b91c1c" }}>{list.length}</span>
                     </div>
-                    <div className="space-y-1.5">
-                      {list.slice(0, 4).map((p) => {
+                    <div className="space-y-1">
+                      {list.slice(0, 2).map((p) => {
                         const mm = machineOf(p.machineId);
                         return (
                           <button key={p.id} type="button"
@@ -13780,8 +13794,8 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           </button>
                         );
                       })}
-                      {list.length > 4 && (
-                        <div className="text-[10px] text-slate-500 px-2">+{list.length - 4} more</div>
+                      {list.length > 2 && (
+                        <div className="text-[10px] text-slate-500 px-2">+{list.length - 2} more</div>
                       )}
                     </div>
                   </div>
@@ -17628,6 +17642,26 @@ export default function App() {
   const SEED_DEMO = ALLOW_DEMO && !SUPA;
 
   const [activePage,    setActivePage]    = useState("dashboard");
+  // Everyone landed on "dashboard" after signing in, including the department
+  // logins that have no permission to open it. On a laptop that was a stumble —
+  // you saw Access Denied and clicked Machine Tracker in the sidebar. On a
+  // phone it was a dead end: AccessDeniedPage is the one page that renders no
+  // Topbar, so there was no hamburger, so there was no sidebar to reach, and
+  // its only button ("Go to Dashboard") sent you straight back to the page that
+  // had just refused you. An Electrical login on a phone could not get into the
+  // ERP at all.
+  //
+  // So: once auth has settled, if the page we are on is one this user cannot
+  // open, move to the first one they can. Runs on sign-in and after any
+  // permission change, and also quietly rescues the "Go to Dashboard" button.
+  // A user with no viewable page at all stays put and still sees the refusal,
+  // which is correct — there is nothing to send them to.
+  useEffect(() => {
+    if (authLoading || !currentUser || typeof canView !== "function") return;
+    if (canView(activePage)) return;
+    const firstAllowed = navItems.find((item) => canView(item.id));
+    if (firstAllowed && firstAllowed.id !== activePage) setActivePage(firstAllowed.id);
+  }, [authLoading, currentUser, canView, activePage]);
   const [collapsed,     setCollapsed]     = useState(false);
   // Below the md breakpoint the sidebar stops being a column and becomes a
   // drawer. On a phone a 240px rail eats most of the screen, and the ERP has to
