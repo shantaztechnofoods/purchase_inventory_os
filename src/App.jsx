@@ -857,11 +857,14 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
     { label: "In Follow Up",      value: followUps.length,                                       Icon: PhoneCall,    color: "#6d28d9", nav: "pipeline",   sub: "orders tracked" },
   ];
 
-  const EmptyState = ({ icon, title, sub }) => (
-    <div className="py-10 text-center">
-      <div className="text-3xl mb-2" style={{ opacity: 0.55 }}>{icon}</div>
-      <div className="text-sm font-semibold mb-0.5" style={{ color: "var(--text-strong)" }}>{title}</div>
-      <div className="text-[11px] mt-1" style={{ color: "var(--text-dim)" }}>{sub}</div>
+  const EmptyState = ({ icon, title, sub, action, actionLabel }) => (
+    <div className="empty-state py-10">
+      <div className="empty-state-icon text-4xl">{icon}</div>
+      <div className="empty-state-title">{title}</div>
+      <div className="empty-state-desc">{sub}</div>
+      {action && actionLabel && (
+        <button onClick={action} className="mt-3 btn-secondary px-4 py-2 rounded-lg text-[12px]">{actionLabel}</button>
+      )}
     </div>
   );
 
@@ -911,18 +914,25 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
           {/* 1. Critical Stock Requiring Immediate Purchase */}
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-[13px] font-semibold" style={{ color: "var(--text-strong)" }}>🔴 Critical Stock — Order Now</span>
+          <div className="section-card status-strip status-strip-red overflow-hidden">
+            <div className="flex items-center justify-between px-5 pt-4 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(220,38,38,0.08)" }}>
+                  <AlertOctagon size={16} style={{ color: "#dc2626" }} />
+                </div>
+                <div>
+                  <div className="text-[13px] font-bold" style={{ color: "var(--text-strong)" }}>Critical Stock</div>
+                  <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>Order immediately</div>
+                </div>
                 {criticalN > 0 && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(220,38,38,0.08)", color: "#dc2626", border: "1px solid rgba(220,38,38,0.22)" }}>{criticalN}</span>
                 )}
               </div>
-              <button onClick={() => onNavigate?.("inventory")} className="text-[10px] text-blue-600 hover:text-blue-800 transition-colors">View All →</button>
+              <button onClick={() => onNavigate?.("inventory")} className="btn-ghost text-[11px] px-3 py-1.5 rounded-lg">View All →</button>
             </div>
+            <div className="px-5 pb-4">
             {criticalItems.length === 0 ? (
-              <EmptyState icon="✅" title="All stock levels safe" sub="No critical items right now." />
+              <EmptyState icon="✅" title="All stock levels safe" sub="No critical items right now." action={() => onNavigate?.("inventory")} actionLabel="View Inventory" />
             ) : (
               <div className="space-y-2.5">
                 {criticalItems.slice(0, 4).map((item) => {
@@ -941,7 +951,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                             {item.vendor && item.vendor !== "—" && <span className="text-slate-400"> · {item.vendor}</span>}
                           </div>
                         </div>
-                        <Btn variant="primary" size="xs" onClick={() => onNavigate?.("pipeline")}>🛒 Order</Btn>
+                        <Btn variant="primary" size="xs" onClick={() => onNavigate?.("pipeline")}>Order →</Btn>
                       </div>
                       <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(220,38,38,0.12)" }}>
                         <div className="h-full rounded-full bg-red-500" style={{ width: `${pct}%` }} />
@@ -956,21 +966,29 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                 )}
               </div>
             )}
+            </div>
           </div>
 
           {/* 2. Pending PO Approvals */}
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-[13px] font-semibold" style={{ color: "var(--text-strong)" }}>📋 Pending PO Approvals</span>
+          <div className="section-card status-strip status-strip-yellow overflow-hidden">
+            <div className="flex items-center justify-between px-5 pt-4 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(217,119,6,0.08)" }}>
+                  <ClipboardList size={16} style={{ color: "#b45309" }} />
+                </div>
+                <div>
+                  <div className="text-[13px] font-bold" style={{ color: "var(--text-strong)" }}>Pending PO Approvals</div>
+                  <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>Needs review</div>
+                </div>
                 {pendingPOs.length > 0 && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(217,119,6,0.08)", color: "#b45309", border: "1px solid rgba(217,119,6,0.22)" }}>{pendingPOs.length}</span>
                 )}
               </div>
-              <button onClick={() => onNavigate?.("pipeline")} className="text-[10px] text-blue-600 hover:text-blue-800 transition-colors">Open Pipeline →</button>
+              <button onClick={() => onNavigate?.("pipeline")} className="btn-ghost text-[11px] px-3 py-1.5 rounded-lg">Open Pipeline →</button>
             </div>
+            <div className="px-5 pb-4">
             {pendingPOs.length === 0 ? (
-              <EmptyState icon="✅" title="No approvals pending" sub="All POs are up to date." />
+              <EmptyState icon="✅" title="No approvals pending" sub="All POs are up to date." action={() => onNavigate?.("pipeline")} actionLabel="Create PO" />
             ) : (
               <div className="space-y-2.5">
                 {pendingPOs.slice(0, 4).map((po) => (
@@ -989,7 +1007,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                           {po.vendor} · ₹{(po.amount || 0).toLocaleString("en-IN")} · {(po.lineItems || []).length} item{(po.lineItems || []).length !== 1 ? "s" : ""}
                         </div>
                       </div>
-                      <Btn variant="primary" size="xs" onClick={() => onNavigate?.("pipeline")}>Review →</Btn>
+                      <Btn variant="secondary" size="xs" onClick={() => onNavigate?.("pipeline")}>Review →</Btn>
                     </div>
                   </div>
                 ))}
@@ -1000,21 +1018,29 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                 )}
               </div>
             )}
+            </div>
           </div>
 
           {/* 3. Pending Materials Blocking Production */}
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-[13px] font-semibold" style={{ color: "var(--text-strong)" }}>⏳ Materials Blocking Production</span>
+          <div className="section-card status-strip status-strip-yellow overflow-hidden">
+            <div className="flex items-center justify-between px-5 pt-4 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(217,119,6,0.08)" }}>
+                  <Hourglass size={16} style={{ color: "#b45309" }} />
+                </div>
+                <div>
+                  <div className="text-[13px] font-bold" style={{ color: "var(--text-strong)" }}>Materials Blocking</div>
+                  <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>Production held up</div>
+                </div>
                 {blockingMaterials.length > 0 && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(217,119,6,0.08)", color: "#b45309", border: "1px solid rgba(217,119,6,0.22)" }}>{blockingMaterials.length}</span>
                 )}
               </div>
-              <button onClick={() => onNavigate?.("pending")} className="text-[10px] text-blue-600 hover:text-blue-800 transition-colors">View Pending →</button>
+              <button onClick={() => onNavigate?.("pending")} className="btn-ghost text-[11px] px-3 py-1.5 rounded-lg">View Pending →</button>
             </div>
+            <div className="px-5 pb-4">
             {blockingMaterials.length === 0 ? (
-              <EmptyState icon="✅" title="All materials available" sub="No production blockers right now." />
+              <EmptyState icon="✅" title="All materials available" sub="No production blockers right now." action={() => onNavigate?.("pending")} actionLabel="View Pending Stock" />
             ) : (
               <div className="space-y-2.5">
                 {blockingMaterials.map((p, i) => {
@@ -1047,21 +1073,29 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                 )}
               </div>
             )}
+            </div>
           </div>
 
           {/* 4. Machines Ready for Next Stage */}
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-[13px] font-semibold" style={{ color: "var(--text-strong)" }}>⚙️ Machines — Next Stage</span>
+          <div className="section-card status-strip status-strip-blue overflow-hidden">
+            <div className="flex items-center justify-between px-5 pt-4 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(37,99,235,0.08)" }}>
+                  <Cog size={16} style={{ color: "#2563eb" }} />
+                </div>
+                <div>
+                  <div className="text-[13px] font-bold" style={{ color: "var(--text-strong)" }}>Active Machines</div>
+                  <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>In production</div>
+                </div>
                 {activeMachines.length > 0 && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(215,25,32,0.08)", color: "#d71920", border: "1px solid rgba(215,25,32,0.22)" }}>{activeMachines.length}</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(37,99,235,0.08)", color: "#2563eb", border: "1px solid rgba(37,99,235,0.22)" }}>{activeMachines.length}</span>
                 )}
               </div>
-              <button onClick={() => onNavigate?.("machines")} className="text-[10px] text-blue-600 hover:text-blue-800 transition-colors">View Tracker →</button>
+              <button onClick={() => onNavigate?.("machines")} className="btn-ghost text-[11px] px-3 py-1.5 rounded-lg">View Tracker →</button>
             </div>
+            <div className="px-5 pb-4">
             {activeMachines.length === 0 ? (
-              <EmptyState icon="🔧" title="No active builds" sub="Start a machine from the rack (Machine Tracker) to begin a build." />
+              <EmptyState icon="🔧" title="No active builds" sub="Start a machine from the rack to begin a build." action={() => onNavigate?.("machines")} actionLabel="Open Machine Tracker" />
             ) : (
               <div className="space-y-2.5">
                 {activeMachines.map((m) => {
@@ -1094,23 +1128,28 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                 )}
               </div>
             )}
+            </div>
           </div>
 
         </div>
 
         {/* ── Recent Stock Movements (live ledger feed) ── */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <span className="text-[13px] font-semibold" style={{ color: "var(--text-strong)" }}>🔄 Recent Stock Movements</span>
-              {recentMoves.length > 0 && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(215,25,32,0.08)", color: "#d71920", border: "1px solid rgba(215,25,32,0.22)" }}>{recentMoves.length}</span>
-              )}
+        <div className="section-card status-strip status-strip-purple overflow-hidden">
+          <div className="flex items-center justify-between px-5 pt-4 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(124,58,237,0.08)" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56"/><polyline points="21 3 21 12 12 12"/></svg>
+              </div>
+              <div>
+                <div className="text-[13px] font-bold" style={{ color: "var(--text-strong)" }}>Recent Movements</div>
+                <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>Live stock ledger</div>
+              </div>
             </div>
-            <button onClick={() => onNavigate?.("history")} className="text-[10px] text-blue-600 hover:text-blue-800 transition-colors">Full Ledger →</button>
+            <button onClick={() => onNavigate?.("history")} className="btn-ghost text-[11px] px-3 py-1.5 rounded-lg">Full Ledger →</button>
           </div>
+          <div className="px-5 pb-4">
           {recentMoves.length === 0 ? (
-            <EmptyState icon="📒" title="No movements recorded yet" sub="Stock changes appear here in real time (Supabase mode)." />
+            <EmptyState icon="📒" title="No movements recorded yet" sub="Stock changes appear here in real time." action={() => onNavigate?.("history")} actionLabel="View History" />
           ) : (
             <div className="space-y-1.5">
               {recentMoves.map((m) => {
@@ -1140,6 +1179,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
               })}
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>
