@@ -655,8 +655,8 @@ function Topbar({ title, subtitle, children }) {
         </button>
       )}
       <div className="flex-1 min-w-0">
-        <h1 className="text-[14px] font-semibold tracking-tight leading-none" style={{ color: "var(--text-strong)" }}>{title}</h1>
-        {subtitle && <p className="text-[11px] mt-1 leading-none font-normal" style={{ color: "var(--text-dim)" }}>{subtitle}</p>}
+        <h1 className="text-[17px] font-extrabold tracking-[-0.02em] leading-none" style={{ color: "var(--text-strong)" }}>{title}</h1>
+        {subtitle && <p className="text-[11.5px] mt-1.5 leading-none font-normal" style={{ color: "var(--text-dim)" }}>{subtitle}</p>}
       </div>
       <div className="text-[11px] tabular-nums hidden md:flex items-center gap-1.5 flex-shrink-0 px-3 py-1.5 rounded-lg"
            style={{ fontFamily: "'Inter',system-ui,sans-serif", color: "var(--text-dim)", background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
@@ -862,14 +862,19 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {kpis.slice(0, 3).map((kpi) => (
             <button key={kpi.label} onClick={() => onNavigate?.(kpi.nav)}
-              className="hero-stat hero-stat-primary rounded-xl p-5 text-center transition-all active:scale-[0.97]"
-              style={{ background: kpi.color + "08", border: `1px solid ${kpi.alert ? kpi.color + "44" : kpi.color + "18"}` }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = kpi.color + "12"; e.currentTarget.style.borderColor = kpi.color + "44"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = kpi.color + "08"; e.currentTarget.style.borderColor = kpi.alert ? kpi.color + "44" : kpi.color + "18"; }}>
-              <div className="mb-2" style={{ color: kpi.color }}><kpi.Icon size={24} strokeWidth={2} aria-hidden="true" /></div>
-              <div className="hero-stat-value" style={{ color: kpi.alert ? kpi.color : "var(--text-strong)" }}>{kpi.value}</div>
-              <div className="hero-stat-label">{kpi.label}</div>
-              <div className="hero-stat-sub">{kpi.sub}</div>
+              className="hero-tile group" style={{ "--tile": kpi.color }}>
+              <div className="hero-tile-icon" style={{ background: kpi.color + "14", color: kpi.color }}>
+                <kpi.Icon size={21} strokeWidth={2} aria-hidden="true" />
+              </div>
+              <div className="hero-tile-body">
+                <div className="hero-tile-value" style={{ color: kpi.alert ? kpi.color : "var(--text-strong)" }}>{kpi.value}</div>
+                <div className="hero-tile-label">{kpi.label}</div>
+                <div className="hero-tile-sub">{kpi.sub}</div>
+              </div>
+              <span className="hero-tile-trend" style={{
+                background: kpi.alert ? "rgba(220,38,38,0.08)" : "rgba(5,150,105,0.08)",
+                color: kpi.alert ? "#b91c1c" : "#047857",
+              }}>{kpi.alert ? "Action" : "On track"}</span>
             </button>
           ))}
         </div>
@@ -878,14 +883,14 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {kpis.slice(3).map((kpi) => (
             <button key={kpi.label} onClick={() => onNavigate?.(kpi.nav)}
-              className="rounded-xl p-3.5 text-left transition-all active:scale-[0.97]"
-              style={{ background: kpi.color + "0d", border: `1px solid ${kpi.alert ? kpi.color + "44" : kpi.color + "22"}` }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = kpi.color + "18"; e.currentTarget.style.borderColor = kpi.color + "44"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = kpi.color + "0d"; e.currentTarget.style.borderColor = kpi.alert ? kpi.color + "44" : kpi.color + "22"; }}>
-              <div className="mb-1.5" style={{ color: kpi.color }}><kpi.Icon size={18} strokeWidth={2} aria-hidden="true" /></div>
-              <div className="text-xl font-bold tabular-nums" style={{ color: kpi.alert ? kpi.color : "var(--text-strong)" }}>{kpi.value}</div>
-              <div className="text-[10px] font-semibold mt-1 leading-tight tracking-[0.03em]" style={{ color: "var(--text-muted)" }}>{kpi.label}</div>
-              <div className="text-[9px] mt-0.5 truncate" style={{ color: "var(--text-dim)" }}>{kpi.sub}</div>
+              className="kpi-tile group">
+              <div className="flex items-center justify-between mb-2">
+                <span style={{ color: kpi.color }}><kpi.Icon size={17} strokeWidth={2} aria-hidden="true" /></span>
+                {kpi.alert && <span className="w-1.5 h-1.5 rounded-full" style={{ background: kpi.color }} />}
+              </div>
+              <div className="text-[22px] font-extrabold tabular-nums leading-none tracking-[-0.02em]" style={{ color: kpi.alert ? kpi.color : "var(--text-strong)" }}>{kpi.value}</div>
+              <div className="text-[11px] font-semibold mt-2 leading-tight" style={{ color: "var(--text-muted)" }}>{kpi.label}</div>
+              <div className="text-[10px] mt-1 truncate" style={{ color: "var(--text-dim)" }}>{kpi.sub}</div>
             </button>
           ))}
         </div>
