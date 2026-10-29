@@ -14505,8 +14505,11 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             Open faults grouped by the department that must come and fix them.
             Without this the responsible department never learns it is needed:
             the item sat inside one machine's History panel where only someone
-            already looking at that machine would see it. */}
-        {(() => {
+            already looking at that machine would see it.
+            Hidden for a floor login: its own "Go and fix" bucket above already
+            lists exactly the faults called to its department, so this factory
+            overview would just be a second copy of the same machines. */}
+        {!isFloorLogin && (() => {
           const openAssigned = (pendingHandoverItems || [])
             .filter((p) => p.status === "open")
             // A floor login is only shown what has been called to its own
@@ -14634,7 +14637,11 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           );
         })()}
 
-        {(() => {
+        {/* Factory-wide status tiles are an office/admin overview. A floor login
+            works off its own "My Work" buckets above and does not need the
+            whole factory's counts — hidden to keep the phone view to the few
+            machines that actually need the operator. */}
+        {!isFloorLogin && (() => {
           // A machine waiting on the rack for a production head to release it
           // is NOT waiting to be accepted — nobody has been asked yet, so no
           // acceptance clock runs on it and it is counted separately.
