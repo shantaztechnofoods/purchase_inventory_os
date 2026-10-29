@@ -780,6 +780,23 @@ function SectionHeader({ children, tag }) {
   );
 }
 
+// ─── SKELETON LOADER ─────────────────────────────────────────────────────────
+
+function SkeletonLoader({ rows = 3, type = "text" }) {
+  if (type === "cards") return (
+    <div className="grid grid-cols-3 gap-3">
+      {Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton skeleton-stat" />)}
+    </div>
+  );
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="skeleton skeleton-text" style={{ width: i === 0 ? "100%" : i === rows - 1 ? "60%" : "80%" }} />
+      ))}
+    </div>
+  );
+}
+
 // ─── DASHBOARD PAGE ───────────────────────────────────────────────────────────
 
 function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [], pendingLog = [], followUps = [], onNavigate, settings = SETTINGS_DEFAULTS }) {
@@ -858,9 +875,25 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
 
       <div className="p-6 space-y-6">
 
-        {/* ── KPI Cards ── */}
-        <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-3">
-          {kpis.map((kpi) => (
+        {/* ── Hero Stats (top 3 large) ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {kpis.slice(0, 3).map((kpi) => (
+            <button key={kpi.label} onClick={() => onNavigate?.(kpi.nav)}
+              className="hero-stat hero-stat-primary rounded-xl p-5 text-center transition-all active:scale-[0.97]"
+              style={{ background: kpi.color + "08", border: `1px solid ${kpi.alert ? kpi.color + "44" : kpi.color + "18"}` }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = kpi.color + "12"; e.currentTarget.style.borderColor = kpi.color + "44"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = kpi.color + "08"; e.currentTarget.style.borderColor = kpi.alert ? kpi.color + "44" : kpi.color + "18"; }}>
+              <div className="mb-2" style={{ color: kpi.color }}><kpi.Icon size={24} strokeWidth={2} aria-hidden="true" /></div>
+              <div className="hero-stat-value" style={{ color: kpi.alert ? kpi.color : "var(--text-strong)" }}>{kpi.value}</div>
+              <div className="hero-stat-label">{kpi.label}</div>
+              <div className="hero-stat-sub">{kpi.sub}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* ── Secondary KPI Cards ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {kpis.slice(3).map((kpi) => (
             <button key={kpi.label} onClick={() => onNavigate?.(kpi.nav)}
               className="rounded-xl p-3.5 text-left transition-all active:scale-[0.97]"
               style={{ background: kpi.color + "0d", border: `1px solid ${kpi.alert ? kpi.color + "44" : kpi.color + "22"}` }}
@@ -18450,6 +18483,14 @@ export default function App() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [dismissedIds,  setDismissedIds]  = useState(() => new Set());
 
+  // ── Toast notification system ──
+  const [toasts, setToasts] = useState([]);
+  const addToast = useCallback((type, title, message) => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, type, title, message }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
+  }, []);
+
   const [items, setItems] = useState(() => {
     // Supabase mode → start empty; the on-mount hydration is the source of truth (no demo flash).
     if (SUPA) return {};
@@ -21315,6 +21356,41 @@ export default function App() {
           ))}
         </div>
       )}
+
+      {/* ── Toast notifications ── */}
+      {toasts.length > 0 && (
+        <div className="toast-container">
+          {toasts.map((t) => (
+            <div key={t.id} className={`toast toast-${t.type}`}>
+              <span className="toast-icon">{t.type === "success" ? "✓" : t.type === "error" ? "✕" : t.type === "warning" ? "⚠" : "ℹ"}</span>
+              <div className="toast-body">
+                <div className="toast-title">{t.title}</div>
+                {t.message && <div className="toast-message">{t.message}</div>}
+              </div>
+              <button className="toast-close" onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Mobile bottom nav ── */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around py-2 px-1 no-print"
+           style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)", boxShadow: "0 -2px 8px rgba(0,0,0,0.06)" }}>
+        {[
+          { id: "dashboard", icon: "📊", label: "Home" },
+          { id: "machines",  icon: "⚙️", label: "Machines" },
+          { id: "outward",   icon: "📦", label: "Outward" },
+          { id: "pipeline",  icon: "📋", label: "Pipeline" },
+          { id: "whatsapp",  icon: "💬", label: "WhatsApp" },
+        ].map((item) => (
+          <button key={item.id} onClick={() => { setActivePage(item.id); setMobileNavOpen(false); }}
+            className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-[10px] font-semibold transition-colors"
+            style={{ color: activePage === item.id ? "var(--brand)" : "var(--text-dim)", background: activePage === item.id ? "rgba(var(--brand-rgb), 0.06)" : "transparent" }}>
+            <span className="text-[18px]">{item.icon}</span>
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </div>
     </div>
     </MobileNavContext.Provider>
   );
