@@ -5760,6 +5760,15 @@ const SETTINGS_DEFAULTS = {
   currency:        "INR (₹)",
   whatsappAlerts:  false,
   emailAlerts:     false,
+  // WhatsApp Business API (Chakra HQ) integration
+  waApiKey:        "",     // Chakra HQ Bearer token
+  waPhoneId:       "",     // WhatsApp phone number ID
+  waOwnerPhone:    "",     // Owner's phone for admin alerts (with country code, e.g. 919876543210)
+  waNotifyIssue:   true,   // Notify when issue raised on machine
+  waNotifyTransfer:true,   // Notify when machine transferred to next dept
+  waNotifyDeadline:true,   // Notify when dept exceeds time limit
+  waNotifyDaily:   false,  // Daily morning summary
+  waGroupNumbers:  "",     // Comma-separated dept head phone numbers
   po:              null,   // Purchase Order settings (company profiles, templates) — see utils/poTemplate
   employeeMembers: [],     // [{ id, name, active, departments: string[] }] — display names for factory workers without ERP logins
 };
@@ -6656,18 +6665,109 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
 
         {/* ── Notifications tab ─────────────────────────────────────────────── */}
         {tab === "notifications" && (
-          <Section icon="🔔" title="Notifications">
+          <div className="space-y-5">
+          <Section icon="📱" title="WhatsApp Integration (Chakra HQ)">
+            <div className="px-6 py-4 space-y-4">
+              {/* Connection status */}
+              <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: settings.waApiKey ? "rgba(34,197,94,0.08)" : "rgba(234,179,8,0.08)", border: `1px solid ${settings.waApiKey ? "rgba(34,197,94,0.3)" : "rgba(234,179,8,0.3)"}` }}>
+                <span className="text-lg">{settings.waApiKey ? "🟢" : "🟡"}</span>
+                <div>
+                  <div className="text-[12px] font-bold" style={{ color: settings.waApiKey ? "#15803d" : "#a16207" }}>
+                    {settings.waApiKey ? "Connected" : "Not Connected"}
+                  </div>
+                  <div className="text-[10px] text-slate-500">
+                    {settings.waApiKey ? "WhatsApp API ready — messages will be sent" : "Add API key below to activate WhatsApp alerts"}
+                  </div>
+                </div>
+              </div>
+
+              {/* API Key */}
+              <div>
+                <SLabel text="API Key (Chakra HQ)" hint="Chakra HQ Dashboard → Settings → API → Copy Bearer Token" />
+                <input type="password" value={settings.waApiKey || ""} onChange={(e) => upd("waApiKey", e.target.value)}
+                       placeholder="Bearer token paste करो"
+                       className="w-full rounded-lg px-3 py-2.5 text-[13px] text-slate-800 outline-none"
+                       style={{ background: "rgba(17,24,39,0.04)", border: "1px solid rgba(17,24,39,0.12)" }} />
+              </div>
+
+              {/* Phone Number ID */}
+              <div>
+                <SLabel text="Phone Number ID" hint="Chakra HQ → WhatsApp → Phone Number ID" />
+                <input type="text" value={settings.waPhoneId || ""} onChange={(e) => upd("waPhoneId", e.target.value)}
+                       placeholder="e.g. 1234567890"
+                       className="w-full rounded-lg px-3 py-2.5 text-[13px] text-slate-800 outline-none"
+                       style={{ background: "rgba(17,24,39,0.04)", border: "1px solid rgba(17,24,39,0.12)" }} />
+              </div>
+
+              {/* Owner Phone */}
+              <div>
+                <SLabel text="Owner / Admin Phone" hint="Country code के साथ — जैसे 919876543210 (91 = India)" />
+                <input type="text" value={settings.waOwnerPhone || ""} onChange={(e) => upd("waOwnerPhone", e.target.value.replace(/[^0-9]/g, ""))}
+                       placeholder="919876543210"
+                       className="w-full rounded-lg px-3 py-2.5 text-[13px] text-slate-800 outline-none font-mono"
+                       style={{ background: "rgba(17,24,39,0.04)", border: "1px solid rgba(17,24,39,0.12)" }} />
+              </div>
+
+              {/* Dept head numbers */}
+              <div>
+                <SLabel text="Department Heads (comma-separated)" hint="अलग अलग department heads के phone numbers — alerts इनको जाएँगे" />
+                <input type="text" value={settings.waGroupNumbers || ""} onChange={(e) => upd("waGroupNumbers", e.target.value)}
+                       placeholder="919876543210, 919876543211, 919876543212"
+                       className="w-full rounded-lg px-3 py-2.5 text-[13px] text-slate-800 outline-none font-mono"
+                       style={{ background: "rgba(17,24,39,0.04)", border: "1px solid rgba(17,24,39,0.12)" }} />
+              </div>
+
+              {/* Test button */}
+              {settings.waApiKey && settings.waOwnerPhone && (
+                <button onClick={async () => {
+                  try {
+                    const { callFn } = await import("./stores/adminApi.js");
+                    const res = await callFn("whatsapp-send", {
+                      to: settings.waOwnerPhone,
+                      message: `✅ Shantaz ERP WhatsApp Connected!\n\nTest message — ${new Date().toLocaleString("en-IN")}`,
+                      apiKey: settings.waApiKey,
+                      phoneId: settings.waPhoneId,
+                    });
+                    if (res && !res.error) alert("✅ Test message sent! Check WhatsApp.");
+                    else alert("❌ Failed: " + (res?.error || "Unknown error"));
+                  } catch (err) { alert("❌ Error: " + err.message); }
+                }}
+                  className="w-full py-3 rounded-xl text-[13px] font-bold text-white transition-all hover:scale-[1.01] active:scale-[0.99]"
+                  style={{ background: "linear-gradient(135deg,#25d366,#128c7e)", boxShadow: "0 4px 12px rgba(37,211,102,0.35)" }}>
+                  📩 Test Message भेजो
+                </button>
+              )}
+            </div>
+          </Section>
+
+          <Section icon="🔔" title="कौन सी Alerts चालू करें">
             <Toggle
-              checked={settings.whatsappAlerts}
-              onChange={(v) => upd("whatsappAlerts", v)}
-              label="WhatsApp Alerts"
-              desc="Send low stock and PO status updates via WhatsApp" />
+              checked={settings.waNotifyIssue}
+              onChange={(v) => upd("waNotifyIssue", v)}
+              label="🔴 Issue Raised Alert"
+              desc="Machine पर issue raise होते ही owner + department head को WhatsApp जाएगा" />
+            <Toggle
+              checked={settings.waNotifyTransfer}
+              onChange={(v) => upd("waNotifyTransfer", v)}
+              label="🟢 Transfer Complete"
+              desc="Machine next department में transfer होने पर notification" />
+            <Toggle
+              checked={settings.waNotifyDeadline}
+              onChange={(v) => upd("waNotifyDeadline", v)}
+              label="🟡 Deadline Exceeded"
+              desc="Department ने time limit cross किया तो auto alert" />
+            <Toggle
+              checked={settings.waNotifyDaily}
+              onChange={(v) => upd("waNotifyDaily", v)}
+              label="📊 Daily Morning Summary"
+              desc="रोज़ सुबह 8 बजे — कितनी machines active, कितनी issues pending" />
             <Toggle
               checked={settings.emailAlerts}
               onChange={(v) => upd("emailAlerts", v)}
-              label="Email Alerts"
-              desc="Send order confirmations and approval reminders via Email" />
+              label="📧 Email Alerts"
+              desc="Email पर भी same notifications भेजो (future)" />
           </Section>
+          </div>
         )}
 
         {/* ── Data & Backup tab ─────────────────────────────────────────────── */}
@@ -13021,6 +13121,29 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   const isAwaitingRelease = (h) => !!(h && h.releaseRequired && !h.releasedAt);
   const overdueHandovers = pendingHandovers.filter((h) =>
     !isAwaitingRelease(h) && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick));
+
+  // ── WhatsApp trigger: deadline exceeded (once per handover) ──
+  const waDeadlineAlertedRef = React.useRef(new Set());
+  useEffect(() => {
+    if (!settings.waNotifyDeadline || !settings.waApiKey || !overdueHandovers.length) return;
+    const newOverdue = overdueHandovers.filter((h) => !waDeadlineAlertedRef.current.has(h.id));
+    if (!newOverdue.length) return;
+    (async () => {
+      try {
+        const { callFn } = await import("./stores/adminApi.js");
+        for (const h of newOverdue) {
+          const machine = machineLog.find((m) => String(m.id) === String(h.machineId));
+          const msg = `🔴 Deadline Exceeded\nMachine: ${machine?.bomKey || "?"}${machine?.serialNo ? ` [${machine.serialNo}]` : ""}\n${h.fromDepartment} → ${h.toDepartment}\nWaiting: ${Math.round((Date.now() - new Date(h.sentAt).getTime()) / 60000)} min (limit ${h.acceptTimeoutMinutes || "?"} min)`;
+          const phones = [settings.waOwnerPhone, settings.waGroupNumbers].filter(Boolean).join(",").split(",").map((p) => p.trim()).filter(Boolean);
+          for (const phone of phones) {
+            callFn("whatsapp-send", { to: phone, message: msg, apiKey: settings.waApiKey, phoneId: settings.waPhoneId || "" })
+              .catch((e) => console.warn("[WhatsApp] deadline alert failed", e));
+          }
+          waDeadlineAlertedRef.current.add(h.id);
+        }
+      } catch (e) { console.warn("[WhatsApp] deadline effect error", e); }
+    })();
+  }, [overdueHandovers, settings.waNotifyDeadline, settings.waApiKey, settings.waOwnerPhone, settings.waGroupNumbers, settings.waPhoneId, machineLog]);
 
   // Smart Notifications — priority: "urgent" 🔴 / "warning" 🟡 / "info" 🟢 (default)
   const showToast = (text, sub, priority) => {
@@ -19797,6 +19920,15 @@ export default function App() {
         mainEmployeeSigned: !!mainEmployeeSignatureSvg,
       },
     });
+
+    // ── WhatsApp trigger: transfer complete ──
+    if (settings.waNotifyTransfer) {
+      const overrun = actualDurationMinutes > expectedDurationMinutes;
+      const msg = `${overrun ? "🟡" : "🟢"} Transfer Complete\nMachine: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}\n${fromDepartment} → ${toDepartment}\nTime: ${actualDurationMinutes}min${overrun ? ` (expected ${expectedDurationMinutes}min)` : ""}`;
+      if (settings.waOwnerPhone) sendWhatsApp(settings.waOwnerPhone, msg);
+      if (settings.waGroupNumbers) sendWhatsApp(settings.waGroupNumbers, msg);
+    }
+
     if (overrunNarration && overrunNarration.trim()) {
       logAudit({
         type: "handover_overrun_narrated", module: "Machine",
@@ -20144,6 +20276,27 @@ export default function App() {
     return { success: true };
   };
 
+  // ── WhatsApp alert helper ──────────────────────────────────────────────────
+  // Fire-and-forget: failures are logged but never block the caller.
+  // `recipients` is a comma-separated string of phone numbers (settings.waGroupNumbers)
+  // or a single number. Each recipient gets an independent API call.
+  const sendWhatsApp = async (to, message) => {
+    if (!settings.waApiKey || !to || !message) return;
+    try {
+      const { callFn } = await import("./stores/adminApi.js");
+      const phones = String(to).split(",").map((p) => p.trim()).filter(Boolean);
+      for (const phone of phones) {
+        callFn("whatsapp-send", {
+          to: phone, message,
+          apiKey: settings.waApiKey,
+          phoneId: settings.waPhoneId || "",
+        }).catch((e) => console.warn("[WhatsApp] send failed for", phone, e));
+      }
+    } catch (e) {
+      console.warn("[WhatsApp] helper error", e);
+    }
+  };
+
   // ── Phase B — Pending-item resolution ─────────────────────────────────────
   // Phase 1 — raise a fault mid-work against the department that must fix it.
   // Distinct from the Accept-time pending items: those blame the previous
@@ -20177,6 +20330,14 @@ export default function App() {
         description: desc,
       },
     });
+
+    // ── WhatsApp trigger: issue raised ──
+    if (settings.waNotifyIssue) {
+      const msg = `🔴 Issue Raised\nMachine: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}\nDept: ${assignedDepartment || "General"}\nIssue: ${desc}`;
+      if (settings.waOwnerPhone) sendWhatsApp(settings.waOwnerPhone, msg);
+      if (settings.waGroupNumbers) sendWhatsApp(settings.waGroupNumbers, msg);
+    }
+
     return res;
   };
 
