@@ -741,6 +741,43 @@ body .empty-state-icon { opacity: 0.5; }
 body [class*="rounded-full"][class*="font-black"],
 body [class*="rounded-full"][class*="font-bold"] { font-variant-numeric: tabular-nums; }
 
+/* ═══ SLATE PRO — forms & modals global lift ═════════════════════════════ */
+
+/* All text inputs/selects/textareas get a consistent Slate Pro focus ring */
+body input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):focus,
+body textarea:focus,
+body select:focus {
+  border-color: rgba(240, 53, 61, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(240, 53, 61, 0.1) !important;
+  outline: none;
+}
+
+/* Modal backdrop — deeper, cleaner blur across the app */
+body .modal-backdrop {
+  background: rgba(10, 15, 28, 0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* Any fixed inset-0 overlay used as a modal shell gets the same treatment */
+body .fixed.inset-0[style*="rgba(15,20,28"],
+body .fixed.inset-0[style*="rgba(15, 20, 28"] {
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* Section headers — consistent weight/tracking everywhere */
+body h1, body h2, body h3 { letter-spacing: -0.01em; }
+
+/* Give every rounded-2xl white card a soft premium shadow + hover */
+body [class*="rounded-2xl"][class*="bg-white"],
+body .rounded-2xl[style*="surface-card"] {
+  box-shadow: var(--shadow-sm);
+}
+
+/* Toggles/switches — smoother */
+body button[class*="rounded-full"][class*="transition"] { transition: background-color 0.22s var(--ease-smooth); }
+
 /* All rounded-xl cards with colored bg tint get smooth hover */
 body [class*="rounded-xl"][class*="border"] {
   transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;

@@ -22,48 +22,50 @@ export default function LoginPage() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center"
-      style={{ background: "var(--surface-base)", fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}
+      className="min-h-screen flex items-center justify-center relative overflow-hidden"
+      style={{ background: "radial-gradient(1200px 600px at 50% -10%, #142037 0%, #0b1120 55%)", fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}
     >
       {/* Ambient glow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full opacity-[0.06]"
-             style={{ background: "radial-gradient(circle,#D71920,transparent)", filter: "blur(80px)" }} />
-        <div className="absolute bottom-0 right-1/4 w-[400px] h-[300px] rounded-full opacity-[0.04]"
-             style={{ background: "radial-gradient(circle,#3B6BCC,transparent)", filter: "blur(80px)" }} />
+        <div className="absolute top-[-120px] left-1/2 -translate-x-1/2 w-[680px] h-[460px] rounded-full"
+             style={{ background: "radial-gradient(circle,rgba(240,53,61,0.22),transparent 70%)", filter: "blur(90px)" }} />
+        <div className="absolute bottom-[-100px] right-[12%] w-[420px] h-[320px] rounded-full"
+             style={{ background: "radial-gradient(circle,rgba(37,99,235,0.18),transparent 70%)", filter: "blur(90px)" }} />
+        {/* subtle grid */}
+        <div className="absolute inset-0 opacity-[0.04]"
+             style={{ backgroundImage: "linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)", backgroundSize: "44px 44px" }} />
       </div>
 
-      <div className="relative z-10 w-full max-w-[360px] px-4">
+      <div className="relative z-10 w-full max-w-[380px] px-4">
         {/* Brand mark */}
-        <div className="text-center mb-9">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white text-xl font-black"
-               style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 8px 24px rgba(215, 25, 32,0.36)" }}>
+        <div className="text-center mb-8">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white text-2xl font-black"
+               style={{ background: "linear-gradient(135deg,#f0353d,#c4151d)", boxShadow: "0 10px 30px rgba(240,53,61,0.45)" }}>
             S
           </div>
-          <div className="text-[15px] font-bold tracking-[0.12em]" style={{ color: "var(--text-strong)" }}>SHANTAZ</div>
-          <div className="text-[10px] font-semibold tracking-[0.18em] mt-0.5"
-               style={{ background: "linear-gradient(90deg,#B01218,#B01218)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            TECHNOFOODS ERP
+          <div className="text-[16px] font-extrabold tracking-[0.14em]" style={{ color: "#f8fafc" }}>SHANTAZ</div>
+          <div className="text-[10px] font-semibold tracking-[0.2em] mt-1" style={{ color: "#64748b" }}>
+            TECHNOFOODS&nbsp;ERP
           </div>
         </div>
 
         {/* Card */}
-        <div className="rounded-2xl p-7"
+        <div className="rounded-2xl p-8"
              style={{
-               background: "var(--surface-card)",
-               border: "1px solid var(--border-rim)",
-               boxShadow: "var(--shadow-lg)",
+               background: "rgba(255,255,255,0.98)",
+               border: "1px solid rgba(255,255,255,0.1)",
+               boxShadow: "0 32px 80px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)",
+               backdropFilter: "blur(12px)",
              }}>
           <div className="mb-6">
-            <h2 className="text-[15px] font-bold mb-1" style={{ color: "var(--text-strong)" }}>Sign in</h2>
-            <p className="text-[11px]" style={{ color: "var(--text-dim)" }}>Enter your credentials to continue</p>
+            <h2 className="text-[18px] font-extrabold tracking-[-0.02em] mb-1" style={{ color: "#0f172a" }}>Welcome back</h2>
+            <p className="text-[12px]" style={{ color: "#64748b" }}>Sign in to your Shantaz ERP account</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Username */}
             <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-[0.08em] mb-1.5"
-                     style={{ color: "var(--text-muted)" }}>
+              <label className="block text-[10px] font-bold uppercase tracking-[0.08em] mb-1.5" style={{ color: "#64748b" }}>
                 Username
               </label>
               <input
@@ -73,21 +75,16 @@ export default function LoginPage() {
                 placeholder="Enter username"
                 autoComplete="username"
                 autoFocus
-                className="w-full px-3.5 py-2.5 rounded-xl text-[13px] outline-none transition-all modal-input"
-                style={{
-                  background: "var(--surface-input)",
-                  border: "1px solid var(--border-rim)",
-                  color: "var(--text)",
-                }}
-                onFocus={(e) => { e.target.style.borderColor = "rgba(215, 25, 32,0.52)"; e.target.style.boxShadow = "0 0 0 3px rgba(215, 25, 32,0.12)"; }}
-                onBlur={(e)  => { e.target.style.borderColor = "var(--border-rim)"; e.target.style.boxShadow = "none"; }}
+                className="w-full px-3.5 py-3 rounded-xl text-[13px] outline-none transition-all"
+                style={{ background: "#f8fafc", border: "1.5px solid #e2e8f0", color: "#0f172a" }}
+                onFocus={(e) => { e.target.style.borderColor = "#f0353d"; e.target.style.boxShadow = "0 0 0 3px rgba(240,53,61,0.12)"; e.target.style.background = "#fff"; }}
+                onBlur={(e)  => { e.target.style.borderColor = "#e2e8f0"; e.target.style.boxShadow = "none"; e.target.style.background = "#f8fafc"; }}
               />
             </div>
 
             {/* Password */}
             <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-[0.08em] mb-1.5"
-                     style={{ color: "var(--text-muted)" }}>
+              <label className="block text-[10px] font-bold uppercase tracking-[0.08em] mb-1.5" style={{ color: "#64748b" }}>
                 Password
               </label>
               <div className="relative">
@@ -97,22 +94,18 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter password"
                   autoComplete="current-password"
-                  className="w-full px-3.5 py-2.5 pr-14 rounded-xl text-[13px] outline-none transition-all modal-input"
-                  style={{
-                    background: "var(--surface-input)",
-                    border: "1px solid var(--border-rim)",
-                    color: "var(--text)",
-                  }}
-                  onFocus={(e) => { e.target.style.borderColor = "rgba(215, 25, 32,0.52)"; e.target.style.boxShadow = "0 0 0 3px rgba(215, 25, 32,0.12)"; }}
-                  onBlur={(e)  => { e.target.style.borderColor = "var(--border-rim)"; e.target.style.boxShadow = "none"; }}
+                  className="w-full px-3.5 py-3 pr-14 rounded-xl text-[13px] outline-none transition-all"
+                  style={{ background: "#f8fafc", border: "1.5px solid #e2e8f0", color: "#0f172a" }}
+                  onFocus={(e) => { e.target.style.borderColor = "#f0353d"; e.target.style.boxShadow = "0 0 0 3px rgba(240,53,61,0.12)"; e.target.style.background = "#fff"; }}
+                  onBlur={(e)  => { e.target.style.borderColor = "#e2e8f0"; e.target.style.boxShadow = "none"; e.target.style.background = "#f8fafc"; }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-wide transition-colors px-1.5 py-1 rounded-md"
-                  style={{ color: "var(--text-muted)" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold uppercase tracking-wide transition-colors px-1.5 py-1 rounded-md"
+                  style={{ color: "#94a3b8" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = "#0f172a"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = "#94a3b8"; }}
                 >
                   {showPw ? "Hide" : "Show"}
                 </button>
@@ -121,8 +114,8 @@ export default function LoginPage() {
 
             {/* Error */}
             {error && (
-              <div className="px-3.5 py-2.5 rounded-xl text-[12px]"
-                   style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.22)", color: "#b91c1c" }}>
+              <div className="px-3.5 py-2.5 rounded-xl text-[12px] font-medium anim-slide-down"
+                   style={{ background: "rgba(220,38,38,0.07)", border: "1px solid rgba(220,38,38,0.2)", color: "#b91c1c" }}>
                 {error}
               </div>
             )}
@@ -131,10 +124,10 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-white transition-all mt-1"
+              className="w-full py-3 rounded-xl text-[13px] font-bold text-white transition-all mt-1"
               style={{
-                background: loading ? "rgba(176, 18, 24,0.35)" : "linear-gradient(135deg,#D71920,#B01218)",
-                boxShadow: loading ? "none" : "0 4px 16px rgba(215, 25, 32,0.32)",
+                background: loading ? "rgba(192,21,29,0.4)" : "linear-gradient(180deg,#f0353d,#d01820)",
+                boxShadow: loading ? "none" : "0 6px 18px -4px rgba(240,53,61,0.5), inset 0 1px 0 rgba(255,255,255,0.2)",
                 cursor: loading ? "not-allowed" : "pointer",
               }}
             >
@@ -143,8 +136,8 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-[10px] mt-5" style={{ color: "var(--text-dim)" }}>
-          Shantaz Technofoods — Internal ERP
+        <p className="text-center text-[10px] mt-6" style={{ color: "#475569" }}>
+          Shantaz Technofoods — Internal ERP · Secure Login
         </p>
       </div>
     </div>
