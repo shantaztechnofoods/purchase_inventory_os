@@ -1363,6 +1363,181 @@ tbody tr:hover {
   .print-block { break-inside: avoid; page-break-inside: avoid; }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   PREMIUM INTERACTION LAYER — TMPH-inspired polish (2026-10-29)
+   Smooth page transitions · Card micro-interactions · Refined hover states
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Page content transition — smooth fade+slide on page switch ──────────── */
+@keyframes pageSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-scroll > div {
+  animation: pageSlideIn 0.28s var(--ease-swift) both;
+}
+
+/* ── Card entrance — staggered fade-in for card grids ────────────────────── */
+@keyframes cardReveal {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Premium card hover — smooth lift with brand accent glow ─────────────── */
+@media (hover: hover) {
+  .premium-card {
+    transition: transform 0.24s var(--ease-swift),
+                box-shadow 0.24s var(--ease-swift),
+                border-color 0.24s ease;
+  }
+  .premium-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 28px rgba(17, 24, 39, 0.10), 0 4px 12px rgba(17, 24, 39, 0.06);
+    border-color: var(--border-rim-strong);
+  }
+
+  /* Section cards get a subtle lift too */
+  .section-card {
+    transition: transform 0.22s var(--ease-swift),
+                box-shadow 0.22s var(--ease-swift),
+                border-color 0.22s ease;
+  }
+  .section-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+}
+
+/* ── Smooth sidebar nav items — slide indicator ──────────────────────────── */
+aside nav button {
+  position: relative;
+  transition: background-color 0.18s var(--ease-smooth),
+              color 0.18s var(--ease-smooth),
+              transform 0.12s ease;
+}
+aside nav button::after {
+  content: "";
+  position: absolute;
+  left: 0; top: 20%; bottom: 20%;
+  width: 3px;
+  background: var(--brand);
+  border-radius: 0 3px 3px 0;
+  opacity: 0;
+  transform: scaleY(0);
+  transition: opacity 0.2s ease, transform 0.2s var(--ease-swift);
+}
+aside nav button[style*="brand"], aside nav button.nav-active {
+  /* Active state gets the indicator via JS-applied style */
+}
+
+/* ── KPI stat tiles — number counter feel ────────────────────────────────── */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.kpi-value {
+  animation: countUp 0.4s var(--ease-swift) both;
+}
+
+/* ── Smooth input focus — border glow transition ─────────────────────────── */
+input, textarea, select {
+  transition: border-color 0.18s ease, box-shadow 0.2s ease, background-color 0.14s ease !important;
+}
+
+/* ── Toggle switch — smooth slide ────────────────────────────────────────── */
+.toggle-track {
+  transition: background-color 0.22s var(--ease-smooth);
+}
+.toggle-thumb {
+  transition: transform 0.22s var(--ease-swift);
+}
+
+/* ── Badge pulse — attention-drawing for notification badges ─────────────── */
+@keyframes badgePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+.badge-pulse {
+  animation: badgePulse 2s ease-in-out infinite;
+}
+
+/* ── Smooth scroll for page content ──────────────────────────────────────── */
+.page-scroll {
+  scroll-behavior: smooth;
+}
+
+/* ── Button ripple effect (CSS only) ─────────────────────────────────────── */
+.btn-primary-brand {
+  position: relative;
+  overflow: hidden;
+}
+.btn-primary-brand::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(255,255,255,0.25) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.btn-primary-brand:hover::after { opacity: 1; }
+.btn-primary-brand:active::after { opacity: 0; }
+
+/* ── Tooltip appear animation ────────────────────────────────────────────── */
+.erp-tooltip {
+  animation: slideDownFade 0.12s var(--ease-swift) both;
+}
+
+/* ── Status badge shimmer on critical items ──────────────────────────────── */
+@keyframes statusShimmer {
+  0% { background-position: -100% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ── Dashboard metric card stagger ───────────────────────────────────────── */
+.metric-grid > * {
+  animation: cardReveal 0.32s var(--ease-swift) both;
+}
+.metric-grid > *:nth-child(1) { animation-delay: 0s; }
+.metric-grid > *:nth-child(2) { animation-delay: 0.04s; }
+.metric-grid > *:nth-child(3) { animation-delay: 0.08s; }
+.metric-grid > *:nth-child(4) { animation-delay: 0.12s; }
+.metric-grid > *:nth-child(5) { animation-delay: 0.16s; }
+.metric-grid > *:nth-child(6) { animation-delay: 0.20s; }
+.metric-grid > *:nth-child(7) { animation-delay: 0.24s; }
+.metric-grid > *:nth-child(8) { animation-delay: 0.28s; }
+
+/* ── Table row entrance stagger ──────────────────────────────────────────── */
+.erp-table tbody tr {
+  animation: slideUp 0.2s ease both;
+}
+.erp-table tbody tr:nth-child(1)  { animation-delay: 0s; }
+.erp-table tbody tr:nth-child(2)  { animation-delay: 0.02s; }
+.erp-table tbody tr:nth-child(3)  { animation-delay: 0.04s; }
+.erp-table tbody tr:nth-child(4)  { animation-delay: 0.06s; }
+.erp-table tbody tr:nth-child(5)  { animation-delay: 0.08s; }
+.erp-table tbody tr:nth-child(6)  { animation-delay: 0.10s; }
+.erp-table tbody tr:nth-child(7)  { animation-delay: 0.12s; }
+.erp-table tbody tr:nth-child(8)  { animation-delay: 0.14s; }
+.erp-table tbody tr:nth-child(9)  { animation-delay: 0.16s; }
+.erp-table tbody tr:nth-child(10) { animation-delay: 0.18s; }
+
+/* ── Smooth progress bars ────────────────────────────────────────────────── */
+.progress-bar {
+  transition: width 0.6s var(--ease-swift);
+}
+
+/* ── Filter tab smooth switch ────────────────────────────────────────────── */
+.filter-tab {
+  transition: background 0.18s var(--ease-smooth),
+              color 0.18s var(--ease-smooth),
+              box-shadow 0.18s ease,
+              transform 0.1s ease;
+}
+.filter-tab:active { transform: scale(0.96); }
+.filter-tab.active {
+  transition-duration: 0.22s;
+}
+
 /* ── Reduced motion ───────────────────────────────────────────────────────────
    Last word in the file, deliberately. Everything added above is neutralised
    here: the drawer and modal transitions collapse to an instant state change,
