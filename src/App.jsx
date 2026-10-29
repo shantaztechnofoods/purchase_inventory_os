@@ -18811,6 +18811,10 @@ export default function App() {
   // In-flight PO-receive guard — blocks duplicate movement writes from rapid double-clicks
   // before the optimistic status flip to "received" has rendered.
   const receivingRef = useRef(new Set());
+  // Same guard for Finish & Transfer: the handler only checks the stale
+  // machine.pendingHandoverId, which a fast second click reads as still-null
+  // before the first write lands — creating two handovers for one machine.
+  const transferringRef = useRef(new Set());
   const rtPos     = useCallback(() => { fetchPOs().then((p) => p && setPos(p)); }, []);
   const rtInward  = useCallback(() => { fetchInward().then((x) => x && setInwardLog(x)); }, []);
   const rtOutward = useCallback(() => { fetchOutward().then((x) => x && setOutwardLog(x)); }, []);
@@ -20484,6 +20488,15 @@ export default function App() {
     const machine = machineLog.find((m) => m.id === machineId);
     if (!machine) return { success: false, error: "Machine not found" };
     if (machine.pendingHandoverId) return { success: false, error: "Handover already in progress for this machine." };
+    // Race guard: a second click within the same tick still sees
+    // pendingHandoverId as null. The ref flips synchronously, so the duplicate
+    // is rejected here. Self-heals after 3s in case a downstream validation
+    // returns without the optimistic handover ever rendering.
+    if (transferringRef.current.has(machineId)) {
+      return { success: false, error: "Transfer already in progress for this machine." };
+    }
+    transferringRef.current.add(machineId);
+    setTimeout(() => transferringRef.current.delete(machineId), 3000);
 
     const workflow = readDeptWorkflowSettings(settings);
 
