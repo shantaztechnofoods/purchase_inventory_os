@@ -19096,13 +19096,21 @@ export default function App() {
     const dateStr = fmtDate(new Date());
     const event   = eventType || (delta > 0 ? "Restock" : "Usage");
     const before  = items[category]?.find((i) => i.code === code);
+    // The real delta actually applied after the stock-floor clamp. A negative
+    // over-issue (stock 5, delta -10) lands local stock at 0, so the applied
+    // change is -5, not -10. We capture it from inside the functional updater
+    // (which sees the latest prev, same as the clamp) and send THAT to Supabase
+    // — otherwise the DB drifts negative while the UI shows 0 and a reload
+    // reads back the wrong number. Deterministic given prev, so a StrictMode
+    // double-invoke is harmless.
+    let actualDelta = delta;
     // Optimistic local update (immediate UI)
     setItems((prev) => ({
       ...prev,
       [category]: prev[category].map((i) => {
         if (i.code !== code) return i;
-        const newStock    = Math.max(0, i.stock + delta);
-        const actualDelta = newStock - i.stock;
+        const newStock = Math.max(0, i.stock + delta);
+        actualDelta    = newStock - i.stock;
         return {
           ...i,
           stock:   newStock,
@@ -19112,9 +19120,10 @@ export default function App() {
         };
       }),
     }));
-    // Persist to Supabase (no-op when local mode)
+    // Persist to Supabase (no-op when local mode). Send the clamped actualDelta
+    // so the DB matches the UI exactly.
     if (isSupabaseEnabled()) {
-      const res = await updateStockAndHistory(category, code, delta, event);
+      const res = await updateStockAndHistory(category, code, actualDelta, event);
       if (!res.success) {
         console.warn("[App] handleUpdateStock: Supabase persist failed —", res.error);
         flashStockError(`${before?.name || code}: ${res.error || "movement rejected"}`);
@@ -21100,12 +21109,26 @@ export default function App() {
   // confirmation when the item is flagged Critical — null for non-critical
   // outward and for the system auto-fulfill paths (inward / receive-PO,
   // which call their own reducer inline and never route through here).
-  const handleFulfillPending = (entry, issuedQty, criticalInput = null) => {
-    // Move stock first. record_stock_movement is atomic — a RPC failure here
-    // short-circuits before we touch pending_log, so a half-committed state
-    // is impossible.
-    handleUpdateStock(entry.category, entry.code, -issuedQty, `Fulfill: ${entry.bomKey}`);
+  const handleFulfillPending = async (entry, issuedQty, criticalInput = null) => {
+    // Clamp to what is actually on hand. Without this, issuing more than the
+    // stock available reduces the pending row by the full amount while
+    // handleUpdateStock only moves what exists — the shortfall silently
+    // disappears. qty === issuedQty whenever stock is sufficient (the normal
+    // case), so this only changes the over-issue edge.
+    const onHand = items[entry.category]?.find((i) => i.code === entry.code)?.stock ?? 0;
+    const qty = Math.max(0, Math.min(issuedQty, onHand));
+    if (qty <= 0) {
+      flashStockError(`${entry.name || entry.code}: no stock on hand to issue`);
+      return;
+    }
+    // Move stock first and WAIT. On a Supabase failure handleUpdateStock reverts
+    // the optimistic UI to DB truth, so we must not touch pending_log — otherwise
+    // the stock comes back but the shortfall is already gone. Local mode always
+    // resolves success, so this is a no-op delay there.
+    const moveRes = await handleUpdateStock(entry.category, entry.code, -qty, `Fulfill: ${entry.bomKey}`);
+    if (moveRes && moveRes.success === false) return;
 
+    const issuedQtyApplied = qty;
     const matched = (p) => entry.issueId
       ? (p.issueId === entry.issueId && p.code === entry.code)
       : (p.code === entry.code && p.bomKey === entry.bomKey && p.date === entry.date);
@@ -21114,8 +21137,8 @@ export default function App() {
     // same React batch.
     const applyFulfill = (list) => list.reduce((acc, p) => {
       if (matched(p)) {
-        const rem = p.pendingQty - issuedQty;
-        if (rem > 0) acc.push({ ...p, pendingQty: rem, issueQty: (p.issueQty || 0) + issuedQty });
+        const rem = p.pendingQty - issuedQtyApplied;
+        if (rem > 0) acc.push({ ...p, pendingQty: rem, issueQty: (p.issueQty || 0) + issuedQtyApplied });
       } else { acc.push(p); }
       return acc;
     }, []);
@@ -21124,18 +21147,18 @@ export default function App() {
     if (isSupabaseEnabled()) {
       const matchedRow = pendingLog.find(matched);
       if (matchedRow && matchedRow.id) {
-        const rem = matchedRow.pendingQty - issuedQty;
-        if (rem > 0) pendingUpdate(matchedRow.id, { pendingQty: rem, issueQty: (matchedRow.issueQty || 0) + issuedQty }).then((r) => { if (!r.success) console.warn("[App] Pending update Supabase failed:", r.error); });
+        const rem = matchedRow.pendingQty - issuedQtyApplied;
+        if (rem > 0) pendingUpdate(matchedRow.id, { pendingQty: rem, issueQty: (matchedRow.issueQty || 0) + issuedQtyApplied }).then((r) => { if (!r.success) console.warn("[App] Pending update Supabase failed:", r.error); });
         else pendingDelete(matchedRow.id).then((r) => { if (!r.success) console.warn("[App] Pending delete Supabase failed:", r.error); });
       }
     }
     notifyMachineComplete(entry.issueId, newLog);
     logAudit({
       type: "pending_fulfilled", module: "Pending",
-      action: `Fulfilled: ${entry.name || entry.code} × ${issuedQty}`,
+      action: `Fulfilled: ${entry.name || entry.code} × ${issuedQtyApplied}`,
       ref: entry.issueId || entry.code,
       itemCode: entry.code, itemName: entry.name || entry.code,
-      qty: issuedQty, serialNo: entry.serialNo || "",
+      qty: issuedQtyApplied, serialNo: entry.serialNo || "",
       details: {
         bomKey: entry.bomKey,
         criticalInput: criticalInput || undefined,
