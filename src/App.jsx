@@ -705,42 +705,39 @@ function MetricCard({ label, value, delta, deltaUp, icon, barPct, barColor, valu
   const color = barColor || "#D71920";
   return (
     <div
-      className={`rounded-2xl p-5 relative overflow-hidden hover-lift ${highlight ? "gradient-border-static" : ""}`}
+      className="kpi-tile relative"
       style={{
-        background: "var(--surface-card)",
-        border: highlight ? undefined : "1px solid var(--border-rim)",
-        boxShadow: "var(--shadow-sm), var(--shadow-inset)",
+        padding: "16px 18px",
         animation: `slideUp 0.45s var(--ease-swift) ${delay}ms both`,
+        borderColor: highlight ? `${color}40` : undefined,
       }}
     >
-      {/* Top accent line */}
-      <div className="absolute top-0 left-5 right-5 h-px pointer-events-none"
-           style={{ background: `linear-gradient(90deg, transparent, ${color}80, transparent)` }} />
-      {/* Icon */}
-      {icon && (
-        <div className="absolute top-4 right-4 w-9 h-9 rounded-xl flex items-center justify-center text-base transition-transform duration-200"
-             style={{ background: color + "16", border: `1px solid ${color}26`, boxShadow: `0 2px 8px -2px ${color}22` }}>
-          {icon}
-        </div>
-      )}
-      <div className="text-[11px] font-semibold uppercase tracking-[0.09em] mb-2.5" style={{ color: "var(--text-muted)" }}>{label}</div>
-      <div className="text-[26px] font-bold leading-none mb-1.5 kpi-value"
-           style={{ fontFamily: "'Inter','SF Pro Text',system-ui,sans-serif", color: valueColor || "var(--text-strong)" }}>
+      <div className="flex items-start justify-between mb-2.5">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: "var(--text-muted)" }}>{label}</div>
+        {icon && (
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0 -mt-0.5 -mr-0.5"
+               style={{ background: color + "14", color }}>
+            {icon}
+          </div>
+        )}
+      </div>
+      <div className="text-[25px] font-extrabold leading-none tabular-nums tracking-[-0.025em] kpi-value"
+           style={{ color: valueColor || "var(--text-strong)" }}>
         {value}
       </div>
       {delta && (
-        <div className={`text-[10px] font-bold flex items-center gap-1 mt-1 ${
+        <div className={`text-[10px] font-bold flex items-center gap-1 mt-1.5 ${
           deltaUp !== undefined ? (deltaUp ? "text-emerald-600" : "text-red-600") : ""
         }`} style={deltaUp === undefined ? { color: "var(--text-muted)" } : {}}>
           {deltaUp !== undefined && (deltaUp ? "▲ " : "▼ ")}{delta}
         </div>
       )}
       {barPct !== undefined && (
-        <div className="mt-4 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(17,24,39,0.07)" }}>
-          <div className="h-full rounded-full transition-all duration-700"
+        <div className="mt-3.5 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(15,23,42,0.06)" }}>
+          <div className="progress-bar h-full rounded-full"
                style={{
                  width: `${Math.min(barPct, 100)}%`,
-                 background: `linear-gradient(90deg, ${color}55, ${color})`,
+                 background: `linear-gradient(90deg, ${color}66, ${color})`,
                }} />
         </div>
       )}
@@ -5310,13 +5307,17 @@ function ApprovalsPage({ pos, onUpdatePO }) {
             <div className="space-y-3">
               {displayList.map((po) => {
                 const isPending = ["pending", "review", "draft"].includes(po.status);
+                const stripCls = po.status === "draft" ? "status-strip-purple"
+                  : po.status === "review" ? "status-strip-blue"
+                  : po.status === "pending" ? "status-strip-yellow"
+                  : "status-strip-green";
                 return (
-                  <div key={po.id} className={`flex flex-wrap items-center gap-3 p-4 rounded-xl border transition-all ${
+                  <div key={po.id} className={`status-strip ${stripCls} flex flex-wrap items-center gap-3 p-4 rounded-xl border transition-all ${
                     !isPending
-                      ? "bg-green-500/[0.05] border-green-500/20 opacity-60"
+                      ? "bg-green-500/[0.04] border-green-500/15 opacity-70"
                       : po.status === "review"
-                      ? "bg-amber-600/[0.04] border-amber-500/20"
-                      : "bg-transparent border-slate-200"
+                      ? "bg-blue-500/[0.03] border-blue-500/15"
+                      : "bg-white border-slate-200"
                   }`}>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
@@ -14444,17 +14445,16 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           // of four. Nothing is lost; the full list is one click away on the
           // machine itself, which is where it gets dealt with anyway.
           return (
-            <div className="rounded-xl p-3.5"
-                 style={{ background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.35)" }}>
-              <div className="flex items-center gap-2 flex-wrap mb-2.5">
-                <span className="text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "#b91c1c" }}>
-                  Departments called
+            <div className="section-card status-strip status-strip-red p-4">
+              <div className="flex items-center gap-2.5 flex-wrap mb-3">
+                <div className="sec-icon" style={{ background: "rgba(220,38,38,0.08)", color: "#dc2626" }}>
+                  <AlertOctagon size={16} />
+                </div>
+                <span className="text-[12px] font-bold" style={{ color: "var(--text-strong)" }}>
+                  Departments Called
                 </span>
-                <span className="text-[11px] font-black px-2 py-0.5 rounded-full"
-                      style={{ background: "rgba(239,68,68,0.14)", color: "#b91c1c" }}>
-                  {openAssigned.length} open
-                </span>
-                <span className="text-[10px] text-slate-500">
+                <span className="sp-pill sp-pill-red">{openAssigned.length} open</span>
+                <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>
                   each machine stays put until its issues are resolved
                 </span>
               </div>
@@ -14572,13 +14572,17 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               {cards.map((c) => {
                 const active = filter === c.key;
+                const stripCls = c.key === "active" ? "status-strip-blue" : c.key === "completed" ? "status-strip-green" : c.key === "hold" ? "status-strip-red" : c.key === "pendingAccept" ? "status-strip-yellow" : "status-strip-purple";
                 return (
                   <button key={c.key} onClick={() => setFilter(c.key)}
-                          className={`p-4 rounded-xl text-left transition-all hover:scale-[1.02] status-strip ${c.key === "active" ? "status-strip-blue" : c.key === "completed" ? "status-strip-green" : c.key === "hold" ? "status-strip-red" : c.key === "pendingAccept" ? "status-strip-yellow" : "status-strip-purple"}`}
-                          style={{ background: c.bg, border: `${active ? "2px" : "1px"} solid ${c.color}${active ? "" : "55"}`, boxShadow: active ? `0 0 14px ${c.color}44` : "none" }}>
-                    <div className="text-[9px] font-bold uppercase tracking-[0.08em] mb-1" style={{ color: c.color }}>{c.label}</div>
-                    <div className="text-3xl font-black mb-1" style={{ color: c.color }}>{c.value}</div>
-                    <div className="text-[10px] text-slate-500">{c.sub}</div>
+                          className={`kpi-tile status-strip ${stripCls} text-left`}
+                          style={active ? { borderColor: c.color, boxShadow: `0 0 0 1px ${c.color}, 0 4px 16px -4px ${c.color}55` } : {}}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-[9.5px] font-bold uppercase tracking-[0.08em]" style={{ color: c.color }}>{c.label}</div>
+                      <span className="w-2 h-2 rounded-full" style={{ background: c.color }} />
+                    </div>
+                    <div className="text-[26px] font-extrabold leading-none tabular-nums tracking-[-0.02em]" style={{ color: c.color }}>{c.value}</div>
+                    <div className="text-[10px] mt-2" style={{ color: "var(--text-dim)" }}>{c.sub}</div>
                   </button>
                 );
               })}
@@ -14593,11 +14597,16 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         {(!isFloorLogin || myDepartments.includes(FIRST_WORK_DEPARTMENT)) && (
         <div>
           <div className="flex items-center justify-between mb-3">
-            <div>
-              <div className="text-sm font-black text-slate-900">Production Rack View</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">Ready-to-start machines waiting on the rack for each model</div>
+            <div className="flex items-center gap-2.5">
+              <div className="sec-icon" style={{ background: "rgba(37,99,235,0.08)", color: "#2563eb" }}>
+                <Boxes size={16} />
+              </div>
+              <div>
+                <div className="text-[13px] font-bold" style={{ color: "var(--text-strong)" }}>Production Rack View</div>
+                <div className="text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>Ready-to-start machines waiting on the rack for each model</div>
+              </div>
             </div>
-            <div className="text-[10px] text-slate-500">
+            <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>
               <span className="text-emerald-400">●</span> Full &nbsp;
               <span className="text-amber-400">●</span> Partial &nbsp;
               <span className="text-red-400">●</span> Empty
