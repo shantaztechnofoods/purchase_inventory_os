@@ -13022,7 +13022,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   const overdueHandovers = pendingHandovers.filter((h) =>
     !isAwaitingRelease(h) && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick));
 
-  const showToast = (text, sub) => { setToast({ text, sub }); setTimeout(() => setToast(null), 3000); };
+  // Smart Notifications — priority: "urgent" 🔴 / "warning" 🟡 / "info" 🟢 (default)
+  const showToast = (text, sub, priority) => {
+    const p = priority || "info";
+    const dur = p === "urgent" ? 6000 : p === "warning" ? 4500 : 3000;
+    setToast({ text, sub, priority: p });
+    setTimeout(() => setToast(null), dur);
+  };
 
   // Open the Finish & Transfer modal for a given machine.
   // Everyone who may be recorded as having worked in a department today:
@@ -13129,7 +13135,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         trialCertificate: cert,
       });
       if (res && res.success === false) {
-        showToast("Transfer failed", res.error || "Unknown error");
+        showToast("Transfer failed", res.error || "Unknown error", "urgent");
         return;
       }
       setTrialCertModal(null);
@@ -13174,15 +13180,15 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     const authWorkedBy = (Array.isArray(workedBy) ? workedBy : []).filter((id) => !String(id).startsWith("emp:"));
     const empWorkedBy  = (Array.isArray(workedBy) ? workedBy : []).filter((id) =>  String(id).startsWith("emp:"));
     if (!Array.isArray(workedBy) || workedBy.length === 0) {
-      showToast("Workers required", `Pick at least one worker from ${fromDepartment}.`);
+      showToast("Workers required", `Pick at least one worker from ${fromDepartment}.`, "warning");
       return;
     }
     if (!mainEmployeeId || !workedBy.includes(mainEmployeeId)) {
-      showToast("Main Employee required", "Pick the Main / Responsible Employee (must have ERP login) from the selected workers.");
+      showToast("Main Employee required", "Pick the Main / Responsible Employee (must have ERP login) from the selected workers.", "warning");
       return;
     }
     if (!mainSigSvg || !String(mainSigSvg).trim()) {
-      showToast("Signature required", "The Main Employee must sign to confirm this department's work.");
+      showToast("Signature required", "The Main Employee must sign to confirm this department's work.", "warning");
       return;
     }
     // Build a full snapshot including both auth users and display-name employees.
@@ -13216,7 +13222,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         mainEmployeeSignatureSvg: mainSigSvg,
       });
       if (res && res.success === false) {
-        showToast("Transfer failed", res.error || "Unknown error");
+        showToast("Transfer failed", res.error || "Unknown error", "urgent");
         return;
       }
       // Remember this crew for the next machine through this department.
@@ -13489,17 +13495,25 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   return (
     <div className="flex-1 overflow-y-auto">
 
-      {toast && (
+      {toast && (() => {
+        const prio = toast.priority || "info";
+        const icon = prio === "urgent" ? "🔴" : prio === "warning" ? "🟡" : "🟢";
+        const borderColor = prio === "urgent" ? "rgba(239,68,68,0.6)" : prio === "warning" ? "rgba(234,179,8,0.5)" : "rgba(34,197,94,0.45)";
+        const bg = prio === "urgent" ? "rgba(239,68,68,0.07)" : prio === "warning" ? "rgba(234,179,8,0.06)" : "transparent";
+        return (
         <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-             style={{ background: "var(--surface-raised)", border: "1px solid rgba(34,197,94,0.45)", boxShadow: "0 20px 60px rgba(17,24,39,0.14)", animation: "slideUp 0.3s ease both" }}>
-          <span className="text-lg">🔧</span>
+             style={{ background: `var(--surface-raised)`, border: `2px solid ${borderColor}`, boxShadow: `0 20px 60px rgba(17,24,39,0.14)`, animation: "slideUp 0.3s ease both" }}>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-base flex-shrink-0" style={{ background: bg }}>
+            {icon}
+          </div>
           <div>
             <div className="text-xs font-bold text-slate-900">{toast.text}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">{toast.sub}</div>
           </div>
           <button onClick={() => setToast(null)} className="ml-2 text-slate-600 hover:text-slate-500 text-xs">✕</button>
         </div>
-      )}
+        );
+      })()}
 
       <Topbar title="Machine Tracker" subtitle="Production build tracking — BOM issue through completion">
         {/* Admin-only quick jump to the Department Workflow Settings tab:
@@ -14335,7 +14349,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                               {canDo("machines", "release") && onReleaseHandover && (
                                 <button onClick={async () => {
                                           const r = await onReleaseHandover(h.id);
-                                          if (r && r.success === false) showToast("Could not release", r.error || "");
+                                          if (r && r.success === false) showToast("Could not release", r.error || "", "urgent");
                                           else showToast(`${machine.bomKey}${machine.serialNo ? ` — ${machine.serialNo}` : ""}`, `${h.toDepartment} can now pick it up`);
                                         }}
                                         className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
@@ -14606,7 +14620,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                                    const notes = window.prompt("Resolution notes (optional):", "");
                                                    if (notes === null) return;
                                                    const r = await onResolvePendingItem(p.id, { notes });
-                                                   if (r && r.success === false) showToast("Resolve failed", r.error || "");
+                                                   if (r && r.success === false) showToast("Resolve failed", r.error || "", "urgent");
                                                    else showToast("Pending item resolved", "");
                                                 }}
                                                 className="text-[10px] font-bold text-emerald-300 hover:text-emerald-200 px-2 py-0.5 rounded border border-emerald-500/40 bg-emerald-500/10">
@@ -14647,7 +14661,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                          const customer = window.confirm("Make this attachment visible on the Customer Progress Report? Click OK for YES, Cancel for internal-only.");
                                          const r = await onUploadAttachment({ machineId: machine.id, department: dept, stage: dept, file, caption: "", isCustomerVisible: customer });
                                          e.target.value = "";
-                                         if (r && r.success === false) showToast("Upload failed", r.error || "");
+                                         if (r && r.success === false) showToast("Upload failed", r.error || "", "urgent");
                                          else showToast("Attachment uploaded", file.name);
                                        }} />
                               </label>
@@ -14672,7 +14686,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                     <button onClick={async () => {
                                               if (!window.confirm("Delete this attachment?")) return;
                                               const r = await onDeleteAttachment(a.id);
-                                              if (r && r.success === false) showToast("Delete failed", r.error || "");
+                                              if (r && r.success === false) showToast("Delete failed", r.error || "", "urgent");
                                               else showToast("Attachment deleted", "");
                                             }}
                                             className="text-[10px] text-slate-500 hover:text-red-400">×</button>
@@ -14852,7 +14866,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           if (r && r.success === false) { setRaiseErr(r.error || "Could not save the issue."); return; }
           if (voiceRecRef.current) { voiceRecRef.current.stop(); voiceRecRef.current = null; setVoiceActive(false); }
           setRaiseModal(null);
-          showToast(`${m.bomKey}${m.serialNo ? ` — ${m.serialNo}` : ""}`, `${raiseDept} called · machine is now blocked`);
+          showToast(`${m.bomKey}${m.serialNo ? ` — ${m.serialNo}` : ""}`, `${raiseDept} called · machine is now blocked`, "urgent");
         };
         return (
         <div className="modal-backdrop fixed inset-0 z-[70] flex items-center justify-center p-4"
@@ -15043,14 +15057,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               <button onClick={async () => {
                           const cfm = removeRackConfirm;
                           setRemoveRackConfirm(null);
-                          if (!onRemoveRackMachine) { showToast("Remove unavailable", "Permission missing"); return; }
+                          if (!onRemoveRackMachine) { showToast("Remove unavailable", "Permission missing", "warning"); return; }
                           const res = await onRemoveRackMachine(cfm.machineId);
                           if (res?.success) {
                             showToast(`Removed ${cfm.bomKey}${cfm.serialNo ? ` · ${cfm.serialNo}` : ""}`, `${res.restored || 0} component(s) returned to stock`);
                             const remaining = rackMachinesFor(startProd?.key || "").filter((m) => m.id !== cfm.machineId);
                             if (startProd && remaining.length === 0) setStartProd(null);
                           } else {
-                            showToast("Failed to remove", res?.error || "unknown error");
+                            showToast("Failed to remove", res?.error || "unknown error", "urgent");
                           }
                         }}
                       className="inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-4 py-1.5 text-white border transition-all"
