@@ -14948,7 +14948,12 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                       </div>
                     </div>
 
-                    {/* Progress timeline */}
+                    {/* Progress timeline — the full Assembly→…→Ready stepper
+                        across every department is factory context for an
+                        admin/office reader. A floor worker only acts on their
+                        own stage, so it is hidden for a floor login to keep the
+                        card to machine + current stage + the action button. */}
+                    {!isFloorLogin && (
                     <div className="flex-1 min-w-[260px]">
                       <div className="flex items-center">
                         {MACHINE_STAGES.map((stage, idx) => {
@@ -14981,6 +14986,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         })}
                       </div>
                     </div>
+                    )}
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
