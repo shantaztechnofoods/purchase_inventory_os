@@ -5720,8 +5720,10 @@ function WhatsAppPage({ settings = {}, onSave }) {
   const [localSettings, setLocalSettings] = useState({
     waApiKey: settings.waApiKey || "",
     waPhoneId: settings.waPhoneId || "",
+    waPluginId: settings.waPluginId || "",
     waOwnerPhone: settings.waOwnerPhone || "",
     waGroupNumbers: settings.waGroupNumbers || "",
+    waAnthropicKey: settings.waAnthropicKey || "",
     waNotifyIssue: settings.waNotifyIssue !== false,
     waNotifyTransfer: settings.waNotifyTransfer !== false,
     waNotifyDeadline: settings.waNotifyDeadline !== false,
@@ -5732,6 +5734,18 @@ function WhatsAppPage({ settings = {}, onSave }) {
   });
   const [testStatus, setTestStatus] = useState(null);
   const [dirty, setDirty] = useState(false);
+  const [activeTab, setActiveTab] = useState("agent"); // agent | settings | log
+
+  // ── Claude Agent State ──
+  const [chatMessages, setChatMessages] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("erp_wa_agent_chat") || "[]"); } catch { return []; }
+  });
+  const [trainingData, setTrainingData] = useState(() => {
+    try { return localStorage.getItem("erp_wa_training") || ""; } catch { return ""; }
+  });
+  const [agentInput, setAgentInput] = useState("");
+  const [agentLoading, setAgentLoading] = useState(false);
+  const chatEndRef = useRef(null);
 
   const upd = (key, val) => { setLocalSettings((p) => ({ ...p, [key]: val })); setDirty(true); };
 
@@ -5749,6 +5763,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
         to: localSettings.waOwnerPhone,
         message: "✅ Shantaz ERP — WhatsApp connected successfully!",
         apiKey: localSettings.waApiKey,
+        pluginId: localSettings.waPluginId || "",
         phoneId: localSettings.waPhoneId || "",
       });
       if (res?.success) {
@@ -5780,14 +5795,75 @@ function WhatsAppPage({ settings = {}, onSave }) {
     return () => { delete window.__waLog; };
   }, []);
 
+  // Auto-scroll chat
+  useEffect(() => {
+    if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
+  // ── Claude Agent Chat ──
+  const handleAgentSend = async () => {
+    const text = agentInput.trim();
+    if (!text || agentLoading) return;
+    if (!localSettings.waAnthropicKey) {
+      setChatMessages((prev) => {
+        const next = [...prev, { role: "user", content: text }, { role: "assistant", content: "⚠️ पहले Settings tab में Anthropic API Key डालो, तभी मैं काम कर पाऊँगा।" }];
+        try { localStorage.setItem("erp_wa_agent_chat", JSON.stringify(next)); } catch {}
+        return next;
+      });
+      setAgentInput("");
+      return;
+    }
+    const newMessages = [...chatMessages, { role: "user", content: text }];
+    setChatMessages(newMessages);
+    setAgentInput("");
+    setAgentLoading(true);
+    try {
+      const { callFn } = await import("./stores/adminApi.js");
+      const res = await callFn("whatsapp-agent", {
+        messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+        trainingData,
+        anthropicKey: localSettings.waAnthropicKey,
+      });
+      const reply = res?.reply || "Sorry, कुछ problem आई। Dobara try करो।";
+      const updated = [...newMessages, { role: "assistant", content: reply }];
+      setChatMessages(updated);
+      try { localStorage.setItem("erp_wa_agent_chat", JSON.stringify(updated)); } catch {}
+      // Auto-extract training data from conversation
+      const trainLines = updated
+        .filter((m) => m.role === "user")
+        .map((m) => m.content)
+        .join("\n");
+      setTrainingData(trainLines);
+      try { localStorage.setItem("erp_wa_training", trainLines); } catch {}
+    } catch (e) {
+      const errMsg = { role: "assistant", content: `❌ Error: ${e?.message || "Connection failed"}` };
+      const updated = [...newMessages, errMsg];
+      setChatMessages(updated);
+      try { localStorage.setItem("erp_wa_agent_chat", JSON.stringify(updated)); } catch {}
+    }
+    setAgentLoading(false);
+  };
+
+  const clearChat = () => {
+    setChatMessages([]);
+    try { localStorage.removeItem("erp_wa_agent_chat"); } catch {}
+  };
+
   const connected = !!(localSettings.waApiKey && localSettings.waOwnerPhone);
+
+  const tabs = [
+    { id: "agent",    icon: "🤖", label: "AI Training" },
+    { id: "settings", icon: "⚙️", label: "Settings" },
+    { id: "log",      icon: "📋", label: "Message Log" },
+  ];
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-bold" style={{ color: "var(--text)" }}>📱 WhatsApp</h1>
-          <p className="text-[12px] mt-0.5" style={{ color: "var(--text-dim)" }}>Alerts, message log & settings</p>
+          <p className="text-[12px] mt-0.5" style={{ color: "var(--text-dim)" }}>AI Training · Alerts · Message Log</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-bold"
@@ -5800,103 +5876,216 @@ function WhatsAppPage({ settings = {}, onSave }) {
         </div>
       </div>
 
-      {/* ── Compact Settings ── */}
-      <div className="rounded-xl p-4 mb-6" style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
-        <div className="text-[11px] font-bold mb-3" style={{ color: "var(--text-dim)" }}>⚙️ CONNECTION</div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-          <div>
-            <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-dim)" }}>API Key (Chakra HQ)</div>
-            <input type="password" value={localSettings.waApiKey} onChange={(e) => upd("waApiKey", e.target.value)}
-                   placeholder="Bearer token paste करो" className="w-full px-3 py-2 rounded-lg text-[13px]"
-                   style={{ background: "var(--surface-base)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
-          </div>
-          <div>
-            <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-dim)" }}>Phone Number ID</div>
-            <input type="text" value={localSettings.waPhoneId} onChange={(e) => upd("waPhoneId", e.target.value)}
-                   placeholder="Chakra HQ → WhatsApp → Phone Number ID" className="w-full px-3 py-2 rounded-lg text-[13px]"
-                   style={{ background: "var(--surface-base)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
-          </div>
-          <div>
-            <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-dim)" }}>Owner / Admin Phone</div>
-            <input type="text" value={localSettings.waOwnerPhone} onChange={(e) => upd("waOwnerPhone", e.target.value.replace(/[^0-9]/g, ""))}
-                   placeholder="919876543210" className="w-full px-3 py-2 rounded-lg text-[13px]"
-                   style={{ background: "var(--surface-base)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
-          </div>
-          <div>
-            <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-dim)" }}>Dept Heads (comma-separated)</div>
-            <input type="text" value={localSettings.waGroupNumbers} onChange={(e) => upd("waGroupNumbers", e.target.value)}
-                   placeholder="919876543210, 919876543211" className="w-full px-3 py-2 rounded-lg text-[13px]"
-                   style={{ background: "var(--surface-base)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
-          </div>
-        </div>
-        {connected && (
-          <button onClick={handleTest} disabled={testStatus === "sending"} className="px-4 py-1.5 rounded-lg text-[12px] font-bold text-white"
-                  style={{ background: testStatus === "success" ? "#15803d" : testStatus === "fail" ? "#dc2626" : "#25D366" }}>
-            {testStatus === "sending" ? "⏳ Sending..." : testStatus === "success" ? "✅ Sent!" : testStatus === "fail" ? "❌ Failed" : "🔔 Test WhatsApp"}
+      {/* ── Tab Bar ── */}
+      <div className="flex gap-1 mb-4 p-1 rounded-xl" style={{ background: "var(--surface-base)" }}>
+        {tabs.map((t) => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)}
+                  className="flex-1 py-2 rounded-lg text-[12px] font-bold transition-all"
+                  style={{ background: activeTab === t.id ? "var(--surface-raised)" : "transparent",
+                           color: activeTab === t.id ? "var(--text)" : "var(--text-dim)",
+                           boxShadow: activeTab === t.id ? "0 1px 3px rgba(0,0,0,0.1)" : "none" }}>
+            {t.icon} {t.label}
           </button>
-        )}
-      </div>
-
-      {/* ── Alert Toggles ── */}
-      <div className="rounded-xl p-4 mb-6" style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
-        <div className="text-[11px] font-bold mb-3" style={{ color: "var(--text-dim)" }}>🔔 ALERTS</div>
-        {[
-          { key: "waNotifyIssue",    icon: "🔴", label: "Issue Raised",       desc: "Machine पर issue raise → instant alert" },
-          { key: "waNotifyTransfer", icon: "🟢", label: "Transfer Complete",  desc: "Machine next dept में transfer → notification" },
-          { key: "waNotifyDeadline", icon: "🟡", label: "Deadline Exceeded",  desc: "Dept ने time limit cross किया → auto alert" },
-          { key: "waNotifyDaily",    icon: "📊", label: "Daily Summary",      desc: "रोज़ सुबह 8 बजे — machines active, issues pending" },
-        ].map(({ key, icon, label, desc }) => (
-          <div key={key} className="flex items-center justify-between py-2.5" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-            <div className="flex items-center gap-2">
-              <span>{icon}</span>
-              <div>
-                <div className="text-[13px] font-semibold" style={{ color: "var(--text)" }}>{label}</div>
-                <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>{desc}</div>
-              </div>
-            </div>
-            <button onClick={() => upd(key, !localSettings[key])}
-                    className="w-11 h-6 rounded-full transition-colors relative"
-                    style={{ background: localSettings[key] ? "#25D366" : "var(--border-subtle)" }}>
-              <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
-                   style={{ transform: localSettings[key] ? "translateX(22px)" : "translateX(2px)" }} />
-            </button>
-          </div>
         ))}
       </div>
 
-      {/* ── Message Log ── */}
-      <div className="rounded-xl p-4" style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-[11px] font-bold" style={{ color: "var(--text-dim)" }}>📋 MESSAGE LOG</div>
-          {msgLog.length > 0 && (
-            <button onClick={() => { setMsgLog([]); try { localStorage.removeItem("erp_wa_log"); } catch {} }}
-                    className="text-[10px] px-2 py-0.5 rounded" style={{ color: "#dc2626", background: "rgba(220,38,38,0.06)" }}>Clear</button>
-          )}
-        </div>
-        {msgLog.length === 0 ? (
-          <div className="text-center py-8">
-            <div className="text-3xl mb-2">📭</div>
-            <div className="text-[13px] font-medium" style={{ color: "var(--text-dim)" }}>No messages yet</div>
-            <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>WhatsApp alerts will appear here</div>
+      {/* ── TAB: AI Training (Claude Agent) ── */}
+      {activeTab === "agent" && (
+        <div className="rounded-xl overflow-hidden" style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
+          {/* Chat Header */}
+          <div className="flex items-center justify-between px-4 py-3" style={{ background: "#25D366", color: "#fff" }}>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-[14px] font-bold" style={{ background: "rgba(255,255,255,0.2)" }}>🤖</div>
+              <div>
+                <div className="text-[13px] font-bold">Claude — WhatsApp Assistant</div>
+                <div className="text-[10px] opacity-80">मुझे train करो — departments, alerts, rules</div>
+              </div>
+            </div>
+            {chatMessages.length > 0 && (
+              <button onClick={clearChat} className="text-[10px] px-2 py-1 rounded" style={{ background: "rgba(255,255,255,0.2)" }}>Clear Chat</button>
+            )}
           </div>
-        ) : (
-          <div className="space-y-1 max-h-[400px] overflow-y-auto">
-            {msgLog.map((m, i) => (
-              <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg text-[12px]"
-                   style={{ background: "var(--surface-base)" }}>
-                <span>{m.status === "sent" ? "✅" : "❌"}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate" style={{ color: "var(--text)" }}>{m.message}</div>
-                  <div style={{ color: "var(--text-dim)" }}>To: {m.to}</div>
+
+          {/* Chat Messages */}
+          <div className="px-4 py-3 space-y-3 max-h-[400px] overflow-y-auto" style={{ background: "var(--surface-base)" }}>
+            {chatMessages.length === 0 && (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-3">🤖</div>
+                <div className="text-[14px] font-bold mb-1" style={{ color: "var(--text)" }}>मैं Claude हूँ — आपका WhatsApp Assistant</div>
+                <div className="text-[12px] mb-4" style={{ color: "var(--text-dim)" }}>मुझे train करो — मैं सवाल पूछूँगा, तुम जवाब दो।<br />Departments, contacts, alert rules — सब सिखाओ।</div>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {["Training शुरू करो", "Departments बताता हूँ", "Alert rules set करो"].map((q) => (
+                    <button key={q} onClick={() => { setAgentInput(q); }}
+                            className="px-3 py-1.5 rounded-lg text-[11px] font-medium"
+                            style={{ background: "var(--surface-raised)", color: "#25D366", border: "1px solid #25D366" }}>
+                      {q}
+                    </button>
+                  ))}
                 </div>
-                <div className="text-[10px] whitespace-nowrap" style={{ color: "var(--text-dim)" }}>
-                  {new Date(m.time).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+              </div>
+            )}
+            {chatMessages.map((m, i) => (
+              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div className="max-w-[80%] px-3 py-2 rounded-xl text-[13px] whitespace-pre-wrap"
+                     style={{
+                       background: m.role === "user" ? "#dcf8c6" : "var(--surface-raised)",
+                       color: m.role === "user" ? "#111" : "var(--text)",
+                       borderBottomRightRadius: m.role === "user" ? "4px" : "16px",
+                       borderBottomLeftRadius: m.role === "user" ? "16px" : "4px",
+                     }}>
+                  {m.content}
                 </div>
               </div>
             ))}
+            {agentLoading && (
+              <div className="flex justify-start">
+                <div className="px-3 py-2 rounded-xl text-[13px]" style={{ background: "var(--surface-raised)", color: "var(--text-dim)" }}>
+                  <span className="animate-pulse">Claude सोच रहा है...</span>
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
           </div>
-        )}
-      </div>
+
+          {/* Chat Input */}
+          <div className="flex gap-2 p-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+            <input type="text" value={agentInput} onChange={(e) => setAgentInput(e.target.value)}
+                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAgentSend(); } }}
+                   placeholder="मुझसे बात करो... departments, rules, alerts"
+                   className="flex-1 px-3 py-2 rounded-lg text-[13px]"
+                   style={{ background: "var(--surface-base)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
+            <button onClick={handleAgentSend} disabled={agentLoading || !agentInput.trim()}
+                    className="px-4 py-2 rounded-lg text-[12px] font-bold text-white"
+                    style={{ background: agentLoading ? "#999" : "#25D366" }}>
+              ➤
+            </button>
+          </div>
+
+          {/* Training Data Summary */}
+          {trainingData && (
+            <div className="px-4 py-2 text-[10px]" style={{ background: "rgba(37,211,102,0.05)", borderTop: "1px solid var(--border-subtle)", color: "var(--text-dim)" }}>
+              🧠 Training saved — {trainingData.split("\n").filter(Boolean).length} inputs remembered
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── TAB: Settings ── */}
+      {activeTab === "settings" && (
+        <>
+          {/* Connection */}
+          <div className="rounded-xl p-4 mb-4" style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
+            <div className="text-[11px] font-bold mb-3" style={{ color: "var(--text-dim)" }}>⚙️ CHAKRA HQ CONNECTION</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+              <div>
+                <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-dim)" }}>API Key (Chakra HQ)</div>
+                <input type="password" value={localSettings.waApiKey} onChange={(e) => upd("waApiKey", e.target.value)}
+                       placeholder="Bearer token paste करो" className="w-full px-3 py-2 rounded-lg text-[13px]"
+                       style={{ background: "var(--surface-base)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
+              </div>
+              <div>
+                <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-dim)" }}>Plugin ID</div>
+                <input type="text" value={localSettings.waPluginId} onChange={(e) => upd("waPluginId", e.target.value)}
+                       placeholder="Chakra HQ → URL se copy करो" className="w-full px-3 py-2 rounded-lg text-[13px]"
+                       style={{ background: "var(--surface-base)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
+              </div>
+              <div>
+                <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-dim)" }}>Phone Number ID</div>
+                <input type="text" value={localSettings.waPhoneId} onChange={(e) => upd("waPhoneId", e.target.value)}
+                       placeholder="Chakra HQ → WhatsApp Accounts" className="w-full px-3 py-2 rounded-lg text-[13px]"
+                       style={{ background: "var(--surface-base)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
+              </div>
+              <div>
+                <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-dim)" }}>Owner / Admin Phone</div>
+                <input type="text" value={localSettings.waOwnerPhone} onChange={(e) => upd("waOwnerPhone", e.target.value.replace(/[^0-9]/g, ""))}
+                       placeholder="919876543210" className="w-full px-3 py-2 rounded-lg text-[13px]"
+                       style={{ background: "var(--surface-base)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
+              </div>
+              <div>
+                <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-dim)" }}>Dept Heads (comma-separated)</div>
+                <input type="text" value={localSettings.waGroupNumbers} onChange={(e) => upd("waGroupNumbers", e.target.value)}
+                       placeholder="919876543210, 919876543211" className="w-full px-3 py-2 rounded-lg text-[13px]"
+                       style={{ background: "var(--surface-base)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
+              </div>
+              <div>
+                <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-dim)" }}>Anthropic API Key (Claude AI)</div>
+                <input type="password" value={localSettings.waAnthropicKey} onChange={(e) => upd("waAnthropicKey", e.target.value)}
+                       placeholder="console.anthropic.com से लो" className="w-full px-3 py-2 rounded-lg text-[13px]"
+                       style={{ background: "var(--surface-base)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
+              </div>
+            </div>
+            {connected && (
+              <button onClick={handleTest} disabled={testStatus === "sending"} className="px-4 py-1.5 rounded-lg text-[12px] font-bold text-white"
+                      style={{ background: testStatus === "success" ? "#15803d" : testStatus === "fail" ? "#dc2626" : "#25D366" }}>
+                {testStatus === "sending" ? "⏳ Sending..." : testStatus === "success" ? "✅ Sent!" : testStatus === "fail" ? "❌ Failed" : "🔔 Test WhatsApp"}
+              </button>
+            )}
+          </div>
+
+          {/* Alert Toggles */}
+          <div className="rounded-xl p-4" style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
+            <div className="text-[11px] font-bold mb-3" style={{ color: "var(--text-dim)" }}>🔔 ALERTS</div>
+            {[
+              { key: "waNotifyIssue",    icon: "🔴", label: "Issue Raised",       desc: "Machine पर issue raise → instant alert" },
+              { key: "waNotifyTransfer", icon: "🟢", label: "Transfer Complete",  desc: "Machine next dept में transfer → notification" },
+              { key: "waNotifyDeadline", icon: "🟡", label: "Deadline Exceeded",  desc: "Dept ने time limit cross किया → auto alert" },
+              { key: "waNotifyDaily",    icon: "📊", label: "Daily Summary",      desc: "रोज़ सुबह 8 बजे — machines active, issues pending" },
+            ].map(({ key, icon, label, desc }) => (
+              <div key={key} className="flex items-center justify-between py-2.5" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                <div className="flex items-center gap-2">
+                  <span>{icon}</span>
+                  <div>
+                    <div className="text-[13px] font-semibold" style={{ color: "var(--text)" }}>{label}</div>
+                    <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>{desc}</div>
+                  </div>
+                </div>
+                <button onClick={() => upd(key, !localSettings[key])}
+                        className="w-11 h-6 rounded-full transition-colors relative"
+                        style={{ background: localSettings[key] ? "#25D366" : "var(--border-subtle)" }}>
+                  <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
+                       style={{ transform: localSettings[key] ? "translateX(22px)" : "translateX(2px)" }} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* ── TAB: Message Log ── */}
+      {activeTab === "log" && (
+        <div className="rounded-xl p-4" style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[11px] font-bold" style={{ color: "var(--text-dim)" }}>📋 MESSAGE LOG</div>
+            {msgLog.length > 0 && (
+              <button onClick={() => { setMsgLog([]); try { localStorage.removeItem("erp_wa_log"); } catch {} }}
+                      className="text-[10px] px-2 py-0.5 rounded" style={{ color: "#dc2626", background: "rgba(220,38,38,0.06)" }}>Clear</button>
+            )}
+          </div>
+          {msgLog.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="text-3xl mb-2">📭</div>
+              <div className="text-[13px] font-medium" style={{ color: "var(--text-dim)" }}>No messages yet</div>
+              <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>WhatsApp alerts will appear here</div>
+            </div>
+          ) : (
+            <div className="space-y-1 max-h-[400px] overflow-y-auto">
+              {msgLog.map((m, i) => (
+                <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg text-[12px]"
+                     style={{ background: "var(--surface-base)" }}>
+                  <span>{m.status === "sent" ? "✅" : "❌"}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate" style={{ color: "var(--text)" }}>{m.message}</div>
+                    <div style={{ color: "var(--text-dim)" }}>To: {m.to}</div>
+                  </div>
+                  <div className="text-[10px] whitespace-nowrap" style={{ color: "var(--text-dim)" }}>
+                    {new Date(m.time).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -20477,6 +20666,7 @@ export default function App() {
         callFn("whatsapp-send", {
           to: phone, message,
           apiKey: settings.waApiKey,
+          pluginId: settings.waPluginId || "",
           phoneId: settings.waPhoneId || "",
         }).then(() => {
           if (window.__waLog) window.__waLog(phone, message, "sent");
