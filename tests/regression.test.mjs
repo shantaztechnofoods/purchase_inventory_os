@@ -171,6 +171,7 @@ const PAGE_COMPONENTS = [
   "AttachmentLink",
   "ChecklistAdminPanel",
   "ReportCenterPage",
+  "WhatsAppPage",
   "ReportKPI",
   "ReportTable",
   // BOM "Paste from Excel" — the bulk add-component surface shared by
@@ -192,10 +193,10 @@ for (const name of PAGE_COMPONENTS) {
 const NAV_IDS = [
   "dashboard", "inventory", "inward", "outward", "pending",
   "pipeline",  "machines",  "vendors", "analytics",
-  "ai", "history", "audit", "settings", "users", "roles",
+  "ai", "whatsapp", "history", "audit", "settings", "users", "roles",
 ];
 
-test("regression: sidebar navItems contains all 15 modules", () => {
+test("regression: sidebar navItems contains all 16 modules", () => {
   const src = read(APP_JSX);
   // Scoped grep: must appear inside the navItems array definition.
   const navBlock = src.match(/const navItems\s*=\s*\[([\s\S]*?)\n\];/);

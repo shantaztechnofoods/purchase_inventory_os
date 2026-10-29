@@ -7,7 +7,7 @@ import {
   RefreshCw, Wrench, Factory, BarChart3, Bot, ScrollText, TrendingUp,
   ShieldCheck, Settings, User, KeyRound, Menu, X,
   Boxes, AlertOctagon, AlertTriangle, Wallet, Cog, CircleCheckBig,
-  ClipboardList, PhoneCall,
+  ClipboardList, PhoneCall, MessageCircle,
 } from "lucide-react";
 import { useAuth } from "./auth/AuthContext.jsx";
 // Migration 029 — list employees + save their department assignments.
@@ -495,6 +495,7 @@ const navItems = [
   { id: "vendors",    Icon: Factory,         label: "Vendors",          section: null },
   { id: "analytics",  Icon: BarChart3,       label: "Analytics",        section: "INTELLIGENCE" },
   { id: "ai",         Icon: Bot,             label: "AI Assistant",     section: null },
+  { id: "whatsapp",   Icon: MessageCircle,   label: "WhatsApp",         section: null },
   { id: "history",    Icon: ScrollText,      label: "History & Reports",section: "REPORTS" },
   { id: "reports",    Icon: TrendingUp,      label: "Report Center",    section: null },
   { id: "audit",      Icon: ShieldCheck,     label: "Audit Trail",      section: null },
@@ -5708,6 +5709,193 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── WHATSAPP PAGE ───────────────────────────────────────────────────────────
+
+function WhatsAppPage({ settings = {}, onSave }) {
+  const [localSettings, setLocalSettings] = useState({
+    waApiKey: settings.waApiKey || "",
+    waPhoneId: settings.waPhoneId || "",
+    waOwnerPhone: settings.waOwnerPhone || "",
+    waGroupNumbers: settings.waGroupNumbers || "",
+    waNotifyIssue: settings.waNotifyIssue !== false,
+    waNotifyTransfer: settings.waNotifyTransfer !== false,
+    waNotifyDeadline: settings.waNotifyDeadline !== false,
+    waNotifyDaily: settings.waNotifyDaily || false,
+  });
+  const [msgLog, setMsgLog] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("erp_wa_log") || "[]"); } catch { return []; }
+  });
+  const [testStatus, setTestStatus] = useState(null);
+  const [dirty, setDirty] = useState(false);
+
+  const upd = (key, val) => { setLocalSettings((p) => ({ ...p, [key]: val })); setDirty(true); };
+
+  const handleSave = () => {
+    if (onSave) onSave({ ...settings, ...localSettings });
+    setDirty(false);
+  };
+
+  const handleTest = async () => {
+    if (!localSettings.waApiKey || !localSettings.waOwnerPhone) return;
+    setTestStatus("sending");
+    try {
+      const { callFn } = await import("./stores/adminApi.js");
+      const res = await callFn("whatsapp-send", {
+        to: localSettings.waOwnerPhone,
+        message: "✅ Shantaz ERP — WhatsApp connected successfully!",
+        apiKey: localSettings.waApiKey,
+        phoneId: localSettings.waPhoneId || "",
+      });
+      if (res?.success) {
+        setTestStatus("success");
+        logWaMessage(localSettings.waOwnerPhone, "Test message", "sent");
+      } else {
+        setTestStatus("fail");
+        logWaMessage(localSettings.waOwnerPhone, "Test message", "failed");
+      }
+    } catch (e) {
+      setTestStatus("fail");
+      logWaMessage(localSettings.waOwnerPhone, "Test message", "failed");
+    }
+    setTimeout(() => setTestStatus(null), 4000);
+  };
+
+  const logWaMessage = (to, message, status) => {
+    const entry = { to, message, status, time: new Date().toISOString() };
+    setMsgLog((prev) => {
+      const next = [entry, ...prev].slice(0, 200);
+      try { localStorage.setItem("erp_wa_log", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
+  // Expose logWaMessage globally so triggers can log
+  useEffect(() => {
+    window.__waLog = logWaMessage;
+    return () => { delete window.__waLog; };
+  }, []);
+
+  const connected = !!(localSettings.waApiKey && localSettings.waOwnerPhone);
+
+  return (
+    <div className="p-6 max-w-3xl mx-auto">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-bold" style={{ color: "var(--text)" }}>📱 WhatsApp</h1>
+          <p className="text-[12px] mt-0.5" style={{ color: "var(--text-dim)" }}>Alerts, message log & settings</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-bold"
+               style={{ background: connected ? "rgba(34,197,94,0.1)" : "rgba(234,179,8,0.1)",
+                        color: connected ? "#15803d" : "#a16207",
+                        border: `1px solid ${connected ? "rgba(34,197,94,0.3)" : "rgba(234,179,8,0.3)"}` }}>
+            {connected ? "🟢 Connected" : "🟡 Not Connected"}
+          </div>
+          {dirty && <button onClick={handleSave} className="px-4 py-1.5 rounded-lg text-[12px] font-bold text-white" style={{ background: "#dc2626" }}>💾 Save</button>}
+        </div>
+      </div>
+
+      {/* ── Compact Settings ── */}
+      <div className="rounded-xl p-4 mb-6" style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
+        <div className="text-[11px] font-bold mb-3" style={{ color: "var(--text-dim)" }}>⚙️ CONNECTION</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+          <div>
+            <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-dim)" }}>API Key (Chakra HQ)</div>
+            <input type="password" value={localSettings.waApiKey} onChange={(e) => upd("waApiKey", e.target.value)}
+                   placeholder="Bearer token paste करो" className="w-full px-3 py-2 rounded-lg text-[13px]"
+                   style={{ background: "var(--surface-base)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-dim)" }}>Phone Number ID</div>
+            <input type="text" value={localSettings.waPhoneId} onChange={(e) => upd("waPhoneId", e.target.value)}
+                   placeholder="Chakra HQ → WhatsApp → Phone Number ID" className="w-full px-3 py-2 rounded-lg text-[13px]"
+                   style={{ background: "var(--surface-base)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-dim)" }}>Owner / Admin Phone</div>
+            <input type="text" value={localSettings.waOwnerPhone} onChange={(e) => upd("waOwnerPhone", e.target.value.replace(/[^0-9]/g, ""))}
+                   placeholder="919876543210" className="w-full px-3 py-2 rounded-lg text-[13px]"
+                   style={{ background: "var(--surface-base)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-dim)" }}>Dept Heads (comma-separated)</div>
+            <input type="text" value={localSettings.waGroupNumbers} onChange={(e) => upd("waGroupNumbers", e.target.value)}
+                   placeholder="919876543210, 919876543211" className="w-full px-3 py-2 rounded-lg text-[13px]"
+                   style={{ background: "var(--surface-base)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
+          </div>
+        </div>
+        {connected && (
+          <button onClick={handleTest} disabled={testStatus === "sending"} className="px-4 py-1.5 rounded-lg text-[12px] font-bold text-white"
+                  style={{ background: testStatus === "success" ? "#15803d" : testStatus === "fail" ? "#dc2626" : "#25D366" }}>
+            {testStatus === "sending" ? "⏳ Sending..." : testStatus === "success" ? "✅ Sent!" : testStatus === "fail" ? "❌ Failed" : "🔔 Test WhatsApp"}
+          </button>
+        )}
+      </div>
+
+      {/* ── Alert Toggles ── */}
+      <div className="rounded-xl p-4 mb-6" style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
+        <div className="text-[11px] font-bold mb-3" style={{ color: "var(--text-dim)" }}>🔔 ALERTS</div>
+        {[
+          { key: "waNotifyIssue",    icon: "🔴", label: "Issue Raised",       desc: "Machine पर issue raise → instant alert" },
+          { key: "waNotifyTransfer", icon: "🟢", label: "Transfer Complete",  desc: "Machine next dept में transfer → notification" },
+          { key: "waNotifyDeadline", icon: "🟡", label: "Deadline Exceeded",  desc: "Dept ने time limit cross किया → auto alert" },
+          { key: "waNotifyDaily",    icon: "📊", label: "Daily Summary",      desc: "रोज़ सुबह 8 बजे — machines active, issues pending" },
+        ].map(({ key, icon, label, desc }) => (
+          <div key={key} className="flex items-center justify-between py-2.5" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+            <div className="flex items-center gap-2">
+              <span>{icon}</span>
+              <div>
+                <div className="text-[13px] font-semibold" style={{ color: "var(--text)" }}>{label}</div>
+                <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>{desc}</div>
+              </div>
+            </div>
+            <button onClick={() => upd(key, !localSettings[key])}
+                    className="w-11 h-6 rounded-full transition-colors relative"
+                    style={{ background: localSettings[key] ? "#25D366" : "var(--border-subtle)" }}>
+              <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
+                   style={{ transform: localSettings[key] ? "translateX(22px)" : "translateX(2px)" }} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Message Log ── */}
+      <div className="rounded-xl p-4" style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-[11px] font-bold" style={{ color: "var(--text-dim)" }}>📋 MESSAGE LOG</div>
+          {msgLog.length > 0 && (
+            <button onClick={() => { setMsgLog([]); try { localStorage.removeItem("erp_wa_log"); } catch {} }}
+                    className="text-[10px] px-2 py-0.5 rounded" style={{ color: "#dc2626", background: "rgba(220,38,38,0.06)" }}>Clear</button>
+          )}
+        </div>
+        {msgLog.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="text-3xl mb-2">📭</div>
+            <div className="text-[13px] font-medium" style={{ color: "var(--text-dim)" }}>No messages yet</div>
+            <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>WhatsApp alerts will appear here</div>
+          </div>
+        ) : (
+          <div className="space-y-1 max-h-[400px] overflow-y-auto">
+            {msgLog.map((m, i) => (
+              <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg text-[12px]"
+                   style={{ background: "var(--surface-base)" }}>
+                <span>{m.status === "sent" ? "✅" : "❌"}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate" style={{ color: "var(--text)" }}>{m.message}</div>
+                  <div style={{ color: "var(--text-dim)" }}>To: {m.to}</div>
+                </div>
+                <div className="text-[10px] whitespace-nowrap" style={{ color: "var(--text-dim)" }}>
+                  {new Date(m.time).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -20290,7 +20478,12 @@ export default function App() {
           to: phone, message,
           apiKey: settings.waApiKey,
           phoneId: settings.waPhoneId || "",
-        }).catch((e) => console.warn("[WhatsApp] send failed for", phone, e));
+        }).then(() => {
+          if (window.__waLog) window.__waLog(phone, message, "sent");
+        }).catch((e) => {
+          console.warn("[WhatsApp] send failed for", phone, e);
+          if (window.__waLog) window.__waLog(phone, message, "failed");
+        });
       }
     } catch (e) {
       console.warn("[WhatsApp] helper error", e);
@@ -20624,6 +20817,7 @@ export default function App() {
                               onDeleteVendor={handleDeleteVendor} onBulkAddVendors={handleBulkAddVendors} canDo={canDo} />,
     analytics: <AnalyticsPage items={items} pos={pos} vendorList={vendorList} settings={settings} />,
     ai:        <AIPage items={items} pos={pos} vendorList={vendorList} bomDefs={bomDefs} machineLog={machineLog} pendingLog={pendingLog} settings={settings} />,
+    whatsapp:  <WhatsAppPage settings={settings} onSave={handleSaveSettings} />,
     history:   <HistoryPage auditLog={auditLog} pos={pos} inwardLog={inwardLog} outwardLog={outwardLog} pendingLog={pendingLog} machineLog={machineLog} items={items} vendorList={vendorList} bomDefs={bomDefs} />,
     reports:   <ReportCenterPage
                               machineLog={machineLog} handovers={handovers}
