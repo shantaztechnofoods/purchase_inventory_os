@@ -14442,11 +14442,12 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           );
         })()}
 
-        {/* ── Phase 1 — My Work buckets ──
-            Four plain questions, in the order they matter: is anyone blocked
-            waiting on me, is something handed to me, what am I building, what
-            do I still owe. */}
-        {scopeMine && (() => {
+        {/* My Work buckets (Go and fix / Take in / Working on / Still owed)
+            removed per request. The department view now relies on the prominent
+            Pending Acceptance section above and the machine list below; the
+            summary grid was redundant. Block kept but never rendered so the
+            myToFix/myWorking/… derivations (used by myMachineIds) stay intact. */}
+        {false && scopeMine && (() => {
           const buckets = [
             { key: "fix",     label: "Go and fix",  list: myToFix,   color: "#dc2626", bg: "rgba(239,68,68,0.08)",  border: "rgba(239,68,68,0.4)",  hint: "someone is waiting on you" },
             { key: "takein",  label: "Take in",     list: myTakeIn,  color: "#b45309", bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.4)", hint: "handed to you" },
