@@ -12933,6 +12933,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   const [raiseErr,   setRaiseErr]   = useState("");
   const [raiseBusy,  setRaiseBusy]  = useState(false);
   const [toast,    setToast]    = useState(null);
+  const [issuePopup, setIssuePopup] = useState(null); // pendingHandoverItem for the detail popup
   const [startProd, setStartProd] = useState(null); // rack object { key, label, ready, capacity }
   const [startSel,  setStartSel]  = useState(() => new Set()); // selected rack-machine ids
   const [startErr,  setStartErr]  = useState("");
@@ -13783,23 +13784,77 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         const mm = machineOf(p.machineId);
                         return (
                           <button key={p.id} type="button"
-                                  onClick={() => { if (mm) { setFilter("active"); setExpanded(mm.id); } }}
-                                  className="w-full text-left rounded-lg px-2 py-1.5 transition-all hover:brightness-95"
+                                  onClick={() => setIssuePopup({ ...p, _machine: mm })}
+                                  className="w-full text-left rounded-lg px-2 py-1.5 transition-all hover:brightness-95 flex items-center gap-1"
                                   style={{ background: "rgba(239,68,68,0.05)" }}>
-                            <div className="text-[11px] text-slate-700 leading-snug">{p.description}</div>
-                            <div className="text-[9px] text-slate-500 mt-0.5">
-                              {mm ? `${mm.bomKey}${mm.serialNo ? ` · ${mm.serialNo}` : ""} · in ${mm.currentDepartment || mm.stage}` : `Machine #${p.machineId}`}
-                              {p.raisedInDepartment ? ` · reported by ${p.raisedInDepartment}` : ""}
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[11px] text-slate-700 leading-snug">{p.description}</div>
+                              <div className="text-[9px] text-slate-500 mt-0.5">
+                                {mm ? `${mm.bomKey}${mm.serialNo ? ` · ${mm.serialNo}` : ""}` : `Machine #${p.machineId}`}
+                              </div>
                             </div>
+                            <span className="text-slate-400 text-[11px] flex-shrink-0">→</span>
                           </button>
                         );
                       })}
                       {list.length > 2 && (
-                        <div className="text-[10px] text-slate-500 px-2">+{list.length - 2} more</div>
+                        <button type="button" onClick={() => setIssuePopup({ ...list[2], _machine: machineOf(list[2].machineId), _showAll: list.map((p) => ({ ...p, _machine: machineOf(p.machineId) })) })}
+                                className="text-[10px] font-semibold px-2 py-0.5 rounded transition-all hover:underline"
+                                style={{ color: "#b91c1c" }}>
+                          +{list.length - 2} more →
+                        </button>
                       )}
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── Issue detail popup ── */}
+        {issuePopup && (() => {
+          const items = issuePopup._showAll || [issuePopup];
+          const fmtTime = (t) => { if (!t) return "—"; try { const d = new Date(t); return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }); } catch { return "—"; } };
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setIssuePopup(null)}>
+              <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.4)" }} />
+              <div className="relative w-full max-w-md max-h-[80vh] overflow-y-auto rounded-2xl p-5"
+                   style={{ background: "var(--surface-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}
+                   onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[13px] font-bold" style={{ color: "var(--text-strong)" }}>
+                    {items.length === 1 ? "Issue Detail" : `${items.length} Open Issues`}
+                  </span>
+                  <button onClick={() => setIssuePopup(null)} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-700 transition-all"
+                          style={{ background: "rgba(0,0,0,0.05)" }}>✕</button>
+                </div>
+                <div className="space-y-3">
+                  {items.map((p, idx) => {
+                    const mm = p._machine;
+                    return (
+                      <div key={p.id || idx} className="rounded-xl p-3.5"
+                           style={{ background: "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                        <div className="text-[12px] font-bold text-slate-800 mb-2">{p.description || "No description"}</div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
+                          <div><span className="text-slate-500">Machine:</span> <span className="font-semibold text-slate-800">{mm ? mm.bomKey : `#${p.machineId}`}</span></div>
+                          {mm?.serialNo && <div><span className="text-slate-500">S/N:</span> <span className="font-mono text-slate-700">{mm.serialNo}</span></div>}
+                          <div><span className="text-slate-500">Solve करेगा:</span> <span className="font-bold" style={{ color: "#b91c1c" }}>{p.assignedDepartment || "—"}</span></div>
+                          <div><span className="text-slate-500">Report किया:</span> <span className="text-slate-700">{p.raisedInDepartment || "—"}</span></div>
+                          <div><span className="text-slate-500">कब:</span> <span className="text-slate-700">{fmtTime(p.raisedAt)}</span></div>
+                          {mm?.currentDepartment && <div><span className="text-slate-500">अभी:</span> <span className="text-slate-700">{mm.currentDepartment}</span></div>}
+                          {p.priority && <div><span className="text-slate-500">Priority:</span> <span className="font-bold text-slate-800">{p.priority}</span></div>}
+                        </div>
+                        <button type="button"
+                                onClick={() => { if (mm) { setFilter("active"); setExpanded(mm.id); setIssuePopup(null); } }}
+                                className="mt-3 w-full text-center text-[11px] font-bold py-2 rounded-lg transition-all"
+                                style={{ background: "rgba(215,25,32,0.1)", color: "#b01218", border: "1px solid rgba(215,25,32,0.3)" }}>
+                          Machine देखो →
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           );
