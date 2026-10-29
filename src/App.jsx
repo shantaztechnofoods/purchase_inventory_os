@@ -18717,8 +18717,8 @@ export default function App() {
         return merged;
       });
       if (v) setVendorList(v);
-      if (i && Object.keys(i).length >= 0) setItems(i);
-      if (b && Object.keys(b).length >= 0) setBomDefs(b);
+      if (i && Object.keys(i).length > 0) setItems(i);
+      if (b && Object.keys(b).length > 0) setBomDefs(b);
       if (p) setPos(p);
       if (inw)  setInwardLog(inw);
       if (out)  setOutwardLog(out);
