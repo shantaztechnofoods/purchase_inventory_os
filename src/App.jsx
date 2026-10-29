@@ -774,6 +774,66 @@ function SkeletonLoader({ rows = 3, type = "text" }) {
   );
 }
 
+// ─── REEL-INSPIRED ANIMATIONS: count-up + sparkline ──────────────────────────
+// Animate an integer from 0 → target with an ease-out curve. Non-numeric values
+// (already-formatted strings like "₹75.7K") are returned as-is, unanimated.
+function useCountUp(target, duration = 900) {
+  const isNum = typeof target === "number" && isFinite(target);
+  const [val, setVal] = useState(isNum ? 0 : target);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!isNum) { setVal(target); return; }
+    if (target === 0) { setVal(0); return; }
+    // Respect reduced-motion: jump straight to the value.
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setVal(target); return;
+    }
+    let raf; const start = performance.now();
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+      setVal(Math.round(target * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    ref.current = raf;
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration, isNum]);
+  return val;
+}
+
+function CountUpValue({ value, className, style }) {
+  const animated = useCountUp(value);
+  const display = typeof value === "number" ? animated.toLocaleString("en-IN") : value;
+  return <span className={className} style={style}>{display}</span>;
+}
+
+// Deterministic smooth sparkline derived from a seed, so it's stable per-card.
+function Sparkline({ color = "#2563eb", seed = 1, w = 110, h = 36 }) {
+  const pts = [];
+  let v = h * 0.55;
+  for (let i = 0; i <= 11; i++) {
+    v += (Math.sin(seed + i * 1.3) * 0.5 + Math.cos(seed * 2 + i)) * 3.4;
+    v = Math.max(5, Math.min(h - 5, v));
+    pts.push([i * (w / 11), h - v]);
+  }
+  const line = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+  const area = line + ` L${w} ${h} L0 ${h} Z`;
+  const gid = `spk-${seed.toString().replace(".", "")}`;
+  return (
+    <svg className="spark-svg" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={color} stopOpacity="0.18" />
+          <stop offset="1" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#${gid})`} />
+      <path className="spark-line" d={line} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 // ─── DASHBOARD PAGE ───────────────────────────────────────────────────────────
 
 function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [], pendingLog = [], followUps = [], onNavigate, settings = SETTINGS_DEFAULTS }) {
@@ -845,9 +905,16 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
     </div>
   );
 
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return "Good morning";
+    if (h < 17) return "Good afternoon";
+    return "Good evening";
+  })();
+
   return (
     <div className="flex-1 overflow-y-auto">
-      <Topbar title="Dashboard" subtitle={`${settings.companyName || "Live inventory snapshot"} — real-time overview`}>
+      <Topbar title={`${greeting} 👋`} subtitle={`${settings.companyName || "Shantaz Technofoods"} — real-time overview`}>
         {settings.whatsappAlerts && <Btn variant="wa" size="sm">📱 WhatsApp Alert</Btn>}
         {settings.emailAlerts    && <Btn variant="mail" size="sm">✉️ Send Report</Btn>}
         <Btn variant="primary" size="sm" onClick={() => onNavigate?.("pipeline")}>+ New PO</Btn>
@@ -857,14 +924,14 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
 
         {/* ── Hero Stats (top 3 large) ── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {kpis.slice(0, 3).map((kpi) => (
+          {kpis.slice(0, 3).map((kpi, hi) => (
             <button key={kpi.label} onClick={() => onNavigate?.(kpi.nav)}
               className="hero-tile group" style={{ "--tile": kpi.color }}>
               <div className="hero-tile-icon" style={{ background: kpi.color + "14", color: kpi.color }}>
                 <kpi.Icon size={21} strokeWidth={2} aria-hidden="true" />
               </div>
               <div className="hero-tile-body">
-                <div className="hero-tile-value" style={{ color: kpi.alert ? kpi.color : "var(--text-strong)" }}>{kpi.value}</div>
+                <CountUpValue value={kpi.value} className="hero-tile-value" style={{ color: kpi.alert ? kpi.color : "var(--text-strong)" }} />
                 <div className="hero-tile-label">{kpi.label}</div>
                 <div className="hero-tile-sub">{kpi.sub}</div>
               </div>
@@ -872,6 +939,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                 background: kpi.alert ? "rgba(220,38,38,0.08)" : "rgba(5,150,105,0.08)",
                 color: kpi.alert ? "#b91c1c" : "#047857",
               }}>{kpi.alert ? "Action" : "On track"}</span>
+              <Sparkline color={kpi.color} seed={2.3 + hi * 3.1} />
             </button>
           ))}
         </div>

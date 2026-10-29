@@ -1405,8 +1405,29 @@ tr:hover .row-actions,
 }
 .hero-tile-body { flex: 1; min-width: 0; }
 .hero-tile-value {
+  display: block;
   font-size: 30px; font-weight: 800; letter-spacing: -0.03em; line-height: 1;
   font-variant-numeric: tabular-nums;
+}
+
+/* Sparkline — sits bottom-right of the hero tile, draws in on load */
+.spark-svg {
+  position: absolute;
+  right: 0; bottom: 0;
+  width: 46%; height: 42px;
+  opacity: 0.9;
+  pointer-events: none;
+}
+@keyframes sparkDraw {
+  from { stroke-dashoffset: 240; }
+  to   { stroke-dashoffset: 0; }
+}
+.spark-line {
+  stroke-dasharray: 240;
+  animation: sparkDraw 1.1s var(--ease-swift) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spark-line { animation: none; stroke-dasharray: none; }
 }
 .hero-tile-label { font-size: 12.5px; font-weight: 600; margin-top: 7px; color: var(--text-muted); letter-spacing: 0.01em; }
 .hero-tile-sub { font-size: 11px; margin-top: 3px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
