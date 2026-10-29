@@ -20339,7 +20339,13 @@ export default function App() {
       >
         {canView(activePage)
           ? (pages[activePage] || <DashboardPage />)
-          : <AccessDeniedPage onNavigateHome={() => setActivePage("dashboard")} />
+          : <>
+              <Topbar title="Access Denied" />
+              <AccessDeniedPage onNavigateHome={() => {
+                const first = navItems.find((item) => canView(item.id));
+                setActivePage(first ? first.id : "dashboard");
+              }} />
+            </>
         }
       </PageErrorBoundary>
 
