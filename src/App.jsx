@@ -696,10 +696,13 @@ const Btn = ({ variant = "ghost", size = "sm", onClick, children, className = ""
   const base = "inline-flex items-center gap-1.5 font-medium rounded-lg cursor-pointer border select-none whitespace-nowrap spring-tap focus-ring";
   const sizes = { xs: "text-[11px] px-2.5 py-1 leading-none", sm: "text-[12px] px-3 py-1.5", md: "text-[13px] px-4 py-2" };
   const variants = {
-    primary: "border-transparent btn-primary-brand",
-    ghost:   "text-slate-700 border-slate-200 bg-white hover:text-slate-900 hover:bg-slate-50 hover:border-slate-300",
-    green:   "bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:border-green-300",
-    red:     "bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300",
+    primary:   "border-transparent btn-primary-brand",
+    secondary: "btn-secondary",
+    danger:    "btn-danger",
+    success:   "border-transparent btn-success",
+    ghost:     "text-slate-700 border-slate-200 bg-white hover:text-slate-900 hover:bg-slate-50 hover:border-slate-300 btn-ghost",
+    green:     "bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:border-green-300",
+    red:       "bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300",
     wa:      "bg-[#15803d] text-white border-[#166534] hover:bg-[#166534]",
     mail:    "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300",
     orange:  "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300",
@@ -1973,7 +1976,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
         <div className="px-6 py-4 border-t border-slate-200 flex items-center gap-2 flex-wrap flex-shrink-0"
              style={{ background: "#f8f9fb" }}>
           {onEdit   && <Btn variant="ghost" size="sm" onClick={onEdit}>✏️ Edit</Btn>}
-          {onDelete && <Btn variant="red"   size="sm" onClick={() => { setAdjustMode(null); onDelete(); }}>🗑️ Delete</Btn>}
+          {onDelete && <Btn variant="danger" size="sm" onClick={() => { setAdjustMode(null); onDelete(); }}>🗑️ Delete</Btn>}
           <div className="flex-1" />
           {/* 2b71bbc — removed stray setConfirmDelete(false); ItemDetailModal doesn't
               own that state, so Add/Remove Stock used to throw a ReferenceError. */}
@@ -5313,7 +5316,7 @@ function ApprovalsPage({ pos, onUpdatePO }) {
           <MetricCard label="Total POs"          value={pos.length.toString()}           valueColor="#2563eb" />
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-5">
+        <div className="section-card p-5">
           <SectionHeader>📋 Pending Approvals</SectionHeader>
           {displayList.length === 0 ? (
             <div className="py-14 text-center">
@@ -5362,7 +5365,7 @@ function ApprovalsPage({ pos, onUpdatePO }) {
           )}
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-5">
+        <div className="section-card p-5">
           <SectionHeader>⚙️ Approval Rules</SectionHeader>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -5478,7 +5481,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
+          <div className="section-card p-5">
             <SectionHeader>📊 PO Value by Month (₹K)</SectionHeader>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={monthlyPOTrend.length > 0 ? monthlyPOTrend : monthlyPOData} barSize={28}>
@@ -5491,7 +5494,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
             </ResponsiveContainer>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
+          <div className="section-card p-5">
             <SectionHeader>📈 Inventory Turnover Rate</SectionHeader>
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={turnoverData}>
@@ -5512,7 +5515,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
+          <div className="section-card p-5">
             <SectionHeader>🥧 Spend by Category</SectionHeader>
             {spendByCat.length > 0 ? (
               <>
@@ -5541,7 +5544,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
             )}
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
+          <div className="section-card p-5">
             <SectionHeader>🏭 Vendor-wise PO Count</SectionHeader>
             {vendorPOData.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
@@ -5561,7 +5564,7 @@ function AnalyticsPage({ items, pos, vendorList, settings = SETTINGS_DEFAULTS })
             )}
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
+          <div className="section-card p-5">
             <SectionHeader>📉 Stock Status</SectionHeader>
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
@@ -5737,7 +5740,7 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
 
         {/* Sidebar */}
         <div className="space-y-4">
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
+          <div className="section-card p-5">
             <SectionHeader>🎯 AI Confidence Scores</SectionHeader>
             <div className="space-y-3">
               {aiStats.map((s) => (
@@ -5754,7 +5757,7 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
+          <div className="section-card p-5">
             <SectionHeader>📊 Live Inventory Stats</SectionHeader>
             <div className="space-y-3">
               {[
@@ -5772,7 +5775,7 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
+          <div className="section-card p-5">
             <SectionHeader>⚡ Quick Actions</SectionHeader>
             <div className="space-y-2">
               <Btn variant="primary" size="sm" className="w-full justify-center">📦 Auto-create all POs</Btn>
@@ -7490,7 +7493,8 @@ function POSearchCenter({
                 const sc = statusColor(po.status);
                 return (
                   <tr key={po.id} onClick={() => onOpenPO?.(po)}
-                      className="border-b border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
+                      className="border-b border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors"
+                      style={{ borderLeft: `4px solid ${po.status === "received" ? "#16a34a" : po.status === "ordered" || po.status === "approved" ? "#2563eb" : po.status === "pending" ? "#d97706" : "#7c3aed"}` }}>
                     <td className="px-4 py-3 text-xs font-mono font-bold text-blue-400 whitespace-nowrap">{po.id}</td>
                     <td className="px-4 py-3 text-xs font-semibold text-slate-900 max-w-[200px]"><div className="truncate">{po.vendor}</div></td>
                     <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap font-mono">{po.poDate || po.date || "—"}</td>
@@ -8824,7 +8828,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
         {appInwardLog.length > 0 && (() => {
           const combined = [...appInwardLog].sort((a, b) => b.id - a.id);
           return (
-            <div className="bg-white border border-slate-200 rounded-xl p-5" style={{ animation: "slideUp 0.4s ease both" }}>
+            <div className="section-card p-5" style={{ animation: "slideUp 0.4s ease both" }}>
               <div className="flex items-center gap-2 mb-4">
                 <SectionHeader>📋 Inward Log</SectionHeader>
                 {combined.filter(e => e.fromPO).length > 0 && (
@@ -11244,10 +11248,10 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                 // its rounded corners, so removing overflow-hidden has no
                 // visual side effect.
                 <div key={bomKey} onClick={() => canDo("outward","bom") && openBomFlow()}
-                     className={`bg-white rounded-xl transition-all duration-200 group relative ${canDo("outward","bom") ? "cursor-pointer hover:bg-slate-50" : "opacity-60 cursor-not-allowed"}`}
-                     style={{ border: "1px solid rgba(17,24,39,0.08)" }}
-                     onMouseEnter={(e) => { e.currentTarget.style.borderColor = bom.color + "55"; e.currentTarget.style.boxShadow = `0 0 24px ${bom.color}12`; }}
-                     onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(17,24,39,0.08)"; e.currentTarget.style.boxShadow = "none"; }}>
+                     className={`section-card transition-all duration-200 group relative ${canDo("outward","bom") ? "cursor-pointer hover:bg-slate-50" : "opacity-60 cursor-not-allowed"}`}
+                     style={{ borderLeft: `4px solid ${bom.color}` }}
+                     onMouseEnter={(e) => { e.currentTarget.style.boxShadow = `0 4px 16px ${bom.color}18`; }}
+                     onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}>
                   <div className="p-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black text-slate-900 flex-shrink-0"
@@ -11457,7 +11461,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
 
         {/* ── Outward History ── */}
         {outwardLog && outwardLog.length > 0 && (
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
+          <div className="section-card p-5">
             <SectionHeader>📋 Outward History</SectionHeader>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -14588,7 +14592,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 const active = filter === c.key;
                 return (
                   <button key={c.key} onClick={() => setFilter(c.key)}
-                          className="p-4 rounded-xl text-left transition-all hover:scale-[1.02]"
+                          className={`p-4 rounded-xl text-left transition-all hover:scale-[1.02] status-strip ${c.key === "active" ? "status-strip-blue" : c.key === "completed" ? "status-strip-green" : c.key === "hold" ? "status-strip-red" : c.key === "pendingAccept" ? "status-strip-yellow" : "status-strip-purple"}`}
                           style={{ background: c.bg, border: `${active ? "2px" : "1px"} solid ${c.color}${active ? "" : "55"}`, boxShadow: active ? `0 0 14px ${c.color}44` : "none" }}>
                     <div className="text-[9px] font-bold uppercase tracking-[0.08em] mb-1" style={{ color: c.color }}>{c.label}</div>
                     <div className="text-3xl font-black mb-1" style={{ color: c.color }}>{c.value}</div>
