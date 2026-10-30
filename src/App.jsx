@@ -11,7 +11,7 @@ import {
   // WhatsApp module
   MessagesSquare, FileText, Sparkles, ScrollText as LogIcon,
   Search, Send, Paperclip, Smile, ArrowLeft, Check, CheckCheck, Clock, AlertCircle,
-  MessageSquarePlus, EyeOff, Eye, Image as ImageIcon, Mic, FileDown, Users, Trash2, Plus,
+  MessageSquarePlus, EyeOff, Eye, Image as ImageIcon, Mic, FileDown, Users, Trash2, Plus, Bell,
 } from "lucide-react";
 import { useAuth } from "./auth/AuthContext.jsx";
 // Migration 029 — list employees + save their department assignments.
@@ -12724,6 +12724,11 @@ function BomLineCheckPointsModal({ code, itemName = "", bomLabel = "", current =
 }
 
 function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateBOM, onRenameBOM, outwardLog, onAddOutward, pendingLog, onClearPending, onCreateMachine, machineLog = [], canDo = () => true, onRemoveRackMachine, onDuplicateBOM, onDeleteBOM, computeBOMDeletionInfo, settings = {},
+  // 2026-10-30 — embedded: render only the BOM Outward section (with every
+  // modal it opens) so Machine Tracker can issue a BOM through this exact
+  // component — same BOM data, serial check, popups and issue logic. The
+  // Outward page itself renders with embedded=false and is unchanged.
+  embedded = false,
   checklistTemplates = [], onCreateChecklistTemplate, onUpdateChecklistTemplate, onDeleteChecklistTemplate,
   // 2026-10-22 — navigate out of Outward (used by BOM Edit → Critical Items
   // "→ Open Inventory" button). Optional; falls back to no-op.
@@ -12941,7 +12946,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
   };
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className={embedded ? "" : "flex-1 overflow-y-auto"}>
 
       {/* Serial Number Modal */}
       {serialModal && bomDefs?.[serialModal] && (
@@ -13385,9 +13390,9 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
         </div>
       )}
 
-      <Topbar title="Outward" subtitle="BOM dispatch & material issue" />
+      {!embedded && <Topbar title="Outward" subtitle="BOM dispatch & material issue" />}
 
-      <div className="p-6 space-y-6">
+      <div className={embedded ? "" : "p-6 space-y-6"}>
 
         {/* ── BOM Cards ── */}
         <div>
@@ -13403,7 +13408,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
               </button>
             )}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className={embedded ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3" : "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"}>
             {boms.map(([bomKey, bom]) => {
               const units     = bomUnits[bomKey] || 1;
               const feasibleN = bom.items.filter(({ code, qty }) => { const inv = findItem(code); return inv && inv.stock >= qty * units; }).length;
@@ -13537,7 +13542,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
         </div>
 
         {/* ── Pending Stock banner ── */}
-        {pendingLog && pendingLog.length > 0 && (
+        {!embedded && pendingLog && pendingLog.length > 0 && (
           <div className="flex items-center gap-4 px-5 py-3.5 rounded-xl"
                style={{ background: "rgba(217, 119, 6,0.06)", border: "1px solid rgba(217, 119, 6,0.22)" }}>
             <span className="text-xl flex-shrink-0">⏳</span>
@@ -13553,6 +13558,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
         )}
 
         {/* ── Manual Outward ── */}
+        {!embedded && (
         <div className="bg-white border border-slate-200 rounded-xl p-6">
           <div className="flex items-center gap-2 mb-5">
             <h2 className="text-sm font-extrabold text-slate-900">✋ Manual Outward</h2>
@@ -13635,8 +13641,10 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
           </div>
         </div>
 
+        )}
+
         {/* ── Outward History ── */}
-        {outwardLog && outwardLog.length > 0 && (
+        {!embedded && outwardLog && outwardLog.length > 0 && (
           <div className="section-card p-5">
             <SectionHeader>📋 Outward History</SectionHeader>
             <div className="overflow-x-auto">
@@ -15714,6 +15722,9 @@ function ChecklistBulkBar({ answers, onSetAll }) {
 }
 
 function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo = () => true, bomDefs = {}, onStartProduction, onRemoveRackMachine, onUpdateBOM,
+  // 2026-10-30 — the BOM Outward section (an embedded OutwardPage), or null
+  // when this role may not issue a BOM.
+  bomSection = null,
   // Shortfall rows from BOM Outward. Used to show, on the rack, which
   // components a machine sitting there is still waiting for — the store needs
   // that before anyone tries to start production on it. Optional: [] simply
@@ -15742,6 +15753,20 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   // Read-only: the badge is derived, nothing new is stored.
   auditLog = [] }) {
   const [filter,   setFilter]   = useState("active");
+  // 2026-10-30 — page layout: two tabs (Production / Transfer & Accept), the
+  // Departments Called panel behind a header bell, and a collapsible BOM
+  // section. Each remembers nothing it shouldn't: the BOM fold is the only
+  // per-browser preference.
+  const [mtTab,       setMtTab]       = useState("production");
+  const [showCalled,  setShowCalled]  = useState(false);
+  // Open by default on a wide screen; on a phone the six BOM cards would push
+  // the machines a full screen down, so it starts folded there. An explicit
+  // choice is remembered either way.
+  const [bomOpen,     setBomOpen]     = useState(() => {
+    try { const v = localStorage.getItem("erp_mt_bom_open"); if (v !== null) return v === "1"; } catch {}
+    return typeof window === "undefined" || window.innerWidth >= 768;
+  });
+  const toggleBom = () => setBomOpen((v) => { try { localStorage.setItem("erp_mt_bom_open", v ? "0" : "1"); } catch {} return !v; });
   const [expanded, setExpanded] = useState(null);
   const [stageMap, setStageMap] = useState({});
   // Phase 1 — "Update Stage" is a legacy Phase-A escape hatch that skips the
@@ -16259,6 +16284,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     const h = machineHandover(m);
     return h && isAwaitingRelease(h);
   });
+  // Transfer & Accept lists every machine still moving through the line —
+  // the ones to finish & transfer, release, or accept — whatever summary
+  // tile was last clicked on the Production tab.
+  const listForTab = () => (mtTab === "transfer" ? active : filtered);
   const filtered  = filter === "active" ? active
                    : filter === "completed" ? completed
                    : filter === "pendingAccept" ? pendingAccept
@@ -16410,6 +16439,27 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       })()}
 
       <Topbar title="Machine Tracker" subtitle="Production build tracking — BOM issue through completion">
+        {/* Departments Called, behind a bell. Same count and same scope as the
+            panel it opens; hidden for a floor login, as the panel always was. */}
+        {!isFloorLogin && (() => {
+          const calledN = (pendingHandoverItems || [])
+            .filter((p) => p.status === "open")
+            .filter((p) => !scopeMine || myDepartments.includes(p.assignedDepartment)).length;
+          return (
+            <button type="button" onClick={() => setShowCalled((v) => !v)}
+                    aria-label={`Departments called: ${calledN} open`}
+                    title={calledN ? `${calledN} open issue${calledN === 1 ? "" : "s"} — departments called` : "No department has been called"}
+                    className="relative w-9 h-9 rounded-lg flex items-center justify-center transition-all"
+                    style={{ border: "1px solid var(--border-subtle)", background: showCalled ? "rgba(220,38,38,0.08)" : "var(--surface-card)",
+                             color: calledN ? "#dc2626" : "var(--text-dim)" }}>
+              <Bell size={17} aria-hidden="true" />
+              {calledN > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center"
+                      style={{ background: "#dc2626", boxShadow: "0 0 0 2px var(--surface-card)" }}>{calledN}</span>
+              )}
+            </button>
+          );
+        })()}
         {/* Admin-only quick jump to the Department Workflow Settings tab:
             deadlines, HOLD rules, checklist templates, signature + password
             policy. Hidden from non-admin operators. */}
@@ -16423,7 +16473,57 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         )}
       </Topbar>
 
-      <div className="p-6 space-y-5">
+      <div className="p-4 sm:p-6 space-y-5">
+
+        {/* ── BOM Outward (2026-10-30) ──
+            The Outward page's own BOM section, embedded: issuing here and
+            issuing from Outward are the same component and the same code. */}
+        {bomSection && (
+          <div className="section-card overflow-hidden">
+            <button type="button" onClick={toggleBom} aria-expanded={bomOpen}
+                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left">
+              <span className="text-[13px] font-bold" style={{ color: "var(--text-strong)" }}>Issue a BOM</span>
+              <span className="text-[11px] font-semibold" style={{ color: "var(--text-dim)" }}>{bomOpen ? "Hide ▲" : "Show ▼"}</span>
+            </button>
+            {bomOpen && <div className="px-4 pb-4">{bomSection}</div>}
+          </div>
+        )}
+
+        {/* ── Tabs (2026-10-30) ── Production: status tiles, rack, machines.
+            Transfer & Accept: what is waiting to be accepted or picked up,
+            plus every machine still moving through the line. */}
+        {(() => {
+          const waitingN = askableHandovers.length;
+          const tabs = [
+            { id: "production", label: "Production" },
+            { id: "transfer",   label: "Transfer & Accept", badge: waitingN },
+          ];
+          return (
+            <div className="flex items-center gap-1 border-b overflow-x-auto" style={{ borderColor: "var(--border-subtle)" }} role="tablist">
+              {tabs.map((t) => (
+                <button key={t.id} type="button" role="tab" aria-selected={mtTab === t.id}
+                        onClick={() => setMtTab(t.id)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-[12.5px] font-bold whitespace-nowrap transition-all -mb-px"
+                        style={mtTab === t.id
+                          ? { color: "#d71920", borderBottom: "2px solid #d71920", background: "rgba(215,25,32,0.05)" }
+                          : { color: "var(--text-dim)", borderBottom: "2px solid transparent" }}>
+                  {t.label}
+                  {t.badge > 0 && (
+                    <span className="min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center"
+                          style={{ background: "#d97706" }}>{t.badge}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
+
+        {/* Nothing to accept — said, rather than an empty tab top. */}
+        {mtTab === "transfer" && askableHandovers.length === 0 && (
+          <div className="text-[12px] px-4 py-3 rounded-xl" style={{ background: "var(--surface-raised)", color: "var(--text-dim)", border: "1px solid var(--border-subtle)" }}>
+            No machine is waiting to be accepted right now. Machines in production are listed below — finish & transfer from each card.
+          </div>
+        )}
 
         {/* ── Pending Acceptance section (prominent, top-of-page) ──
             Factory staff see this before any other list. Shows machines
@@ -16435,7 +16535,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             release it — listing it here put an "Accept Machine" button on it
             and let the receiving department skip the release entirely. Its
             Release button lives on the machine card. */}
-        {askableHandovers.length > 0 && (
+        {mtTab === "transfer" && askableHandovers.length > 0 && (
           <div className="rounded-2xl p-5"
                style={{ background: "linear-gradient(135deg,rgba(217, 119, 6,0.08),rgba(234,88,12,0.03))", border: `2px solid ${overdueHandovers.length ? "rgba(239,68,68,0.55)" : "rgba(217, 119, 6,0.45)"}`, boxShadow: overdueHandovers.length ? "0 0 24px rgba(239,68,68,0.15)" : "0 0 16px rgba(217, 119, 6,0.1)" }}>
             <div className="flex items-center gap-4 mb-4 flex-wrap">
@@ -16584,7 +16684,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         {/* ── Migration 036 — released off the rack, waiting to be picked up ──
             The production head has named this machine. It is the clearest
             instruction on the floor, so it sits above everything else. */}
-        {scopeMine && (() => {
+        {mtTab === "transfer" && scopeMine && (() => {
           const justReleased = startedAll.filter((m) => {
             if (m.status === "completed") return false;
             const h = (handovers || []).find((x) => x.id === m.pendingHandoverId && x.status === "pending");
@@ -16683,7 +16783,18 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             Hidden for a floor login: its own "Go and fix" bucket above already
             lists exactly the faults called to its department, so this factory
             overview would just be a second copy of the same machines. */}
-        {!isFloorLogin && (() => {
+        {!isFloorLogin && showCalled && (
+          // Opened from the header bell. The panel inside is the same one that
+          // used to sit on the page, unchanged; it just no longer takes the
+          // first screen.
+          <div className="fixed inset-0 z-40 flex items-start justify-end p-3 sm:p-6 sm:pt-20"
+               style={{ background: "rgba(17,24,39,0.30)" }}
+               onClick={(e) => e.target === e.currentTarget && setShowCalled(false)}>
+            <div className="w-full max-w-4xl max-h-[82vh] overflow-y-auto rounded-2xl relative"
+                 style={{ background: "var(--surface-card)", boxShadow: "0 30px 80px rgba(17,24,39,0.25)" }}>
+              <button type="button" onClick={() => setShowCalled(false)} aria-label="Close"
+                      className="absolute top-3 right-3 z-10 w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 text-xs font-bold">✕</button>
+        {(() => {
           const openAssigned = (pendingHandoverItems || [])
             .filter((p) => p.status === "open")
             // A floor login is only shown what has been called to its own
@@ -16761,7 +16872,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               </div>
             </div>
           );
-        })()}
+        })() || (
+          <div className="p-8 text-center text-[12px]" style={{ color: "var(--text-dim)" }}>
+            No department has been called — nothing is open.
+          </div>
+        )}
+            </div>
+          </div>
+        )}
 
         {/* ── Issue detail popup ── */}
         {issuePopup && (() => {
@@ -16815,7 +16933,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             works off its own "My Work" buckets above and does not need the
             whole factory's counts — hidden to keep the phone view to the few
             machines that actually need the operator. */}
-        {!isFloorLogin && (() => {
+        {mtTab === "production" && !isFloorLogin && (() => {
           // A machine waiting on the rack for a production head to release it
           // is NOT waiting to be accepted — nobody has been asked yet, so no
           // acceptance clock runs on it and it is counted separately.
@@ -16861,7 +16979,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             Machines waiting on the rack to be started. Starting a build is the
             first working department's job, so a floor login elsewhere in the
             line has no use for this and it is hidden from them. */}
-        {(!isFloorLogin || myDepartments.includes(FIRST_WORK_DEPARTMENT)) && (
+        {mtTab === "production" && (!isFloorLogin || myDepartments.includes(FIRST_WORK_DEPARTMENT)) && (
         <div>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2.5">
@@ -17099,7 +17217,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
         {/* "All Machines" quick toggle — kept as a small chip because the
             summary cards above cover the five main categories but don't offer
-            a direct "show everything" option. */}
+            a direct "show everything" option. Production tab only: the summary
+            cards it refers to live there. */}
+        {mtTab === "production" && (
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => setFilter("all")}
                   className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${filter === "all" ? "bg-blue-500/15 text-blue-300 border-blue-500/40" : "text-slate-500 border-slate-200 hover:text-slate-500"}`}>
@@ -17109,9 +17229,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             <span className="text-[10px] text-slate-500">· Filtered by one of the summary cards above. Click <strong className="text-slate-500">All Machines</strong> to clear.</span>
           )}
         </div>
+        )}
 
         {/* ── Empty state ── */}
-        {filtered.length === 0 && (
+        {listForTab().length === 0 && (
           <div className="bg-white border border-slate-200 rounded-xl py-20 text-center">
             <div className="text-5xl mb-4">🔧</div>
             <div className="text-sm font-bold text-slate-900 mb-2">No Machines Tracked</div>
@@ -17131,7 +17252,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
         {/* ── Machine cards ── */}
         <div className="space-y-4">
-          {filtered.map((machine) => {
+          {listForTab().map((machine) => {
             const curIdx   = stageIdx(machine.stage);
             const isComplete = machine.status === "completed";
             const isExpanded = expanded === machine.id;
@@ -23631,6 +23752,31 @@ export default function App() {
   const lowStockN     = allItemsFlat.filter((i) => i?.status === "critical" || i?.status === "warning").length;
   const pipelineBadge = lowStockN + safePos.filter((p) => !["received","rejected"].includes(p?.status)).length;
 
+  // One set of props for BOM Outward, used by the Outward page and by the BOM
+  // section embedded at the top of Machine Tracker — so both issue through
+  // the same component, data and handlers, never a second copy.
+  const outwardPageProps = {
+    items, handleUpdateStock,
+    bomDefs, onUpdateBOM: handleUpdateBOM,
+    onCreateBOM: handleCreateBOM, onRenameBOM: handleRenameBOM,
+    outwardLog, onAddOutward: handleAddOutward,
+    pendingLog, onClearPending: handleClearPending,
+    onCreateMachine: handleCreateMachine, machineLog, canDo,
+    onRemoveRackMachine: handleRemoveRackMachine,
+    onDuplicateBOM: handleDuplicateBOM,
+    onDeleteBOM: handleDeleteBOM,
+    computeBOMDeletionInfo,
+    settings,
+    checklistTemplates,
+    onCreateChecklistTemplate: handleCreateChecklistTemplate,
+    onUpdateChecklistTemplate: handleUpdateChecklistTemplate,
+    onDeleteChecklistTemplate: handleDeleteChecklistTemplate,
+    onNavigate: setActivePage,
+    onStockIssueFailed: (bomKey, failures) =>
+      flashSaveError(`Issue ${bomKey}`,
+        `${failures.length} line${failures.length === 1 ? "" : "s"} did not leave stores — ${failures.join("; ")}`),
+  };
+
   const pages = {
     dashboard: <DashboardPage items={items} pos={pos} vendorList={vendorList} machineLog={machineLog} pendingLog={pendingLog} followUps={followUps} onNavigate={setActivePage} settings={settings} />,
     inventory: <InventoryPage items={items} setItems={setItems} handleUpdateStock={handleUpdateStock}
@@ -23641,25 +23787,7 @@ export default function App() {
                               onDeleteBOM={handleDeleteBOM}
                               onBulkAddItems={handleBulkAddItems} />,
     inward:    <InwardPage    items={items} handleUpdateStock={handleUpdateStock} vendorList={vendorList} onInwardComplete={handleInwardComplete} onAddInward={(entry) => { setInwardLog(prev => [entry, ...prev]); if (isSupabaseEnabled()) createInward(entry).then((r) => { if (!r.success) console.warn("[App] Inward create Supabase failed:", r.error); }); logAudit({ type: "inward_manual", module: "Inward", action: `Manual Inward: ${entry.item} × ${entry.qty}`, ref: entry.code, itemCode: entry.code, itemName: entry.item, vendor: entry.vendor, qty: entry.qty, details: { unit: entry.unit, notes: entry.notes } }); }} appInwardLog={inwardLog} canDo={canDo} />,
-    outward:   <OutwardPage   items={items} handleUpdateStock={handleUpdateStock}
-                              bomDefs={bomDefs} onUpdateBOM={handleUpdateBOM}
-                              onCreateBOM={handleCreateBOM} onRenameBOM={handleRenameBOM}
-                              outwardLog={outwardLog} onAddOutward={handleAddOutward}
-                              pendingLog={pendingLog} onClearPending={handleClearPending}
-                              onCreateMachine={handleCreateMachine} machineLog={machineLog} canDo={canDo}
-                              onRemoveRackMachine={handleRemoveRackMachine}
-                              onDuplicateBOM={handleDuplicateBOM}
-                              onDeleteBOM={handleDeleteBOM}
-                              computeBOMDeletionInfo={computeBOMDeletionInfo}
-                              settings={settings}
-                              checklistTemplates={checklistTemplates}
-                              onCreateChecklistTemplate={handleCreateChecklistTemplate}
-                              onUpdateChecklistTemplate={handleUpdateChecklistTemplate}
-                              onDeleteChecklistTemplate={handleDeleteChecklistTemplate}
-                              onNavigate={setActivePage}
-                              onStockIssueFailed={(bomKey, failures) =>
-                                flashSaveError(`Issue ${bomKey}`,
-                                  `${failures.length} line${failures.length === 1 ? "" : "s"} did not leave stores — ${failures.join("; ")}`)} />,
+    outward:   <OutwardPage {...outwardPageProps} />,
     pending:   <PendingPage   pendingLog={pendingLog} items={items} bomDefs={bomDefs}
                               machineLog={machineLog}
                               onFulfillPending={handleFulfillPending}
@@ -23680,6 +23808,9 @@ export default function App() {
                               onReverseReceive={handleReverseReceive}
                               onSetItemDefaultRate={handleSetItemDefaultRate} />,
     machines:  <MachinePage   machineLog={machineLog} onUpdateStage={handleUpdateMachineStage} onNavigate={setActivePage} canDo={canDo}
+                              /* 2026-10-30 — BOM Outward, embedded at the top. Shown
+                                 only to roles that may issue a BOM, same as Outward. */
+                              bomSection={canView("outward") && canDo("outward", "bom") ? <OutwardPage {...outwardPageProps} embedded /> : null}
                               pendingLog={pendingLog}
                               bomDefs={bomDefs} onStartProduction={handleStartProduction}
                               onRemoveRackMachine={handleRemoveRackMachine}
