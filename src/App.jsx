@@ -6496,52 +6496,55 @@ function WhatsAppPage({ settings = {}, onSave }) {
 
   const connected = !!(localSettings.waApiKey && localSettings.waOwnerPhone);
 
+  // Four sections, not five. "Message Log" used to sit beside Chats showing
+  // the ERP's own outbound alerts — the same messages Chats already lists,
+  // under a second name. Two places for one thing is a question the operator
+  // has to answer every time they open the panel, so it is gone.
   const menuItems = [
-    // The Chats badge counts real conversations, not our own sent-alert log —
-    // that is what the operator means by "how many chats do I have".
     { id: "chats",    Icon: MessagesSquare, label: "Chats",       badge: chats.length || null },
     { id: "templates",Icon: FileText,       label: "Templates",   badge: templates.length || null },
     { id: "training", Icon: Sparkles,       label: "AI Training", badge: trainingData ? "●" : null },
     { id: "settings", Icon: Settings,       label: "Settings",    badge: dirty ? "●" : null },
-    { id: "log",      Icon: LogIcon,        label: "Message Log", badge: msgLog.length || null },
   ];
 
   return (
-    <div className="flex h-screen" style={{ background: "var(--surface-base)" }}>
-      {/* ── LEFT: module nav rail ── */}
-      <div className="w-[220px] flex-shrink-0 flex flex-col wa-nav">
-        <div className="px-4 py-4 flex items-center gap-3 wa-nav-head">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-               style={{ background: "var(--wa-green)" }}>
-            <WaLogo size={22} />
+    // has-active drives the one-pane-at-a-time behaviour on a phone: the list
+    // and the conversation share the screen instead of fighting for it.
+    <div className={`wa-root ${activeChat ? "has-active" : ""}`}>
+      <div className="wa-nav">
+        <div className="wa-nav-head">
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+               style={{ background: "var(--wa-live)" }}>
+            <WaLogo size={20} />
           </div>
-          <div className="min-w-0">
-            <div className="text-[14px] font-bold">WhatsApp</div>
-            <div className="text-[10.5px] flex items-center gap-1.5" style={{ color: connected ? "#8fd6bd" : "#e5c07b" }}>
+          <div className="min-w-0 wa-nav-title">
+            <div className="text-[13.5px] font-semibold text-white">WhatsApp</div>
+            <div className="text-[10.5px] flex items-center gap-1.5" style={{ color: connected ? "#7fd4a8" : "#e5c07b" }}>
               <span className="inline-block w-1.5 h-1.5 rounded-full"
-                    style={{ background: connected ? "var(--wa-green)" : "#e5c07b" }} />
-              {connected ? "Connected" : "Setup pending"}
+                    style={{ background: connected ? "var(--wa-live)" : "#e5c07b" }} />
+              {connected ? "Connected" : "Not set up"}
             </div>
           </div>
         </div>
 
-        <div className="flex-1 py-2">
+        <div className="flex-1 py-2 flex md:block">
           {menuItems.map((item) => (
             <button key={item.id} onClick={() => setSection(item.id)}
+                    title={item.label}
                     className={`wa-nav-item ${section === item.id ? "is-on" : ""}`}>
-              <span className="w-5 flex-shrink-0 flex items-center justify-center"><item.Icon size={18} /></span>
-              <span className="flex-1 text-[13.5px] font-medium">{item.label}</span>
+              <item.Icon size={18} className="flex-shrink-0" />
+              <span className="wa-nav-label">{item.label}</span>
               {item.badge && <span className="wa-nav-badge">{item.badge}</span>}
             </button>
           ))}
         </div>
 
         {dirty && (
-          <div className="p-3">
+          <div className="p-3 wa-nav-foot">
             <button onClick={handleSave}
-                    className="w-full py-2.5 rounded-lg text-[12px] font-bold transition-transform hover:scale-[1.02]"
-                    style={{ background: "var(--wa-green)", color: "#111b21" }}>
-              Save Changes
+                    className="w-full py-2.5 rounded-lg text-[12px] font-semibold text-white"
+                    style={{ background: "var(--wa-accent)" }}>
+              Save changes
             </button>
           </div>
         )}
