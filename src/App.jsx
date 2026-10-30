@@ -17884,7 +17884,15 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                            aria-label={`${rack.name}: ${rack.ready} of ${rack.capacity} sets ready`}
                            style={{ border: `1px solid ${f.color}40`, boxShadow: "0 1px 2px rgba(17,24,39,0.05)" }}>
                         <div className="px-3 py-2 flex items-center justify-between gap-2" style={{ background: f.color }}>
-                          <div className="text-[13px] font-black text-white truncate">{rack.name}</div>
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-black text-white truncate">{rack.name}</div>
+                            {/* Rack → model → BOM mapping, so the slot's BOM is never a guess. */}
+                            {(() => { const mk = Object.keys(bomDefs || {}).filter((k) => physicalRackFamily(k)?.id === f.id); return mk.length ? (
+                              <div className="text-[9px] font-semibold text-white truncate" style={{ opacity: 0.85 }} title={mk.map((k) => `${k} — ${bomDefs[k]?.label || k} · ${(bomDefs[k]?.items || []).length} components`).join(" · ")}>
+                                BOM {mk.join(" / ")}{mk.length === 1 && bomDefs[mk[0]]?.label ? ` — ${bomDefs[mk[0]].label}` : ""}
+                              </div>
+                            ) : <div className="text-[9px] font-semibold text-white" style={{ opacity: 0.85 }}>No BOM mapped</div>; })()}
+                          </div>
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
                                 style={{ background: "rgba(0,0,0,0.22)" }}>{rack.occupied}/{rack.capacity} · {S.label}</span>
                         </div>
@@ -19035,7 +19043,11 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: f.color + "22", color: f.color }}>＋</div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-black" style={{ color: "var(--text-strong)" }}>Fill {slotLabel(fillSlot.slotId)}</div>
-                <div className="text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>Model {famKeys.join(" / ") || f.label} only · one machine per slot</div>
+                <div className="text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>
+                  {famKeys.length
+                    ? `Mapped BOM: ${famKeys.map((k) => `${k} — ${bomDefs[k]?.label || k} (${(bomDefs[k]?.items || []).length} components)`).join(" / ")} · one machine per slot`
+                    : `No BOM is mapped to the ${f.label} racks — create a ${f.boms.join(" / ")} BOM first`}
+                </div>
               </div>
               <button onClick={() => setFillSlot(null)} className="text-slate-500 hover:text-slate-900 transition-colors text-lg leading-none">✕</button>
             </div>
