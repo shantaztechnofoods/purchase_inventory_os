@@ -9731,6 +9731,8 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   // when they step back and forth through the confirm flow.
   const [showCPBrief,   setShowCPBrief]   = useState(false);
   const [cpAcknowledged, setCpAcknowledged] = useState(false);
+  // Which edit-mode BOM line has its per-BOM check points open.
+  const [cpEditCode,    setCpEditCode]    = useState(null);
   // Feature 2 — Req 2: set of all serial numbers already issued historically.
   // Used to block reuse of the same serial across multiple outward events.
   const usedSerials = useMemo(() => {
@@ -10438,7 +10440,28 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                        style={{ gridTemplateColumns: "1fr 100px 120px 60px" }}>
                     <div>
                       <div className="text-[11px] font-semibold text-slate-900">{inv?.name || ei.code}</div>
-                      <div className="text-[9px] font-mono text-slate-600">{ei.code}</div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <div className="text-[9px] font-mono text-slate-600">{ei.code}</div>
+                        {/* Migration 037 — per-BOM check points for this line.
+                            A line saved before 037 shows the item's template
+                            count so the operator starts from something. */}
+                        {(() => {
+                          const pts = Array.isArray(ei.checkPoints) ? ei.checkPoints
+                                    : (Array.isArray(inv?.checkPoints) ? inv.checkPoints : []);
+                          return (
+                            <button type="button" onClick={() => setCpEditCode(ei.code)}
+                                    title="इस BOM के लिए check points"
+                                    className="text-[9px] font-bold px-1.5 py-0.5 rounded transition-all"
+                                    style={{
+                                      background: pts.length ? "rgba(217,119,6,0.12)" : "rgba(17,24,39,0.05)",
+                                      color:      pts.length ? "#b45309" : "#64748b",
+                                      border:     `1px solid ${pts.length ? "rgba(217,119,6,0.3)" : "rgba(17,24,39,0.12)"}`,
+                                    }}>
+                              ✅ {pts.length || "+"}
+                            </button>
+                          );
+                        })()}
+                      </div>
                     </div>
                     <div className="text-[10px] text-slate-500 text-center">{inv?.category || "—"}</div>
                     <div className="flex items-center gap-1.5 justify-center">
@@ -10648,6 +10671,31 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
           The modal never appears during BOM create / edit (editMode gates
           the entire sticky summary bar + Issue button, so the trigger path
           is unreachable in edit mode). */}
+      {/* Migration 037 — per-BOM check points, opened from an edit-mode line.
+          Saves onto editItems, which the Save handler already persists, so the
+          points land on this BOM only and never touch Item Master. */}
+      {editMode && cpEditCode && (() => {
+        const line = editItems.find((i) => i.code === cpEditCode);
+        if (!line) return null;
+        const inv = findInv(cpEditCode);
+        const current = Array.isArray(line.checkPoints) ? line.checkPoints
+                      : (Array.isArray(inv?.checkPoints) ? inv.checkPoints : []);
+        return (
+          <BomLineCheckPointsModal
+            code={cpEditCode}
+            itemName={inv?.name || cpEditCode}
+            bomLabel={bom.label || bomKey}
+            current={current}
+            template={inv?.checkPoints || []}
+            onClose={() => setCpEditCode(null)}
+            onSave={(pts) => {
+              setEditItems((p) => p.map((i) => i.code === cpEditCode ? { ...i, checkPoints: pts } : i));
+              setCpEditCode(null);
+            }}
+          />
+        );
+      })()}
+
       {/* Migration 037 — CHECK-POINT BRIEFING. The first thing the store
           operator sees when issuing: every item going out, with the check
           points that BOM carries for it. Acknowledging it hands off to the
