@@ -15,7 +15,7 @@
 // The key arrives in the request body from the ERP's WhatsApp settings and is
 // used server-side only — never committed, never a browser third-party call.
 
-const MODEL = "gemini-2.0-flash";
+const MODEL = "gemini-3.8-flash";
 
 const SYSTEM_PROMPT = `Tum Shantaz Technofoods ke WhatsApp auto-reply agent ho.
 

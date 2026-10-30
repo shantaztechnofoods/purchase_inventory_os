@@ -36,7 +36,7 @@ import crypto from "node:crypto";
 // Chakra sent, so a parsed-and-reserialised object would not match.
 export const config = { api: { bodyParser: false } };
 
-const GEMINI_MODEL   = "gemini-2.0-flash";
+const GEMINI_MODEL   = "gemini-3.8-flash";
 const WA_API_VERSION = "v21.0";
 const MAX_MEDIA_BYTES = 15 * 1024 * 1024;
 

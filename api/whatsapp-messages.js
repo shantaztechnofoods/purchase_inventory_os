@@ -45,8 +45,11 @@ export default async function handler(req, res) {
       .map((m) => ({
         id:            m?.id || "",
         text:          m?.text || m?.body?.text?.body || "",
-        direction:     m?.direction || "",
-        status:        m?.deliveryStatus || "",
+        // Chakra sends these in CAPITALS ("OUTBOUND", "READ"). Lower-casing
+        // here keeps the comparison in one place — the UI was checking for
+        // "outbound" and so drew every one of our own messages as incoming.
+        direction:     String(m?.direction || "").toLowerCase(),
+        status:        String(m?.deliveryStatus || "").toLowerCase(),
         ts:            m?.timestamp || m?.createdAt || 0,
         hasAttachment: Array.isArray(m?.attachments) && m.attachments.length > 0,
       }))

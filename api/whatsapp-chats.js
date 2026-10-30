@@ -77,7 +77,8 @@ export default async function handler(req, res) {
       phone:         c?.primaryContactHandle?.value || c?.providerHandle || "",
       lastText:      c?.latestMessage?.text || c?.latestMessage?.body?.text?.body || "",
       lastTs:        c?.latestMessageTs || c?.latestMessage?.timestamp || c?.updatedAt || 0,
-      lastDirection: c?.latestMessageDirection || c?.latestMessage?.direction || "",
+      // Capitals from Chakra, lower-cased so the UI's "outbound" check works.
+      lastDirection: String(c?.latestMessageDirection || c?.latestMessage?.direction || "").toLowerCase(),
       status:        c?.status || "",
     }));
 
