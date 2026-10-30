@@ -15,8 +15,71 @@
 // The key arrives in the request body from the ERP's WhatsApp settings and is
 // used server-side only — never committed, never a browser third-party call.
 
+import { SYSTEM_PROMPT as REPLY_PROMPT, GEMINI_MODELS } from "./whatsapp-webhook.js";
+
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
 const MODEL      = "gemini-3-flash-preview";
+
+// One Gemini call, trying each model in turn on the errors that mean "busy or
+// gone" — the same order and rule the live webhook uses, so a test here
+// behaves like the real thing.
+async function askGemini(geminiKey, system, text) {
+  let lastErr = "Gemini se jawab nahi aaya";
+  for (const model of GEMINI_MODELS) {
+    try {
+      const r = await fetch(GEMINI_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
+        body: JSON.stringify({ model, system_instruction: system, input: [{ type: "text", text }], store: false }),
+        signal: AbortSignal.timeout(15000),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) {
+        const out = (Array.isArray(j?.steps) ? j.steps : [])
+          .filter((st) => st?.type === "model_output")
+          .flatMap((st) => (Array.isArray(st?.content) ? st.content : []))
+          .filter((c) => c?.type === "text").map((c) => c.text).join("").trim();
+        if (out) return { ok: true, text: out };
+      }
+      lastErr = j?.error?.message || `Gemini returned ${r.status}`;
+      if (![400, 404, 429, 503].includes(r.status) && r.ok === false) break;
+    } catch (e) {
+      lastErr = e?.name === "TimeoutError" ? "Gemini ne time par jawab nahi diya" : (e?.message || lastErr);
+    }
+  }
+  return { ok: false, error: lastErr };
+}
+
+// The interview: Gemini plays the trainer and asks the owner about ONE
+// situation the agent does not yet know how to handle, with ready answers to
+// pick from. Picking is faster than typing on a factory floor, and the answer
+// becomes one rule.
+const INTERVIEW_PROMPT = `Tum Shantaz Technofoods ke owner ki madad kar rahe ho apne WhatsApp auto-reply agent ko sikhane mein.
+
+Company ka WhatsApp INTERNAL hai: production floor ke employees aur departments
+(Mechanical, Electrical, Packing, Store, Assembly waghera) is number par message
+karte hain — machine ka issue, transfer, stock, chhutti, photo, voice note.
+
+Tumhe EK naya sawaal poochhna hai: ek aisi asli situation jo neeche ke rules
+mein abhi cover NAHI hai, aur jo factory mein sach mein aati hai. Phir agent
+us situation mein kya kare, uske 3 alag, practical jawab suggest karo — har
+jawab chhota (1-2 line), Hinglish mein, wahi baat jo agent bolega ya karega.
+Teeno jawab ek doosre se sach mein alag hon (jaise: khud jawab de / owner ko
+bata de / zaroori jaankari maange).
+
+Sirf ye JSON do, aur kuch nahi:
+{"situation":"<chhoti situation, 'Jab ...' se shuru>","question":"<owner se sawaal>","options":["...","...","..."]}`;
+
+export function parseInterview(text) {
+  const m = String(text || "").match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  try {
+    const j = JSON.parse(m[0]);
+    const options = (Array.isArray(j?.options) ? j.options : []).map((o) => String(o).trim()).filter(Boolean).slice(0, 4);
+    if (!j?.situation || !j?.question || options.length < 2) return null;
+    return { situation: String(j.situation).trim(), question: String(j.question).trim(), options };
+  } catch { return null; }
+}
 
 const SYSTEM_PROMPT = `Tum Shantaz Technofoods ke WhatsApp auto-reply agent ho.
 
@@ -56,6 +119,33 @@ export default async function handler(req, res) {
     const { messages, trainingData, geminiKey, listModels } = body;
 
     if (!geminiKey) { res.status(400).json({ error: "Gemini API key chahiye — WhatsApp Settings mein daalo" }); return; }
+
+    // Test: the reply the live webhook WOULD send for this message, with the
+    // same prompt and the same rules — but nothing goes out on WhatsApp.
+    if (body.mode === "test") {
+      const msg = String(body.message || "").trim();
+      if (!msg) { res.status(400).json({ error: "Test message likho" }); return; }
+      const r = await askGemini(geminiKey, REPLY_PROMPT + (trainingData || "(abhi koi training nahi)"), msg);
+      if (!r.ok) { res.status(502).json({ error: r.error }); return; }
+      res.status(200).json({ success: true, reply: r.text });
+      return;
+    }
+
+    if (body.mode === "interview") {
+      const asked = (Array.isArray(body.asked) ? body.asked : []).slice(-30);
+      const input =
+        `ABHI TAK KE RULES:\n${trainingData || "(koi nahi)"}\n\n` +
+        `YE SITUATIONS PEHLE POOCHHI JA CHUKI HAIN, DOBARA MAT POOCHHO:\n${asked.join("\n") || "(koi nahi)"}`;
+      // One retry: a model occasionally wraps the JSON in prose or skips a field.
+      for (let i = 0; i < 2; i++) {
+        const r = await askGemini(geminiKey, INTERVIEW_PROMPT, input);
+        if (!r.ok) { res.status(502).json({ error: r.error }); return; }
+        const q = parseInterview(r.text);
+        if (q) { res.status(200).json({ success: true, ...q }); return; }
+      }
+      res.status(502).json({ error: "Sawaal ban nahi paya, dobara try karo" });
+      return;
+    }
 
     // Smallest possible generateContent call, time-bound, reporting the raw
     // status. listModels (a GET) succeeds while generateContent (a POST) hangs,

@@ -233,3 +233,53 @@ test("phone matching ignores country code, spaces and +", () => {
   assert.equal(key("09327443134"), key("9327443134"));
   assert.notEqual(key("919327443134"), key("919327443135"));
 });
+
+// ── Alert templates (api/whatsapp-send.js) ────────────────────────────────
+// Meta rejects the WHOLE message if any template value has a newline, tab or
+// a run of spaces — and an issue typed on the floor often does.
+const { cleanParam, buildTemplatePayload } = await import("../api/whatsapp-send.js");
+
+test("cleanParam flattens newlines, tabs and space runs", () => {
+  assert.equal(cleanParam("Pump leak\nfrom   seal\tside"), "Pump leak from seal side");
+  assert.equal(cleanParam(""), "-");          // an empty slot is rejected too
+  assert.equal(cleanParam(null), "-");
+  assert.equal(cleanParam("x".repeat(500)).length, 300);
+});
+
+test("buildTemplatePayload: standard Cloud API template with body params", () => {
+  const p = buildTemplatePayload("919812345678", { name: "shantaz_erp_alert", language: "en", params: ["Issue Raised", "KM10", "Mechanical", "Pump\nleak", "30 Oct"] });
+  assert.equal(p.type, "template");
+  assert.equal(p.to, "919812345678");
+  assert.equal(p.template.name, "shantaz_erp_alert");
+  assert.deepEqual(p.template.language, { code: "en" });
+  const params = p.template.components[0].parameters;
+  assert.equal(params.length, 5);
+  assert.deepEqual(params[3], { type: "text", text: "Pump leak" });
+});
+
+test("buildTemplatePayload: a template with no slots sends no components", () => {
+  const p = buildTemplatePayload("91", { name: "hello" });
+  assert.equal(p.template.components, undefined);
+  assert.equal(p.template.language.code, "en");
+});
+
+// ── AI training interview (api/whatsapp-agent.js) ─────────────────────────
+const { parseInterview } = await import("../api/whatsapp-agent.js");
+
+test("parseInterview: reads JSON even when wrapped in prose or a code fence", () => {
+  const q = parseInterview('Sure!\n```json\n{"situation":"Jab koi chhutti maange","question":"Kya bole?","options":["a","b","c"]}\n```');
+  assert.equal(q.situation, "Jab koi chhutti maange");
+  assert.equal(q.options.length, 3);
+});
+
+test("parseInterview: rejects incomplete answers so the UI never shows a half question", () => {
+  assert.equal(parseInterview('{"situation":"x","question":"y","options":["only one"]}'), null);
+  assert.equal(parseInterview('{"question":"y","options":["a","b"]}'), null);
+  assert.equal(parseInterview("no json here"), null);
+  assert.equal(parseInterview("{broken"), null);
+});
+
+test("parseInterview: caps suggestions at four and drops blanks", () => {
+  const q = parseInterview('{"situation":"s","question":"q","options":["a"," ","b","c","d","e"]}');
+  assert.deepEqual(q.options, ["a", "b", "c", "d"]);
+});

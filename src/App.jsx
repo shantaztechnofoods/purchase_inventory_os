@@ -6187,6 +6187,45 @@ function waUnreadCount(chats = [], seen = {}, hidden = []) {
   ).length;
 }
 
+// ── Alert dispatch ───────────────────────────────────────────────────────
+// Every ERP alert goes through here. Plain text only reaches someone who has
+// messaged the business number in the last 24 hours; an approved template
+// reaches anyone. So when an alert template is chosen in WhatsApp → Templates,
+// it is used, and the plain text is kept as the fallback — if the template is
+// paused or rejected by Meta, a recipient inside the 24h window still gets the
+// alert rather than nothing.
+//
+// params: the template's {{1}}..{{5}} — type, machine, department, details,
+// time. The text message is unchanged from before templates existed.
+function waAlertTime() {
+  return new Date().toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+async function waDispatch(settings, to, message, params) {
+  if (!settings?.waApiKey || !to || !message) return;
+  const { callWhatsAppFn } = await import("./stores/adminApi.js");
+  const base = { apiKey: settings.waApiKey, pluginId: settings.waPluginId || "", phoneId: settings.waPhoneId || "" };
+  const tplName = settings.waAlertTemplate;
+  const phones = String(to).split(",").map((p) => p.trim()).filter(Boolean);
+  for (const phone of phones) {
+    (async () => {
+      let res = null;
+      if (tplName && Array.isArray(params)) {
+        res = await callWhatsAppFn("whatsapp-send", {
+          ...base, to: phone,
+          template: { name: tplName, language: settings.waAlertTemplateLang || "en", params },
+        }).catch((e) => ({ success: false, error: e?.message }));
+        if (!res?.success) console.warn("[WhatsApp] template alert failed, falling back to text", phone, res?.error);
+      }
+      if (!res?.success) {
+        res = await callWhatsAppFn("whatsapp-send", { ...base, to: phone, message })
+          .catch((e) => ({ success: false, error: e?.message }));
+      }
+      if (!res?.success) console.warn("[WhatsApp] alert failed for", phone, res?.error);
+      if (window.__waLog) window.__waLog(phone, message, res?.success ? "sent" : "failed");
+    })();
+  }
+}
+
 function WhatsAppPage({ settings = {}, onSave }) {
   const onMobileMenu = React.useContext(MobileNavContext);
   const [localSettings, setLocalSettings] = useState({
@@ -6211,6 +6250,12 @@ function WhatsAppPage({ settings = {}, onSave }) {
     // Lives in the same settings row so the server-side webhook can read it.
     waAgentTraining: settings.waAgentTraining || "",
     waAutoReply: settings.waAutoReply || false,
+    // Approved template the alerts are sent with (see waDispatch).
+    waAlertTemplate: settings.waAlertTemplate || "",
+    waAlertTemplateLang: settings.waAlertTemplateLang || "",
+    // The training as a list (JSON array of strings). waAgentTraining above is
+    // derived from it — that plain text is what the webhook reads.
+    waAgentRules: settings.waAgentRules || "",
     waNotifyIssue: settings.waNotifyIssue !== false,
     waNotifyTransfer: settings.waNotifyTransfer !== false,
     waNotifyDeadline: settings.waNotifyDeadline !== false,
@@ -6320,20 +6365,29 @@ function WhatsAppPage({ settings = {}, onSave }) {
   const [tplCreating,  setTplCreating]  = useState(false);
   const [tplMsg,       setTplMsg]       = useState("");
   const [showNewTpl,   setShowNewTpl]   = useState(false);
+  // Custom template form: null when closed, otherwise
+  // { mode: "create"|"edit", id, name, category, language, body, examples: [] }
+  const [tplForm,      setTplForm]      = useState(null);
+  const [tplBusy,      setTplBusy]      = useState("");   // "<action>:<name>" while a call runs
+  const [tplConfirm,   setTplConfirm]   = useState("");   // name awaiting delete confirmation
 
-  // ── Claude Agent State ──
-  const [chatMessages, setChatMessages] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("erp_wa_agent_chat") || "[]"); } catch { return []; }
-  });
+  // ── AI training ──
   // Saved training. The settings row wins over localStorage: it is what the
   // server-side webhook reads, and it follows the operator across devices.
   const [trainingData, setTrainingData] = useState(() => {
     if (settings.waAgentTraining) return settings.waAgentTraining;
     try { return localStorage.getItem("erp_wa_training") || ""; } catch { return ""; }
   });
-  const [agentInput, setAgentInput] = useState("");
-  const [agentLoading, setAgentLoading] = useState(false);
-  const chatEndRef = useRef(null);
+  const [ruleEdit,     setRuleEdit]     = useState(null);   // { i, text } while a rule is being edited
+  const [newRule,      setNewRule]      = useState("");
+  const [clearAsk,     setClearAsk]     = useState(false);
+  // Interview: the agent asks, the owner picks an answer.
+  const [iv, setIv] = useState({ loading: false, err: "", q: null, custom: "" });
+  const [ivAsked, setIvAsked] = useState(() => {
+    try { const v = JSON.parse(localStorage.getItem("erp_wa_asked") || "[]"); return Array.isArray(v) ? v : []; } catch { return []; }
+  });
+  // Test: what the live auto-reply would answer, without sending anything.
+  const [tst, setTst] = useState({ msg: "", loading: false, reply: "", err: "" });
 
   const upd = (key, val) => { setLocalSettings((p) => ({ ...p, [key]: val })); setDirty(true); };
 
@@ -6697,6 +6751,104 @@ function WhatsAppPage({ settings = {}, onSave }) {
     setTplCreating(false);
   };
 
+  // {{1}}, {{2}}… in a body, as the ordered list of slot numbers.
+  const tplSlots = (text = "") =>
+    [...new Set((String(text).match(/\{\{(\d+)\}\}/g) || []).map((m) => Number(m.replace(/\D/g, ""))))].sort((a, b) => a - b);
+  // The body with its sample values written in, so the operator reads the
+  // message the way a recipient will — not a row of {{n}}.
+  const tplFill = (text = "", values = []) =>
+    String(text).replace(/\{\{(\d+)\}\}/g, (m, n) => (values[Number(n) - 1] ? values[Number(n) - 1] : m));
+
+  // Alerts fill exactly five slots (type, machine, department, details, time),
+  // so only a template with {{1}}..{{5}} can carry them.
+  const tplFitsAlerts = (t) => tplSlots(t?.text).join(",") === "1,2,3,4,5";
+
+  // Saves just this change on top of what is already saved. Anything still
+  // being typed on the Settings tab stays unsaved, as the operator left it.
+  const persist = (patch) => {
+    setLocalSettings((p) => ({ ...p, ...patch }));
+    if (onSave) onSave({ ...settings, ...patch });
+  };
+
+  const chooseAlertTemplate = (t) => {
+    persist({ waAlertTemplate: t.name, waAlertTemplateLang: t.language || "en" });
+    setTplErr(""); setTplMsg(`Ab saare alerts "${t.name}" template se jayenge.`);
+  };
+  const stopTemplateForAlerts = () => {
+    persist({ waAlertTemplate: "", waAlertTemplateLang: "" });
+    setTplErr(""); setTplMsg("Alerts ab sirf saadhe message se jayenge.");
+  };
+
+  // Sends the template, filled with its own sample values, to the owner's
+  // number — the only honest way to know an approved template really arrives.
+  const testTemplate = async (t) => {
+    if (!localSettings.waOwnerPhone) { setTplErr("Settings me aapka number daalo, test wahi jayega"); return; }
+    setTplBusy(`test:${t.name}`); setTplErr(""); setTplMsg("");
+    const { callWhatsAppFn } = await import("./stores/adminApi.js");
+    const res = await callWhatsAppFn("whatsapp-send", {
+      to: localSettings.waOwnerPhone,
+      apiKey: localSettings.waApiKey, pluginId: localSettings.waPluginId || "", phoneId: localSettings.waPhoneId || "",
+      template: { name: t.name, language: t.language || "en", params: t.example || [] },
+    });
+    if (res?.success) setTplMsg(`Test "${t.name}" aapke number par bhej diya — WhatsApp check karo.`);
+    else setTplErr(res?.error || "Test nahi gaya");
+    setTplBusy("");
+  };
+
+  const deleteTemplate = async (t) => {
+    setTplBusy(`delete:${t.name}`); setTplErr(""); setTplMsg(""); setTplConfirm("");
+    const { callWhatsAppFn } = await import("./stores/adminApi.js");
+    const res = await callWhatsAppFn("whatsapp-templates", {
+      action: "delete", apiKey: localSettings.waApiKey, wabaId: localSettings.waWabaId, name: t.name,
+    });
+    if (res?.success) {
+      if (localSettings.waAlertTemplate === t.name) persist({ waAlertTemplate: "", waAlertTemplateLang: "" });
+      setTemplates((prev) => prev.filter((x) => x.name !== t.name));
+      setTplMsg(`"${t.name}" delete ho gaya.`);
+    } else setTplErr(res?.error || "Delete nahi hua");
+    setTplBusy("");
+  };
+
+  const openTplForm = (t) => {
+    setTplErr(""); setTplMsg(""); setShowNewTpl(false);
+    setTplForm(t
+      ? { mode: "edit", id: t.id, name: t.name, category: t.category || "UTILITY", language: t.language || "en", body: t.text || "", examples: [...(t.example || [])] }
+      : { mode: "create", id: "", name: "", category: "UTILITY", language: "en", body: "", examples: [] });
+  };
+
+  // What Meta will reject, caught before the round trip and said in words.
+  const tplFormProblem = (() => {
+    if (!tplForm) return "";
+    if (tplForm.mode === "create" && !/^[a-z0-9_]{1,512}$/.test(tplForm.name)) return "Naam me sirf chhote angrezi akshar, number aur _ (jaise: daily_stock_update)";
+    if (!tplForm.body.trim()) return "Message likho";
+    const slots = tplSlots(tplForm.body);
+    if (slots.some((n, i) => n !== i + 1)) return "Khaali jagah {{1}}, {{2}}, {{3}}… kram se honi chahiye";
+    if (slots.some((n) => !String(tplForm.examples[n - 1] || "").trim())) return "Har khaali jagah ka ek udaharan bharo — Meta isi se samajhta hai";
+    if (/^\s*\{\{|\}\}\s*$/.test(tplForm.body)) return "Message {{n}} se shuru ya khatam nahi ho sakta";
+    return "";
+  })();
+
+  const saveTplForm = async () => {
+    if (!tplForm || tplFormProblem) return;
+    const slots = tplSlots(tplForm.body);
+    const bodyComp = { type: "BODY", text: tplForm.body };
+    if (slots.length) bodyComp.example = { body_text: [slots.map((n) => String(tplForm.examples[n - 1]).trim())] };
+    setTplCreating(true); setTplErr(""); setTplMsg("");
+    const { callWhatsAppFn } = await import("./stores/adminApi.js");
+    const res = await callWhatsAppFn("whatsapp-templates", tplForm.mode === "edit"
+      ? { action: "edit", apiKey: localSettings.waApiKey, wabaId: localSettings.waWabaId, templateId: tplForm.id, template: { components: [bodyComp] } }
+      : { action: "create", apiKey: localSettings.waApiKey, wabaId: localSettings.waWabaId,
+          template: { name: tplForm.name, category: tplForm.category, language: tplForm.language, components: [bodyComp] } });
+    if (res?.success) {
+      setTplMsg(tplForm.mode === "edit"
+        ? `"${tplForm.name}" badal diya — Meta dobara dekhega.`
+        : `"${tplForm.name}" Meta ko bhej diya — approve hone me kuch minute se 24 ghante.`);
+      setTplForm(null);
+      loadTemplates();
+    } else setTplErr(res?.error || "Template save nahi hua");
+    setTplCreating(false);
+  };
+
   useEffect(() => {
     if (section === "templates" && localSettings.waApiKey && localSettings.waWabaId
         && templates.length === 0 && !tplLoading && !tplErr) {
@@ -6759,53 +6911,64 @@ function WhatsAppPage({ settings = {}, onSave }) {
     return () => { delete window.__waLog; };
   }, []);
 
-  useEffect(() => {
-    if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
+  // ── AI training ─────────────────────────────────────────────────────────
+  // Training used to be every line the operator ever typed into a chat,
+  // glued into one blob — including "Training शुरू करो" — with no way to see
+  // or fix a single instruction. It is now a list of rules, one instruction
+  // each. The webhook still reads the same waAgentTraining text, derived from
+  // the list on every change, so the live auto-reply needs no change.
+  const rules = useMemo(() => {
+    try {
+      const v = JSON.parse(localSettings.waAgentRules || "null");
+      if (Array.isArray(v)) return v.map(String);
+    } catch {}
+    // First open after the change: the old blob becomes one rule per line,
+    // ready to be cleaned up rather than silently lost.
+    return String(trainingData || "").split("\n").map((l) => l.replace(/^\s*-\s*/, "").trim()).filter(Boolean);
+  }, [localSettings.waAgentRules, trainingData]);
 
-  // ── Agent training chat (Gemini) ──
-  // Whatever the operator teaches here is saved into settings.waAgentTraining,
-  // NOT just localStorage: the auto-reply webhook runs on the server with no
-  // browser, so it can only read the training out of the shared settings row.
-  const handleAgentSend = async () => {
-    const text = agentInput.trim();
-    if (!text || agentLoading) return;
-    if (!localSettings.waGeminiKey) {
-      setChatMessages((prev) => {
-        const next = [...prev, { role: "user", content: text }, { role: "assistant", content: "⚠️ पहले Settings में Gemini API Key डालो, तभी मैं काम कर पाऊँगा।" }];
-        try { localStorage.setItem("erp_wa_agent_chat", JSON.stringify(next)); } catch {}
+  const writeRules = (list) => {
+    const clean = list.map((r) => String(r).trim()).filter(Boolean);
+    const text = clean.map((r) => `- ${r}`).join("\n");
+    setTrainingData(text);
+    try { localStorage.setItem("erp_wa_training", text); } catch {}
+    persist({ waAgentRules: JSON.stringify(clean), waAgentTraining: text });
+  };
+  const addRule = (text) => { if (String(text).trim()) writeRules([...rules, text]); };
+
+  const nextQuestion = async () => {
+    if (!localSettings.waGeminiKey) { setIv((v) => ({ ...v, err: "Pehle Settings me Gemini key daalo" })); return; }
+    setIv({ loading: true, err: "", q: null, custom: "" });
+    const { callWhatsAppFn } = await import("./stores/adminApi.js");
+    const res = await callWhatsAppFn("whatsapp-agent", {
+      mode: "interview", geminiKey: localSettings.waGeminiKey, trainingData, asked: ivAsked,
+    });
+    if (res?.success) {
+      setIv({ loading: false, err: "", q: { situation: res.situation, question: res.question, options: res.options }, custom: "" });
+      setIvAsked((prev) => {
+        const next = [...prev, res.situation].slice(-30);
+        try { localStorage.setItem("erp_wa_asked", JSON.stringify(next)); } catch {}
         return next;
       });
-      setAgentInput("");
-      return;
-    }
-    const newMessages = [...chatMessages, { role: "user", content: text }];
-    setChatMessages(newMessages);
-    setAgentInput("");
-    setAgentLoading(true);
-    try {
-      const { callWhatsAppFn } = await import("./stores/adminApi.js");
-      const res = await callWhatsAppFn("whatsapp-agent", {
-        messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
-        trainingData,
-        geminiKey: localSettings.waGeminiKey,
-      });
-      const reply = res?.reply || "Sorry, कुछ problem आई। Dobara try करो।";
-      const updated = [...newMessages, { role: "assistant", content: reply }];
-      setChatMessages(updated);
-      try { localStorage.setItem("erp_wa_agent_chat", JSON.stringify(updated)); } catch {}
-      const trainLines = updated.filter((m) => m.role === "user").map((m) => m.content).join("\n");
-      setTrainingData(trainLines);
-      try { localStorage.setItem("erp_wa_training", trainLines); } catch {}
-      // Persist to the shared settings row so the webhook sees it too.
-      setLocalSettings((p) => ({ ...p, waAgentTraining: trainLines }));
-      if (onSave) onSave({ ...settings, ...localSettings, waAgentTraining: trainLines });
-    } catch (e) {
-      const updated = [...newMessages, { role: "assistant", content: `❌ Error: ${e?.message || "Connection failed"}` }];
-      setChatMessages(updated);
-      try { localStorage.setItem("erp_wa_agent_chat", JSON.stringify(updated)); } catch {}
-    }
-    setAgentLoading(false);
+    } else setIv({ loading: false, err: res?.error || "Sawaal nahi aaya", q: null, custom: "" });
+  };
+  const answerQuestion = (answer) => {
+    if (!iv.q || !String(answer).trim()) return;
+    const situation = iv.q.situation.replace(/[.:\s]+$/, "");
+    addRule(`${situation}: ${String(answer).trim()}`);
+    nextQuestion();
+  };
+
+  const runTest = async () => {
+    const msg = tst.msg.trim();
+    if (!msg) return;
+    if (!localSettings.waGeminiKey) { setTst((t) => ({ ...t, err: "Pehle Settings me Gemini key daalo" })); return; }
+    setTst((t) => ({ ...t, loading: true, reply: "", err: "" }));
+    const { callWhatsAppFn } = await import("./stores/adminApi.js");
+    const res = await callWhatsAppFn("whatsapp-agent", {
+      mode: "test", geminiKey: localSettings.waGeminiKey, trainingData, message: msg,
+    });
+    setTst((t) => ({ ...t, loading: false, reply: res?.success ? res.reply : "", err: res?.success ? "" : (res?.error || "Jawab nahi aaya") }));
   };
 
   const connected = !!(localSettings.waApiKey && localSettings.waOwnerPhone);
@@ -6817,8 +6980,9 @@ function WhatsAppPage({ settings = {}, onSave }) {
   const menuItems = [
     // Unread, not total: a count that never changes is a count nobody reads.
     { id: "chats",    Icon: MessagesSquare, label: "Chats",       badge: unread || null },
-    { id: "templates",Icon: FileText,       label: "Templates",   badge: templates.length || null },
-    { id: "training", Icon: Sparkles,       label: "AI Training", badge: trainingData ? "●" : null },
+    // Attention, not a count: "!" only while alerts have no template to go out with.
+    { id: "templates",Icon: FileText,       label: "Templates",   badge: localSettings.waApiKey && !localSettings.waAlertTemplate ? "!" : null },
+    { id: "training", Icon: Sparkles,       label: "AI Training", badge: rules.length || null },
     { id: "settings", Icon: Settings,       label: "Settings",    badge: dirty ? "●" : null },
   ];
 
@@ -7232,201 +7396,475 @@ function WhatsAppPage({ settings = {}, onSave }) {
 
         {/* ═══ TEMPLATES ═══ */}
         {section === "templates" && (
-          <div className="flex-1 flex flex-col">
-            <div className="px-5 py-3 flex items-center gap-3" style={{ background: "var(--surface-raised)", borderBottom: "1px solid var(--border-subtle)" }}>
-              <span className="text-lg">📄</span>
-              <div>
-                <div className="text-[14px] font-bold" style={{ color: "var(--text)" }}>Message Templates</div>
-                <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>WhatsApp approved templates for alerts</div>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
+          <div className="wa-page">
+            <div className="wa-wrap">
 
-              <div className="flex items-center gap-2 mb-3">
-                <button onClick={loadTemplates} disabled={tplLoading}
-                        className="text-[11px] font-bold px-3 py-2 rounded-lg disabled:opacity-40"
-                        style={{ background: "rgba(37,211,102,0.12)", color: "#128c7e", border: "1px solid rgba(37,211,102,0.3)" }}>
-                  {tplLoading ? "⏳ आ रहे हैं…" : "⟳ Refresh"}
+              {/* What the alerts actually go out as — the one fact this screen
+                  exists to settle. Before, an approved template sat here and
+                  changed nothing: alerts were still sent as plain text. */}
+              {(() => {
+                const inUse = templates.find((t) => t.name === localSettings.waAlertTemplate);
+                const inUseOk = inUse && (inUse.status || "").toUpperCase() === "APPROVED";
+                const tone = !localSettings.waAlertTemplate ? "#d97706" : inUse && !inUseOk ? "var(--wa-accent)" : "var(--wa-live)";
+                return (
+                  <div className="wa-status">
+                    <span className="wa-dot" style={{ background: tone }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[14px] font-semibold" style={{ color: "var(--wa-ink)" }}>
+                        {!localSettings.waAlertTemplate ? "Alerts saadhe message se ja rahe hain"
+                          : inUse && !inUseOk ? `"${localSettings.waAlertTemplate}" abhi approved nahi hai`
+                          : `Alerts "${localSettings.waAlertTemplate}" template se ja rahe hain`}
+                      </div>
+                      <div className="text-[12px] mt-0.5" style={{ color: "var(--wa-ink-2)" }}>
+                        {!localSettings.waAlertTemplate
+                          ? "Saadha message sirf unhe pahunchta hai jinhone pichhle 24 ghante me aapko message kiya ho. Neeche approved template chuno."
+                          : inUse && !inUseOk ? "Jab tak approve nahi hota, alerts saadhe message se jayenge."
+                          : "Template har kisi ko pahunchta hai. Agar kabhi fail ho to ERP saadha message bhej deta hai."}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <button onClick={() => openTplForm(null)}
+                        className="px-4 py-2 rounded-lg text-[12.5px] font-semibold text-white inline-flex items-center gap-1.5"
+                        style={{ background: "var(--wa-accent)" }}>
+                  <Plus size={15} /> Naya template
                 </button>
-                <button onClick={() => { setShowNewTpl(true); setTplErr(""); setTplMsg(""); }}
-                        className="text-[11px] font-bold px-3 py-2 rounded-lg text-white"
-                        style={{ background: "linear-gradient(135deg,#25d366,#128c7e)" }}>
-                  + नया Alert Template बनाओ
+                {!templates.some((t) => t.name === ERP_ALERT_TEMPLATE.name) && (
+                  <button onClick={() => { setShowNewTpl(true); setTplForm(null); setTplErr(""); setTplMsg(""); }}
+                          className="px-3.5 py-2 rounded-lg text-[12.5px] font-semibold"
+                          style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)", background: "var(--wa-surface)" }}>
+                    Taiyaar alert template
+                  </button>
+                )}
+                <button onClick={loadTemplates} disabled={tplLoading} title="Refresh"
+                        className="wa-icon-btn ml-auto" style={{ border: "1px solid var(--wa-line)", background: "var(--wa-surface)" }}>
+                  <RefreshCw size={16} className={tplLoading ? "animate-spin" : ""} />
                 </button>
               </div>
 
               {tplErr && (
-                <div className="mb-3 px-3 py-2.5 rounded-lg text-[11px]"
-                     style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.3)", color: "#b91c1c" }}>
-                  ⚠️ {tplErr}
+                <div className="mb-4 px-3.5 py-2.5 rounded-lg text-[12px] flex items-start gap-2"
+                     style={{ background: "rgba(220,38,38,.07)", border: "1px solid rgba(220,38,38,.28)", color: "#b91c1c" }}>
+                  <AlertCircle size={14} className="flex-shrink-0 mt-0.5" /><span>{tplErr}</span>
                 </div>
               )}
               {tplMsg && (
-                <div className="mb-3 px-3 py-2.5 rounded-lg text-[11px]"
-                     style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.3)", color: "#047857" }}>
-                  {tplMsg}
+                <div className="mb-4 px-3.5 py-2.5 rounded-lg text-[12px] flex items-start gap-2"
+                     style={{ background: "rgba(15,157,88,.07)", border: "1px solid rgba(15,157,88,.28)", color: "#0b6b3c" }}>
+                  <Check size={14} className="flex-shrink-0 mt-0.5" /><span>{tplMsg}</span>
                 </div>
               )}
 
-              {/* Create — one template with {{n}} slots covers every ERP alert,
-                  so Meta only has to approve one thing, not one per alert type. */}
+              {/* The ready-made alert template. One template with five slots
+                  covers issue, transfer and deadline, so Meta approves once. */}
               {showNewTpl && (
-                <div className="mb-4 p-4 rounded-xl" style={{ background: "var(--surface-raised)", border: "1px solid rgba(37,211,102,0.35)" }}>
-                  <div className="text-[13px] font-bold mb-1" style={{ color: "var(--text)" }}>ERP Alert Template</div>
-                  <div className="text-[11px] mb-3" style={{ color: "var(--text-dim)" }}>
-                    यही एक template तीनों alert (Issue / Transfer / Deadline) के लिए चलेगा — खाली जगहें ERP खुद भरेगा.
+                <div className="wa-card">
+                  <div className="wa-card-head">
+                    <div className="wa-card-title">Taiyaar alert template</div>
+                    <div className="wa-card-note">
+                      Teeno alert — issue, transfer, deadline — isi ek template se jayenge. Khaali jagah ERP khud bharega.
+                    </div>
                   </div>
-                  <pre className="text-[11px] p-3 rounded-lg whitespace-pre-wrap leading-relaxed mb-3"
-                       style={{ background: "rgba(17,24,39,0.04)", color: "var(--text)", fontFamily: "inherit" }}>
-{`Shantaz Technofoods - Production Update
-
-There is a new update on the production floor that needs your attention.
-
-Update type: {{1}}     ← Issue Raised / Transfer Complete / Deadline Exceeded
-Machine: {{2}}
-Department: {{3}}
-Details: {{4}}
-Recorded at: {{5}}
-
-This message was sent automatically by the Shantaz Technofoods production
-system. Please check the machine in your department and take the necessary
-action. If you need any help with this update, simply reply to this message.`}
-                  </pre>
-                  <div className="text-[10px] mb-3" style={{ color: "var(--text-dim)" }}>
-                    Name: <b>shantaz_erp_alert</b> · Category: <b>UTILITY</b> · Language: <b>en</b>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => setShowNewTpl(false)} disabled={tplCreating}
-                            className="text-[11px] font-bold px-3 py-2 rounded-lg disabled:opacity-40"
-                            style={{ background: "rgba(17,24,39,0.05)", color: "var(--text-dim)" }}>Cancel</button>
-                    <button onClick={createAlertTemplate} disabled={tplCreating}
-                            className="text-[11px] font-bold px-4 py-2 rounded-lg text-white disabled:opacity-40"
-                            style={{ background: "linear-gradient(135deg,#25d366,#128c7e)" }}>
-                      {tplCreating ? "⏳ भेज रहा हूँ…" : "Meta को approval के लिए भेजो"}
-                    </button>
+                  <div className="wa-card-body">
+                    <div className="wa-tpl-preview">
+                      {tplFill(ERP_ALERT_TEMPLATE.components[0].text, ERP_ALERT_TEMPLATE.components[0].example.body_text[0])}
+                    </div>
+                    <div className="wa-field-help mb-3">
+                      Naam <b>{ERP_ALERT_TEMPLATE.name}</b> · Utility · English
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={createAlertTemplate} disabled={tplCreating}
+                              className="px-4 py-2 rounded-lg text-[12.5px] font-semibold text-white disabled:opacity-40"
+                              style={{ background: "var(--wa-accent)" }}>
+                        {tplCreating ? "Bhej raha hoon…" : "Meta ko approval ke liye bhejo"}
+                      </button>
+                      <button onClick={() => setShowNewTpl(false)} disabled={tplCreating}
+                              className="px-3.5 py-2 rounded-lg text-[12.5px] font-semibold"
+                              style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Rehne do</button>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {!tplLoading && templates.length === 0 && !tplErr && (
-                <div className="text-center py-12">
-                  <div className="text-4xl mb-3">📄</div>
-                  <div className="text-[14px] font-bold mb-1" style={{ color: "var(--text)" }}>कोई template नहीं है</div>
-                  <div className="text-[12px]" style={{ color: "var(--text-dim)" }}>
-                    ऊपर "+ नया Alert Template बनाओ" दबाओ — alerts इसी के बाद चलेंगे
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-3">
-                {templates.map((t) => {
-                  const st = (t.status || "").toUpperCase();
-                  const look = st === "APPROVED" ? { bg: "rgba(16,185,129,0.1)",  fg: "#047857", br: "rgba(16,185,129,0.3)", txt: "✅ Approved — चालू है" }
-                             : st === "REJECTED" ? { bg: "rgba(220,38,38,0.1)",   fg: "#b91c1c", br: "rgba(220,38,38,0.3)",  txt: "❌ Rejected" }
-                             :                     { bg: "rgba(234,179,8,0.1)",   fg: "#a16207", br: "rgba(234,179,8,0.3)",  txt: "⏳ Meta देख रहा है" };
-                  return (
-                    <div key={t.id || t.name} className="p-4 rounded-xl"
-                         style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <div className="text-[13px] font-bold" style={{ color: "var(--text)" }}>{t.name}</div>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0"
-                              style={{ background: look.bg, color: look.fg, border: `1px solid ${look.br}` }}>
-                          {look.txt}
-                        </span>
-                      </div>
-                      {t.text && (
-                        <div className="text-[11.5px] whitespace-pre-wrap leading-relaxed p-2.5 rounded-lg mb-2"
-                             style={{ background: "rgba(17,24,39,0.03)", color: "var(--text-dim)" }}>{t.text}</div>
-                      )}
-                      <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>
-                        {t.category} · {t.language}
+              {/* Create / edit. Meta's rules are checked here, before the round
+                  trip, and said in words — a rejection 20 minutes later teaches
+                  nobody anything. */}
+              {tplForm && (() => {
+                const slots = tplSlots(tplForm.body);
+                const setF = (patch) => setTplForm((f) => ({ ...f, ...patch }));
+                return (
+                  <div className="wa-card">
+                    <div className="wa-card-head">
+                      <div className="wa-card-title">{tplForm.mode === "edit" ? `"${tplForm.name}" badlo` : "Naya template"}</div>
+                      <div className="wa-card-note">
+                        {tplForm.mode === "edit"
+                          ? "Sirf message badal sakte ho. Badalne ke baad Meta ise dobara approve karega."
+                          : "Badalne wali jagah ke liye {{1}}, {{2}} likho — bhejte waqt ERP wahan asli baat bharega."}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="wa-card-body space-y-4">
+                      {tplForm.mode === "create" && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div className="md:col-span-1">
+                            <div className="wa-field-label">Naam</div>
+                            <input value={tplForm.name} placeholder="daily_stock_update"
+                                   onChange={(e) => setF({ name: e.target.value.toLowerCase().replace(/\s+/g, "_") })}
+                                   className="wa-field-input" />
+                          </div>
+                          <div>
+                            <div className="wa-field-label">Kis kaam ka</div>
+                            <select value={tplForm.category} onChange={(e) => setF({ category: e.target.value })} className="wa-field-input">
+                              <option value="UTILITY">Kaam ki suchna (Utility)</option>
+                              <option value="MARKETING">Prachaar (Marketing)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <div className="wa-field-label">Bhasha</div>
+                            <select value={tplForm.language} onChange={(e) => setF({ language: e.target.value })} className="wa-field-input">
+                              <option value="en">English</option>
+                              <option value="hi">Hindi</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
+                      <div>
+                        <div className="wa-field-label">Message</div>
+                        <textarea value={tplForm.body} rows={6}
+                                  onChange={(e) => setF({ body: e.target.value })}
+                                  placeholder={"Shantaz Technofoods - Stock Update\n\nAaj {{1}} ka stock {{2}} hai. Kripya dhyan dein."}
+                                  className="wa-field-input" style={{ resize: "vertical", lineHeight: 1.5 }} />
+                        <button onClick={() => setF({ body: `${tplForm.body}{{${slots.length + 1}}}` })}
+                                className="mt-1.5 text-[11.5px] font-semibold px-2.5 py-1 rounded-md"
+                                style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>
+                          + Khaali jagah {`{{${slots.length + 1}}}`}
+                        </button>
+                      </div>
+                      {slots.length > 0 && (
+                        <div>
+                          <div className="wa-field-label">Har khaali jagah ka udaharan</div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {slots.map((n) => (
+                              <div key={n} className="flex items-center gap-2">
+                                <span className="text-[12px] font-semibold w-10 flex-shrink-0" style={{ color: "var(--wa-ink-2)" }}>{`{{${n}}}`}</span>
+                                <input value={tplForm.examples[n - 1] || ""}
+                                       onChange={(e) => setTplForm((f) => { const ex = [...f.examples]; ex[n - 1] = e.target.value; return { ...f, examples: ex }; })}
+                                       className="wa-field-input" />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {tplForm.body.trim() && (
+                        <div>
+                          <div className="wa-field-label">Aisa dikhega</div>
+                          <div className="wa-tpl-preview">{tplFill(tplForm.body, tplForm.examples)}</div>
+                        </div>
+                      )}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button onClick={saveTplForm} disabled={!!tplFormProblem || tplCreating}
+                                className="px-4 py-2 rounded-lg text-[12.5px] font-semibold text-white disabled:opacity-40"
+                                style={{ background: "var(--wa-accent)" }}>
+                          {tplCreating ? "Bhej raha hoon…" : tplForm.mode === "edit" ? "Badlaav Meta ko bhejo" : "Meta ko approval ke liye bhejo"}
+                        </button>
+                        <button onClick={() => setTplForm(null)} disabled={tplCreating}
+                                className="px-3.5 py-2 rounded-lg text-[12.5px] font-semibold"
+                                style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Rehne do</button>
+                        {tplFormProblem && (
+                          <span className="text-[12px]" style={{ color: "#92400e" }}>{tplFormProblem}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {!tplLoading && templates.length === 0 && !tplErr && !showNewTpl && !tplForm && (
+                <div className="wa-card">
+                  <div className="wa-card-body text-center py-10">
+                    <FileText size={30} className="mx-auto mb-3" style={{ color: "var(--wa-ink-2)" }} />
+                    <div className="text-[14px] font-semibold mb-1" style={{ color: "var(--wa-ink)" }}>Abhi koi template nahi</div>
+                    <div className="text-[12.5px]" style={{ color: "var(--wa-ink-2)" }}>
+                      Alerts har kisi tak pahunchane ke liye "Taiyaar alert template" bhejo.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {templates.map((t) => {
+                const st = (t.status || "").toUpperCase();
+                const approved = st === "APPROVED";
+                const rejected = st === "REJECTED";
+                const chip = approved ? { fg: "#0b6b3c", bg: "rgba(15,157,88,.1)",  txt: "Approved" }
+                           : rejected ? { fg: "#b91c1c", bg: "rgba(220,38,38,.09)", txt: "Rejected" }
+                           : st === "PAUSED" || st === "DISABLED" ? { fg: "#b91c1c", bg: "rgba(220,38,38,.09)", txt: st === "PAUSED" ? "Ruka hua" : "Band" }
+                           :            { fg: "#92400e", bg: "rgba(217,119,6,.1)",  txt: "Meta dekh raha hai" };
+                const isAlert = localSettings.waAlertTemplate === t.name;
+                const busy = (a) => tplBusy === `${a}:${t.name}`;
+                return (
+                  <div key={t.id || t.name} className="wa-card" style={isAlert ? { borderColor: "var(--wa-live)" } : undefined}>
+                    <div className="wa-card-head flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="wa-card-title truncate">{t.name}</div>
+                        <div className="wa-card-note">
+                          {t.category === "MARKETING" ? "Prachaar" : t.category === "UTILITY" ? "Kaam ki suchna" : t.category}
+                          {" · "}{t.language === "hi" ? "Hindi" : t.language === "en" ? "English" : t.language}
+                          {isAlert && <span style={{ color: "var(--wa-live)", fontWeight: 600 }}> · Alerts isi se ja rahe hain</span>}
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0"
+                            style={{ color: chip.fg, background: chip.bg }}>{chip.txt}</span>
+                    </div>
+                    <div className="wa-card-body">
+                      {rejected && (
+                        <div className="mb-3 px-3 py-2 rounded-lg text-[12px]"
+                             style={{ background: "rgba(220,38,38,.06)", color: "#b91c1c" }}>
+                          Meta ka kaaran: <b>{t.rejectedReason || "nahi bataya"}</b>.
+                          {" "}Message badal kar dobara bhejo.
+                        </div>
+                      )}
+                      {t.text && <div className="wa-tpl-preview">{tplFill(t.text, t.example)}</div>}
+
+                      <div className="flex flex-wrap items-center gap-2 mt-3">
+                        {approved && !isAlert && tplFitsAlerts(t) && (
+                          <button onClick={() => chooseAlertTemplate(t)}
+                                  className="px-3.5 py-2 rounded-lg text-[12px] font-semibold text-white"
+                                  style={{ background: "var(--wa-live)" }}>
+                            Alerts ke liye chuno
+                          </button>
+                        )}
+                        {isAlert && (
+                          <button onClick={stopTemplateForAlerts}
+                                  className="px-3.5 py-2 rounded-lg text-[12px] font-semibold"
+                                  style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>
+                            Alerts se hatao
+                          </button>
+                        )}
+                        {approved && (
+                          <button onClick={() => testTemplate(t)} disabled={!!tplBusy}
+                                  className="px-3.5 py-2 rounded-lg text-[12px] font-semibold inline-flex items-center gap-1.5 disabled:opacity-40"
+                                  style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>
+                            <Send size={13} /> {busy("test") ? "Bhej raha hoon…" : "Mujhe test bhejo"}
+                          </button>
+                        )}
+                        {st !== "PENDING" && (
+                          <button onClick={() => openTplForm(t)} disabled={!!tplBusy}
+                                  className="px-3.5 py-2 rounded-lg text-[12px] font-semibold disabled:opacity-40"
+                                  style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>
+                            Badlo
+                          </button>
+                        )}
+                        <span className="flex-1" />
+                        {tplConfirm === t.name ? (
+                          <span className="flex items-center gap-2 text-[12px]" style={{ color: "#b91c1c" }}>
+                            Pakka? Ye naam 30 din tak dobara nahi le sakte.
+                            <button onClick={() => deleteTemplate(t)}
+                                    className="px-3 py-1.5 rounded-lg font-semibold text-white" style={{ background: "#b91c1c" }}>
+                              {busy("delete") ? "Hata raha hoon…" : "Haan, delete"}
+                            </button>
+                            <button onClick={() => setTplConfirm("")}
+                                    className="px-3 py-1.5 rounded-lg font-semibold"
+                                    style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Nahi</button>
+                          </span>
+                        ) : (
+                          <button onClick={() => setTplConfirm(t.name)} disabled={!!tplBusy}
+                                  className="wa-icon-btn" title="Delete">
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                      </div>
+                      {approved && !tplFitsAlerts(t) && (
+                        <div className="wa-field-help">
+                          Alerts ke liye {"{{1}}"} se {"{{5}}"} tak paanch khaali jagah chahiye — ye template doosre kaam ka hai.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* ═══ AI TRAINING (Claude Agent) ═══ */}
+        {/* ═══ AI TRAINING ═══ */}
         {section === "training" && (
-          <div className="flex-1 flex flex-col">
-            {/* Chat Header */}
-            <div className="flex items-center justify-between px-5 py-3" style={{ background: "#25D366", color: "#fff" }}>
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full flex items-center justify-center text-[16px] font-bold" style={{ background: "rgba(255,255,255,0.2)" }}>🤖</div>
-                <div>
-                  <div className="text-[14px] font-bold">WhatsApp Auto-Reply Agent</div>
-                  <div className="text-[10px] opacity-80">मुझे train करो — यही agent WhatsApp पर जवाब देगा</div>
-                </div>
-              </div>
-              {chatMessages.length > 0 && (
-                <button onClick={() => { setChatMessages([]); try { localStorage.removeItem("erp_wa_agent_chat"); } catch {} }}
-                        className="text-[10px] px-3 py-1 rounded-lg" style={{ background: "rgba(255,255,255,0.2)" }}>Clear</button>
-              )}
-            </div>
+          <div className="wa-page">
+            <div className="wa-wrap">
 
-            {/* Chat Body */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3" style={{ background: "#ece5dd" }}>
-              {chatMessages.length === 0 && (
-                <div className="text-center py-12">
-                  <div className="text-5xl mb-4">🤖</div>
-                  <div className="text-[15px] font-bold mb-2" style={{ color: "#111" }}>मैं आपका WhatsApp agent हूँ</div>
-                  <div className="text-[12px] mb-5" style={{ color: "#666" }}>मुझे train करो — Departments, contacts, alert rules सब सिखाओ।<br />मैं खुद सवाल पूछूँगा।</div>
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {["Training शुरू करो", "Departments बताता हूँ", "Alert rules set करो", "Message format बदलो"].map((q) => (
-                      <button key={q} onClick={() => setAgentInput(q)}
-                              className="px-4 py-2 rounded-full text-[12px] font-medium shadow-sm"
-                              style={{ background: "#fff", color: "#075E54", border: "1px solid #25D366" }}>
-                        {q}
+              {!localSettings.waGeminiKey && (
+                <div className="wa-status">
+                  <span className="wa-dot" style={{ background: "#d97706" }} />
+                  <div className="flex-1 min-w-0 text-[13px]" style={{ color: "var(--wa-ink)" }}>
+                    Agent chalane ke liye Settings me Gemini key chahiye.
+                  </div>
+                  <button onClick={() => setSection("settings")}
+                          className="text-[12px] font-semibold px-3 py-2 rounded-lg flex-shrink-0"
+                          style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Settings kholo</button>
+                </div>
+              )}
+
+              {/* ── Interview. The agent asks about one situation it cannot
+                  handle yet and offers answers to pick. Choosing is faster
+                  than writing, and each pick becomes one rule below. ── */}
+              <div className="wa-card">
+                <div className="wa-card-head">
+                  <div className="wa-card-title">Agent aapse poochhega</div>
+                  <div className="wa-card-note">
+                    Har baar ek nayi situation — aap jawab chuno, wo seedha agent ka rule ban jaata hai.
+                  </div>
+                </div>
+                <div className="wa-card-body">
+                  {!iv.q && !iv.loading && (
+                    <button onClick={nextQuestion} disabled={!localSettings.waGeminiKey}
+                            className="px-4 py-2 rounded-lg text-[12.5px] font-semibold text-white inline-flex items-center gap-1.5 disabled:opacity-40"
+                            style={{ background: "var(--wa-accent)" }}>
+                      <Sparkles size={15} /> {ivAsked.length ? "Agla sawaal" : "Sawaal shuru karo"}
+                    </button>
+                  )}
+                  {iv.loading && (
+                    <div className="text-[12.5px] flex items-center gap-2" style={{ color: "var(--wa-ink-2)" }}>
+                      <RefreshCw size={14} className="animate-spin" /> Sawaal soch raha hai…
+                    </div>
+                  )}
+                  {iv.err && (
+                    <div className="mt-2 text-[12px] flex items-start gap-2" style={{ color: "#b91c1c" }}>
+                      <AlertCircle size={14} className="flex-shrink-0 mt-0.5" /><span>{iv.err}</span>
+                    </div>
+                  )}
+                  {iv.q && (
+                    <div>
+                      <div className="text-[11.5px] font-semibold mb-1" style={{ color: "var(--wa-ink-2)" }}>{iv.q.situation}</div>
+                      <div className="text-[15px] font-semibold mb-3" style={{ color: "var(--wa-ink)", lineHeight: 1.45 }}>{iv.q.question}</div>
+                      <div className="space-y-2">
+                        {iv.q.options.map((o, i) => (
+                          <button key={i} onClick={() => answerQuestion(o)} className="wa-choice">{o}</button>
+                        ))}
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        <input value={iv.custom} onChange={(e) => setIv((v) => ({ ...v, custom: e.target.value }))}
+                               onKeyDown={(e) => { if (e.key === "Enter") answerQuestion(iv.custom); }}
+                               placeholder="Ya apna jawab likho…" className="wa-field-input" style={{ flex: 1 }} />
+                        <button onClick={() => answerQuestion(iv.custom)} disabled={!iv.custom.trim()}
+                                className="px-3.5 rounded-lg text-[12.5px] font-semibold text-white flex-shrink-0 disabled:opacity-40"
+                                style={{ background: "var(--wa-accent)" }}>Rakho</button>
+                      </div>
+                      <button onClick={nextQuestion} className="mt-3 text-[12px] font-semibold" style={{ color: "var(--wa-ink-2)" }}>
+                        Ye chhodo, agla sawaal
                       </button>
-                    ))}
-                  </div>
+                    </div>
+                  )}
                 </div>
-              )}
-              {chatMessages.map((m, i) => (
-                <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className="max-w-[75%] px-4 py-2.5 rounded-xl text-[13px] whitespace-pre-wrap shadow-sm"
-                       style={{
-                         background: m.role === "user" ? "#dcf8c6" : "#fff",
-                         color: "#111",
-                         borderBottomRightRadius: m.role === "user" ? "4px" : "16px",
-                         borderBottomLeftRadius: m.role === "user" ? "16px" : "4px",
-                       }}>
-                    {m.content}
-                  </div>
-                </div>
-              ))}
-              {agentLoading && (
-                <div className="flex justify-start">
-                  <div className="px-4 py-2.5 rounded-xl text-[13px] shadow-sm" style={{ background: "#fff", color: "#999" }}>
-                    <span className="animate-pulse">typing...</span>
-                  </div>
-                </div>
-              )}
-              <div ref={chatEndRef} />
-            </div>
-
-            {/* Training indicator */}
-            {trainingData && (
-              <div className="px-5 py-1.5 text-[10px] flex items-center gap-2" style={{ background: "rgba(37,211,102,0.08)", color: "#075E54" }}>
-                🧠 {trainingData.split("\n").filter(Boolean).length} training inputs saved
               </div>
-            )}
 
-            {/* Chat Input */}
-            <div className="flex gap-2 px-4 py-3" style={{ background: "var(--surface-raised)", borderTop: "1px solid var(--border-subtle)" }}>
-              <input type="text" value={agentInput} onChange={(e) => setAgentInput(e.target.value)}
-                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAgentSend(); } }}
-                     placeholder="Type a message..."
-                     className="flex-1 px-4 py-2.5 rounded-full text-[13px]"
-                     style={{ background: "var(--surface-base)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
-              <button onClick={handleAgentSend} disabled={agentLoading || !agentInput.trim()}
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-white text-[14px]"
-                      style={{ background: agentLoading ? "#999" : "#25D366" }}>
-                ➤
-              </button>
+              {/* ── Test. Same prompt and rules as the live auto-reply, but
+                  nothing is sent — the safe way to check a rule landed. ── */}
+              <div className="wa-card">
+                <div className="wa-card-head">
+                  <div className="wa-card-title">Test karo — kuch bheja nahi jayega</div>
+                  <div className="wa-card-note">Koi message likho jaise employee bhejega. Agent jo WhatsApp par jawab deta, wahi yahan dikhega.</div>
+                </div>
+                <div className="wa-card-body">
+                  <div className="flex gap-2">
+                    <input value={tst.msg} onChange={(e) => setTst((t) => ({ ...t, msg: e.target.value }))}
+                           onKeyDown={(e) => { if (e.key === "Enter") runTest(); }}
+                           placeholder="KM10 ka pump leak kar raha hai" className="wa-field-input" style={{ flex: 1 }} />
+                    <button onClick={runTest} disabled={!tst.msg.trim() || tst.loading || !localSettings.waGeminiKey}
+                            className="px-3.5 rounded-lg text-[12.5px] font-semibold text-white flex-shrink-0 disabled:opacity-40"
+                            style={{ background: "var(--wa-accent)" }}>
+                      {tst.loading ? "Soch raha hai…" : "Jawab dekho"}
+                    </button>
+                  </div>
+                  {tst.err && (
+                    <div className="mt-3 text-[12px] flex items-start gap-2" style={{ color: "#b91c1c" }}>
+                      <AlertCircle size={14} className="flex-shrink-0 mt-0.5" /><span>{tst.err}</span>
+                    </div>
+                  )}
+                  {tst.reply && (
+                    <div className="mt-3 wa-thread rounded-lg p-3 flex flex-col gap-1.5">
+                      <div className="flex"><div className="wa-bubble is-in">{tst.msg}</div></div>
+                      <div className="flex justify-end"><div className="wa-bubble is-out">{tst.reply}</div></div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Rules. Each one editable and removable on its own. ── */}
+              <div className="wa-card">
+                <div className="wa-card-head flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="wa-card-title">Agent ke rules {rules.length > 0 && <span style={{ color: "var(--wa-ink-2)", fontWeight: 500 }}>· {rules.length}</span>}</div>
+                    <div className="wa-card-note">Agent sirf yahi jaanta hai. Jo galat ya bekaar hai, use badlo ya hatao.</div>
+                  </div>
+                  {rules.length > 0 && !clearAsk && (
+                    <button onClick={() => setClearAsk(true)} className="text-[12px] font-semibold flex-shrink-0" style={{ color: "var(--wa-ink-2)" }}>
+                      Sab mitao
+                    </button>
+                  )}
+                </div>
+                <div className="wa-card-body">
+                  {clearAsk && (
+                    <div className="mb-3 px-3 py-2.5 rounded-lg text-[12px] flex flex-wrap items-center gap-2"
+                         style={{ background: "rgba(220,38,38,.06)", color: "#b91c1c" }}>
+                      <span className="flex-1">Saare {rules.length} rules mit jayenge aur agent kuch nahi jaanega. Pakka?</span>
+                      <button onClick={() => { writeRules([]); setClearAsk(false); }}
+                              className="px-3 py-1.5 rounded-lg font-semibold text-white" style={{ background: "#b91c1c" }}>Haan, mitao</button>
+                      <button onClick={() => setClearAsk(false)}
+                              className="px-3 py-1.5 rounded-lg font-semibold"
+                              style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Nahi</button>
+                    </div>
+                  )}
+
+                  {rules.length === 0 && (
+                    <div className="text-[12.5px] py-2" style={{ color: "var(--wa-ink-2)" }}>
+                      Abhi koi rule nahi. Upar "Sawaal shuru karo" dabao, ya neeche khud likho.
+                    </div>
+                  )}
+
+                  {rules.map((r, i) => (
+                    <div key={i} className="wa-rule">
+                      {ruleEdit?.i === i ? (
+                        <div className="flex-1 flex gap-2">
+                          <textarea value={ruleEdit.text} rows={2} autoFocus
+                                    onChange={(e) => setRuleEdit({ i, text: e.target.value })}
+                                    className="wa-field-input" style={{ flex: 1, resize: "vertical" }} />
+                          <div className="flex flex-col gap-1.5">
+                            <button onClick={() => { writeRules(rules.map((x, j) => (j === i ? ruleEdit.text : x))); setRuleEdit(null); }}
+                                    disabled={!ruleEdit.text.trim()}
+                                    className="px-3 py-1.5 rounded-lg text-[12px] font-semibold text-white disabled:opacity-40"
+                                    style={{ background: "var(--wa-accent)" }}>Save</button>
+                            <button onClick={() => setRuleEdit(null)}
+                                    className="px-3 py-1.5 rounded-lg text-[12px] font-semibold"
+                                    style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Rehne do</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex-1 min-w-0 text-[13px]" style={{ color: "var(--wa-ink)", lineHeight: 1.5 }}>{r}</div>
+                          <button onClick={() => setRuleEdit({ i, text: r })} className="wa-icon-btn" title="Badlo">
+                            <FileText size={15} />
+                          </button>
+                          <button onClick={() => writeRules(rules.filter((_, j) => j !== i))} className="wa-icon-btn" title="Hatao">
+                            <Trash2 size={15} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+
+                  <div className="flex gap-2 mt-3">
+                    <input value={newRule} onChange={(e) => setNewRule(e.target.value)}
+                           onKeyDown={(e) => { if (e.key === "Enter" && newRule.trim()) { addRule(newRule); setNewRule(""); } }}
+                           placeholder="Jaise: Chhutti maange to bolo HR ko form bhejo" className="wa-field-input" style={{ flex: 1 }} />
+                    <button onClick={() => { addRule(newRule); setNewRule(""); }} disabled={!newRule.trim()}
+                            className="px-3.5 rounded-lg text-[12.5px] font-semibold flex-shrink-0 inline-flex items-center gap-1 disabled:opacity-40"
+                            style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>
+                      <Plus size={14} /> Jodo
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -7571,6 +8009,17 @@ action. If you need any help with this update, simply reply to this message.`}
                   <div className="wa-card-note">Production floor par ye hone par turant WhatsApp jayega.</div>
                 </div>
                 <div className="wa-card-body pt-1">
+                  {!localSettings.waAlertTemplate && (
+                    <div className="mt-2 px-3 py-2.5 rounded-lg text-[12px] flex items-start gap-2"
+                         style={{ background: "rgba(217,119,6,.08)", border: "1px solid rgba(217,119,6,.3)", color: "#92400e" }}>
+                      <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+                      <span>
+                        Koi approved template chuna nahi hai, isliye alert sirf unhe pahunchega jinhone pichhle
+                        24 ghante me message kiya ho.{" "}
+                        <button onClick={() => setSection("templates")} className="font-semibold underline">Template chuno</button>
+                      </span>
+                    </div>
+                  )}
                   {[
                     { key: "waNotifyIssue",    dot: "#dc2626", label: "Machine par issue",   desc: "Koi fault raise kare" },
                     { key: "waNotifyTransfer", dot: "#0f9d58", label: "Transfer complete",   desc: "Machine agle department me gayi" },
@@ -15405,15 +15854,19 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     if (!newOverdue.length) return;
     (async () => {
       try {
-        const { callWhatsAppFn } = await import("./stores/adminApi.js");
         for (const h of newOverdue) {
           const machine = machineLog.find((m) => String(m.id) === String(h.machineId));
-          const msg = `🔴 Deadline Exceeded\nMachine: ${machine?.bomKey || "?"}${machine?.serialNo ? ` [${machine.serialNo}]` : ""}\n${h.fromDepartment} → ${h.toDepartment}\nWaiting: ${Math.round((Date.now() - new Date(h.sentAt).getTime()) / 60000)} min (limit ${h.acceptTimeoutMinutes || "?"} min)`;
-          const phones = [settings.waOwnerPhone, settings.waGroupNumbers].filter(Boolean).join(",").split(",").map((p) => p.trim()).filter(Boolean);
-          for (const phone of phones) {
-            callWhatsAppFn("whatsapp-send", { to: phone, message: msg, apiKey: settings.waApiKey, pluginId: settings.waPluginId || "", phoneId: settings.waPhoneId || "" })
-              .catch((e) => console.warn("[WhatsApp] deadline alert failed", e));
-          }
+          const waited = Math.round((Date.now() - new Date(h.sentAt).getTime()) / 60000);
+          const msg = `🔴 Deadline Exceeded\nMachine: ${machine?.bomKey || "?"}${machine?.serialNo ? ` [${machine.serialNo}]` : ""}\n${h.fromDepartment} → ${h.toDepartment}\nWaiting: ${waited} min (limit ${h.acceptTimeoutMinutes || "?"} min)`;
+          const params = [
+            "Deadline Exceeded",
+            `${machine?.bomKey || "?"}${machine?.serialNo ? ` (${machine.serialNo})` : ""}`,
+            `${h.fromDepartment} to ${h.toDepartment}`,
+            `Waiting ${waited} min, limit ${h.acceptTimeoutMinutes || "?"} min`,
+            waAlertTime(),
+          ];
+          const phones = [settings.waOwnerPhone, settings.waGroupNumbers].filter(Boolean).join(",");
+          waDispatch(settings, phones, msg, params);
           waDeadlineAlertedRef.current.add(h.id);
         }
       } catch (e) { console.warn("[WhatsApp] deadline effect error", e); }
@@ -22414,8 +22867,15 @@ export default function App() {
     if (settings.waNotifyTransfer) {
       const overrun = actualDurationMinutes > expectedDurationMinutes;
       const msg = `${overrun ? "🟡" : "🟢"} Transfer Complete\nMachine: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}\n${fromDepartment} → ${toDepartment}\nTime: ${actualDurationMinutes}min${overrun ? ` (expected ${expectedDurationMinutes}min)` : ""}`;
-      if (settings.waOwnerPhone) sendWhatsApp(settings.waOwnerPhone, msg);
-      if (settings.waGroupNumbers) sendWhatsApp(settings.waGroupNumbers, msg);
+      const params = [
+        "Transfer Complete",
+        `${machine.bomKey}${machine.serialNo ? ` (${machine.serialNo})` : ""}`,
+        `${fromDepartment} to ${toDepartment}`,
+        `Took ${actualDurationMinutes} min${overrun ? `, expected ${expectedDurationMinutes} min` : ""}`,
+        waAlertTime(),
+      ];
+      if (settings.waOwnerPhone) sendWhatsApp(settings.waOwnerPhone, msg, params);
+      if (settings.waGroupNumbers) sendWhatsApp(settings.waGroupNumbers, msg, params);
     }
 
     if (overrunNarration && overrunNarration.trim()) {
@@ -22769,28 +23229,7 @@ export default function App() {
   // Fire-and-forget: failures are logged but never block the caller.
   // `recipients` is a comma-separated string of phone numbers (settings.waGroupNumbers)
   // or a single number. Each recipient gets an independent API call.
-  const sendWhatsApp = async (to, message) => {
-    if (!settings.waApiKey || !to || !message) return;
-    try {
-      const { callWhatsAppFn } = await import("./stores/adminApi.js");
-      const phones = String(to).split(",").map((p) => p.trim()).filter(Boolean);
-      for (const phone of phones) {
-        callWhatsAppFn("whatsapp-send", {
-          to: phone, message,
-          apiKey: settings.waApiKey,
-          pluginId: settings.waPluginId || "",
-          phoneId: settings.waPhoneId || "",
-        }).then(() => {
-          if (window.__waLog) window.__waLog(phone, message, "sent");
-        }).catch((e) => {
-          console.warn("[WhatsApp] send failed for", phone, e);
-          if (window.__waLog) window.__waLog(phone, message, "failed");
-        });
-      }
-    } catch (e) {
-      console.warn("[WhatsApp] helper error", e);
-    }
-  };
+  const sendWhatsApp = (to, message, params) => waDispatch(settings, to, message, params);
 
   // ── Phase B — Pending-item resolution ─────────────────────────────────────
   // Phase 1 — raise a fault mid-work against the department that must fix it.
@@ -22829,8 +23268,15 @@ export default function App() {
     // ── WhatsApp trigger: issue raised ──
     if (settings.waNotifyIssue) {
       const msg = `🔴 Issue Raised\nMachine: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}\nDept: ${assignedDepartment || "General"}\nIssue: ${desc}`;
-      if (settings.waOwnerPhone) sendWhatsApp(settings.waOwnerPhone, msg);
-      if (settings.waGroupNumbers) sendWhatsApp(settings.waGroupNumbers, msg);
+      const params = [
+        "Issue Raised",
+        `${machine.bomKey}${machine.serialNo ? ` (${machine.serialNo})` : ""}`,
+        assignedDepartment || "General",
+        desc,
+        waAlertTime(),
+      ];
+      if (settings.waOwnerPhone) sendWhatsApp(settings.waOwnerPhone, msg, params);
+      if (settings.waGroupNumbers) sendWhatsApp(settings.waGroupNumbers, msg, params);
     }
 
     return res;

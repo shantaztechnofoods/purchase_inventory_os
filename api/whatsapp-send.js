@@ -19,6 +19,31 @@
 //   2. Session message (free-form text, within 24h of user's last message):
 //        { to, message, apiKey, pluginId, phoneId }
 
+// Meta refuses a template parameter that contains a newline, a tab or more
+// than four spaces in a row — and refuses the WHOLE message, not just that
+// slot. An issue description typed on the floor can easily contain any of
+// these, so every value is flattened before it goes out.
+export function cleanParam(v) {
+  const t = String(v ?? "").replace(/[\r\n\t]+/g, " ").replace(/ {2,}/g, " ").trim();
+  return (t || "-").slice(0, 300);
+}
+
+// The standard WhatsApp Cloud API template message, sent through the same
+// Chakra pass-through the plain-text path already uses successfully.
+export function buildTemplatePayload(phone, tpl) {
+  const params = (Array.isArray(tpl?.params) ? tpl.params : []).map((v) => ({ type: "text", text: cleanParam(v) }));
+  return {
+    messaging_product: "whatsapp",
+    to: phone,
+    type: "template",
+    template: {
+      name: tpl.name,
+      language: { code: tpl.language || "en" },
+      ...(params.length ? { components: [{ type: "body", parameters: params }] } : {}),
+    },
+  };
+}
+
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") { res.status(200).end(); return; }
   if (req.method !== "POST")    { res.status(405).json({ error: "POST only" }); return; }
@@ -65,6 +90,26 @@ export default async function handler(req, res) {
         messageId: result?._data?.externalId || result?._data?.id || null,
         deliveryStatus: result?._data?.deliveryStatus || null,
       });
+      return;
+    }
+
+    // ── MODE 1b: approved template with body values ──
+    // { to, template: { name, language, params: [...] }, ... }
+    // This is what ERP alerts use: a template is the only message WhatsApp
+    // delivers to someone who has not written in the last 24 hours.
+    if (body.template && body.template.name) {
+      if (!phoneId) { res.status(400).json({ error: "Missing 'phoneId' — WhatsApp Settings में Phone number ID डालो" }); return; }
+      const url = `${BASE}/${pluginId}/api/v21.0/${phoneId}/messages`;
+      const resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(buildTemplatePayload(phone, body.template)) });
+      const result = await resp.json().catch(() => ({}));
+      if (!resp.ok || result?.error) {
+        res.status(resp.ok ? 400 : resp.status).json({
+          error: result?.error?.error_user_msg || result?.error?.message || result?._errors?.[0] || `Chakra HQ returned ${resp.status}`,
+          details: result,
+        });
+        return;
+      }
+      res.status(200).json({ success: true, messageId: result?.messages?.[0]?.id || result?._data?.id || null });
       return;
     }
 

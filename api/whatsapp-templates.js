@@ -16,6 +16,9 @@
 
 const DEFAULT_VERSION = "v21.0";
 
+const bodyOf = (t) => (Array.isArray(t?.components) ? t.components : [])
+  .find((c) => (c?.type || "").toUpperCase() === "BODY");
+
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") { res.status(200).end(); return; }
   if (req.method !== "POST")    { res.status(405).json({ error: "POST only" }); return; }
@@ -49,8 +52,13 @@ export default async function handler(req, res) {
         category: t?.category || "",
         language: t?.language || "",
         // Flatten the BODY component's text — that is what the operator reads.
-        text:     (Array.isArray(t?.components) ? t.components : [])
-                    .find((c) => (c?.type || "").toUpperCase() === "BODY")?.text || "",
+        text:     bodyOf(t)?.text || "",
+        // Sample values Meta was shown at submission — used to render a filled
+        // preview, so the operator reads a real message instead of {{1}} {{2}}.
+        example:  bodyOf(t)?.example?.body_text?.[0] || [],
+        // Meta says WHY it rejected a template. Without this a red REJECTED
+        // chip is a dead end: nobody knows what to change.
+        rejectedReason: t?.rejected_reason && t.rejected_reason !== "NONE" ? t.rejected_reason : "",
       }));
       res.status(200).json({ success: true, templates });
       return;
@@ -79,6 +87,45 @@ export default async function handler(req, res) {
         status:   result?.status || "PENDING",
         category: result?.category || template.category || "",
       });
+      return;
+    }
+
+    // Edit the body of an existing template. Meta allows this on the template's
+    // own id (not the WABA path), keeps the name and category, and sends the
+    // template back for review — so the ERP shows it as pending again after.
+    if (action === "edit") {
+      if (!body.templateId || !template?.components) {
+        res.status(400).json({ error: "Missing 'templateId' or template components" });
+        return;
+      }
+      const url = `https://api.chakrahq.com/v1/ext/plugin/whatsapp/api/${encodeURIComponent(ver)}/${encodeURIComponent(body.templateId)}`;
+      const resp = await fetch(url, { method: "POST", headers, body: JSON.stringify({ components: template.components }) });
+      const result = await resp.json().catch(() => ({}));
+      if (!resp.ok || result?.error) {
+        res.status(resp.ok ? 400 : resp.status).json({
+          error: result?.error?.error_user_msg || result?.error?.message || `Chakra HQ returned ${resp.status}`,
+          details: result,
+        });
+        return;
+      }
+      res.status(200).json({ success: true });
+      return;
+    }
+
+    // Delete by name. Meta removes every language of that name, and a deleted
+    // name cannot be reused for 30 days — the ERP asks for confirmation first.
+    if (action === "delete") {
+      if (!body.name) { res.status(400).json({ error: "Missing template 'name'" }); return; }
+      const resp = await fetch(`${base}?name=${encodeURIComponent(body.name)}`, { method: "DELETE", headers });
+      const result = await resp.json().catch(() => ({}));
+      if (!resp.ok || result?.error) {
+        res.status(resp.ok ? 400 : resp.status).json({
+          error: result?.error?.error_user_msg || result?.error?.message || `Chakra HQ returned ${resp.status}`,
+          details: result,
+        });
+        return;
+      }
+      res.status(200).json({ success: true });
       return;
     }
 

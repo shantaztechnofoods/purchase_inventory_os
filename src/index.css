@@ -2513,3 +2513,27 @@ input, textarea, select {
 @media (prefers-reduced-motion: reduce) {
   .wa-row, .wa-tab, .wa-toggle, .wa-toggle i { transition: none; }
 }
+
+/* Template body, rendered the way it lands on a phone: sample values filled
+   in, line breaks kept, on the outgoing-bubble green so it reads as a
+   message rather than as a form field. */
+.wa-tpl-preview {
+  white-space: pre-wrap; word-break: break-word;
+  padding: 12px 14px; border-radius: 8px;
+  background: var(--wa-out); color: var(--wa-ink);
+  font-size: 13px; line-height: 1.5;
+}
+
+/* Interview answers: whole-row choices, because on a phone a pick is a
+   thumb-width target, not a small radio. */
+.wa-choice {
+  display: block; width: 100%; text-align: left;
+  padding: 11px 14px; border-radius: 10px;
+  border: 1px solid var(--wa-line); background: var(--wa-surface);
+  font-size: 13px; line-height: 1.45; color: var(--wa-ink);
+  transition: border-color .12s ease, background .12s ease;
+}
+.wa-choice:hover { border-color: var(--wa-accent); background: rgba(215,25,32,.03); }
+
+.wa-rule { display: flex; align-items: flex-start; gap: 6px; padding: 10px 0; }
+.wa-rule + .wa-rule { border-top: 1px solid var(--wa-line); }

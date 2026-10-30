@@ -46,12 +46,12 @@ const GEMINI_URL    = "https://generativelanguage.googleapis.com/v1beta/interact
 // never responds, so it sits last. The first two were measured replying in
 // about a second. Each is tried in turn, because an overloaded model is a
 // temporary condition and the next one usually answers immediately.
-const GEMINI_MODELS = ["gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-3.8-flash"];
+export const GEMINI_MODELS = ["gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-3.8-flash"];
 const GEMINI_ATTEMPT_MS = 12000;
 const WA_API_VERSION = "v21.0";
 const MAX_MEDIA_BYTES = 15 * 1024 * 1024;
 
-const SYSTEM_PROMPT = `Tum Shantaz Technofoods ke official WhatsApp par jawab de rahe ho.
+export const SYSTEM_PROMPT = `Tum Shantaz Technofoods ke official WhatsApp par jawab de rahe ho.
 
 Tumse baat karne wale company ke employees aur departments hain. Unke message
 text, photo ya voice note kuch bhi ho sakte hain.
