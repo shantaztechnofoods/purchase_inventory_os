@@ -15798,6 +15798,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   // Migration 036 — sent, but parked on the rack until a production head
   // releases it to the receiving department. Pre-036 rows read as false.
   const isAwaitingRelease = (h) => !!(h && h.releaseRequired && !h.releasedAt);
+  const askableHandovers  = pendingHandovers.filter((h) => !isAwaitingRelease(h));
   const overdueHandovers = pendingHandovers.filter((h) =>
     !isAwaitingRelease(h) && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick));
 
@@ -16355,14 +16356,19 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             waiting to be accepted into the receiving department, with a
             large "Accept Machine" button for authorized operators and
             visible countdown to the 2-hour acceptance deadline. */}
-        {pendingHandovers.length > 0 && (
+        {/* Only handovers someone has actually been asked to accept. One parked
+            on the rack (migration 036) is waiting for a production head to
+            release it — listing it here put an "Accept Machine" button on it
+            and let the receiving department skip the release entirely. Its
+            Release button lives on the machine card. */}
+        {askableHandovers.length > 0 && (
           <div className="rounded-2xl p-5"
                style={{ background: "linear-gradient(135deg,rgba(217, 119, 6,0.08),rgba(234,88,12,0.03))", border: `2px solid ${overdueHandovers.length ? "rgba(239,68,68,0.55)" : "rgba(217, 119, 6,0.45)"}`, boxShadow: overdueHandovers.length ? "0 0 24px rgba(239,68,68,0.15)" : "0 0 16px rgba(217, 119, 6,0.1)" }}>
             <div className="flex items-center gap-4 mb-4 flex-wrap">
               <div className="flex items-baseline gap-3">
                 <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-amber-700">Pending Acceptance</div>
-                <div className="text-4xl font-black" style={{ color: overdueHandovers.length ? "#dc2626" : "#B45309" }}>{pendingHandovers.length}</div>
-                <div className="text-[11px] text-slate-400">machine{pendingHandovers.length === 1 ? "" : "s"} waiting for the next department</div>
+                <div className="text-4xl font-black" style={{ color: overdueHandovers.length ? "#dc2626" : "#B45309" }}>{askableHandovers.length}</div>
+                <div className="text-[11px] text-slate-400">machine{askableHandovers.length === 1 ? "" : "s"} waiting for the next department</div>
               </div>
               {overdueHandovers.length > 0 && (
                 <span className="text-[11px] font-black px-3 py-1 rounded-full"
@@ -16372,7 +16378,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               )}
             </div>
             <div className="space-y-2.5">
-              {pendingHandovers.map((h) => {
+              {askableHandovers.map((h) => {
                 const sentMin   = Math.max(0, Math.floor((nowTick - Date.parse(h.sentAt)) / 60000));
                 const overdue   = isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
                 const heldMin   = heldMinutes(h.sentAt, h.acceptTimeoutMinutes, nowTick);
@@ -22904,6 +22910,12 @@ export default function App() {
     const handover = handovers.find((h) => h.id === handoverId);
     if (!handover) return { success: false, error: "Handover not found" };
     if (handover.status !== "pending") return { success: false, error: "This handover is no longer pending." };
+    // Migration 036 — a machine parked on the rack is not anyone's to accept
+    // until a production head releases it. The Accept button is no longer
+    // shown for it; this refuses any other path that would skip the release.
+    if (handover.releaseRequired && !handover.releasedAt) {
+      return { success: false, error: "This machine is on the rack — a production head must release it first." };
+    }
 
     // Permission check (receiving dept role; auto-mapped from updateStage).
     if (!canAcceptHandover(authCanDo, handover.toDepartment)) {
