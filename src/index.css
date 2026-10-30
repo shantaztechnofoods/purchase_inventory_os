@@ -2533,3 +2533,22 @@ input, textarea, select {
   font-size: 12px; font-weight: 600; color: var(--wa-ink-2);
 }
 .wa-att-dl:hover { color: var(--wa-ink); text-decoration: underline; }
+
+/* ── 2026-10-31 UI consistency pass ───────────────────────────────────────
+   Several light-surface screens still used dark-theme text classes
+   (text-blue-300, text-yellow-300, text-emerald-300 …) that fall below
+   AA contrast on white. Remapped once here, scoped away from the dark
+   sidebar, instead of touching ~90 call sites. */
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-blue-300,
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-blue-200,
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-blue-400 { color: #1d4ed8; }
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-yellow-300,
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-yellow-100,
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-amber-300,
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-amber-200 { color: #b45309; }
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-emerald-300,
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-emerald-200 { color: #15803d; }
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-red-300 { color: #b91c1c; }
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-indigo-200 { color: #4338ca; }
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-slate-300 { color: #475569; }
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-slate-400 { color: #64748b; }

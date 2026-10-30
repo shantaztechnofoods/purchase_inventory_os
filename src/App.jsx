@@ -80,7 +80,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-29-landing-fix";
+const APP_BUILD = "2026-10-31-ui-pass1";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -861,34 +861,12 @@ function CountUpValue({ value, className, style }) {
 }
 
 // Deterministic smooth sparkline derived from a seed, so it's stable per-card.
-function Sparkline({ color = "#2563eb", seed = 1, w = 110, h = 36 }) {
-  const pts = [];
-  let v = h * 0.55;
-  for (let i = 0; i <= 11; i++) {
-    v += (Math.sin(seed + i * 1.3) * 0.5 + Math.cos(seed * 2 + i)) * 3.4;
-    v = Math.max(5, Math.min(h - 5, v));
-    pts.push([i * (w / 11), h - v]);
-  }
-  const line = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
-  const area = line + ` L${w} ${h} L0 ${h} Z`;
-  const gid = `spk-${seed.toString().replace(".", "")}`;
-  return (
-    <svg className="spark-svg" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden="true">
-      <defs>
-        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={color} stopOpacity="0.18" />
-          <stop offset="1" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={area} fill={`url(#${gid})`} />
-      <path className="spark-line" d={line} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
+// (The decorative seeded Sparkline that used to sit here was removed on
+// 2026-10-31: the dashboard shows only real data.)
 
 // ─── DASHBOARD PAGE ───────────────────────────────────────────────────────────
 
-function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [], pendingLog = [], followUps = [], onNavigate, settings = SETTINGS_DEFAULTS }) {
+function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [], pendingLog = [], followUps = [], handovers = [], pendingHandoverItems = [], onNavigate, settings = SETTINGS_DEFAULTS }) {
   const allItems = Object.entries(items).flatMap(([cat, list]) =>
     list.map((i) => ({ ...i, category: cat }))
   );
@@ -929,6 +907,36 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
 
   // Active machines (in-progress builds that need stage updates)
   const activeMachines = machineLog.filter((m) => m.status === "active" && m.stage !== "BOM Issued").slice(0, 4);
+
+  // 2026-10-31 — production overview, computed from live records only
+  // (machine log, handovers, pending jobs). Same rules as Machine Tracker
+  // and the Report Center: working-time timers, BOM target per department,
+  // On Hold = acceptance pending longer than the configured timeout.
+  const production = (() => {
+    const wf = readDeptWorkflowSettings(settings);
+    const now = Date.now();
+    const live = machineLog.filter((m) => m.status !== "completed");
+    const byStage = {};
+    ["BOM Issued", "Assembly", "Mechanical", "Electrical", "Trial", "Ready"].forEach((st) => { byStage[st] = 0; });
+    live.forEach((m) => { if (m.stage in byStage) byStage[m.stage] += 1; });
+    const delayed = live.filter((m) => {
+      if (!m.departmentEnteredAt || m.stage === "BOM Issued") return false;
+      const dept = m.currentDepartment || m.stage;
+      const cfg = (m.deptDurations && m.deptDurations[dept]) || (wf.dept_durations || {})[dept];
+      const target = (cfg && cfg.minutes) || 0;
+      if (!target) return false;
+      return computeOverrun(m.departmentEnteredAt, target, now).isOverrun;
+    });
+    // Same buckets as the Machine Tracker summary cards: a handover parked
+    // on the rack (release required, not yet released) is not being asked
+    // for yet, so no acceptance clock runs on it.
+    const pendingHo = (handovers || []).filter((h) => h && h.status === "pending" && !(h.releaseRequired && !h.releasedAt));
+    const onRack = (handovers || []).filter((h) => h && h.status === "pending" && h.releaseRequired && !h.releasedAt).length;
+    const onHold = pendingHo.filter((h) => isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, now));
+    const awaiting = pendingHo.length - onHold.length;
+    const openJobs = (pendingHandoverItems || []).filter((p) => p.status === "open");
+    return { live: live.length, byStage, delayed, onHold, onRack, awaiting, openJobs, completed: machineLog.filter((m) => m.status === "completed").length };
+  })();
 
   // Same reasoning as the navigation: these nine tiles are the first thing
   // anyone sees, and emoji rendered in nine different device fonts is what made
@@ -976,7 +984,7 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
 
         {/* ── Hero Stats (top 3 large) ── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {kpis.slice(0, 3).map((kpi, hi) => (
+          {kpis.slice(0, 3).map((kpi) => (
             <button key={kpi.label} onClick={() => onNavigate?.(kpi.nav)}
               className="hero-tile group" style={{ "--tile": kpi.color }}>
               <div className="hero-tile-icon" style={{ background: kpi.color + "14", color: kpi.color }}>
@@ -991,7 +999,6 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
                 background: kpi.alert ? "rgba(220,38,38,0.08)" : "rgba(5,150,105,0.08)",
                 color: kpi.alert ? "#b91c1c" : "#047857",
               }}>{kpi.alert ? "Action" : "On track"}</span>
-              <Sparkline color={kpi.color} seed={2.3 + hi * 3.1} />
             </button>
           ))}
         </div>
@@ -1010,6 +1017,80 @@ function DashboardPage({ items = {}, pos = [], vendorList = [], machineLog = [],
               <div className="text-[10px] mt-1 truncate" style={{ color: "var(--text-dim)" }}>{kpi.sub}</div>
             </button>
           ))}
+        </div>
+
+        {/* ── Production overview (live data) ── */}
+        <div className="section-card overflow-hidden">
+          <div className="flex items-center justify-between px-5 pt-4 pb-3 flex-wrap gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(215,25,32,0.08)" }}>
+                <Cog size={16} style={{ color: "#D71920" }} />
+              </div>
+              <div>
+                <div className="text-[13px] font-bold" style={{ color: "var(--text-strong)" }}>Production Overview</div>
+                <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>{production.live} machine{production.live === 1 ? "" : "s"} in progress · {production.completed} completed</div>
+              </div>
+            </div>
+            <button onClick={() => onNavigate?.("machines")} className="btn-ghost text-[11px] px-3 py-1.5 rounded-lg">Open Machine Tracker →</button>
+          </div>
+          <div className="px-5 pb-4 space-y-3">
+            {/* Alerts row */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {[
+                { label: "Delayed machines", n: production.delayed.length, color: "#b91c1c", bg: "rgba(239,68,68,0.08)", nav: "machines", hint: "Past the department target" },
+                { label: "On Hold", n: production.onHold.length, color: "#4338ca", bg: "rgba(99,102,241,0.10)", nav: "machines", hint: "Acceptance overdue" },
+                { label: "Awaiting acceptance", n: production.awaiting, color: "#b45309", bg: "rgba(217,119,6,0.10)", nav: "machines", hint: production.onRack > 0 ? `Not yet accepted · ${production.onRack} on rack` : "Transferred, not yet accepted" },
+                { label: "Open pending jobs", n: production.openJobs.length, color: "#0e7490", bg: "rgba(14,116,144,0.10)", nav: "machines", hint: "Must close before Ready" },
+              ].map((a) => (
+                <button key={a.label} onClick={() => onNavigate?.(a.nav)} className="text-left rounded-xl px-3.5 py-3 transition-colors"
+                        style={{ background: a.n > 0 ? a.bg : "rgba(17,24,39,0.03)", border: `1px solid ${a.n > 0 ? a.color + "40" : "rgba(17,24,39,0.06)"}` }}>
+                  <div className="text-[22px] font-extrabold tabular-nums leading-none" style={{ color: a.n > 0 ? a.color : "var(--text-strong)" }}>{a.n}</div>
+                  <div className="text-[11px] font-semibold mt-1.5" style={{ color: "var(--text-muted)" }}>{a.label}</div>
+                  <div className="text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>{a.hint}</div>
+                </button>
+              ))}
+            </div>
+            {/* Department progress */}
+            {production.live === 0 ? (
+              <EmptyState icon="🏭" title="No machines in production" sub="Issue a BOM from Outward to start a build." action={() => onNavigate?.("outward")} actionLabel="Go to Outward" />
+            ) : (
+              <div>
+                <div className="text-[10px] font-semibold mb-1.5" style={{ color: "var(--text-dim)" }}>Machines by current stage</div>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {Object.entries(production.byStage).map(([st, n]) => (
+                    <div key={st} className="rounded-lg px-2.5 py-2 text-center" style={{ background: n > 0 ? (STAGE_COLORS[st] || "#6b7280") + "14" : "rgba(17,24,39,0.03)", border: `1px solid ${n > 0 ? (STAGE_COLORS[st] || "#6b7280") + "40" : "rgba(17,24,39,0.06)"}` }}>
+                      <div className="text-[18px] font-extrabold tabular-nums leading-none" style={{ color: n > 0 ? (STAGE_COLORS[st] || "#374151") : "var(--text-dim)" }}>{n}</div>
+                      <div className="text-[10px] font-semibold mt-1 leading-tight" style={{ color: "var(--text-muted)" }}>{st === "BOM Issued" ? "Issued" : st}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Delayed list */}
+            {production.delayed.length > 0 && (
+              <div className="space-y-1.5">
+                {production.delayed.slice(0, 4).map((m) => {
+                  const dept = m.currentDepartment || m.stage;
+                  const cfg = (m.deptDurations && m.deptDurations[dept]) || (readDeptWorkflowSettings(settings).dept_durations || {})[dept];
+                  const t = computeOverrun(m.departmentEnteredAt, (cfg && cfg.minutes) || 0, Date.now());
+                  return (
+                    <div key={m.id} className="flex items-center gap-3 px-3 py-2 rounded-lg" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: "#dc2626" }} />
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[11px] font-bold" style={{ color: "var(--text-strong)" }}>{m.bomLabel || m.bomKey}</span>
+                        {m.serialNo && <span className="text-[9px] font-mono ml-2 px-1.5 py-0.5 rounded" style={{ background: "rgba(17,24,39,0.05)", color: "var(--text-muted)" }}>{m.serialNo}</span>}
+                        <div className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>{dept} · ⏱ {formatDuration(t.actualMinutes)} / {formatDuration(t.expectedMinutes)}</div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: "rgba(239,68,68,0.1)", color: "#b91c1c" }}>DELAYED {formatDuration(t.overrunMinutes)}</span>
+                    </div>
+                  );
+                })}
+                {production.delayed.length > 4 && (
+                  <button onClick={() => onNavigate?.("machines")} className="w-full text-[10px] py-1" style={{ color: "var(--text-muted)" }}>+{production.delayed.length - 4} more delayed machines →</button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── Actionable Sections ── */}
@@ -15177,6 +15258,16 @@ function ReportTable({ title, rows, t = (k) => k }) {
 
 // ─── MACHINE TRACKER PAGE ────────────────────────────────────────────────────
 
+// Display-only production stepper (brief 2026-10-31): Assembly is a status,
+// not a stage. MACHINE_STAGES (the workflow) is unchanged.
+const DISPLAY_STAGES = ["Mechanical", "Electrical", "Trial", "Ready", "Completed"];
+const DISPLAY_STAGE_COLORS = {
+  "Mechanical": "#D97706",
+  "Electrical": "#eab308",
+  "Trial":      "#0e7490",
+  "Ready":      "#22c55e",
+  "Completed":  "#15803d",
+};
 const STAGE_COLORS = {
   "BOM Issued": "#D71920",
   "Assembly":   "#8b5cf6",
@@ -17889,6 +17980,8 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             const futureStages = MACHINE_STAGES.filter((s, i) => i > curIdx && s !== "Ready");
             const stageColor = STAGE_COLORS[machine.stage] || "#D71920";
             const pct = isComplete ? 100 : Math.round((curIdx / (MACHINE_STAGES.length - 1)) * 100);
+            // Display-only stage index for the card stepper (see DISPLAY_STAGES).
+            const dispIdx = isComplete ? DISPLAY_STAGES.length - 1 : DISPLAY_STAGES.indexOf(machine.stage);
             // Phase 1 — open pending items, split by what they block.
             //   fault: someone found something wrong and called the department
             //          responsible. The machine stays put until it is fixed.
@@ -17937,10 +18030,12 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                               right and 4/6 is not 60%, so side by side they
                               looked broken. The bar below already carries the
                               percentage; this chip now carries only the step. */}
+                          {dispIdx >= 0 && (
                           <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
                                 style={{ background: "rgba(17,24,39,0.04)", color: "#6b7280", border: "1px solid var(--border-rim)" }}>
-                            Step {curIdx + 1} of {MACHINE_STAGES.length}
+                            Stage {dispIdx + 1} of {DISPLAY_STAGES.length}
                           </span>
+                          )}
                           {arrivedItems.length > 0 && (
                             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
                                   title={arrivedItems.map((a) => `${a.itemName || a.itemCode}${a.qty ? ` ×${a.qty}` : ""}`).join(", ")}
@@ -17988,18 +18083,19 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                       </div>
                     </div>
 
-                    {/* Progress timeline — the full Assembly→…→Ready stepper
-                        across every department is factory context for an
-                        admin/office reader. A floor worker only acts on their
-                        own stage, so it is hidden for a floor login to keep the
-                        card to machine + current stage + the action button. */}
+                    {/* Progress timeline — display only. Production stages are
+                        Mechanical → Electrical → Trial → Ready → Completed; the
+                        BOM Issued / Assembly phase is shown as the status pill
+                        above, not as a stage. MACHINE_STAGES and every handler
+                        are unchanged. Hidden for a floor login, who only acts on
+                        their own stage. */}
                     {!isFloorLogin && (
                     <div className="flex-1 min-w-[260px]">
                       <div className="flex items-center">
-                        {MACHINE_STAGES.map((stage, idx) => {
-                          const done    = idx <= curIdx;
-                          const current = idx === curIdx;
-                          const sc      = STAGE_COLORS[stage];
+                        {DISPLAY_STAGES.map((stage, idx) => {
+                          const done    = idx <= dispIdx;
+                          const current = idx === dispIdx;
+                          const sc      = DISPLAY_STAGE_COLORS[stage];
                           return (
                             <div key={stage} className="flex items-center flex-1 last:flex-none">
                               <div className="flex flex-col items-center gap-1 flex-shrink-0">
@@ -18010,26 +18106,32 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                        color: done ? sc : "#6b7280",
                                        boxShadow: current ? `0 0 10px ${sc}55` : "none",
                                      }}>
-                                  {done ? "✓" : idx + 1}
+                                  {done && !current ? "✓" : idx + 1}
                                 </div>
                                 <div className="text-[9px] font-bold text-center leading-tight whitespace-nowrap"
-                                     style={{ color: done ? sc : "#6b7280", maxWidth: 40 }}>
-                                  {stage === "BOM Issued" ? "Issued" : stage}
+                                     style={{ color: done ? sc : "#6b7280", maxWidth: 44 }}>
+                                  {stage}
                                 </div>
                               </div>
-                              {idx < MACHINE_STAGES.length - 1 && (
+                              {idx < DISPLAY_STAGES.length - 1 && (
                                 <div className="flex-1 h-0.5 mx-1 rounded-full transition-all"
-                                     style={{ background: idx < curIdx ? (STAGE_COLORS[MACHINE_STAGES[idx + 1]] + "55") : "rgba(17,24,39,0.06)" }} />
+                                     style={{ background: idx < dispIdx ? (DISPLAY_STAGE_COLORS[DISPLAY_STAGES[idx + 1]] + "55") : "rgba(17,24,39,0.06)" }} />
                               )}
                             </div>
                           );
                         })}
                       </div>
+                      {dispIdx < 0 && (
+                        <div className="text-[10px] mt-1.5" style={{ color: "var(--text-muted, #6b7280)" }}>
+                          {machine.stage === "BOM Issued" ? "BOM issued — production starts at Mechanical." : "Assembly in progress — production stages start at Mechanical."}
+                        </div>
+                      )}
                     </div>
                     )}
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                    {/* Actions — max-w-full so the row wraps on a phone instead
+                        of being clipped by the card's overflow-hidden. */}
+                    <div className="flex items-center gap-2 flex-wrap max-w-full">
                       {/* Phase 1 — admin-only. Update Stage bypasses the entire
                           handover chain; operators must use Finish & Transfer so
                           the signature, checklist and rating are always captured. */}
@@ -24722,7 +24824,7 @@ export default function App() {
   };
 
   const pages = {
-    dashboard: <DashboardPage items={items} pos={pos} vendorList={vendorList} machineLog={machineLog} pendingLog={pendingLog} followUps={followUps} onNavigate={setActivePage} settings={settings} />,
+    dashboard: <DashboardPage items={items} pos={pos} vendorList={vendorList} machineLog={machineLog} pendingLog={pendingLog} followUps={followUps} handovers={handovers} pendingHandoverItems={pendingHandoverItems} onNavigate={setActivePage} settings={settings} />,
     inventory: <InventoryPage items={items} setItems={setItems} handleUpdateStock={handleUpdateStock}
                               pos={pos} inwardLog={inwardLog} outwardLog={outwardLog}
                               pendingLog={pendingLog} bomDefs={bomDefs} machineLog={machineLog}
