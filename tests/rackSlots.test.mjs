@@ -69,3 +69,23 @@ test("rackViewLog: a released machine leaves its slot even if rack_slot was not 
   assert.equal(placed["M-10-1#2"].machine.id, 2);
   assert.equal(firstFreeSlot("KM10", v, new Set(["2"])), "M-10-1#1");
 });
+
+// 2026-10-31 hotfix guard: App.jsx once called physicalRackSlots() without
+// importing it (ReferenceError in BOM Create / Edit). Every rackSlots export
+// that App.jsx calls must be in its import list.
+test("App.jsx imports every rackSlots helper it uses", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+  const app = fs.readFileSync(path.join(root, "src/App.jsx"), "utf8");
+  const lib = fs.readFileSync(path.join(root, "src/utils/rackSlots.js"), "utf8");
+  const exported = [...lib.matchAll(/export (?:function|const) (\w+)/g)].map((m) => m[1]);
+  const imp = app.match(/import \{([^}]*)\} from "\.\/utils\/rackSlots\.js"/);
+  assert.ok(imp, "App.jsx must import from utils/rackSlots.js");
+  const imported = new Set(imp[1].split(",").map((x) => x.trim()));
+  for (const name of exported) {
+    const used = new RegExp(`\\b${name}\\b`).test(app.replace(imp[0], ""));
+    const locallyDefined = new RegExp(`(function|const|let) ${name}\\b`).test(app);
+    if (used && !locallyDefined) assert.ok(imported.has(name), `App.jsx uses ${name} but does not import it`);
+  }
+});

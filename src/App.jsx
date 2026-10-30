@@ -71,7 +71,7 @@ import { mapRow as vendorMapRow, parseRows as vendorParseRows } from "./utils/ve
 import { parseRows as itemParseRows, generateItemCode, buildRowsFromSheet as itemBuildRowsFromSheet } from "./utils/itemImport.js";
 import { parseBomPaste } from "./utils/bomPaste.js";
 import { receivedPoRates, bomCostLines, bomCostSummary, validateBomLines, formatINR, RATE_SOURCE_LABEL } from "./utils/bomCost.js";
-import { PHYSICAL_RACK_LAYOUT, physicalRackFamily, rackCapacityFor, buildFamilyRacks, firstFreeSlot, canAssignSlot, slotLabel, rackKeyNorm, rackViewLog } from "./utils/rackSlots.js";
+import { PHYSICAL_RACK_LAYOUT, physicalRackFamily, physicalRackSlots, rackCapacityFor, buildFamilyRacks, firstFreeSlot, canAssignSlot, slotLabel, rackKeyNorm, rackViewLog } from "./utils/rackSlots.js";
 import { getActiveCompany, normalizePOSettings, openPOPdf, PO_TEMPLATE_OPTIONS } from "./utils/poTemplate.js";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -82,7 +82,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-rack-slots-2";
+const APP_BUILD = "2026-10-31-hotfix-3";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
