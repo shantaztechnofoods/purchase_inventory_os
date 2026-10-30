@@ -2595,7 +2595,12 @@ body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-for
       Phone gets narrower numeric columns; wide history grids scroll inside
       their own box instead of crushing the text column. */
 .bom-drawer { --bom-cols: 28px minmax(0,1fr) 72px 72px 80px 72px; }
-@media (max-width: 767.98px) { .bom-drawer { --bom-cols: 24px minmax(0,1fr) 42px 42px 62px 46px; } }
+@media (max-width: 767.98px) {
+  .bom-drawer { --bom-cols: 24px minmax(0,1fr) 40px 40px 60px 44px; }
+  /* The drawer scrolls as one page here, so a per-panel sticky column header
+     would float over the summary bar. */
+  .bom-drawer .sticky { position: static; }
+}
 .grid-table { overflow-x: auto; overscroll-behavior-x: contain; }
 .grid-table > * { min-width: var(--gt-min, 100%); }
 @media (max-width: 767.98px) {

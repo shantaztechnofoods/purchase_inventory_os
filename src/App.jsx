@@ -11899,7 +11899,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                        onChange={(e) => setIssueQtys((p) => ({ ...p, [item.code]: Math.min(item.available, Math.max(0, parseInt(e.target.value,10)||0)) }))}
                        onWheel={(e) => e.currentTarget.blur()}
                        disabled={!rowChecked}
-                       className="w-[58px] bg-slate-50 border rounded-lg px-2 py-1 text-xs text-slate-900 outline-none text-right modal-input disabled:opacity-30 transition-colors"
+                       className="w-full max-w-[58px] bg-slate-50 border rounded-lg px-2 py-1 text-xs text-slate-900 outline-none text-right modal-input disabled:opacity-30 transition-colors"
                        style={{ fontFamily:"'Inter',system-ui,sans-serif", borderColor: rowChecked && item.overQty > 0 ? "rgba(251,191,36,0.55)" : rowChecked && item.issueQty < item.required ? "rgba(217, 119, 6,0.45)" : "rgba(17,24,39,0.10)" }} />
               </div>
               <div className="text-right pr-4">
