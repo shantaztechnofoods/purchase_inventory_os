@@ -41,7 +41,7 @@ import { fetchOutward, createOutward, updateOutwardRef, deleteOutwardByIssueId }
 import { fetchPending, bulkCreatePending, updatePending as pendingUpdate, deletePending as pendingDelete, clearAllPending, updatePendingBomKey } from "./stores/pendingStore.js";
 import { fetchFollowUps, createFollowUp as followupCreate, updateFollowUp as followupUpdate, deleteFollowUpsByPO } from "./stores/followupsStore.js";
 import { fetchMachines, createMachine as machineCreate, updateMachine as machineUpdate, updateMachineBomKey, deleteMachine as machineDelete, fetchMachineLockState } from "./stores/machinesStore.js";
-import { fetchHandovers, createHandover as handoverCreate, acceptHandover as handoverAccept } from "./stores/handoverStore.js";
+import { fetchHandovers, createHandover as handoverCreate, acceptHandover as handoverAccept, releaseHandover } from "./stores/handoverStore.js";
 import { getMySignature, saveMySignature, reauthenticateByPassword } from "./stores/signaturesStore.js";
 import {
   DEPARTMENT_SEQUENCE, DEFAULT_DEPT_DURATIONS, DEFAULT_ACCEPT_TIMEOUT_MINUTES,
@@ -13113,9 +13113,10 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                           const res = await onRemoveRackMachine(cfm.machineId);
                           if (res?.success) {
                             showToast(`Removed ${cfm.bomKey}${cfm.serialNo ? ` · ${cfm.serialNo}` : ""}`, `${res.restored || 0} component(s) returned to stock`);
-                            // Close the start-prod modal too if it was the last machine on rack
-                            const remaining = rackMachinesFor(startProd?.key || "").filter((m) => m.id !== cfm.machineId);
-                            if (startProd && remaining.length === 0) setStartProd(null);
+                            // (Outward has no start-production modal to close.
+                            // The two lines that used to try were copied from
+                            // Machine Tracker and threw a ReferenceError here
+                            // after every successful removal.)
                           } else {
                             showToast("Failed to remove", res?.error || "unknown error", "error");
                           }
