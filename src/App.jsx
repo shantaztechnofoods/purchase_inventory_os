@@ -13408,44 +13408,16 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
               </button>
             )}
           </div>
-          <div className={embedded ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3" : "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"}>
+          <div className={embedded ? "grid gap-2 grid-cols-[repeat(auto-fill,minmax(210px,1fr))]" : "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"}>
             {boms.map(([bomKey, bom]) => {
               const units     = bomUnits[bomKey] || 1;
               const feasibleN = bom.items.filter(({ code, qty }) => { const inv = findItem(code); return inv && inv.stock >= qty * units; }).length;
               const allFeas   = feasibleN === bom.items.length;
               const noRackTracking = !(rackCapacityFor(bomKey, bom) > 0);
               const openBomFlow = () => { setSerialModal(bomKey); setPendingSerial(""); setSerialErr(""); };
-              return (
-                // 2026-06-05h — overflow-hidden REMOVED. The actions menu
-                // (Open / Edit / Duplicate / Delete BOM) is absolutely positioned
-                // inside the card and is taller than what fits within the card
-                // bounds. With overflow-hidden on, the bottom items — Delete
-                // BOM specifically — were clipped invisibly, which is why
-                // operators reported "Delete BOM is missing from the ⋮ menu"
-                // even though the JSX renders it. The rack-card menu on
-                // Machine Tracker doesn't have overflow-hidden and shows all
-                // items fine; this aligns the BOM card with that pattern.
-                // The card has no descendants that would visually overflow
-                // its rounded corners, so removing overflow-hidden has no
-                // visual side effect.
-                <div key={bomKey} onClick={() => canDo("outward","bom") && openBomFlow()}
-                     className={`section-card transition-all duration-200 group relative ${canDo("outward","bom") ? "cursor-pointer hover:bg-slate-50" : "opacity-60 cursor-not-allowed"}`}
-                     style={{ borderLeft: `4px solid ${bom.color}` }}
-                     onMouseEnter={(e) => { e.currentTarget.style.boxShadow = `0 4px 16px ${bom.color}18`; }}
-                     onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}>
-                  <div className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black text-slate-900 flex-shrink-0"
-                           style={{ background: bom.color + "22", border: `1px solid ${bom.color}50` }}>{bomKey}</div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-bold text-slate-900">{bomKey}</div>
-                        <div className="text-[10px] text-slate-500">{bom.label}</div>
-                      </div>
-                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                            style={{ background: allFeas ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", color: allFeas ? "#15803d" : "#dc2626", border: `1px solid ${allFeas ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}` }}>
-                        {feasibleN}/{bom.items.length} ready
-                      </span>
-                      {/* 2026-06-02d — ⋮ actions menu */}
+              // 2026-06-02d — ⋮ actions menu. One element, used by both the full
+              // Outward card and the compact Machine Tracker row.
+              const actionsMenu = (
                       <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={(e) => { e.stopPropagation(); setActionsKey(actionsKey === bomKey ? null : bomKey); }}
@@ -13507,6 +13479,59 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                           </div>
                         )}
                       </div>
+              );
+              // 2026-10-30 — Machine Tracker shows a compact row: the BOM name,
+              // Open BOM and the same ⋮ menu. Same openBomFlow, so the serial
+              // check, issue popups and stock updates are exactly Outward's.
+              if (embedded) return (
+                <div key={bomKey} title={bom.label}
+                     onClick={() => canDo("outward","bom") && openBomFlow()}
+                     className={`section-card relative flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 transition-all ${canDo("outward","bom") ? "cursor-pointer hover:bg-slate-50" : "opacity-60 cursor-not-allowed"}`}
+                     // The open ⋮ menu hangs over the rows below. Lift this row
+                     // above them, or a click on "Edit BOM" lands on the row
+                     // underneath and opens the wrong BOM.
+                     style={{ borderLeft: `4px solid ${bom.color}`, zIndex: actionsKey === bomKey ? 40 : undefined }}>
+                  <span className="flex-1 min-w-0 truncate text-[13px] font-bold text-slate-900">{bomKey}</span>
+                  <button type="button"
+                          onClick={(e) => { e.stopPropagation(); if (canDo("outward","bom")) openBomFlow(); }}
+                          disabled={!canDo("outward","bom")}
+                          className="text-[11px] font-bold text-blue-500 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 rounded-md whitespace-nowrap flex-shrink-0 disabled:opacity-50">
+                    Open BOM →
+                  </button>
+                  {actionsMenu}
+                </div>
+              );
+              return (
+                // 2026-06-05h — overflow-hidden REMOVED. The actions menu
+                // (Open / Edit / Duplicate / Delete BOM) is absolutely positioned
+                // inside the card and is taller than what fits within the card
+                // bounds. With overflow-hidden on, the bottom items — Delete
+                // BOM specifically — were clipped invisibly, which is why
+                // operators reported "Delete BOM is missing from the ⋮ menu"
+                // even though the JSX renders it. The rack-card menu on
+                // Machine Tracker doesn't have overflow-hidden and shows all
+                // items fine; this aligns the BOM card with that pattern.
+                // The card has no descendants that would visually overflow
+                // its rounded corners, so removing overflow-hidden has no
+                // visual side effect.
+                <div key={bomKey} onClick={() => canDo("outward","bom") && openBomFlow()}
+                     className={`section-card transition-all duration-200 group relative ${canDo("outward","bom") ? "cursor-pointer hover:bg-slate-50" : "opacity-60 cursor-not-allowed"}`}
+                     style={{ borderLeft: `4px solid ${bom.color}` }}
+                     onMouseEnter={(e) => { e.currentTarget.style.boxShadow = `0 4px 16px ${bom.color}18`; }}
+                     onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}>
+                  <div className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black text-slate-900 flex-shrink-0"
+                           style={{ background: bom.color + "22", border: `1px solid ${bom.color}50` }}>{bomKey}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-bold text-slate-900">{bomKey}</div>
+                        <div className="text-[10px] text-slate-500">{bom.label}</div>
+                      </div>
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                            style={{ background: allFeas ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", color: allFeas ? "#15803d" : "#dc2626", border: `1px solid ${allFeas ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}` }}>
+                        {feasibleN}/{bom.items.length} ready
+                      </span>
+                      {actionsMenu}
                     </div>
                     <div className="flex flex-wrap gap-1 mt-3">
                       {bom.items.slice(0, 4).map(({ code, qty }) => {
@@ -16479,7 +16504,8 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             The Outward page's own BOM section, embedded: issuing here and
             issuing from Outward are the same component and the same code. */}
         {bomSection && (
-          <div className="section-card overflow-hidden">
+          // No overflow-hidden: it clipped the BOM ⋮ menu.
+          <div className="section-card">
             <button type="button" onClick={toggleBom} aria-expanded={bomOpen}
                     className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left">
               <span className="text-[13px] font-bold" style={{ color: "var(--text-strong)" }}>Issue a BOM</span>
