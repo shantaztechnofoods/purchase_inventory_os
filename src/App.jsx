@@ -6118,6 +6118,14 @@ function WhatsAppPage({ settings = {}, onSave }) {
     waOwnerPhone: settings.waOwnerPhone || "",
     waGroupNumbers: settings.waGroupNumbers || "",
     waAnthropicKey: settings.waAnthropicKey || "",
+    // Gemini powers the auto-reply agent. Chosen over Anthropic because it
+    // reads text, images AND audio natively — a voice note needs no separate
+    // speech-to-text service.
+    waGeminiKey: settings.waGeminiKey || "",
+    // Training the operator gives the agent ("if someone asks X, answer Y").
+    // Lives in the same settings row so the server-side webhook can read it.
+    waAgentTraining: settings.waAgentTraining || "",
+    waAutoReply: settings.waAutoReply || false,
     waNotifyIssue: settings.waNotifyIssue !== false,
     waNotifyTransfer: settings.waNotifyTransfer !== false,
     waNotifyDeadline: settings.waNotifyDeadline !== false,
@@ -6161,7 +6169,10 @@ function WhatsAppPage({ settings = {}, onSave }) {
   const [chatMessages, setChatMessages] = useState(() => {
     try { return JSON.parse(localStorage.getItem("erp_wa_agent_chat") || "[]"); } catch { return []; }
   });
+  // Saved training. The settings row wins over localStorage: it is what the
+  // server-side webhook reads, and it follows the operator across devices.
   const [trainingData, setTrainingData] = useState(() => {
+    if (settings.waAgentTraining) return settings.waAgentTraining;
     try { return localStorage.getItem("erp_wa_training") || ""; } catch { return ""; }
   });
   const [agentInput, setAgentInput] = useState("");
@@ -6380,13 +6391,16 @@ function WhatsAppPage({ settings = {}, onSave }) {
     if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
-  // ── Claude Agent Chat ──
+  // ── Agent training chat (Gemini) ──
+  // Whatever the operator teaches here is saved into settings.waAgentTraining,
+  // NOT just localStorage: the auto-reply webhook runs on the server with no
+  // browser, so it can only read the training out of the shared settings row.
   const handleAgentSend = async () => {
     const text = agentInput.trim();
     if (!text || agentLoading) return;
-    if (!localSettings.waAnthropicKey) {
+    if (!localSettings.waGeminiKey) {
       setChatMessages((prev) => {
-        const next = [...prev, { role: "user", content: text }, { role: "assistant", content: "⚠️ पहले Settings में Anthropic API Key डालो, तभी मैं काम कर पाऊँगा।" }];
+        const next = [...prev, { role: "user", content: text }, { role: "assistant", content: "⚠️ पहले Settings में Gemini API Key डालो, तभी मैं काम कर पाऊँगा।" }];
         try { localStorage.setItem("erp_wa_agent_chat", JSON.stringify(next)); } catch {}
         return next;
       });
@@ -6402,7 +6416,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
       const res = await callWhatsAppFn("whatsapp-agent", {
         messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
         trainingData,
-        anthropicKey: localSettings.waAnthropicKey,
+        geminiKey: localSettings.waGeminiKey,
       });
       const reply = res?.reply || "Sorry, कुछ problem आई। Dobara try करो।";
       const updated = [...newMessages, { role: "assistant", content: reply }];
@@ -6411,6 +6425,9 @@ function WhatsAppPage({ settings = {}, onSave }) {
       const trainLines = updated.filter((m) => m.role === "user").map((m) => m.content).join("\n");
       setTrainingData(trainLines);
       try { localStorage.setItem("erp_wa_training", trainLines); } catch {}
+      // Persist to the shared settings row so the webhook sees it too.
+      setLocalSettings((p) => ({ ...p, waAgentTraining: trainLines }));
+      if (onSave) onSave({ ...settings, ...localSettings, waAgentTraining: trainLines });
     } catch (e) {
       const updated = [...newMessages, { role: "assistant", content: `❌ Error: ${e?.message || "Connection failed"}` }];
       setChatMessages(updated);
@@ -6756,8 +6773,8 @@ action. If you need any help with this update, simply reply to this message.`}
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full flex items-center justify-center text-[16px] font-bold" style={{ background: "rgba(255,255,255,0.2)" }}>🤖</div>
                 <div>
-                  <div className="text-[14px] font-bold">Claude — WhatsApp Assistant</div>
-                  <div className="text-[10px] opacity-80">मुझे train करो — मैं सवाल पूछूँगा, तुम जवाब दो</div>
+                  <div className="text-[14px] font-bold">WhatsApp Auto-Reply Agent</div>
+                  <div className="text-[10px] opacity-80">मुझे train करो — यही agent WhatsApp पर जवाब देगा</div>
                 </div>
               </div>
               {chatMessages.length > 0 && (
@@ -6852,7 +6869,8 @@ action. If you need any help with this update, simply reply to this message.`}
                     { key: "waWabaId",       label: "WABA ID",                type: "text",     ph: "Templates बनाने के लिए" },
                     { key: "waOwnerPhone",   label: "Owner / Admin Phone",    type: "text",     ph: "919876543210", filter: /[^0-9]/g },
                     { key: "waGroupNumbers", label: "Dept Heads (comma-sep)", type: "text",     ph: "919876543210, 919876543211" },
-                    { key: "waAnthropicKey", label: "Anthropic API Key (AI)", type: "password", ph: "console.anthropic.com से" },
+                    { key: "waGeminiKey",    label: "Gemini API Key (AI)",    type: "password", ph: "aistudio.google.com से" },
+                    { key: "waAnthropicKey", label: "Anthropic API Key (optional)", type: "password", ph: "console.anthropic.com से" },
                   ].map(({ key, label, type, ph, filter }) => (
                     <div key={key}>
                       <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-dim)" }}>{label}</div>
@@ -6878,6 +6896,9 @@ action. If you need any help with this update, simply reply to this message.`}
                   { key: "waNotifyTransfer", icon: "🟢", label: "Transfer Complete", desc: "Machine handover → notification" },
                   { key: "waNotifyDeadline", icon: "🟡", label: "Deadline Exceeded", desc: "Time limit cross → auto alert" },
                   { key: "waNotifyDaily",    icon: "📊", label: "Daily Summary",     desc: "Morning summary — 8 AM" },
+                  // Turns the Gemini auto-reply webhook on. Off by default so
+                  // nothing answers customers until the operator has trained it.
+                  { key: "waAutoReply",      icon: "🤖", label: "Auto-Reply (AI)",   desc: "आने वाले message का अपने-आप जवाब" },
                 ].map(({ key, icon, label, desc }) => (
                   <div key={key} className="flex items-center justify-between py-2.5" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
                     <div className="flex items-center gap-2">

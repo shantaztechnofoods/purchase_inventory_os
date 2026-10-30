@@ -1,43 +1,49 @@
-// Vercel serverless function — Claude AI agent for WhatsApp training & config.
+// Vercel serverless function — the training chat for the WhatsApp auto-reply
+// agent, backed by Gemini.
 //
-// Deploys with the app on every push to main (no Supabase CLI). The ERP's
-// WhatsApp "Training" tab calls this to chat with Claude, who asks smart
-// questions to learn the business's departments, contacts and alert rules.
+// Gemini rather than Anthropic because the same key then powers the live
+// auto-reply webhook, and Gemini reads text, images AND audio natively — a
+// WhatsApp voice note needs no separate speech-to-text service.
 //
-// Body: { messages: [{role,content}], trainingData: string, anthropicKey: string }
+// This endpoint is where the operator TEACHES the agent. The webhook
+// (whatsapp-webhook.js) is where the agent answers real customers using what
+// was taught here.
 //
-// Security: anthropicKey arrives in the request body from the ERP's WhatsApp
-//   settings. Never stored here, never committed to git. The Anthropic call is
-//   made server-side so the key is not exposed as a browser third-party request.
+// Body: { messages: [{role, content}], trainingData, geminiKey }
+// Out:  { success, reply }
+//
+// The key arrives in the request body from the ERP's WhatsApp settings and is
+// used server-side only — never committed, never a browser third-party call.
 
-const SYSTEM_PROMPT = `You are a WhatsApp configuration assistant for Shantaz Technofoods ERP.
-Your job is to TRAIN yourself by asking the user smart questions about their business.
+const MODEL = "gemini-2.0-flash";
 
-You speak Hindi (Hinglish is fine). Keep answers short and practical.
+const SYSTEM_PROMPT = `Tum Shantaz Technofoods ke WhatsApp auto-reply agent ho.
 
-YOUR GOAL: Learn everything needed to configure WhatsApp alerts perfectly.
+Is chat mein tumhara kaam SEEKHNA hai — owner tumhe sikhayega ki WhatsApp par
+aane wale messages ka kya jawab dena hai. Baad mein tum asli customers/employees
+ko inhi rules ke hisaab se jawab doge.
 
-WHAT YOU NEED TO LEARN (ask one topic at a time):
-1. Department list — kitne departments hain, unke naam
-2. Department heads — har department ke head ka naam aur phone number
-3. Alert rules — kaunse alerts kisko jaane chahiye
-   - Issue Raised → kis department ko, owner ko, ya sabko?
-   - Transfer Complete → notification kis kis ko?
-   - Deadline Exceeded → kitne time baad alert, kisko?
-4. Message format — message mein kya kya info honi chahiye
-5. Timing — raat ko message bhejein ya nahi, quiet hours?
-6. Groups — kya departments ka group banana hai?
-7. Daily summary — subah ka summary chahiye? kitne baje?
+TUMHARA KAAM IS TRAINING CHAT MEIN:
+- Owner se smart sawaal poochho taaki tum achhe se seekh sako
+- Ek baar mein ek hi topic, overwhelm mat karo
+- Jo seekha use short summary mein confirm karo
+- Hindi/Hinglish mein baat karo, simple rakho
+
+KYA-KYA SEEKHNA HAI (ek-ek karke):
+1. Business kya karta hai, kaun log message karenge (employees, departments)
+2. Common sawaal kya aate hain aur unka sahi jawab kya hai
+3. Machine/production se judi baat aaye to kya karna hai
+4. Photo aaye (jaise machine ka fault) to kaise react karna hai
+5. Voice note aaye to kaise handle karna hai
+6. Kab jawab dena hai aur kab "owner ko bata dunga" bolna hai
+7. Tone — formal ya casual, kaunsi bhasha
 
 RULES:
-- Ek baar mein ek hi topic poocho, overwhelm mat karo
-- User ka answer save karne layak summary banao
-- Jab ek topic complete ho, next pe jao
-- Hindi mein baat karo
+- Jo training pehle se saved hai use yaad rakho, dobara mat poochho
 - Short aur crisp raho
-- Jab sab training ho jaye, ek summary do ki "Maine ye sab seekha hai: ..."
+- Jab kaafi seekh lo to summary do: "Maine ye seekha hai: ..."
 
-TRAINING DATA (previously saved):
+ABHI TAK KI SAVED TRAINING:
 `;
 
 export default async function handler(req, res) {
@@ -46,35 +52,40 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
-    const { messages, trainingData, anthropicKey } = body;
+    const { messages, trainingData, geminiKey } = body;
 
-    if (!anthropicKey) { res.status(400).json({ error: "Anthropic API key chahiye — WhatsApp settings mein daalo" }); return; }
+    if (!geminiKey) { res.status(400).json({ error: "Gemini API key chahiye — WhatsApp Settings mein daalo" }); return; }
     if (!messages || !Array.isArray(messages)) { res.status(400).json({ error: "Missing messages array" }); return; }
 
-    const systemPrompt = SYSTEM_PROMPT + (trainingData || "(abhi kuch nahi seekha, naya user hai)");
+    const systemPrompt = SYSTEM_PROMPT + (trainingData || "(abhi kuch nahi seekha, naya setup hai)");
 
-    const resp = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": anthropicKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
+    // Gemini uses "model" where chat APIs usually say "assistant".
+    const contents = messages.slice(-20).map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: String(m.content || "") }],
+    }));
+
+    const resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents,
+          generationConfig: { maxOutputTokens: 1024, temperature: 0.7 },
+        }),
       },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages: messages.slice(-20), // last 20 for context window
-      }),
-    });
+    );
 
     const result = await resp.json().catch(() => ({}));
     if (!resp.ok) {
-      res.status(resp.status).json({ error: result?.error?.message || `Anthropic API returned ${resp.status}` });
+      res.status(resp.status).json({ error: result?.error?.message || `Gemini returned ${resp.status}` });
       return;
     }
 
-    const reply = result?.content?.[0]?.text || "Sorry, kuch problem aayi. Dobara try karo.";
+    const reply = result?.candidates?.[0]?.content?.parts?.map((p) => p?.text).filter(Boolean).join("")
+      || "Sorry, kuch problem aayi. Dobara try karo.";
     res.status(200).json({ success: true, reply });
   } catch (err) {
     res.status(500).json({ error: err?.message || "Internal server error" });
