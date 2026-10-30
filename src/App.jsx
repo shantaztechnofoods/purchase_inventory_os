@@ -6129,6 +6129,22 @@ function WhatsAppPage({ settings = {}, onSave }) {
   const [dirty, setDirty] = useState(false);
   const [section, setSection] = useState("chats"); // chats | templates | training | settings | log
 
+  // ── Live inbox ──
+  // Conversations are READ FROM CHAKRA HQ, not stored here. Chakra is already
+  // the system of record for everything the business number sends and receives,
+  // so mirroring it into our own table would only create a second copy that can
+  // drift. That is why this needs no webhook and no migration.
+  const [chats,        setChats]        = useState([]);
+  const [chatsLoading, setChatsLoading] = useState(false);
+  const [chatsErr,     setChatsErr]     = useState("");
+  const [activeChat,   setActiveChat]   = useState(null);
+  const [messages,     setMessages]     = useState([]);
+  const [msgsLoading,  setMsgsLoading]  = useState(false);
+  const [msgsErr,      setMsgsErr]      = useState("");
+  const [reply,        setReply]        = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
+  const threadEndRef = useRef(null);
+
   // ── Claude Agent State ──
   const [chatMessages, setChatMessages] = useState(() => {
     try { return JSON.parse(localStorage.getItem("erp_wa_agent_chat") || "[]"); } catch { return []; }
@@ -6171,6 +6187,86 @@ function WhatsAppPage({ settings = {}, onSave }) {
       logWaMessage(localSettings.waOwnerPhone, "Test message", "failed");
     }
     setTimeout(() => setTestStatus(null), 4000);
+  };
+
+  // ── Inbox loaders ───────────────────────────────────────────────────────
+  const loadChats = async () => {
+    if (!localSettings.waApiKey) { setChatsErr("पहले Settings में API key डालो"); return; }
+    setChatsLoading(true); setChatsErr("");
+    try {
+      const { callWhatsAppFn } = await import("./stores/adminApi.js");
+      const res = await callWhatsAppFn("whatsapp-chats", { apiKey: localSettings.waApiKey });
+      if (res?.success) setChats(res.chats || []);
+      else setChatsErr(res?.error || "Chats नहीं आ सकीं");
+    } catch (e) {
+      setChatsErr(e?.message || "Connection failed");
+    }
+    setChatsLoading(false);
+  };
+
+  const openChat = async (chat) => {
+    setActiveChat(chat);
+    setMessages([]); setMsgsErr(""); setMsgsLoading(true);
+    try {
+      const { callWhatsAppFn } = await import("./stores/adminApi.js");
+      const res = await callWhatsAppFn("whatsapp-messages", { apiKey: localSettings.waApiKey, chatId: chat.id });
+      if (res?.success) setMessages(res.messages || []);
+      else setMsgsErr(res?.error || "Messages नहीं आ सके");
+    } catch (e) {
+      setMsgsErr(e?.message || "Connection failed");
+    }
+    setMsgsLoading(false);
+  };
+
+  // Replying to someone who just messaged is a SESSION message, which WhatsApp
+  // allows because their own message opened the 24-hour window. No approved
+  // template is needed here — that is only required to start a conversation.
+  const sendReply = async () => {
+    const text = reply.trim();
+    if (!text || sendingReply || !activeChat?.phone) return;
+    setSendingReply(true);
+    const optimistic = { id: `tmp-${Date.now()}`, text, direction: "outbound", status: "sending", ts: Date.now() };
+    setMessages((prev) => [...prev, optimistic]);
+    setReply("");
+    try {
+      const { callWhatsAppFn } = await import("./stores/adminApi.js");
+      const res = await callWhatsAppFn("whatsapp-send", {
+        to: activeChat.phone,
+        message: text,
+        apiKey: localSettings.waApiKey,
+        pluginId: localSettings.waPluginId || "",
+        phoneId: localSettings.waPhoneId || "",
+      });
+      setMessages((prev) => prev.map((m) => m.id === optimistic.id
+        ? { ...m, status: res?.success ? "sent" : "failed" }
+        : m));
+      if (!res?.success) setMsgsErr(res?.error || "Message नहीं गया");
+      else logWaMessage(activeChat.phone, text, "sent");
+    } catch (e) {
+      setMessages((prev) => prev.map((m) => m.id === optimistic.id ? { ...m, status: "failed" } : m));
+      setMsgsErr(e?.message || "Send failed");
+    }
+    setSendingReply(false);
+  };
+
+  // Pull the inbox when the Chats tab opens and a key is configured.
+  useEffect(() => {
+    if (section === "chats" && localSettings.waApiKey && chats.length === 0 && !chatsLoading && !chatsErr) {
+      loadChats();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section, localSettings.waApiKey]);
+
+  useEffect(() => {
+    if (threadEndRef.current) threadEndRef.current.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const waTime = (ts) => {
+    if (!ts) return "";
+    const n = Number(ts);
+    const d = new Date(n < 1e12 ? n * 1000 : n);   // Chakra sends seconds on some rows
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
   };
 
   const logWaMessage = (to, message, status) => {
@@ -6285,44 +6381,158 @@ function WhatsAppPage({ settings = {}, onSave }) {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* ═══ CHATS (Quick Send) ═══ */}
         {section === "chats" && (
-          <div className="flex-1 flex flex-col">
-            <div className="px-5 py-3 flex items-center gap-3" style={{ background: "var(--surface-raised)", borderBottom: "1px solid var(--border-subtle)" }}>
-              <span className="text-lg">💬</span>
-              <div>
-                <div className="text-[14px] font-bold" style={{ color: "var(--text)" }}>Chats</div>
-                <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>Recent WhatsApp activity</div>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              {msgLog.length === 0 ? (
-                <div className="text-center py-16">
-                  <div className="text-5xl mb-4">💬</div>
-                  <div className="text-[15px] font-bold mb-2" style={{ color: "var(--text)" }}>कोई chat नहीं है अभी</div>
-                  <div className="text-[12px]" style={{ color: "var(--text-dim)" }}>जब ERP से WhatsApp alerts जाएंगे, तो यहाँ दिखेंगे</div>
+          <div className="flex-1 flex min-h-0">
+
+            {/* ── Conversation list ── */}
+            <div className="flex flex-col min-h-0"
+                 style={{ width: activeChat ? 300 : "100%", borderRight: activeChat ? "1px solid var(--border-subtle)" : "none" }}>
+              <div className="px-5 py-3 flex items-center gap-3 flex-shrink-0"
+                   style={{ background: "var(--surface-raised)", borderBottom: "1px solid var(--border-subtle)" }}>
+                <span className="text-lg">💬</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[14px] font-bold" style={{ color: "var(--text)" }}>Chats</div>
+                  <div className="text-[11px] truncate" style={{ color: "var(--text-dim)" }}>
+                    {chatsLoading ? "आ रही हैं…" : `${chats.length} बातचीत`}
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  {msgLog.slice(0, 50).map((m, i) => (
-                    <div key={i} className="flex items-start gap-3 p-3 rounded-xl"
-                         style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
-                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-[14px] flex-shrink-0"
-                           style={{ background: m.status === "sent" ? "rgba(37,211,102,0.1)" : "rgba(220,38,38,0.1)" }}>
-                        {m.status === "sent" ? "✅" : "❌"}
+                <button onClick={loadChats} disabled={chatsLoading}
+                        title="Refresh"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[13px] disabled:opacity-40"
+                        style={{ background: "rgba(37,211,102,0.12)", color: "#128c7e" }}>
+                  {chatsLoading ? "⏳" : "⟳"}
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto">
+                {chatsErr && (
+                  <div className="m-3 px-3 py-2.5 rounded-lg text-[11px]"
+                       style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.3)", color: "#b91c1c" }}>
+                    ⚠️ {chatsErr}
+                  </div>
+                )}
+
+                {!chatsLoading && !chatsErr && chats.length === 0 && (
+                  <div className="text-center py-16 px-6">
+                    <div className="text-5xl mb-4">💬</div>
+                    <div className="text-[15px] font-bold mb-2" style={{ color: "var(--text)" }}>कोई chat नहीं है अभी</div>
+                    <div className="text-[12px]" style={{ color: "var(--text-dim)" }}>
+                      कोई आपके WhatsApp नंबर पर message करेगा तो यहाँ दिखेगा
+                    </div>
+                  </div>
+                )}
+
+                {chats.map((c) => {
+                  const active = activeChat?.id === c.id;
+                  return (
+                    <button key={c.id} onClick={() => openChat(c)}
+                            className="w-full text-left px-4 py-3 flex items-start gap-3 transition-all"
+                            style={{
+                              background: active ? "rgba(37,211,102,0.10)" : "transparent",
+                              borderBottom: "1px solid var(--border-subtle)",
+                              borderLeft: active ? "3px solid #25d366" : "3px solid transparent",
+                            }}>
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center text-[14px] font-bold flex-shrink-0"
+                           style={{ background: "rgba(37,211,102,0.15)", color: "#128c7e" }}>
+                        {(c.name || "?").trim().charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="text-[12px] font-bold" style={{ color: "var(--text)" }}>{m.to}</div>
-                          <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>
-                            {new Date(m.time).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-[12.5px] font-bold truncate" style={{ color: "var(--text)" }}>{c.name}</div>
+                          <div className="text-[9px] flex-shrink-0" style={{ color: "var(--text-dim)" }}>{waTime(c.lastTs)}</div>
+                        </div>
+                        <div className="text-[11.5px] truncate mt-0.5" style={{ color: "var(--text-dim)" }}>
+                          {c.lastDirection === "outbound" && <span style={{ color: "#128c7e" }}>✓ </span>}
+                          {c.lastText || "—"}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── Conversation thread ── */}
+            {activeChat && (
+              <div className="flex-1 flex flex-col min-h-0" style={{ background: "#efe7de" }}>
+                <div className="px-4 py-3 flex items-center gap-3 flex-shrink-0"
+                     style={{ background: "var(--surface-raised)", borderBottom: "1px solid var(--border-subtle)" }}>
+                  <button onClick={() => { setActiveChat(null); setMessages([]); setMsgsErr(""); }}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-[14px]"
+                          style={{ color: "var(--text-dim)" }}>←</button>
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-bold"
+                       style={{ background: "rgba(37,211,102,0.15)", color: "#128c7e" }}>
+                    {(activeChat.name || "?").trim().charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-bold truncate" style={{ color: "var(--text)" }}>{activeChat.name}</div>
+                    <div className="text-[10.5px] font-mono truncate" style={{ color: "var(--text-dim)" }}>{activeChat.phone}</div>
+                  </div>
+                  <button onClick={() => openChat(activeChat)} disabled={msgsLoading}
+                          title="Refresh" className="w-8 h-8 rounded-lg flex items-center justify-center text-[13px] disabled:opacity-40"
+                          style={{ background: "rgba(37,211,102,0.12)", color: "#128c7e" }}>
+                    {msgsLoading ? "⏳" : "⟳"}
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+                  {msgsLoading && messages.length === 0 && (
+                    <div className="text-center py-10 text-[12px]" style={{ color: "#5b6b63" }}>messages आ रहे हैं…</div>
+                  )}
+                  {!msgsLoading && messages.length === 0 && !msgsErr && (
+                    <div className="text-center py-10 text-[12px]" style={{ color: "#5b6b63" }}>इस chat में अभी कोई message नहीं</div>
+                  )}
+
+                  {messages.map((m) => {
+                    const out = m.direction === "outbound";
+                    return (
+                      <div key={m.id} className="flex" style={{ justifyContent: out ? "flex-end" : "flex-start" }}>
+                        <div className="max-w-[78%] px-3 py-2 rounded-xl"
+                             style={{
+                               background: out ? "#d9fdd3" : "#ffffff",
+                               boxShadow: "0 1px 1px rgba(0,0,0,0.08)",
+                               borderTopRightRadius: out ? 4 : 12,
+                               borderTopLeftRadius:  out ? 12 : 4,
+                             }}>
+                          <div className="text-[12.5px] leading-snug whitespace-pre-wrap break-words" style={{ color: "#111b21" }}>
+                            {m.text || (m.hasAttachment ? "📎 attachment" : "—")}
+                          </div>
+                          <div className="flex items-center justify-end gap-1 mt-0.5">
+                            <span className="text-[9px]" style={{ color: "#667781" }}>{waTime(m.ts)}</span>
+                            {out && (
+                              <span className="text-[9px]" style={{ color: m.status === "failed" ? "#dc2626" : "#53bdeb" }}>
+                                {m.status === "failed" ? "✕" : m.status === "sending" ? "🕐" : "✓✓"}
+                              </span>
+                            )}
                           </div>
                         </div>
-                        <div className="text-[12px] truncate" style={{ color: "var(--text-dim)" }}>{m.message}</div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
+                  <div ref={threadEndRef} />
                 </div>
-              )}
-            </div>
+
+                {msgsErr && (
+                  <div className="mx-4 mb-2 px-3 py-2 rounded-lg text-[11px] flex-shrink-0"
+                       style={{ background: "rgba(220,38,38,0.1)", border: "1px solid rgba(220,38,38,0.3)", color: "#b91c1c" }}>
+                    ⚠️ {msgsErr}
+                  </div>
+                )}
+
+                <div className="px-3 py-3 flex items-center gap-2 flex-shrink-0"
+                     style={{ background: "var(--surface-raised)", borderTop: "1px solid var(--border-subtle)" }}>
+                  <input value={reply} onChange={(e) => setReply(e.target.value)}
+                         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } }}
+                         placeholder="Message likho…"
+                         className="flex-1 rounded-full px-4 py-2.5 text-[13px] outline-none"
+                         style={{ background: "var(--surface-input, #fff)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
+                  <button onClick={sendReply} disabled={!reply.trim() || sendingReply}
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-white text-[15px] disabled:opacity-40 flex-shrink-0"
+                          style={{ background: "linear-gradient(135deg,#25d366,#128c7e)" }}>
+                    {sendingReply ? "⏳" : "➤"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
