@@ -15,7 +15,8 @@
 // The key arrives in the request body from the ERP's WhatsApp settings and is
 // used server-side only — never committed, never a browser third-party call.
 
-const MODEL = "gemini-flash-latest";
+const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
+const MODEL      = "gemini-3.8-flash";
 
 const SYSTEM_PROMPT = `Tum Shantaz Technofoods ke WhatsApp auto-reply agent ho.
 
@@ -63,19 +64,19 @@ export default async function handler(req, res) {
     if (body.pingModel) {
       const t0 = Date.now();
       try {
-        const pr = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${body.pingModel}:generateContent`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
-            body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "say ok" }] }] }),
-            signal: AbortSignal.timeout(12000),
-          },
-        );
+        const pr = await fetch(GEMINI_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
+          body: JSON.stringify({ model: body.pingModel, input: "say ok", store: false }),
+          signal: AbortSignal.timeout(12000),
+        });
         const pj = await pr.json().catch(() => ({}));
         res.status(200).json({
           success: true, ms: Date.now() - t0, status: pr.status,
-          text: pj?.candidates?.[0]?.content?.parts?.[0]?.text || null,
+          text: (Array.isArray(pj?.steps) ? pj.steps : [])
+            .filter((s) => s?.type === "model_output")
+            .flatMap((s) => s?.content || [])
+            .filter((c) => c?.type === "text").map((c) => c.text).join("") || null,
           error: pj?.error?.message || null,
         });
       } catch (e) {
@@ -107,24 +108,25 @@ export default async function handler(req, res) {
 
     const systemPrompt = SYSTEM_PROMPT + (trainingData || "(abhi kuch nahi seekha, naya setup hai)");
 
-    // Gemini uses "model" where chat APIs usually say "assistant".
-    const contents = messages.slice(-20).map((m) => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: String(m.content || "") }],
-    }));
+    // Interactions can carry a conversation server-side via
+    // previous_interaction_id, but that requires storing it on Google's side.
+    // The training chat already holds its own history, so the turns are
+    // flattened into one stateless input instead.
+    const transcript = messages.slice(-20)
+      .map((m) => `${m.role === "assistant" ? "Tum" : "Owner"}: ${String(m.content || "")}`)
+      .join("\n");
 
-    const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          contents,
-          generationConfig: { maxOutputTokens: 1024, temperature: 0.7 },
-        }),
-      },
-    );
+    const resp = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
+      body: JSON.stringify({
+        model: MODEL,
+        system_instruction: systemPrompt,
+        input: [{ type: "text", text: transcript }],
+        store: false,
+      }),
+      signal: AbortSignal.timeout(25000),
+    });
 
     const result = await resp.json().catch(() => ({}));
     if (!resp.ok) {
@@ -132,7 +134,13 @@ export default async function handler(req, res) {
       return;
     }
 
-    const reply = result?.candidates?.[0]?.content?.parts?.map((p) => p?.text).filter(Boolean).join("")
+    const reply = (Array.isArray(result?.steps) ? result.steps : [])
+      .filter((s) => s?.type === "model_output")
+      .flatMap((s) => (Array.isArray(s?.content) ? s.content : []))
+      .filter((c) => c?.type === "text")
+      .map((c) => c.text)
+      .filter(Boolean)
+      .join("")
       || "Sorry, kuch problem aayi. Dobara try karo.";
     res.status(200).json({ success: true, reply });
   } catch (err) {

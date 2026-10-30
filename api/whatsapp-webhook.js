@@ -36,12 +36,12 @@ import crypto from "node:crypto";
 // Chakra sent, so a parsed-and-reserialised object would not match.
 export const config = { api: { bodyParser: false } };
 
-// Models get retired without warning — gemini-2.0-flash was, mid-setup, and
-// the replacement Google's own error suggested was not available to this key
-// either. "gemini-flash-latest" is an alias that always resolves to the
-// current flash model, so a retirement stops being an outage; the explicit
-// versions behind it are the fallback if the alias is ever unavailable.
-const GEMINI_MODELS = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-3-flash-preview"];
+// Google has moved new accounts off generateContent: every older model answers
+// "no longer available to new users ... we recommend the Interactions API".
+// So this calls /v1beta/interactions, which is also simpler — one input array
+// carrying text, images and audio together.
+const GEMINI_URL    = "https://generativelanguage.googleapis.com/v1beta/interactions";
+const GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3-flash-preview"];
 const WA_API_VERSION = "v21.0";
 const MAX_MEDIA_BYTES = 15 * 1024 * 1024;
 
@@ -255,8 +255,10 @@ export default async function handler(req, res) {
     if (!settings.waPluginId || !settings.waPhoneId) return done({ skipped: "plugin/phone id missing in ERP settings" });
 
     // ── Assemble what Gemini sees: the text plus any readable media ──
-    const parts = [];
-    if (inbound.text) parts.push({ text: inbound.text });
+    // Interactions takes one flat `input` array of typed items, so a photo and
+    // a voice note travel beside the text instead of in a separate structure.
+    const input = [];
+    if (inbound.text) input.push({ type: "text", text: inbound.text });
 
     const mediaNotes = [];
     for (const m of inbound.media.slice(0, 3)) {
@@ -264,37 +266,37 @@ export default async function handler(req, res) {
       if (!file) { mediaNotes.push(`${m.kind}: download failed`); continue; }
       const mime = geminiMime(m.mimeType, file.mimeType, m.kind);
       if (!mime) { mediaNotes.push(`${m.kind}: unsupported type`); continue; }
-      parts.push({ inlineData: { mimeType: mime, data: file.buf.toString("base64") } });
+      input.push({
+        type: mime.startsWith("image/") ? "image" : mime.startsWith("audio/") ? "audio" : "video",
+        mime_type: mime,
+        data: file.buf.toString("base64"),
+      });
     }
 
-    if (parts.length === 0) {
+    if (input.length === 0) {
       return done({ skipped: `nothing readable${mediaNotes.length ? ` (${mediaNotes.join("; ")})` : ""}` });
     }
 
     // ── Ask Gemini ──
-    const gBody = JSON.stringify({
-      systemInstruction: {
-        parts: [{ text: SYSTEM_PROMPT + (settings.waAgentTraining || "(abhi koi training nahi di gayi hai)") }],
-      },
-      contents: [{ role: "user", parts }],
-      generationConfig: { maxOutputTokens: 600, temperature: 0.6 },
-    });
-
+    // store:false keeps this stateless — we hold no conversation on Google's
+    // side, and each WhatsApp message is answered on its own.
     let gJson, lastErr = "";
     try {
       for (const model of GEMINI_MODELS) {
-        const gResp = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "x-goog-api-key": settings.waGeminiKey },
-            body: gBody,
-            // A hung upstream must not hang the webhook: Chakra is waiting on
-            // this response, and a serverless function that never returns is
-            // killed without saying why.
-            signal: AbortSignal.timeout(20000),
-          },
-        );
+        const gResp = await fetch(GEMINI_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": settings.waGeminiKey },
+          body: JSON.stringify({
+            model,
+            system_instruction: SYSTEM_PROMPT + (settings.waAgentTraining || "(abhi koi training nahi di gayi hai)"),
+            input,
+            store: false,
+          }),
+          // A hung upstream must not hang the webhook: Chakra is waiting on
+          // this response, and a serverless function that never returns is
+          // killed without saying why.
+          signal: AbortSignal.timeout(20000),
+        });
         const j = await gResp.json().catch(() => ({}));
         if (gResp.ok) { gJson = j; break; }
         lastErr = `${model}: HTTP ${gResp.status} ${j?.error?.message || ""}`.trim();
@@ -307,11 +309,19 @@ export default async function handler(req, res) {
       return done({ skipped: `gemini call failed: ${e?.message || e}` });
     }
 
-    const reply = (gJson?.candidates?.[0]?.content?.parts || [])
-      .map((p) => p?.text).filter(Boolean).join("").trim();
+    // Interactions answers with steps[]; the reply is the text content of the
+    // model_output step. Several steps can carry text, so they are joined.
+    const reply = (Array.isArray(gJson?.steps) ? gJson.steps : [])
+      .filter((s) => s?.type === "model_output")
+      .flatMap((s) => (Array.isArray(s?.content) ? s.content : []))
+      .filter((c) => c?.type === "text")
+      .map((c) => c.text)
+      .filter(Boolean)
+      .join("")
+      .trim();
     if (!reply) {
-      // Usually a safety block or an empty candidate — worth seeing in the logs.
-      return done({ skipped: "gemini returned no text", finishReason: gJson?.candidates?.[0]?.finishReason });
+      // Usually a safety block or an unfinished interaction — worth logging.
+      return done({ skipped: "gemini returned no text", interactionStatus: gJson?.status });
     }
 
     // ── Send the reply (session message — their message opened the window) ──
