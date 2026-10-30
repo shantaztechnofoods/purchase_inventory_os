@@ -283,3 +283,27 @@ test("parseInterview: caps suggestions at four and drops blanks", () => {
   const q = parseInterview('{"situation":"s","question":"q","options":["a"," ","b","c","d","e"]}');
   assert.deepEqual(q.options, ["a", "b", "c", "d"]);
 });
+
+test("normaliseAttachments: a hosted file URL is enough, no media id needed", () => {
+  const out = normaliseAttachments({ attachments: [{ url: "https://cdn.chakrahq.com/f/abc.jpg", mimeType: "image/jpeg", fileName: "IMG_1.jpg" }] });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].kind, "image");
+  assert.equal(out[0].url, "https://cdn.chakrahq.com/f/abc.jpg");
+  assert.equal(out[0].filename, "IMG_1.jpg");
+});
+
+test("normaliseAttachments: finds WhatsApp media nested deep inside body", () => {
+  const out = normaliseAttachments({ id: "msg1", body: { type: "image", image: { id: "WAMID9", mime_type: "image/jpeg", caption: "seal" } } });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].mediaId, "WAMID9");
+  assert.equal(out[0].caption, "seal");
+});
+
+test("normaliseAttachments: the message's own id is never mistaken for media", () => {
+  assert.deepEqual(normaliseAttachments({ id: "msg1", text: "hello", direction: "INBOUND" }), []);
+});
+
+test("normaliseAttachments: the same file listed twice is shown once", () => {
+  const out = normaliseAttachments({ attachments: [{ id: "A", mimeType: "image/png" }], image: { id: "A", mime_type: "image/png" } });
+  assert.equal(out.length, 1);
+});

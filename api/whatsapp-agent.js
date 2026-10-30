@@ -24,7 +24,7 @@ const MODEL      = "gemini-3-flash-preview";
 // gone" — the same order and rule the live webhook uses, so a test here
 // behaves like the real thing.
 async function askGemini(geminiKey, system, text) {
-  let lastErr = "Gemini se jawab nahi aaya";
+  let lastErr = "No reply from Gemini";
   for (const model of GEMINI_MODELS) {
     try {
       const r = await fetch(GEMINI_URL, {
@@ -44,7 +44,7 @@ async function askGemini(geminiKey, system, text) {
       lastErr = j?.error?.message || `Gemini returned ${r.status}`;
       if (![400, 404, 429, 503].includes(r.status) && r.ok === false) break;
     } catch (e) {
-      lastErr = e?.name === "TimeoutError" ? "Gemini ne time par jawab nahi diya" : (e?.message || lastErr);
+      lastErr = e?.name === "TimeoutError" ? "Gemini did not reply in time" : (e?.message || lastErr);
     }
   }
   return { ok: false, error: lastErr };
@@ -118,13 +118,13 @@ export default async function handler(req, res) {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
     const { messages, trainingData, geminiKey, listModels } = body;
 
-    if (!geminiKey) { res.status(400).json({ error: "Gemini API key chahiye — WhatsApp Settings mein daalo" }); return; }
+    if (!geminiKey) { res.status(400).json({ error: "Add the Gemini API key in WhatsApp Settings" }); return; }
 
     // Test: the reply the live webhook WOULD send for this message, with the
     // same prompt and the same rules — but nothing goes out on WhatsApp.
     if (body.mode === "test") {
       const msg = String(body.message || "").trim();
-      if (!msg) { res.status(400).json({ error: "Test message likho" }); return; }
+      if (!msg) { res.status(400).json({ error: "Type a test message" }); return; }
       const r = await askGemini(geminiKey, REPLY_PROMPT + (trainingData || "(abhi koi training nahi)"), msg);
       if (!r.ok) { res.status(502).json({ error: r.error }); return; }
       res.status(200).json({ success: true, reply: r.text });
@@ -143,7 +143,7 @@ export default async function handler(req, res) {
         const q = parseInterview(r.text);
         if (q) { res.status(200).json({ success: true, ...q }); return; }
       }
-      res.status(502).json({ error: "Sawaal ban nahi paya, dobara try karo" });
+      res.status(502).json({ error: "Could not prepare a question, try again" });
       return;
     }
 
@@ -231,7 +231,7 @@ export default async function handler(req, res) {
       .map((c) => c.text)
       .filter(Boolean)
       .join("")
-      || "Sorry, kuch problem aayi. Dobara try karo.";
+      || "Something went wrong. Try again.";
     res.status(200).json({ success: true, reply });
   } catch (err) {
     res.status(500).json({ error: err?.message || "Internal server error" });

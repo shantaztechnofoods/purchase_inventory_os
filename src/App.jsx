@@ -2424,7 +2424,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
           <div>
             <Label text={`Check Points${checkPoints.length ? ` (${checkPoints.length})` : ""}`} />
             <div className="text-[10px] text-slate-500 mb-2">
-              Outward के वक़्त store वाले को ये points popup में दिखेंगे. जैसे — "Handle with care", "Shaft diameter check करो".
+              The store operator sees these points in a popup at Outward. e.g. "Handle with care", "Check shaft diameter".
             </div>
 
             {checkPoints.length > 0 && (
@@ -2444,7 +2444,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
             <div className="flex gap-2">
               <input value={cpDraft} onChange={(e) => setCpDraft(e.target.value)}
                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCheckPoint(); } }}
-                     placeholder="जैसे: Handle with care — rubber item"
+                     placeholder="e.g. Handle with care — rubber item"
                      className={inp(false)} />
               <button type="button" onClick={addCheckPoint} disabled={!cpDraft.trim()}
                       className="px-4 rounded-xl text-[12px] font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
@@ -2458,7 +2458,7 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
                   className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-[12px] font-bold text-slate-700 transition-all"
                   style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.12)" }}>
             <span>⚙️ Purchase / Vendor / Media details {showAdvanced ? "" : "(optional)"}</span>
-            <span className="text-[10px]">{showAdvanced ? "▲ छुपाओ" : "▼ खोलो"}</span>
+            <span className="text-[10px]">{showAdvanced ? "▲ Hide" : "▼ Show"}</span>
           </button>
 
           {showAdvanced && (<>
@@ -3044,7 +3044,7 @@ function ClearDemoDataModal({ items = {}, bomDefs = {}, onDeleteItem, onDeleteBO
         <div className="px-6 py-5 border-b border-slate-200"
              style={{ background: "linear-gradient(90deg,rgba(239,68,68,0.10),rgba(239,68,68,0.04))" }}>
           <div className="text-[15px] font-semibold text-slate-900">🧹 Clear Demo Data</div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Trial शुरू करने से पहले पुराना demo data हटाओ</div>
+          <div className="text-[11px] text-slate-500 mt-0.5">Remove old demo data before starting the trial</div>
         </div>
 
         <div className="px-6 py-5 space-y-4">
@@ -3054,8 +3054,8 @@ function ClearDemoDataModal({ items = {}, bomDefs = {}, onDeleteItem, onDeleteBO
                 <input type="checkbox" checked={wipeBoms} disabled={busy}
                        onChange={(e) => setWipeBoms(e.target.checked)} className="mt-0.5" />
                 <div>
-                  <div className="text-[13px] font-bold text-slate-900">सारे BOM delete करो ({bomKeys.length})</div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">Rack में पड़ी machines का material वापस stock में आ जाएगा. Active production वाले BOM delete नहीं होंगे.</div>
+                  <div className="text-[13px] font-bold text-slate-900">Delete all BOMs ({bomKeys.length})</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">Material of machines on the rack returns to stock. BOMs in active production are not deleted.</div>
                 </div>
               </label>
 
@@ -3063,14 +3063,14 @@ function ClearDemoDataModal({ items = {}, bomDefs = {}, onDeleteItem, onDeleteBO
                 <input type="checkbox" checked={wipeItems} disabled={busy}
                        onChange={(e) => setWipeItems(e.target.checked)} className="mt-0.5" />
                 <div>
-                  <div className="text-[13px] font-bold text-slate-900">सारी Items delete करो ({flatItems.length})</div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">Item Master पूरा खाली हो जाएगा.</div>
+                  <div className="text-[13px] font-bold text-slate-900">Delete all items ({flatItems.length})</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">Item Master will be emptied completely.</div>
                 </div>
               </label>
 
               <div className="px-4 py-3 rounded-xl" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.25)" }}>
-                <div className="text-[11px] font-bold text-red-700">⚠️ ये वापस नहीं हो सकता (undo नहीं है)</div>
-                <div className="text-[11px] text-slate-600 mt-1">पक्का करने के लिए नीचे <b>DELETE</b> type करो.</div>
+                <div className="text-[11px] font-bold text-red-700">⚠️ This cannot be undone</div>
+                <div className="text-[11px] text-slate-600 mt-1">Type <b>DELETE</b> below to confirm.</div>
               </div>
 
               <input value={confirm} onChange={(e) => setConfirm(e.target.value)} disabled={busy}
@@ -3093,14 +3093,14 @@ function ClearDemoDataModal({ items = {}, bomDefs = {}, onDeleteItem, onDeleteBO
           {result && (
             <div className="space-y-3">
               <div className="px-4 py-3 rounded-xl" style={{ background: "rgba(16,185,129,0.07)", border: "1px solid rgba(16,185,129,0.3)" }}>
-                <div className="text-[13px] font-bold text-emerald-700">✅ हो गया</div>
+                <div className="text-[13px] font-bold text-emerald-700">✅ Done</div>
                 <div className="text-[12px] text-slate-700 mt-1">
-                  {result.boms} BOM और {result.items} item delete हुए.
+                  {result.boms} BOMs and {result.items} items deleted.
                 </div>
               </div>
               {result.failed.length > 0 && (
                 <div className="px-4 py-3 rounded-xl max-h-44 overflow-y-auto" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.25)" }}>
-                  <div className="text-[11px] font-bold text-red-700 mb-1">{result.failed.length} नहीं हुए:</div>
+                  <div className="text-[11px] font-bold text-red-700 mb-1">{result.failed.length} failed:</div>
                   {result.failed.map((f, i) => (
                     <div key={i} className="text-[10px] text-slate-600 leading-relaxed">• {f}</div>
                   ))}
@@ -3111,7 +3111,7 @@ function ClearDemoDataModal({ items = {}, bomDefs = {}, onDeleteItem, onDeleteBO
         </div>
 
         <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-2">
-          <Btn variant="ghost" size="sm" onClick={onClose} disabled={busy}>{result ? "बंद करो" : "Cancel"}</Btn>
+          <Btn variant="ghost" size="sm" onClick={onClose} disabled={busy}>{result ? "Close" : "Cancel"}</Btn>
           {!result && (
             <button onClick={run} disabled={!armed}
                     className="text-xs font-bold px-4 py-2 rounded-lg text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
@@ -3503,7 +3503,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
         )}
         {canDo("inventory","delete") && (
           <button onClick={() => setShowClearDemo(true)}
-                  title="Demo items + BOMs एक साथ delete करो"
+                  title="Delete demo items and BOMs together"
                   className="text-xs font-bold px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5"
                   style={{ borderColor: "rgba(239,68,68,0.35)", color: "#dc2626" }}>
             🧹 Clear Demo Data
@@ -6179,10 +6179,9 @@ function waWriteSeen(map) {
   // instead of polling localStorage.
   try { window.dispatchEvent(new Event("erp-wa-seen")); } catch {}
 }
-function waUnreadCount(chats = [], seen = {}, hidden = []) {
+function waUnreadCount(chats = [], seen = {}) {
   return chats.filter((c) =>
     c.lastDirection === "inbound" &&
-    !hidden.includes(c.id) &&
     Number(c.lastTs || 0) > Number(seen[c.id] || 0)
   ).length;
 }
@@ -6237,10 +6236,6 @@ function WhatsAppPage({ settings = {}, onSave }) {
     waGroupNumbers: settings.waGroupNumbers || "",
     // Names for the numbers in waGroupNumbers — see waParseDirectory.
     waDirectory: settings.waDirectory || "",
-    // Chat ids kept out of the ERP inbox. This HIDES, it does not delete:
-    // Chakra stays the record of what the number actually received, and
-    // clearing a conversation for real is done in Chakra itself.
-    waHiddenChats: settings.waHiddenChats || "",
     waAnthropicKey: settings.waAnthropicKey || "",
     // Gemini powers the auto-reply agent. Chosen over Anthropic because it
     // reads text, images AND audio natively — a voice note needs no separate
@@ -6287,7 +6282,6 @@ function WhatsAppPage({ settings = {}, onSave }) {
 
   // Which conversations have been read, and which are hidden from this inbox.
   const [seen,       setSeen]       = useState(() => waReadSeen());
-  const [showHidden, setShowHidden] = useState(false);
   // Downloaded attachments, keyed by "<messageId>:<index>". Fetched lazily and
   // held for the session only: a data: URL in React state costs nothing once
   // the thread is closed, and caching photos to disk is not ours to decide.
@@ -6307,17 +6301,13 @@ function WhatsAppPage({ settings = {}, onSave }) {
       .split(",").map((s) => s.trim()).filter(Boolean)
       .map((phone) => ({ name: "", phone, dept: "" }));
   }, [localSettings.waDirectory, localSettings.waGroupNumbers]);
-  const hiddenIds  = useMemo(() => {
-    try { const v = JSON.parse(localSettings.waHiddenChats || "[]"); return Array.isArray(v) ? v : []; }
-    catch { return []; }
-  }, [localSettings.waHiddenChats]);
 
   // phone (last 10 digits) -> { name, dept }
   const phoneBook = useMemo(() => {
     const map = {};
     directory.forEach((p) => { const k = waPhoneKey(p?.phone); if (k) map[k] = p; });
     const ownerKey = waPhoneKey(localSettings.waOwnerPhone);
-    if (ownerKey && !map[ownerKey]) map[ownerKey] = { name: "Aap (owner)", dept: "" };
+    if (ownerKey && !map[ownerKey]) map[ownerKey] = { name: "You (owner)", dept: "" };
     return map;
   }, [directory, localSettings.waOwnerPhone]);
 
@@ -6330,7 +6320,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
     return { name: fallback || phone || "Unknown", dept: "", known: false };
   };
 
-  const unread = useMemo(() => waUnreadCount(chats, seen, hiddenIds), [chats, seen, hiddenIds]);
+  const unread = useMemo(() => waUnreadCount(chats, seen), [chats, seen]);
 
   // What the list actually shows: hidden conversations dropped unless asked
   // for, then the search applied over the ERP's name, the department AND the
@@ -6339,13 +6329,12 @@ function WhatsAppPage({ settings = {}, onSave }) {
   const visibleChats = useMemo(() => {
     const q = chatSearch.trim().toLowerCase();
     return chats.filter((c) => {
-      if (!showHidden && hiddenIds.includes(c.id)) return false;
       if (!q) return true;
       const who = phoneBook[waPhoneKey(c.phone)] || {};
       return [who.name, who.dept, c.name, c.phone]
         .filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [chats, chatSearch, showHidden, hiddenIds, phoneBook]);
+  }, [chats, chatSearch, phoneBook]);
 
   // ── Settings state ──
   // revealKey decides whether a saved secret shows as "Saved · …abc123" or as
@@ -6395,7 +6384,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
     if (onSave) onSave({ ...settings, ...localSettings });
     setDirty(false);
     setRevealKey({});
-    setSaveNote("Save ho gaya");
+    setSaveNote("Saved");
     setTimeout(() => setSaveNote(""), 3000);
   };
 
@@ -6405,7 +6394,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
     !localSettings.waApiKey   && "API key",
     !localSettings.waPluginId && "Plugin ID",
     !localSettings.waPhoneId  && "Phone number ID",
-    !localSettings.waOwnerPhone && "aapka number",
+    !localSettings.waOwnerPhone && "your number",
   ].filter(Boolean);
 
   const deptNumbers = String(localSettings.waGroupNumbers || "")
@@ -6472,13 +6461,13 @@ function WhatsAppPage({ settings = {}, onSave }) {
   // quiet=true is the 25-second background poll: no spinner, and a failed poll
   // does not paint an error over a list that is still perfectly good.
   const loadChats = async (quiet = false) => {
-    if (!localSettings.waApiKey) { setChatsErr("पहले Settings में API key डालो"); return; }
+    if (!localSettings.waApiKey) { setChatsErr("Add the API key in Settings first"); return; }
     if (!quiet) { setChatsLoading(true); setChatsErr(""); }
     try {
       const { callWhatsAppFn } = await import("./stores/adminApi.js");
       const res = await callWhatsAppFn("whatsapp-chats", { apiKey: localSettings.waApiKey });
       if (res?.success) setChats(res.chats || []);
-      else if (!quiet) setChatsErr(res?.error || "Chats नहीं आ सकीं");
+      else if (!quiet) setChatsErr(res?.error || "Could not load chats");
     } catch (e) {
       if (!quiet) setChatsErr(e?.message || "Connection failed");
     }
@@ -6509,34 +6498,28 @@ function WhatsAppPage({ settings = {}, onSave }) {
           const pending = prev.filter((m) => m.status === "sending");
           return [...(res.messages || []), ...pending];
         });
-      } else if (!quiet) setMsgsErr(res?.error || "Messages नहीं आ सके");
+      } else if (!quiet) setMsgsErr(res?.error || "Could not load messages");
     } catch (e) {
       if (!quiet) setMsgsErr(e?.message || "Connection failed");
     }
     if (!quiet) setMsgsLoading(false);
   };
 
-  // Hide from the ERP inbox. Deliberately not a delete: Chakra HQ remains the
-  // record of what the business number received, and wiping that is a decision
-  // taken in Chakra, not a side effect of tidying a list here.
-  const hideChat = (id) => {
-    const next = [...new Set([...hiddenIds, id])];
-    upd("waHiddenChats", JSON.stringify(next));
-    if (activeChat?.id === id) { setActiveChat(null); setMessages([]); }
-  };
-  const unhideChat = (id) => upd("waHiddenChats", JSON.stringify(hiddenIds.filter((x) => x !== id)));
 
   // Attachments are fetched one at a time, on demand, through the server-side
   // proxy — the API key needed to download them must never reach the browser.
-  const loadMedia = async (key, mediaId) => {
-    if (!mediaId || media[key]) return;
+  // att carries a WhatsApp media id, a hosted file URL, or both; the proxy
+  // tries whichever it is given. force=true is the Retry button.
+  const loadMedia = async (key, att, force = false) => {
+    if (!att || (!att.mediaId && !att.url)) return;
+    if (media[key] && !force) return;
     setMedia((p) => ({ ...p, [key]: { loading: true } }));
     try {
       const { callWhatsAppFn } = await import("./stores/adminApi.js");
-      const res = await callWhatsAppFn("whatsapp-media", { apiKey: localSettings.waApiKey, mediaId });
-      setMedia((p) => ({ ...p, [key]: res?.success ? { url: res.dataUrl, mimeType: res.mimeType } : { err: res?.error || "नहीं आ सका" } }));
+      const res = await callWhatsAppFn("whatsapp-media", { apiKey: localSettings.waApiKey, mediaId: att.mediaId || "", url: att.url || "" });
+      setMedia((p) => ({ ...p, [key]: res?.success ? { url: res.dataUrl, mimeType: res.mimeType } : { err: res?.error || "Could not load" } }));
     } catch (e) {
-      setMedia((p) => ({ ...p, [key]: { err: e?.message || "नहीं आ सका" } }));
+      setMedia((p) => ({ ...p, [key]: { err: e?.message || "Could not load" } }));
     }
   };
 
@@ -6549,7 +6532,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
     if (digits.length < 10) return;
     const existing = chats.find((c) => waPhoneKey(c.phone) === waPhoneKey(digits));
     setComposeOpen(false); setComposeTo("");
-    if (existing) { unhideChat(existing.id); openChat(existing); return; }
+    if (existing) { openChat(existing); return; }
     // No conversation yet: show a thread that exists only in the browser until
     // the first message actually goes out.
     const who = whoIs(digits);
@@ -6579,7 +6562,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
       setMessages((prev) => prev.map((m) => m.id === optimistic.id
         ? { ...m, status: res?.success ? "sent" : "failed" }
         : m));
-      if (!res?.success) setMsgsErr(res?.error || "Message नहीं गया");
+      if (!res?.success) setMsgsErr(res?.error || "Message was not sent");
       else {
         logWaMessage(activeChat.phone, text, "sent");
         // A conversation started from the ERP has no Chakra chat id until the
@@ -6647,9 +6630,9 @@ function WhatsAppPage({ settings = {}, onSave }) {
     if (!activeChat?.id) return;
     const wanted = [];
     messages.forEach((m, mi) => (m.attachments || []).forEach((a, ai) => {
-      if (a.kind === "image" && a.mediaId) wanted.push([`${m.id || mi}:${ai}`, a.mediaId]);
+      if (a.kind === "image" && (a.mediaId || a.url)) wanted.push([`${m.id || mi}:${ai}`, a]);
     }));
-    wanted.slice(-12).forEach(([key, id]) => { if (!media[key]) loadMedia(key, id); });
+    wanted.slice(-12).forEach(([key, att]) => { if (!media[key]) loadMedia(key, att); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, activeChat?.id]);
 
@@ -6680,8 +6663,8 @@ function WhatsAppPage({ settings = {}, onSave }) {
 
   // ── Template loaders ────────────────────────────────────────────────────
   const loadTemplates = async () => {
-    if (!localSettings.waApiKey) { setTplErr("पहले Settings में API key डालो"); return; }
-    if (!localSettings.waWabaId) { setTplErr("पहले Settings में WABA ID डालो"); return; }
+    if (!localSettings.waApiKey) { setTplErr("Add the API key in Settings first"); return; }
+    if (!localSettings.waWabaId) { setTplErr("Add the WABA ID in Settings first"); return; }
     setTplLoading(true); setTplErr(""); setTplMsg("");
     try {
       const { callWhatsAppFn } = await import("./stores/adminApi.js");
@@ -6689,7 +6672,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
         action: "list", apiKey: localSettings.waApiKey, wabaId: localSettings.waWabaId,
       });
       if (res?.success) setTemplates(res.templates || []);
-      else setTplErr(res?.error || "Templates नहीं आ सके");
+      else setTplErr(res?.error || "Could not load templates");
     } catch (e) {
       setTplErr(e?.message || "Connection failed");
     }
@@ -6727,7 +6710,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
 
   const createAlertTemplate = async () => {
     if (!localSettings.waApiKey || !localSettings.waWabaId) {
-      setTplErr("पहले Settings में API key और WABA ID डालो"); return;
+      setTplErr("Add the API key and WABA ID in Settings first"); return;
     }
     setTplCreating(true); setTplErr(""); setTplMsg("");
     try {
@@ -6739,11 +6722,11 @@ function WhatsAppPage({ settings = {}, onSave }) {
         template: ERP_ALERT_TEMPLATE,
       });
       if (res?.success) {
-        setTplMsg(`✅ Template भेज दिया — status: ${res.status || "PENDING"}. Meta approve करेगा (few min–24h).`);
+        setTplMsg(`Template sent for approval — status: ${res.status || "PENDING"}. Meta usually decides within minutes, at most 24 hours.`);
         setShowNewTpl(false);
         loadTemplates();
       } else {
-        setTplErr(res?.error || "Template नहीं बना");
+        setTplErr(res?.error || "Template was not created");
       }
     } catch (e) {
       setTplErr(e?.message || "Create failed");
@@ -6772,17 +6755,17 @@ function WhatsAppPage({ settings = {}, onSave }) {
 
   const chooseAlertTemplate = (t) => {
     persist({ waAlertTemplate: t.name, waAlertTemplateLang: t.language || "en" });
-    setTplErr(""); setTplMsg(`Ab saare alerts "${t.name}" template se jayenge.`);
+    setTplErr(""); setTplMsg(`All alerts will now be sent with "${t.name}".`);
   };
   const stopTemplateForAlerts = () => {
     persist({ waAlertTemplate: "", waAlertTemplateLang: "" });
-    setTplErr(""); setTplMsg("Alerts ab sirf saadhe message se jayenge.");
+    setTplErr(""); setTplMsg("Alerts will now be sent as plain messages.");
   };
 
   // Sends the template, filled with its own sample values, to the owner's
   // number — the only honest way to know an approved template really arrives.
   const testTemplate = async (t) => {
-    if (!localSettings.waOwnerPhone) { setTplErr("Settings me aapka number daalo, test wahi jayega"); return; }
+    if (!localSettings.waOwnerPhone) { setTplErr("Add your number in Settings — the test is sent there"); return; }
     setTplBusy(`test:${t.name}`); setTplErr(""); setTplMsg("");
     const { callWhatsAppFn } = await import("./stores/adminApi.js");
     const res = await callWhatsAppFn("whatsapp-send", {
@@ -6790,8 +6773,8 @@ function WhatsAppPage({ settings = {}, onSave }) {
       apiKey: localSettings.waApiKey, pluginId: localSettings.waPluginId || "", phoneId: localSettings.waPhoneId || "",
       template: { name: t.name, language: t.language || "en", params: t.example || [] },
     });
-    if (res?.success) setTplMsg(`Test "${t.name}" aapke number par bhej diya — WhatsApp check karo.`);
-    else setTplErr(res?.error || "Test nahi gaya");
+    if (res?.success) setTplMsg(`Test of "${t.name}" sent to your number — check WhatsApp.`);
+    else setTplErr(res?.error || "Test was not sent");
     setTplBusy("");
   };
 
@@ -6804,8 +6787,8 @@ function WhatsAppPage({ settings = {}, onSave }) {
     if (res?.success) {
       if (localSettings.waAlertTemplate === t.name) persist({ waAlertTemplate: "", waAlertTemplateLang: "" });
       setTemplates((prev) => prev.filter((x) => x.name !== t.name));
-      setTplMsg(`"${t.name}" delete ho gaya.`);
-    } else setTplErr(res?.error || "Delete nahi hua");
+      setTplMsg(`"${t.name}" deleted.`);
+    } else setTplErr(res?.error || "Delete failed");
     setTplBusy("");
   };
 
@@ -6819,12 +6802,12 @@ function WhatsAppPage({ settings = {}, onSave }) {
   // What Meta will reject, caught before the round trip and said in words.
   const tplFormProblem = (() => {
     if (!tplForm) return "";
-    if (tplForm.mode === "create" && !/^[a-z0-9_]{1,512}$/.test(tplForm.name)) return "Naam me sirf chhote angrezi akshar, number aur _ (jaise: daily_stock_update)";
-    if (!tplForm.body.trim()) return "Message likho";
+    if (tplForm.mode === "create" && !/^[a-z0-9_]{1,512}$/.test(tplForm.name)) return "Name: lowercase letters, numbers and _ only (e.g. daily_stock_update)";
+    if (!tplForm.body.trim()) return "Write the message";
     const slots = tplSlots(tplForm.body);
-    if (slots.some((n, i) => n !== i + 1)) return "Khaali jagah {{1}}, {{2}}, {{3}}… kram se honi chahiye";
-    if (slots.some((n) => !String(tplForm.examples[n - 1] || "").trim())) return "Har khaali jagah ka ek udaharan bharo — Meta isi se samajhta hai";
-    if (/^\s*\{\{|\}\}\s*$/.test(tplForm.body)) return "Message {{n}} se shuru ya khatam nahi ho sakta";
+    if (slots.some((n, i) => n !== i + 1)) return "Placeholders must be in order: {{1}}, {{2}}, {{3}}…";
+    if (slots.some((n) => !String(tplForm.examples[n - 1] || "").trim())) return "Add a sample value for every placeholder — Meta reviews with these";
+    if (/^\s*\{\{|\}\}\s*$/.test(tplForm.body)) return "The message cannot start or end with a placeholder";
     return "";
   })();
 
@@ -6841,11 +6824,11 @@ function WhatsAppPage({ settings = {}, onSave }) {
           template: { name: tplForm.name, category: tplForm.category, language: tplForm.language, components: [bodyComp] } });
     if (res?.success) {
       setTplMsg(tplForm.mode === "edit"
-        ? `"${tplForm.name}" badal diya — Meta dobara dekhega.`
-        : `"${tplForm.name}" Meta ko bhej diya — approve hone me kuch minute se 24 ghante.`);
+        ? `"${tplForm.name}" updated — Meta will review it again.`
+        : `"${tplForm.name}" sent to Meta — approval takes minutes, at most 24 hours.`);
       setTplForm(null);
       loadTemplates();
-    } else setTplErr(res?.error || "Template save nahi hua");
+    } else setTplErr(res?.error || "Template was not saved");
     setTplCreating(false);
   };
 
@@ -6876,7 +6859,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
     const sameDay = d.toDateString() === now.toDateString();
     if (sameDay) return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
     const days = Math.round((now.setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) / 86400000);
-    if (days === 1) return "Kal";
+    if (days === 1) return "Yesterday";
     if (days < 7)   return d.toLocaleDateString("en-IN", { weekday: "short" });
     return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
   };
@@ -6892,8 +6875,8 @@ function WhatsAppPage({ settings = {}, onSave }) {
     if (!d) return "";
     const now = new Date();
     const days = Math.round((new Date(now).setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) / 86400000);
-    if (days === 0) return "Aaj";
-    if (days === 1) return "Kal";
+    if (days === 0) return "Today";
+    if (days === 1) return "Yesterday";
     return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
   };
 
@@ -6937,7 +6920,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
   const addRule = (text) => { if (String(text).trim()) writeRules([...rules, text]); };
 
   const nextQuestion = async () => {
-    if (!localSettings.waGeminiKey) { setIv((v) => ({ ...v, err: "Pehle Settings me Gemini key daalo" })); return; }
+    if (!localSettings.waGeminiKey) { setIv((v) => ({ ...v, err: "Add the Gemini key in Settings first" })); return; }
     setIv({ loading: true, err: "", q: null, custom: "" });
     const { callWhatsAppFn } = await import("./stores/adminApi.js");
     const res = await callWhatsAppFn("whatsapp-agent", {
@@ -6950,7 +6933,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
         try { localStorage.setItem("erp_wa_asked", JSON.stringify(next)); } catch {}
         return next;
       });
-    } else setIv({ loading: false, err: res?.error || "Sawaal nahi aaya", q: null, custom: "" });
+    } else setIv({ loading: false, err: res?.error || "Could not get a question", q: null, custom: "" });
   };
   const answerQuestion = (answer) => {
     if (!iv.q || !String(answer).trim()) return;
@@ -6962,13 +6945,13 @@ function WhatsAppPage({ settings = {}, onSave }) {
   const runTest = async () => {
     const msg = tst.msg.trim();
     if (!msg) return;
-    if (!localSettings.waGeminiKey) { setTst((t) => ({ ...t, err: "Pehle Settings me Gemini key daalo" })); return; }
+    if (!localSettings.waGeminiKey) { setTst((t) => ({ ...t, err: "Add the Gemini key in Settings first" })); return; }
     setTst((t) => ({ ...t, loading: true, reply: "", err: "" }));
     const { callWhatsAppFn } = await import("./stores/adminApi.js");
     const res = await callWhatsAppFn("whatsapp-agent", {
       mode: "test", geminiKey: localSettings.waGeminiKey, trainingData, message: msg,
     });
-    setTst((t) => ({ ...t, loading: false, reply: res?.success ? res.reply : "", err: res?.success ? "" : (res?.error || "Jawab nahi aaya") }));
+    setTst((t) => ({ ...t, loading: false, reply: res?.success ? res.reply : "", err: res?.success ? "" : (res?.error || "No reply came back") }));
   };
 
   const connected = !!(localSettings.waApiKey && localSettings.waOwnerPhone);
@@ -7019,7 +7002,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
                  style={{ color: "var(--wa-ink-2)" }}>
               <span className="inline-block w-1.5 h-1.5 rounded-full"
                     style={{ background: connected ? "var(--wa-live)" : "#d97706" }} />
-              {connected ? "+91 70161 00287" : "Abhi setup adhoora hai"}
+              {connected ? "+91 70161 00287" : "Setup incomplete"}
             </div>
           </div>
           {dirty && (
@@ -7058,17 +7041,17 @@ function WhatsAppPage({ settings = {}, onSave }) {
                 <div className="flex-1 min-w-0">
                   <div className="text-[15px] font-bold" style={{ color: "var(--wa-ink)" }}>Chats</div>
                   <div className="text-[11px]" style={{ color: "var(--wa-ink-2)" }}>
-                    {chatsLoading ? "आ रही हैं…"
-                      : unread ? `${unread} नया`
-                      : visibleChats.length ? `${visibleChats.length} बातचीत`
-                      : "कोई बातचीत नहीं"}
+                    {chatsLoading ? "Loading…"
+                      : unread ? `${unread} unread`
+                      : visibleChats.length ? `${visibleChats.length} conversations`
+                      : "No conversations"}
                   </div>
                 </div>
                 <button onClick={() => { setComposeOpen(true); setComposeTo(""); }}
-                        className="wa-icon-btn" title="नई chat शुरू करो">
+                        className="wa-icon-btn" title="New chat">
                   <MessageSquarePlus size={18} />
                 </button>
-                <button onClick={() => loadChats()} disabled={chatsLoading} title="अभी refresh करो" className="wa-icon-btn">
+                <button onClick={() => loadChats()} disabled={chatsLoading} title="Refresh" className="wa-icon-btn">
                   <RefreshCw size={17} className={chatsLoading ? "animate-spin" : ""} />
                 </button>
               </div>
@@ -7078,7 +7061,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
                   <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
                           style={{ color: "var(--wa-ink-2)" }} />
                   <input value={chatSearch} onChange={(e) => setChatSearch(e.target.value)}
-                         placeholder="नाम या नंबर खोजो" className="wa-search" />
+                         placeholder="Search name or number" className="wa-search" />
                 </div>
               </div>
 
@@ -7089,7 +7072,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
                 <div className="px-3 py-3 flex-shrink-0"
                      style={{ background: "var(--wa-field)", borderBottom: "1px solid var(--wa-line)" }}>
                   <div className="flex items-center justify-between mb-2">
-                    <div className="text-[12.5px] font-semibold" style={{ color: "var(--wa-ink)" }}>नई chat</div>
+                    <div className="text-[12.5px] font-semibold" style={{ color: "var(--wa-ink)" }}>New chat</div>
                     <button onClick={() => setComposeOpen(false)} className="wa-icon-btn" style={{ width: 26, height: 26 }}>
                       <X size={14} />
                     </button>
@@ -7120,11 +7103,11 @@ function WhatsAppPage({ settings = {}, onSave }) {
                            className="wa-field-input" style={{ flex: 1 }} />
                     <button onClick={startChat} disabled={composeTo.replace(/[^0-9]/g, "").length < 10}
                             className="px-3 rounded-lg text-[12.5px] font-semibold text-white flex-shrink-0 disabled:opacity-40"
-                            style={{ background: "var(--wa-accent)" }}>खोलो</button>
+                            style={{ background: "var(--wa-accent)" }}>Open</button>
                   </div>
                   <div className="wa-field-help">
-                    {directory.length === 0 && "Settings में लोगों के नाम डाल दो तो यहाँ नाम से चुन सकोगे. "}
-                    Country code के साथ, बिना + या space.
+                    {directory.length === 0 && "Add people in Settings to pick them by name. "}
+                    Include country code, no + or spaces.
                   </div>
                 </div>
               )}
@@ -7145,18 +7128,18 @@ function WhatsAppPage({ settings = {}, onSave }) {
                       <MessagesSquare size={28} style={{ color: "var(--wa-ink-2)" }} />
                     </div>
                     <div className="text-[14px] font-bold mb-1" style={{ color: "var(--wa-ink)" }}>
-                      {chatSearch ? "कुछ नहीं मिला" : "कोई chat नहीं है अभी"}
+                      {chatSearch ? "No matches" : "No chats yet"}
                     </div>
                     <div className="text-[12px] leading-relaxed mb-4" style={{ color: "var(--wa-ink-2)" }}>
                       {chatSearch
-                        ? <>इस नाम या नंबर से कोई बातचीत नहीं है</>
-                        : <>कोई आपके WhatsApp नंबर पर message करेगा<br />तो वो यहाँ अपने-आप दिखेगा</>}
+                        ? <>No conversation with this name or number</>
+                        : <>When someone messages your WhatsApp number,<br />it appears here automatically</>}
                     </div>
                     {!chatSearch && (
                       <button onClick={() => setComposeOpen(true)}
                               className="text-[12px] font-semibold px-3.5 py-2 rounded-lg inline-flex items-center gap-1.5"
                               style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>
-                        <Plus size={14} /> खुद से chat शुरू करो
+                        <Plus size={14} /> Start a chat
                       </button>
                     )}
                   </div>
@@ -7166,7 +7149,6 @@ function WhatsAppPage({ settings = {}, onSave }) {
                   const on   = activeChat?.id === c.id;
                   const who  = whoIs(c.phone, c.name);
                   const isUnread = c.lastDirection === "inbound" && Number(c.lastTs || 0) > Number(seen[c.id] || 0);
-                  const isHidden = hiddenIds.includes(c.id);
                   return (
                     <div key={c.id} role="button" tabIndex={0}
                          onClick={() => openChat(c)}
@@ -7202,25 +7184,10 @@ function WhatsAppPage({ settings = {}, onSave }) {
                           </div>
                         )}
                       </div>
-                      <button onClick={(e) => { e.stopPropagation(); isHidden ? unhideChat(c.id) : hideChat(c.id); }}
-                              className="wa-row-act"
-                              title={isHidden ? "ERP में वापस दिखाओ" : "ERP की list से छिपाओ"}>
-                        {isHidden ? <Eye size={15} /> : <EyeOff size={15} />}
-                      </button>
                     </div>
                   );
                 })}
 
-                {/* Hidden conversations stay reachable. A tidy list that quietly
-                    swallows a real message would be worse than an untidy one. */}
-                {hiddenIds.length > 0 && (
-                  <button onClick={() => setShowHidden((v) => !v)}
-                          className="w-full px-4 py-3 text-[11.5px] flex items-center justify-center gap-1.5"
-                          style={{ color: "var(--wa-ink-2)", borderTop: "1px solid var(--wa-line)" }}>
-                    {showHidden ? <EyeOff size={13} /> : <Eye size={13} />}
-                    {showHidden ? "छिपाई हुई chats बंद करो" : `${hiddenIds.length} छिपाई हुई chat दिखाओ`}
-                  </button>
-                )}
               </div>
             </div>
 
@@ -7233,8 +7200,8 @@ function WhatsAppPage({ settings = {}, onSave }) {
                 </div>
                 <div className="text-[20px] font-light mb-2" style={{ color: "var(--wa-ink)" }}>Shantaz WhatsApp</div>
                 <div className="text-[13px] max-w-sm leading-relaxed" style={{ color: "var(--wa-ink-2)" }}>
-                  बाएँ से कोई chat चुनो और वहीं से जवाब दो.<br />
-                  सारी बातचीत ERP में रहती है — किसी एक के फ़ोन में नहीं.
+                  Pick a chat on the left and reply from here.<br />
+                  Every conversation stays in the ERP — not on one person's phone.
                 </div>
               </div>
             ) : (
@@ -7243,7 +7210,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
                 <div className="px-4 py-2.5 flex items-center gap-3 flex-shrink-0"
                      style={{ background: "var(--wa-field)", borderBottom: "1px solid var(--wa-line)" }}>
                   <button onClick={() => { setActiveChat(null); setMessages([]); setMsgsErr(""); }}
-                          className="wa-icon-btn" title="वापस">
+                          className="wa-icon-btn" title="Back">
                     <ArrowLeft size={18} />
                   </button>
                   {(() => {
@@ -7264,9 +7231,6 @@ function WhatsAppPage({ settings = {}, onSave }) {
                   })()}
                   {!activeChat.isNew && (
                     <>
-                      <button onClick={() => hideChat(activeChat.id)} className="wa-icon-btn" title="ERP की list से छिपाओ">
-                        <EyeOff size={17} />
-                      </button>
                       <button onClick={() => openChat(activeChat)} disabled={msgsLoading} className="wa-icon-btn" title="Refresh">
                         <RefreshCw size={17} className={msgsLoading ? "animate-spin" : ""} />
                       </button>
@@ -7276,13 +7240,13 @@ function WhatsAppPage({ settings = {}, onSave }) {
 
                 <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col wa-thread">
                   {msgsLoading && messages.length === 0 && (
-                    <div className="m-auto text-[12.5px]" style={{ color: "var(--wa-ink-2)" }}>messages आ रहे हैं…</div>
+                    <div className="m-auto text-[12.5px]" style={{ color: "var(--wa-ink-2)" }}>Loading messages…</div>
                   )}
                   {!msgsLoading && messages.length === 0 && !msgsErr && (
                     <div className="m-auto text-[12.5px] text-center" style={{ color: "var(--wa-ink-2)" }}>
                       {activeChat.isNew
-                        ? <>यह नई chat है.<br />नीचे पहला message लिखो.</>
-                        : "इस chat में अभी कोई message नहीं"}
+                        ? <>This is a new chat.<br />Write the first message below.</>
+                        : "No messages in this chat yet"}
                     </div>
                   )}
 
@@ -7300,41 +7264,32 @@ function WhatsAppPage({ settings = {}, onSave }) {
                             {atts.map((a, ai) => {
                               const key = `${m.id || i}:${ai}`;
                               const got = media[key];
-                              if (a.kind === "image") {
-                                return (
-                                  <div key={ai} className="wa-att">
-                                    {got?.url
-                                      ? <img src={got.url} alt={a.caption || "photo"} className="wa-att-img"
-                                             onClick={() => window.open(got.url, "_blank")} />
-                                      : <div className="wa-att-ph">
-                                          <ImageIcon size={18} />
-                                          <span>{got?.loading ? "photo आ रही है…" : got?.err || "photo"}</span>
-                                        </div>}
-                                  </div>
-                                );
-                              }
-                              if (a.kind === "audio" || a.kind === "voice") {
-                                return (
-                                  <div key={ai} className="wa-att">
-                                    {got?.url
-                                      ? <audio controls src={got.url} className="w-full" style={{ height: 36 }} />
-                                      : <button onClick={() => loadMedia(key, a.mediaId)} className="wa-att-ph">
-                                          <Mic size={18} />
-                                          <span>{got?.loading ? "आ रहा है…" : got?.err || "voice note सुनो"}</span>
-                                        </button>}
-                                  </div>
-                                );
-                              }
+                              const ext = (got?.mimeType || a.mimeType || "").split("/")[1] || "bin";
+                              const fname = a.filename || `whatsapp-${a.kind}-${m.id || i}.${ext}`;
+                              // Every attachment state says what happened and offers
+                              // the next step — load, retry, or save.
+                              const placeholder = (Icon, label) => (
+                                <button onClick={() => loadMedia(key, a, !!got?.err)} disabled={got?.loading} className="wa-att-ph">
+                                  <Icon size={18} />
+                                  <span>{got?.loading ? "Loading…" : got?.err ? `${got.err} — tap to retry` : label}</span>
+                                </button>
+                              );
                               return (
                                 <div key={ai} className="wa-att">
-                                  {got?.url
-                                    ? <a href={got.url} download={a.filename || "file"} className="wa-att-ph">
-                                        <FileDown size={18} /><span>{a.filename || "file save करो"}</span>
-                                      </a>
-                                    : <button onClick={() => loadMedia(key, a.mediaId)} className="wa-att-ph">
-                                        <Paperclip size={18} />
-                                        <span>{got?.loading ? "आ रहा है…" : got?.err || a.filename || "file"}</span>
-                                      </button>}
+                                  {a.kind === "image" && (got?.url
+                                    ? <img src={got.url} alt={a.caption || "Photo"} className="wa-att-img"
+                                           onClick={() => window.open(got.url, "_blank")} />
+                                    : placeholder(ImageIcon, "Load photo"))}
+                                  {(a.kind === "audio") && (got?.url
+                                    ? <audio controls src={got.url} className="w-full" style={{ height: 36 }} />
+                                    : placeholder(Mic, "Play voice note"))}
+                                  {a.kind !== "image" && a.kind !== "audio" && !got?.url && placeholder(Paperclip, a.filename || `Load ${a.kind}`)}
+                                  {got?.url && (
+                                    <a href={got.url} download={fname} className="wa-att-dl">
+                                      <FileDown size={14} /> {a.kind === "image" || a.kind === "audio" ? "Download" : (a.filename || "Download file")}
+                                    </a>
+                                  )}
+                                  {a.caption && <div className="mt-1">{a.caption}</div>}
                                 </div>
                               );
                             })}
@@ -7371,9 +7326,9 @@ function WhatsAppPage({ settings = {}, onSave }) {
                        style={{ background: "rgba(217,119,6,.08)", border: "1px solid rgba(217,119,6,.3)", color: "#92400e" }}>
                     <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
                     <span>
-                      24 घंटे से इनका कोई message नहीं आया. WhatsApp का नियम है कि अब
-                      सीधा message नहीं जा सकता — पहले approved template भेजना पड़ता है,
-                      या वो आपको message करें तो 24 घंटे खुल जाते हैं.
+                      No message from this person in the last 24 hours. WhatsApp only allows an
+                      approved template now — a plain message will be rejected until they
+                      message you again.
                     </span>
                   </div>
                 )}
@@ -7384,8 +7339,8 @@ function WhatsAppPage({ settings = {}, onSave }) {
                 <div className="px-3 py-2.5 flex items-center gap-2 flex-shrink-0 wa-composer">
                   <input value={reply} onChange={(e) => setReply(e.target.value)}
                          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } }}
-                         placeholder="Message likho…" className="wa-input" />
-                  <button onClick={sendReply} disabled={!reply.trim() || sendingReply} className="wa-send" title="भेजो">
+                         placeholder="Type a message" className="wa-input" />
+                  <button onClick={sendReply} disabled={!reply.trim() || sendingReply} className="wa-send" title="Send">
                     {sendingReply ? <Clock size={16} /> : <Send size={16} />}
                   </button>
                 </div>
@@ -7411,15 +7366,15 @@ function WhatsAppPage({ settings = {}, onSave }) {
                     <span className="wa-dot" style={{ background: tone }} />
                     <div className="flex-1 min-w-0">
                       <div className="text-[14px] font-semibold" style={{ color: "var(--wa-ink)" }}>
-                        {!localSettings.waAlertTemplate ? "Alerts saadhe message se ja rahe hain"
-                          : inUse && !inUseOk ? `"${localSettings.waAlertTemplate}" abhi approved nahi hai`
-                          : `Alerts "${localSettings.waAlertTemplate}" template se ja rahe hain`}
+                        {!localSettings.waAlertTemplate ? "Alerts are going out as plain messages"
+                          : inUse && !inUseOk ? `"${localSettings.waAlertTemplate}" is not approved yet`
+                          : `Alerts are going out with "${localSettings.waAlertTemplate}"`}
                       </div>
                       <div className="text-[12px] mt-0.5" style={{ color: "var(--wa-ink-2)" }}>
                         {!localSettings.waAlertTemplate
-                          ? "Saadha message sirf unhe pahunchta hai jinhone pichhle 24 ghante me aapko message kiya ho. Neeche approved template chuno."
-                          : inUse && !inUseOk ? "Jab tak approve nahi hota, alerts saadhe message se jayenge."
-                          : "Template har kisi ko pahunchta hai. Agar kabhi fail ho to ERP saadha message bhej deta hai."}
+                          ? "A plain message only reaches people who messaged you in the last 24 hours. Choose an approved template below."
+                          : inUse && !inUseOk ? "Until it is approved, alerts go out as plain messages."
+                          : "A template reaches everyone. If it ever fails, the ERP sends a plain message instead."}
                       </div>
                     </div>
                   </div>
@@ -7430,13 +7385,13 @@ function WhatsAppPage({ settings = {}, onSave }) {
                 <button onClick={() => openTplForm(null)}
                         className="px-4 py-2 rounded-lg text-[12.5px] font-semibold text-white inline-flex items-center gap-1.5"
                         style={{ background: "var(--wa-accent)" }}>
-                  <Plus size={15} /> Naya template
+                  <Plus size={15} /> New template
                 </button>
                 {!templates.some((t) => t.name === ERP_ALERT_TEMPLATE.name) && (
                   <button onClick={() => { setShowNewTpl(true); setTplForm(null); setTplErr(""); setTplMsg(""); }}
                           className="px-3.5 py-2 rounded-lg text-[12.5px] font-semibold"
                           style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)", background: "var(--wa-surface)" }}>
-                    Taiyaar alert template
+                    Ready-made alert template
                   </button>
                 )}
                 <button onClick={loadTemplates} disabled={tplLoading} title="Refresh"
@@ -7463,9 +7418,9 @@ function WhatsAppPage({ settings = {}, onSave }) {
               {showNewTpl && (
                 <div className="wa-card">
                   <div className="wa-card-head">
-                    <div className="wa-card-title">Taiyaar alert template</div>
+                    <div className="wa-card-title">Ready-made alert template</div>
                     <div className="wa-card-note">
-                      Teeno alert — issue, transfer, deadline — isi ek template se jayenge. Khaali jagah ERP khud bharega.
+                      One template carries all three alerts — issue, transfer and deadline. The ERP fills in the details.
                     </div>
                   </div>
                   <div className="wa-card-body">
@@ -7473,17 +7428,17 @@ function WhatsAppPage({ settings = {}, onSave }) {
                       {tplFill(ERP_ALERT_TEMPLATE.components[0].text, ERP_ALERT_TEMPLATE.components[0].example.body_text[0])}
                     </div>
                     <div className="wa-field-help mb-3">
-                      Naam <b>{ERP_ALERT_TEMPLATE.name}</b> · Utility · English
+                      Name <b>{ERP_ALERT_TEMPLATE.name}</b> · Utility · English
                     </div>
                     <div className="flex gap-2">
                       <button onClick={createAlertTemplate} disabled={tplCreating}
                               className="px-4 py-2 rounded-lg text-[12.5px] font-semibold text-white disabled:opacity-40"
                               style={{ background: "var(--wa-accent)" }}>
-                        {tplCreating ? "Bhej raha hoon…" : "Meta ko approval ke liye bhejo"}
+                        {tplCreating ? "Sending…" : "Submit to Meta for approval"}
                       </button>
                       <button onClick={() => setShowNewTpl(false)} disabled={tplCreating}
                               className="px-3.5 py-2 rounded-lg text-[12.5px] font-semibold"
-                              style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Rehne do</button>
+                              style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Cancel</button>
                     </div>
                   </div>
                 </div>
@@ -7498,31 +7453,31 @@ function WhatsAppPage({ settings = {}, onSave }) {
                 return (
                   <div className="wa-card">
                     <div className="wa-card-head">
-                      <div className="wa-card-title">{tplForm.mode === "edit" ? `"${tplForm.name}" badlo` : "Naya template"}</div>
+                      <div className="wa-card-title">{tplForm.mode === "edit" ? `Edit "${tplForm.name}"` : "New template"}</div>
                       <div className="wa-card-note">
                         {tplForm.mode === "edit"
-                          ? "Sirf message badal sakte ho. Badalne ke baad Meta ise dobara approve karega."
-                          : "Badalne wali jagah ke liye {{1}}, {{2}} likho — bhejte waqt ERP wahan asli baat bharega."}
+                          ? "Only the message can be changed. Meta reviews the template again after an edit."
+                          : "Use {{1}}, {{2}} for the parts that change — the ERP fills them in when sending."}
                       </div>
                     </div>
                     <div className="wa-card-body space-y-4">
                       {tplForm.mode === "create" && (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <div className="md:col-span-1">
-                            <div className="wa-field-label">Naam</div>
+                            <div className="wa-field-label">Name</div>
                             <input value={tplForm.name} placeholder="daily_stock_update"
                                    onChange={(e) => setF({ name: e.target.value.toLowerCase().replace(/\s+/g, "_") })}
                                    className="wa-field-input" />
                           </div>
                           <div>
-                            <div className="wa-field-label">Kis kaam ka</div>
+                            <div className="wa-field-label">Category</div>
                             <select value={tplForm.category} onChange={(e) => setF({ category: e.target.value })} className="wa-field-input">
-                              <option value="UTILITY">Kaam ki suchna (Utility)</option>
-                              <option value="MARKETING">Prachaar (Marketing)</option>
+                              <option value="UTILITY">Utility</option>
+                              <option value="MARKETING">Marketing</option>
                             </select>
                           </div>
                           <div>
-                            <div className="wa-field-label">Bhasha</div>
+                            <div className="wa-field-label">Language</div>
                             <select value={tplForm.language} onChange={(e) => setF({ language: e.target.value })} className="wa-field-input">
                               <option value="en">English</option>
                               <option value="hi">Hindi</option>
@@ -7534,17 +7489,17 @@ function WhatsAppPage({ settings = {}, onSave }) {
                         <div className="wa-field-label">Message</div>
                         <textarea value={tplForm.body} rows={6}
                                   onChange={(e) => setF({ body: e.target.value })}
-                                  placeholder={"Shantaz Technofoods - Stock Update\n\nAaj {{1}} ka stock {{2}} hai. Kripya dhyan dein."}
+                                  placeholder={"Shantaz Technofoods - Stock Update\n\nStock of {{1}} is {{2}} today. Please take note."}
                                   className="wa-field-input" style={{ resize: "vertical", lineHeight: 1.5 }} />
                         <button onClick={() => setF({ body: `${tplForm.body}{{${slots.length + 1}}}` })}
                                 className="mt-1.5 text-[11.5px] font-semibold px-2.5 py-1 rounded-md"
                                 style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>
-                          + Khaali jagah {`{{${slots.length + 1}}}`}
+                          + Add placeholder {`{{${slots.length + 1}}}`}
                         </button>
                       </div>
                       {slots.length > 0 && (
                         <div>
-                          <div className="wa-field-label">Har khaali jagah ka udaharan</div>
+                          <div className="wa-field-label">Sample value for each placeholder</div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             {slots.map((n) => (
                               <div key={n} className="flex items-center gap-2">
@@ -7559,7 +7514,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
                       )}
                       {tplForm.body.trim() && (
                         <div>
-                          <div className="wa-field-label">Aisa dikhega</div>
+                          <div className="wa-field-label">Preview</div>
                           <div className="wa-tpl-preview">{tplFill(tplForm.body, tplForm.examples)}</div>
                         </div>
                       )}
@@ -7567,11 +7522,11 @@ function WhatsAppPage({ settings = {}, onSave }) {
                         <button onClick={saveTplForm} disabled={!!tplFormProblem || tplCreating}
                                 className="px-4 py-2 rounded-lg text-[12.5px] font-semibold text-white disabled:opacity-40"
                                 style={{ background: "var(--wa-accent)" }}>
-                          {tplCreating ? "Bhej raha hoon…" : tplForm.mode === "edit" ? "Badlaav Meta ko bhejo" : "Meta ko approval ke liye bhejo"}
+                          {tplCreating ? "Sending…" : tplForm.mode === "edit" ? "Submit changes to Meta" : "Submit to Meta for approval"}
                         </button>
                         <button onClick={() => setTplForm(null)} disabled={tplCreating}
                                 className="px-3.5 py-2 rounded-lg text-[12.5px] font-semibold"
-                                style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Rehne do</button>
+                                style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Cancel</button>
                         {tplFormProblem && (
                           <span className="text-[12px]" style={{ color: "#92400e" }}>{tplFormProblem}</span>
                         )}
@@ -7585,9 +7540,9 @@ function WhatsAppPage({ settings = {}, onSave }) {
                 <div className="wa-card">
                   <div className="wa-card-body text-center py-10">
                     <FileText size={30} className="mx-auto mb-3" style={{ color: "var(--wa-ink-2)" }} />
-                    <div className="text-[14px] font-semibold mb-1" style={{ color: "var(--wa-ink)" }}>Abhi koi template nahi</div>
+                    <div className="text-[14px] font-semibold mb-1" style={{ color: "var(--wa-ink)" }}>No templates yet</div>
                     <div className="text-[12.5px]" style={{ color: "var(--wa-ink-2)" }}>
-                      Alerts har kisi tak pahunchane ke liye "Taiyaar alert template" bhejo.
+                      Submit the "Ready-made alert template" so alerts reach everyone.
                     </div>
                   </div>
                 </div>
@@ -7599,8 +7554,8 @@ function WhatsAppPage({ settings = {}, onSave }) {
                 const rejected = st === "REJECTED";
                 const chip = approved ? { fg: "#0b6b3c", bg: "rgba(15,157,88,.1)",  txt: "Approved" }
                            : rejected ? { fg: "#b91c1c", bg: "rgba(220,38,38,.09)", txt: "Rejected" }
-                           : st === "PAUSED" || st === "DISABLED" ? { fg: "#b91c1c", bg: "rgba(220,38,38,.09)", txt: st === "PAUSED" ? "Ruka hua" : "Band" }
-                           :            { fg: "#92400e", bg: "rgba(217,119,6,.1)",  txt: "Meta dekh raha hai" };
+                           : st === "PAUSED" || st === "DISABLED" ? { fg: "#b91c1c", bg: "rgba(220,38,38,.09)", txt: st === "PAUSED" ? "Paused" : "Disabled" }
+                           :            { fg: "#92400e", bg: "rgba(217,119,6,.1)",  txt: "In review" };
                 const isAlert = localSettings.waAlertTemplate === t.name;
                 const busy = (a) => tplBusy === `${a}:${t.name}`;
                 return (
@@ -7609,9 +7564,9 @@ function WhatsAppPage({ settings = {}, onSave }) {
                       <div className="flex-1 min-w-0">
                         <div className="wa-card-title truncate">{t.name}</div>
                         <div className="wa-card-note">
-                          {t.category === "MARKETING" ? "Prachaar" : t.category === "UTILITY" ? "Kaam ki suchna" : t.category}
+                          {t.category === "MARKETING" ? "Marketing" : t.category === "UTILITY" ? "Utility" : t.category}
                           {" · "}{t.language === "hi" ? "Hindi" : t.language === "en" ? "English" : t.language}
-                          {isAlert && <span style={{ color: "var(--wa-live)", fontWeight: 600 }}> · Alerts isi se ja rahe hain</span>}
+                          {isAlert && <span style={{ color: "var(--wa-live)", fontWeight: 600 }}> · Used for alerts</span>}
                         </div>
                       </div>
                       <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0"
@@ -7621,8 +7576,8 @@ function WhatsAppPage({ settings = {}, onSave }) {
                       {rejected && (
                         <div className="mb-3 px-3 py-2 rounded-lg text-[12px]"
                              style={{ background: "rgba(220,38,38,.06)", color: "#b91c1c" }}>
-                          Meta ka kaaran: <b>{t.rejectedReason || "nahi bataya"}</b>.
-                          {" "}Message badal kar dobara bhejo.
+                          Meta's reason: <b>{t.rejectedReason || "not given"}</b>.
+                          {" "}Edit the message and submit again.
                         </div>
                       )}
                       {t.text && <div className="wa-tpl-preview">{tplFill(t.text, t.example)}</div>}
@@ -7632,41 +7587,41 @@ function WhatsAppPage({ settings = {}, onSave }) {
                           <button onClick={() => chooseAlertTemplate(t)}
                                   className="px-3.5 py-2 rounded-lg text-[12px] font-semibold text-white"
                                   style={{ background: "var(--wa-live)" }}>
-                            Alerts ke liye chuno
+                            Use for alerts
                           </button>
                         )}
                         {isAlert && (
                           <button onClick={stopTemplateForAlerts}
                                   className="px-3.5 py-2 rounded-lg text-[12px] font-semibold"
                                   style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>
-                            Alerts se hatao
+                            Stop using for alerts
                           </button>
                         )}
                         {approved && (
                           <button onClick={() => testTemplate(t)} disabled={!!tplBusy}
                                   className="px-3.5 py-2 rounded-lg text-[12px] font-semibold inline-flex items-center gap-1.5 disabled:opacity-40"
                                   style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>
-                            <Send size={13} /> {busy("test") ? "Bhej raha hoon…" : "Mujhe test bhejo"}
+                            <Send size={13} /> {busy("test") ? "Sending…" : "Send me a test"}
                           </button>
                         )}
                         {st !== "PENDING" && (
                           <button onClick={() => openTplForm(t)} disabled={!!tplBusy}
                                   className="px-3.5 py-2 rounded-lg text-[12px] font-semibold disabled:opacity-40"
                                   style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>
-                            Badlo
+                            Edit
                           </button>
                         )}
                         <span className="flex-1" />
                         {tplConfirm === t.name ? (
                           <span className="flex items-center gap-2 text-[12px]" style={{ color: "#b91c1c" }}>
-                            Pakka? Ye naam 30 din tak dobara nahi le sakte.
+                            Delete? This name cannot be reused for 30 days.
                             <button onClick={() => deleteTemplate(t)}
                                     className="px-3 py-1.5 rounded-lg font-semibold text-white" style={{ background: "#b91c1c" }}>
-                              {busy("delete") ? "Hata raha hoon…" : "Haan, delete"}
+                              {busy("delete") ? "Deleting…" : "Delete"}
                             </button>
                             <button onClick={() => setTplConfirm("")}
                                     className="px-3 py-1.5 rounded-lg font-semibold"
-                                    style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Nahi</button>
+                                    style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Cancel</button>
                           </span>
                         ) : (
                           <button onClick={() => setTplConfirm(t.name)} disabled={!!tplBusy}
@@ -7677,7 +7632,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
                       </div>
                       {approved && !tplFitsAlerts(t) && (
                         <div className="wa-field-help">
-                          Alerts ke liye {"{{1}}"} se {"{{5}}"} tak paanch khaali jagah chahiye — ye template doosre kaam ka hai.
+                          Alerts need exactly five placeholders, {"{{1}}"} to {"{{5}}"} — this template is for other messages.
                         </div>
                       )}
                     </div>
@@ -7697,11 +7652,11 @@ function WhatsAppPage({ settings = {}, onSave }) {
                 <div className="wa-status">
                   <span className="wa-dot" style={{ background: "#d97706" }} />
                   <div className="flex-1 min-w-0 text-[13px]" style={{ color: "var(--wa-ink)" }}>
-                    Agent chalane ke liye Settings me Gemini key chahiye.
+                    The agent needs a Gemini key in Settings.
                   </div>
                   <button onClick={() => setSection("settings")}
                           className="text-[12px] font-semibold px-3 py-2 rounded-lg flex-shrink-0"
-                          style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Settings kholo</button>
+                          style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Open Settings</button>
                 </div>
               )}
 
@@ -7710,9 +7665,9 @@ function WhatsAppPage({ settings = {}, onSave }) {
                   than writing, and each pick becomes one rule below. ── */}
               <div className="wa-card">
                 <div className="wa-card-head">
-                  <div className="wa-card-title">Agent aapse poochhega</div>
+                  <div className="wa-card-title">Guided training</div>
                   <div className="wa-card-note">
-                    Har baar ek nayi situation — aap jawab chuno, wo seedha agent ka rule ban jaata hai.
+                    The agent asks about one situation at a time. Pick an answer and it becomes a rule.
                   </div>
                 </div>
                 <div className="wa-card-body">
@@ -7720,12 +7675,12 @@ function WhatsAppPage({ settings = {}, onSave }) {
                     <button onClick={nextQuestion} disabled={!localSettings.waGeminiKey}
                             className="px-4 py-2 rounded-lg text-[12.5px] font-semibold text-white inline-flex items-center gap-1.5 disabled:opacity-40"
                             style={{ background: "var(--wa-accent)" }}>
-                      <Sparkles size={15} /> {ivAsked.length ? "Agla sawaal" : "Sawaal shuru karo"}
+                      <Sparkles size={15} /> {ivAsked.length ? "Next question" : "Start questions"}
                     </button>
                   )}
                   {iv.loading && (
                     <div className="text-[12.5px] flex items-center gap-2" style={{ color: "var(--wa-ink-2)" }}>
-                      <RefreshCw size={14} className="animate-spin" /> Sawaal soch raha hai…
+                      <RefreshCw size={14} className="animate-spin" /> Preparing a question…
                     </div>
                   )}
                   {iv.err && (
@@ -7745,13 +7700,13 @@ function WhatsAppPage({ settings = {}, onSave }) {
                       <div className="flex gap-2 mt-3">
                         <input value={iv.custom} onChange={(e) => setIv((v) => ({ ...v, custom: e.target.value }))}
                                onKeyDown={(e) => { if (e.key === "Enter") answerQuestion(iv.custom); }}
-                               placeholder="Ya apna jawab likho…" className="wa-field-input" style={{ flex: 1 }} />
+                               placeholder="Or write your own answer" className="wa-field-input" style={{ flex: 1 }} />
                         <button onClick={() => answerQuestion(iv.custom)} disabled={!iv.custom.trim()}
                                 className="px-3.5 rounded-lg text-[12.5px] font-semibold text-white flex-shrink-0 disabled:opacity-40"
-                                style={{ background: "var(--wa-accent)" }}>Rakho</button>
+                                style={{ background: "var(--wa-accent)" }}>Save</button>
                       </div>
                       <button onClick={nextQuestion} className="mt-3 text-[12px] font-semibold" style={{ color: "var(--wa-ink-2)" }}>
-                        Ye chhodo, agla sawaal
+                        Skip this question
                       </button>
                     </div>
                   )}
@@ -7762,18 +7717,18 @@ function WhatsAppPage({ settings = {}, onSave }) {
                   nothing is sent — the safe way to check a rule landed. ── */}
               <div className="wa-card">
                 <div className="wa-card-head">
-                  <div className="wa-card-title">Test karo — kuch bheja nahi jayega</div>
-                  <div className="wa-card-note">Koi message likho jaise employee bhejega. Agent jo WhatsApp par jawab deta, wahi yahan dikhega.</div>
+                  <div className="wa-card-title">Test the agent — nothing is sent</div>
+                  <div className="wa-card-note">Type a message as an employee would. You will see the exact reply the agent would send on WhatsApp.</div>
                 </div>
                 <div className="wa-card-body">
                   <div className="flex gap-2">
                     <input value={tst.msg} onChange={(e) => setTst((t) => ({ ...t, msg: e.target.value }))}
                            onKeyDown={(e) => { if (e.key === "Enter") runTest(); }}
-                           placeholder="KM10 ka pump leak kar raha hai" className="wa-field-input" style={{ flex: 1 }} />
+                           placeholder="e.g. KM10 pump is leaking" className="wa-field-input" style={{ flex: 1 }} />
                     <button onClick={runTest} disabled={!tst.msg.trim() || tst.loading || !localSettings.waGeminiKey}
                             className="px-3.5 rounded-lg text-[12.5px] font-semibold text-white flex-shrink-0 disabled:opacity-40"
                             style={{ background: "var(--wa-accent)" }}>
-                      {tst.loading ? "Soch raha hai…" : "Jawab dekho"}
+                      {tst.loading ? "Thinking…" : "Get reply"}
                     </button>
                   </div>
                   {tst.err && (
@@ -7794,12 +7749,12 @@ function WhatsAppPage({ settings = {}, onSave }) {
               <div className="wa-card">
                 <div className="wa-card-head flex items-start gap-3">
                   <div className="flex-1 min-w-0">
-                    <div className="wa-card-title">Agent ke rules {rules.length > 0 && <span style={{ color: "var(--wa-ink-2)", fontWeight: 500 }}>· {rules.length}</span>}</div>
-                    <div className="wa-card-note">Agent sirf yahi jaanta hai. Jo galat ya bekaar hai, use badlo ya hatao.</div>
+                    <div className="wa-card-title">Agent rules {rules.length > 0 && <span style={{ color: "var(--wa-ink-2)", fontWeight: 500 }}>· {rules.length}</span>}</div>
+                    <div className="wa-card-note">This is everything the agent knows. Edit or remove anything that is wrong.</div>
                   </div>
                   {rules.length > 0 && !clearAsk && (
                     <button onClick={() => setClearAsk(true)} className="text-[12px] font-semibold flex-shrink-0" style={{ color: "var(--wa-ink-2)" }}>
-                      Sab mitao
+                      Clear all
                     </button>
                   )}
                 </div>
@@ -7807,18 +7762,18 @@ function WhatsAppPage({ settings = {}, onSave }) {
                   {clearAsk && (
                     <div className="mb-3 px-3 py-2.5 rounded-lg text-[12px] flex flex-wrap items-center gap-2"
                          style={{ background: "rgba(220,38,38,.06)", color: "#b91c1c" }}>
-                      <span className="flex-1">Saare {rules.length} rules mit jayenge aur agent kuch nahi jaanega. Pakka?</span>
+                      <span className="flex-1">All {rules.length} rules will be removed and the agent will know nothing. Continue?</span>
                       <button onClick={() => { writeRules([]); setClearAsk(false); }}
-                              className="px-3 py-1.5 rounded-lg font-semibold text-white" style={{ background: "#b91c1c" }}>Haan, mitao</button>
+                              className="px-3 py-1.5 rounded-lg font-semibold text-white" style={{ background: "#b91c1c" }}>Clear all</button>
                       <button onClick={() => setClearAsk(false)}
                               className="px-3 py-1.5 rounded-lg font-semibold"
-                              style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Nahi</button>
+                              style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Cancel</button>
                     </div>
                   )}
 
                   {rules.length === 0 && (
                     <div className="text-[12.5px] py-2" style={{ color: "var(--wa-ink-2)" }}>
-                      Abhi koi rule nahi. Upar "Sawaal shuru karo" dabao, ya neeche khud likho.
+                      No rules yet. Use "Start questions" above, or add one below.
                     </div>
                   )}
 
@@ -7836,16 +7791,16 @@ function WhatsAppPage({ settings = {}, onSave }) {
                                     style={{ background: "var(--wa-accent)" }}>Save</button>
                             <button onClick={() => setRuleEdit(null)}
                                     className="px-3 py-1.5 rounded-lg text-[12px] font-semibold"
-                                    style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Rehne do</button>
+                                    style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Cancel</button>
                           </div>
                         </div>
                       ) : (
                         <>
                           <div className="flex-1 min-w-0 text-[13px]" style={{ color: "var(--wa-ink)", lineHeight: 1.5 }}>{r}</div>
-                          <button onClick={() => setRuleEdit({ i, text: r })} className="wa-icon-btn" title="Badlo">
+                          <button onClick={() => setRuleEdit({ i, text: r })} className="wa-icon-btn" title="Edit">
                             <FileText size={15} />
                           </button>
-                          <button onClick={() => writeRules(rules.filter((_, j) => j !== i))} className="wa-icon-btn" title="Hatao">
+                          <button onClick={() => writeRules(rules.filter((_, j) => j !== i))} className="wa-icon-btn" title="Remove">
                             <Trash2 size={15} />
                           </button>
                         </>
@@ -7856,11 +7811,11 @@ function WhatsAppPage({ settings = {}, onSave }) {
                   <div className="flex gap-2 mt-3">
                     <input value={newRule} onChange={(e) => setNewRule(e.target.value)}
                            onKeyDown={(e) => { if (e.key === "Enter" && newRule.trim()) { addRule(newRule); setNewRule(""); } }}
-                           placeholder="Jaise: Chhutti maange to bolo HR ko form bhejo" className="wa-field-input" style={{ flex: 1 }} />
+                           placeholder="e.g. If someone asks for leave, tell them to send the HR form" className="wa-field-input" style={{ flex: 1 }} />
                     <button onClick={() => { addRule(newRule); setNewRule(""); }} disabled={!newRule.trim()}
                             className="px-3.5 rounded-lg text-[12.5px] font-semibold flex-shrink-0 inline-flex items-center gap-1 disabled:opacity-40"
                             style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>
-                      <Plus size={14} /> Jodo
+                      <Plus size={14} /> Add
                     </button>
                   </div>
                 </div>
@@ -7883,21 +7838,21 @@ function WhatsAppPage({ settings = {}, onSave }) {
                 <div className="flex-1 min-w-0">
                   <div className="text-[14px] font-semibold" style={{ color: "var(--wa-ink)" }}>
                     {setupMissing.length
-                      ? "Setup adhoora hai"
-                      : connCheck === "bad" ? "Chakra HQ se baat nahi ho pa rahi"
-                      : connCheck === "ok"  ? "Chalu hai"
-                      : "Jaancha nahi gaya"}
+                      ? "Setup incomplete"
+                      : connCheck === "bad" ? "Cannot reach Chakra HQ"
+                      : connCheck === "ok"  ? "Connected"
+                      : "Not checked yet"}
                   </div>
                   <div className="text-[12px] mt-0.5" style={{ color: "var(--wa-ink-2)" }}>
                     {setupMissing.length
-                      ? `Baaki hai: ${setupMissing.join(", ")}`
-                      : <>Business number <b>+91 70161 00287</b>{chats.length ? ` · ${chats.length} baatcheet` : ""}</>}
+                      ? `Missing: ${setupMissing.join(", ")}`
+                      : <>Business number <b>+91 70161 00287</b>{chats.length ? ` · ${chats.length} conversations` : ""}</>}
                   </div>
                 </div>
                 <button onClick={checkConnection} disabled={connCheck === "checking" || !localSettings.waApiKey}
                         className="text-[12px] font-semibold px-3 py-2 rounded-lg flex-shrink-0 disabled:opacity-40"
                         style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>
-                  {connCheck === "checking" ? "Jaanch raha hoon…" : "Connection jaancho"}
+                  {connCheck === "checking" ? "Checking…" : "Check connection"}
                 </button>
               </div>
 
@@ -7906,15 +7861,15 @@ function WhatsAppPage({ settings = {}, onSave }) {
                 <div className="wa-card-head">
                   <div className="wa-card-title">Chakra HQ connection</div>
                   <div className="wa-card-note">
-                    Ye chaar cheezein Chakra HQ se aati hain. Ek baar daalne ke baad dobara chhoone ki zaroorat nahi.
+                    These four values come from Chakra HQ. Set them once.
                   </div>
                 </div>
                 <div className="wa-card-body grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[
-                    { key: "waApiKey",   label: "API key",         secret: true,  help: "Chakra HQ → API Integration → New ApiKey. Role Admin rakhna, warna chats nahi dikhengi." },
-                    { key: "waPluginId", label: "Plugin ID",       secret: false, help: "Chakra HQ → Whatsapp Accounts → View Plugin. Address bar me jo lamba number hai." },
-                    { key: "waPhoneId",  label: "Phone number ID", secret: false, help: "Chakra HQ → Whatsapp Accounts, aapke number ke neeche likha ID." },
-                    { key: "waWabaId",   label: "WABA ID",         secret: false, help: "Usi page par business account ka ID. Templates banane ke liye chahiye." },
+                    { key: "waApiKey",   label: "API key",         secret: true,  help: "Chakra HQ → API Integration → New ApiKey. Use the Admin role, otherwise chats will not load." },
+                    { key: "waPluginId", label: "Plugin ID",       secret: false, help: "Chakra HQ → Whatsapp Accounts → View Plugin. The long number in the address bar." },
+                    { key: "waPhoneId",  label: "Phone number ID", secret: false, help: "Chakra HQ → Whatsapp Accounts, the ID shown under your number." },
+                    { key: "waWabaId",   label: "WABA ID",         secret: false, help: "The business account ID on the same page. Needed for templates." },
                   ].map(({ key, label, secret, help }) => {
                     const val = localSettings[key] || "";
                     return (
@@ -7931,12 +7886,12 @@ function WhatsAppPage({ settings = {}, onSave }) {
                             </div>
                             <button onClick={() => setRevealKey((p) => ({ ...p, [key]: true }))}
                                     className="text-[12px] font-semibold px-3 py-2 rounded-lg flex-shrink-0"
-                                    style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Badlo</button>
+                                    style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Change</button>
                           </div>
                         ) : (
                           <input type={secret ? "password" : "text"} value={val}
                                  onChange={(e) => upd(key, e.target.value.trim())}
-                                 placeholder={secret ? "Paste karo" : ""}
+                                 placeholder={secret ? "Paste here" : ""}
                                  className="wa-field-input" />
                         )}
                         <div className="wa-field-help">{help}</div>
@@ -7950,15 +7905,15 @@ function WhatsAppPage({ settings = {}, onSave }) {
               <div className="wa-card">
                 <div className="wa-card-head">
                   <div className="wa-card-title">Alert kisko jaaye</div>
-                  <div className="wa-card-note">Machine par kuch hone par in numbers par WhatsApp jayega.</div>
+                  <div className="wa-card-note">These numbers get a WhatsApp message when something happens on a machine.</div>
                 </div>
                 <div className="wa-card-body space-y-4">
                   <div>
-                    <div className="wa-field-label">Aapka number</div>
+                    <div className="wa-field-label">Your number</div>
                     <input value={localSettings.waOwnerPhone}
                            onChange={(e) => upd("waOwnerPhone", e.target.value.replace(/[^0-9]/g, ""))}
                            placeholder="919876543210" className="wa-field-input" />
-                    <div className="wa-field-help">Country code ke saath, bina + ya space. Har alert yahan aayega.</div>
+                    <div className="wa-field-help">Include country code, no + or spaces. Every alert comes here.</div>
                   </div>
                   {/* A comma-separated string of digits used to live here. It
                       was enough to SEND an alert and useless for everything
@@ -7967,11 +7922,11 @@ function WhatsAppPage({ settings = {}, onSave }) {
                       the right person. Same list, with the two facts that make
                       it readable — who, and which department. */}
                   <div>
-                    <div className="wa-field-label">Baaki log — naam ke saath</div>
+                    <div className="wa-field-label">Other people</div>
                     <div className="space-y-2 mt-1">
                       {directory.map((p, i) => (
                         <div key={i} className="flex gap-2 items-center wa-dir-row">
-                          <input value={p.name || ""} placeholder="Naam"
+                          <input value={p.name || ""} placeholder="Name"
                                  onChange={(e) => setDirRow(i, { name: e.target.value })}
                                  className="wa-field-input" style={{ flex: "1 1 32%" }} />
                           <input value={p.phone || ""} placeholder="919876543210" inputMode="numeric"
@@ -7980,7 +7935,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
                           <input value={p.dept || ""} placeholder="Department"
                                  onChange={(e) => setDirRow(i, { dept: e.target.value })}
                                  className="wa-field-input" style={{ flex: "1 1 28%" }} />
-                          <button onClick={() => removeDirRow(i)} className="wa-icon-btn" title="Hatao">
+                          <button onClick={() => removeDirRow(i)} className="wa-icon-btn" title="Remove">
                             <Trash2 size={15} />
                           </button>
                         </div>
@@ -7989,12 +7944,12 @@ function WhatsAppPage({ settings = {}, onSave }) {
                     <button onClick={addDirRow}
                             className="mt-2 text-[12px] font-semibold px-3 py-2 rounded-lg inline-flex items-center gap-1.5"
                             style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>
-                      <Plus size={14} /> Aadmi jodo
+                      <Plus size={14} /> Add person
                     </button>
                     <div className="wa-field-help">
-                      Inhe bhi wahi alert jayega jo aapko jata hai, aur Chats me inke
-                      message naam se dikhenge — number se nahi.
-                      {deptNumbers.length > 0 && ` Abhi ${deptNumbers.length} number set hain.`}
+                      They get the same alerts you do, and their messages show by name in
+                      Chats instead of by number.
+                      {deptNumbers.length > 0 && ` ${deptNumbers.length} number(s) set.`}
                     </div>
                   </div>
                 </div>
@@ -8005,8 +7960,8 @@ function WhatsAppPage({ settings = {}, onSave }) {
                   gone rather than quietly lying. ── */}
               <div className="wa-card">
                 <div className="wa-card-head">
-                  <div className="wa-card-title">Kaunse alert bhejne hain</div>
-                  <div className="wa-card-note">Production floor par ye hone par turant WhatsApp jayega.</div>
+                  <div className="wa-card-title">Alerts to send</div>
+                  <div className="wa-card-note">Sent on WhatsApp as soon as these happen on the production floor.</div>
                 </div>
                 <div className="wa-card-body pt-1">
                   {!localSettings.waAlertTemplate && (
@@ -8014,16 +7969,16 @@ function WhatsAppPage({ settings = {}, onSave }) {
                          style={{ background: "rgba(217,119,6,.08)", border: "1px solid rgba(217,119,6,.3)", color: "#92400e" }}>
                       <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
                       <span>
-                        Koi approved template chuna nahi hai, isliye alert sirf unhe pahunchega jinhone pichhle
-                        24 ghante me message kiya ho.{" "}
-                        <button onClick={() => setSection("templates")} className="font-semibold underline">Template chuno</button>
+                        No approved template is selected, so alerts only reach people who messaged you
+                        in the last 24 hours.{" "}
+                        <button onClick={() => setSection("templates")} className="font-semibold underline">Choose a template</button>
                       </span>
                     </div>
                   )}
                   {[
-                    { key: "waNotifyIssue",    dot: "#dc2626", label: "Machine par issue",   desc: "Koi fault raise kare" },
-                    { key: "waNotifyTransfer", dot: "#0f9d58", label: "Transfer complete",   desc: "Machine agle department me gayi" },
-                    { key: "waNotifyDeadline", dot: "#d97706", label: "Deadline nikal gayi", desc: "Tay samay se zyada lag gaya" },
+                    { key: "waNotifyIssue",    dot: "#dc2626", label: "Machine issue",       desc: "Someone raises a fault" },
+                    { key: "waNotifyTransfer", dot: "#0f9d58", label: "Transfer complete",   desc: "A machine moved to the next department" },
+                    { key: "waNotifyDeadline", dot: "#d97706", label: "Deadline exceeded",   desc: "A handover took longer than allowed" },
                   ].map(({ key, dot, label, desc }) => (
                     <div key={key} className="wa-switch-row">
                       <span className="wa-dot" style={{ background: dot }} />
@@ -8046,18 +8001,18 @@ function WhatsAppPage({ settings = {}, onSave }) {
                   that actually powers it. ── */}
               <div className="wa-card">
                 <div className="wa-card-head">
-                  <div className="wa-card-title">Apne-aap jawab dena</div>
+                  <div className="wa-card-title">Auto-reply</div>
                   <div className="wa-card-note">
-                    Koi aapke number par message kare to bina kisi ke baithe jawab chala jayega.
-                    Jo aap AI Training me sikhaoge, wahi bolega.
+                    Replies to messages on your number automatically, 24×7, using what
+                    you teach it in AI Training.
                   </div>
                 </div>
                 <div className="wa-card-body">
                   <div className="wa-switch-row" style={{ paddingTop: 0 }}>
                     <div className="flex-1 min-w-0">
-                      <div className="text-[13.5px] font-semibold" style={{ color: "var(--wa-ink)" }}>Auto-reply chalu</div>
+                      <div className="text-[13.5px] font-semibold" style={{ color: "var(--wa-ink)" }}>Auto-reply on</div>
                       <div className="text-[12px]" style={{ color: "var(--wa-ink-2)" }}>
-                        {localSettings.waGeminiKey ? "Key set hai" : "Pehle neeche Gemini key daalo"}
+                        {localSettings.waGeminiKey ? "Gemini key is set" : "Add the Gemini key below first"}
                       </div>
                     </div>
                     <button onClick={() => upd("waAutoReply", !localSettings.waAutoReply)}
@@ -8079,12 +8034,12 @@ function WhatsAppPage({ settings = {}, onSave }) {
                         </div>
                         <button onClick={() => setRevealKey((p) => ({ ...p, waGeminiKey: true }))}
                                 className="text-[12px] font-semibold px-3 py-2 rounded-lg flex-shrink-0"
-                                style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Badlo</button>
+                                style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Change</button>
                       </div>
                     ) : (
                       <input type="password" value={localSettings.waGeminiKey}
                              onChange={(e) => upd("waGeminiKey", e.target.value.trim())}
-                             placeholder="Paste karo" className="wa-field-input" />
+                             placeholder="Paste here" className="wa-field-input" />
                     )}
                     <div className="wa-field-help">aistudio.google.com → Create API key</div>
                   </div>
@@ -8105,7 +8060,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
                   </span>
                 )}
                 {dirty && !saveNote && (
-                  <span className="text-[12.5px]" style={{ color: "var(--wa-ink-2)" }}>Kuch badla hai, abhi save nahi hua</span>
+                  <span className="text-[12.5px]" style={{ color: "var(--wa-ink-2)" }}>Unsaved changes</span>
                 )}
               </div>
             </div>
@@ -9089,7 +9044,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
               <div>
                 <SLabel text="API Key (Chakra HQ)" hint="Chakra HQ Dashboard → Settings → API → Copy Bearer Token" />
                 <input type="password" value={settings.waApiKey || ""} onChange={(e) => upd("waApiKey", e.target.value)}
-                       placeholder="Bearer token paste करो"
+                       placeholder="Paste bearer token"
                        className="w-full rounded-lg px-3 py-2.5 text-[13px] text-slate-800 outline-none"
                        style={{ background: "rgba(17,24,39,0.04)", border: "1px solid rgba(17,24,39,0.12)" }} />
               </div>
@@ -9105,7 +9060,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
 
               {/* Owner Phone */}
               <div>
-                <SLabel text="Owner / Admin Phone" hint="Country code के साथ — जैसे 919876543210 (91 = India)" />
+                <SLabel text="Owner / Admin Phone" hint="With country code — e.g. 919876543210 (91 = India)" />
                 <input type="text" value={settings.waOwnerPhone || ""} onChange={(e) => upd("waOwnerPhone", e.target.value.replace(/[^0-9]/g, ""))}
                        placeholder="919876543210"
                        className="w-full rounded-lg px-3 py-2.5 text-[13px] text-slate-800 outline-none font-mono"
@@ -9114,7 +9069,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
 
               {/* Dept head numbers */}
               <div>
-                <SLabel text="Department Heads (comma-separated)" hint="अलग अलग department heads के phone numbers — alerts इनको जाएँगे" />
+                <SLabel text="Department Heads (comma-separated)" hint="Phone numbers of department heads — alerts go to them" />
                 <input type="text" value={settings.waGroupNumbers || ""} onChange={(e) => upd("waGroupNumbers", e.target.value)}
                        placeholder="919876543210, 919876543211, 919876543212"
                        className="w-full rounded-lg px-3 py-2.5 text-[13px] text-slate-800 outline-none font-mono"
@@ -9139,38 +9094,38 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                 }}
                   className="w-full py-3 rounded-xl text-[13px] font-bold text-white transition-all hover:scale-[1.01] active:scale-[0.99]"
                   style={{ background: "linear-gradient(135deg,#25d366,#128c7e)", boxShadow: "0 4px 12px rgba(37,211,102,0.35)" }}>
-                  📩 Test Message भेजो
+                  📩 Send test message
                 </button>
               )}
             </div>
           </Section>
 
-          <Section icon="🔔" title="कौन सी Alerts चालू करें">
+          <Section icon="🔔" title="Which alerts to send">
             <Toggle
               checked={settings.waNotifyIssue}
               onChange={(v) => upd("waNotifyIssue", v)}
               label="🔴 Issue Raised Alert"
-              desc="Machine पर issue raise होते ही owner + department head को WhatsApp जाएगा" />
+              desc="Owner and department heads get a WhatsApp as soon as an issue is raised" />
             <Toggle
               checked={settings.waNotifyTransfer}
               onChange={(v) => upd("waNotifyTransfer", v)}
               label="🟢 Transfer Complete"
-              desc="Machine next department में transfer होने पर notification" />
+              desc="Notify when a machine moves to the next department" />
             <Toggle
               checked={settings.waNotifyDeadline}
               onChange={(v) => upd("waNotifyDeadline", v)}
               label="🟡 Deadline Exceeded"
-              desc="Department ने time limit cross किया तो auto alert" />
+              desc="Alert when a department exceeds its time limit" />
             <Toggle
               checked={settings.waNotifyDaily}
               onChange={(v) => upd("waNotifyDaily", v)}
               label="📊 Daily Morning Summary"
-              desc="रोज़ सुबह 8 बजे — कितनी machines active, कितनी issues pending" />
+              desc="Every day at 8 AM — active machines and pending issues" />
             <Toggle
               checked={settings.emailAlerts}
               onChange={(v) => upd("emailAlerts", v)}
               label="📧 Email Alerts"
-              desc="Email पर भी same notifications भेजो (future)" />
+              desc="Send the same notifications by email (future)" />
           </Section>
           </div>
         )}
@@ -12004,7 +11959,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                                     : (Array.isArray(inv?.checkPoints) ? inv.checkPoints : []);
                           return (
                             <button type="button" onClick={() => setCpEditCode(ei.code)}
-                                    title="इस BOM के लिए check points"
+                                    title="Check points for this BOM"
                                     className="text-[9px] font-bold px-1.5 py-0.5 rounded transition-all"
                                     style={{
                                       background: pts.length ? "rgba(217,119,6,0.12)" : "rgba(17,24,39,0.05)",
@@ -12264,9 +12219,9 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
             <div className="px-6 py-5 border-b border-slate-200 flex-shrink-0"
                  style={{ background: "linear-gradient(90deg,rgba(217,119,6,0.12),rgba(217,119,6,0.05))" }}>
-              <div className="text-[15px] font-semibold text-slate-900">📋 निकालने से पहले ये check कर लो</div>
+              <div className="text-[15px] font-semibold text-slate-900">📋 Check these before issuing</div>
               <div className="text-[11px] text-slate-500 mt-0.5">
-                {bom.label || bomKey} — {cpBriefLines.length} item पर check points हैं
+                {bom.label || bomKey} — {cpBriefLines.length} item(s) have check points
               </div>
             </div>
 
@@ -12303,9 +12258,9 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             </div>
 
             <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between gap-2 flex-shrink-0">
-              <div className="text-[10px] text-slate-500">ये points इस BOM के लिए सेट किए गए हैं</div>
+              <div className="text-[10px] text-slate-500">These points are set for this BOM</div>
               <div className="flex gap-2">
-                <Btn variant="ghost" size="sm" onClick={() => setShowCPBrief(false)}>वापस</Btn>
+                <Btn variant="ghost" size="sm" onClick={() => setShowCPBrief(false)}>Back</Btn>
                 <button onClick={() => {
                           setCpAcknowledged(true);
                           setShowCPBrief(false);
@@ -12315,7 +12270,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                         }}
                         className="text-xs font-black px-5 py-2.5 rounded-xl text-white transition-all"
                         style={{ background: "linear-gradient(135deg,#d97706,#b45309)" }}>
-                  ✓ देख लिया, आगे बढ़ो
+                  ✓ Checked, continue
                 </button>
               </div>
             </div>
@@ -12676,19 +12631,19 @@ function BomLineCheckPointsModal({ code, itemName = "", bomLabel = "", current =
              style={{ background: "linear-gradient(90deg,rgba(217,119,6,0.10),rgba(217,119,6,0.04))" }}>
           <div className="text-[15px] font-semibold text-slate-900">✅ Check Points</div>
           <div className="text-[11px] text-slate-500 mt-0.5">
-            {itemName || code}{bomLabel ? <> — सिर्फ़ <b>{bomLabel}</b> के BOM के लिए</> : null}
+            {itemName || code}{bomLabel ? <> — only for the <b>{bomLabel}</b> BOM</> : null}
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3">
           <div className="text-[11px] text-slate-500">
-            Outward के वक़्त store वाले को ये points दिखेंगे. यहाँ किया बदलाव <b>सिर्फ़ इस BOM</b> का है — Item Master वाला template वैसा ही रहेगा.
+            The store operator sees these points at Outward. Changes here apply <b>only to this BOM</b> — the Item Master template stays as it is.
           </div>
 
           {points.length === 0 && (
             <div className="px-4 py-6 rounded-xl text-center text-[12px] text-slate-500"
                  style={{ background: "rgba(17,24,39,0.03)", border: "1px dashed rgba(17,24,39,0.15)" }}>
-              कोई check point नहीं. नीचे से जोड़ो.
+              No check points. Add one below.
             </div>
           )}
 
@@ -12705,7 +12660,7 @@ function BomLineCheckPointsModal({ code, itemName = "", bomLabel = "", current =
           <div className="flex gap-2">
             <input value={draft} onChange={(e) => setDraft(e.target.value)}
                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
-                   placeholder="जैसे: Shaft play check करो"
+                   placeholder="e.g. Check shaft play"
                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-900 outline-none modal-input" />
             <button type="button" onClick={add} disabled={!draft.trim()}
                     className="px-4 rounded-xl text-[12px] font-bold text-white disabled:opacity-40 flex-shrink-0"
@@ -12716,7 +12671,7 @@ function BomLineCheckPointsModal({ code, itemName = "", bomLabel = "", current =
             <button type="button" onClick={() => setPoints([...tmpl])}
                     className="w-full px-4 py-2.5 rounded-xl text-[11px] font-bold text-slate-600 transition-all"
                     style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.12)" }}>
-              ↺ Item Master वाले template पर वापस ({tmpl.length} points)
+              ↺ Reset to Item Master template ({tmpl.length} points)
             </button>
           )}
         </div>
@@ -13265,7 +13220,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                               <div className="text-[9px] font-mono text-slate-600">{ci.code}</div>
                               {/* Migration 037 — per-BOM check points for this line. */}
                               <button type="button" onClick={() => setCpEditCode(ci.code)}
-                                      title="इस BOM के लिए check points"
+                                      title="Check points for this BOM"
                                       className="text-[9px] font-bold px-1.5 py-0.5 rounded transition-all"
                                       style={{
                                         background: (ci.checkPoints || []).length ? "rgba(217,119,6,0.12)" : "rgba(17,24,39,0.05)",
@@ -16755,17 +16710,17 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
                           <div><span className="text-slate-500">Machine:</span> <span className="font-semibold text-slate-800">{mm ? mm.bomKey : `#${p.machineId}`}</span></div>
                           {mm?.serialNo && <div><span className="text-slate-500">S/N:</span> <span className="font-mono text-slate-700">{mm.serialNo}</span></div>}
-                          <div><span className="text-slate-500">Solve करेगा:</span> <span className="font-bold" style={{ color: "#b91c1c" }}>{p.assignedDepartment || "—"}</span></div>
-                          <div><span className="text-slate-500">Report किया:</span> <span className="text-slate-700">{p.raisedInDepartment || "—"}</span></div>
-                          <div><span className="text-slate-500">कब:</span> <span className="text-slate-700">{fmtTime(p.raisedAt)}</span></div>
-                          {mm?.currentDepartment && <div><span className="text-slate-500">अभी:</span> <span className="text-slate-700">{mm.currentDepartment}</span></div>}
+                          <div><span className="text-slate-500">To solve:</span> <span className="font-bold" style={{ color: "#b91c1c" }}>{p.assignedDepartment || "—"}</span></div>
+                          <div><span className="text-slate-500">Reported by:</span> <span className="text-slate-700">{p.raisedInDepartment || "—"}</span></div>
+                          <div><span className="text-slate-500">When:</span> <span className="text-slate-700">{fmtTime(p.raisedAt)}</span></div>
+                          {mm?.currentDepartment && <div><span className="text-slate-500">Now at:</span> <span className="text-slate-700">{mm.currentDepartment}</span></div>}
                           {p.priority && <div><span className="text-slate-500">Priority:</span> <span className="font-bold text-slate-800">{p.priority}</span></div>}
                         </div>
                         <button type="button"
                                 onClick={() => { if (mm) { setFilter("active"); setExpanded(mm.id); setIssuePopup(null); } }}
                                 className="mt-3 w-full text-center text-[11px] font-bold py-2 rounded-lg transition-all"
                                 style={{ background: "rgba(215,25,32,0.1)", color: "#b01218", border: "1px solid rgba(215,25,32,0.3)" }}>
-                          Machine देखो →
+                          View machine →
                         </button>
                       </div>
                     );
@@ -16902,7 +16857,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full"
                                 title={`${rackShortCount} machine(s) on this rack are still waiting for components`}
                                 style={{ background: "rgba(217,119,6,0.16)", color: "#b45309", border: "1px solid rgba(217,119,6,0.35)" }}>
-                            ⚠ {rackShortCount} अधूरी
+                            ⚠ {rackShortCount} incomplete
                           </span>
                         )}
                         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
@@ -17223,7 +17178,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                   className={`font-black text-white rounded-lg transition-all ${isFloorLogin ? "text-[14px] px-5 py-2.5" : "text-[11px] px-3 py-1.5"}`}
                                   style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 4px 14px -2px rgba(22,163,74,0.4)" }}
                                   title={`Finish ${machine.currentDepartment || machine.stage} → ${nextDepartment(machine.currentDepartment || machine.stage)}`}>
-                            {isFloorLogin ? `✓ आगे भेजो → ${nextDepartment(machine.currentDepartment || machine.stage)}` : "Finish & Transfer →"}
+                            {isFloorLogin ? `✓ Send to → ${nextDepartment(machine.currentDepartment || machine.stage)}` : "Finish & Transfer →"}
                           </button>
                         )
                       )}
@@ -17788,7 +17743,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             <div className="relative">
               <textarea id="raise-desc" rows={3} value={raiseText} disabled={raiseBusy}
                         onChange={(e) => setRaiseText(e.target.value)}
-                        placeholder={voiceActive ? "🎙 बोलिए… Listening…" : "e.g. noise coming from the gearbox · या हिंदी में बोलें 🎤"}
+                        placeholder={voiceActive ? "🎙 Listening…" : "e.g. noise coming from the gearbox · or speak in Hindi 🎤"}
                         className="w-full rounded-lg px-3 py-2.5 pr-12 text-[13px] text-slate-800 outline-none resize-y"
                         style={{ background: "var(--surface-elevated)", border: voiceActive ? "2px solid #ef4444" : "1px solid rgba(17,24,39,0.12)" }} />
               {(window.SpeechRecognition || window.webkitSpeechRecognition) && (
@@ -17889,7 +17844,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         {stillPending.length > 0 && (
                           <span className="text-[9px] font-black px-1.5 py-0.5 rounded flex-shrink-0"
                                 style={{ background: "rgba(217,119,6,0.14)", color: "#b45309", border: "1px solid rgba(217,119,6,0.3)" }}>
-                            ⚠ {stillPending.length} बाकी
+                            ⚠ {stillPending.length} pending
                           </span>
                         )}
                         <span className="text-[9px] text-slate-500 flex-shrink-0">Issued {m.createdDate}</span>
@@ -17913,7 +17868,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                     {stillPending.length > 0 && (
                       <div className="px-3 pb-2.5 pt-0.5" style={{ borderTop: "1px dashed rgba(217,119,6,0.3)" }}>
                         <div className="text-[9px] font-black uppercase tracking-wide mt-1.5 mb-1" style={{ color: "#b45309" }}>
-                          अभी ये items लेना बाकी है
+                          These items are still to be collected
                         </div>
                         {stillPending.map((p, i) => (
                           <div key={`${p.code}-${i}`} className="flex items-center justify-between gap-2 py-0.5">
@@ -20927,9 +20882,7 @@ export default function App() {
         const { callWhatsAppFn } = await import("./stores/adminApi.js");
         const res = await callWhatsAppFn("whatsapp-chats", { apiKey: settings.waApiKey });
         if (stop || !res?.success) return;
-        let hidden = [];
-        try { const v = JSON.parse(settings.waHiddenChats || "[]"); if (Array.isArray(v)) hidden = v; } catch {}
-        setWaUnread(waUnreadCount(res.chats || [], waReadSeen(), hidden));
+        setWaUnread(waUnreadCount(res.chats || [], waReadSeen()));
       } catch { /* a sidebar count is not worth surfacing a failure for */ }
     };
     // Recount the moment a thread is read, instead of waiting out the
@@ -20940,7 +20893,7 @@ export default function App() {
     poll();
     const t = setInterval(poll, 60000);
     return () => { stop = true; clearInterval(t); window.removeEventListener("erp-wa-seen", onSeen); };
-  }, [settings.waApiKey, settings.waHiddenChats]);
+  }, [settings.waApiKey]);
 
   const [allUsers,  setAllUsers]  = useState([]);
   useEffect(() => {

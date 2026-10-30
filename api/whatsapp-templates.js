@@ -27,8 +27,8 @@ export default async function handler(req, res) {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
     const { action, apiKey, wabaId, apiVersion, template } = body;
 
-    if (!apiKey) { res.status(400).json({ error: "Missing 'apiKey' — WhatsApp Settings में API key डालो" }); return; }
-    if (!wabaId) { res.status(400).json({ error: "Missing 'wabaId' — WhatsApp Settings में WABA ID डालो" }); return; }
+    if (!apiKey) { res.status(400).json({ error: "Missing 'apiKey' — add the API key in WhatsApp Settings" }); return; }
+    if (!wabaId) { res.status(400).json({ error: "Missing 'wabaId' — add the WABA ID in WhatsApp Settings" }); return; }
 
     const ver  = apiVersion || DEFAULT_VERSION;
     const base = `https://api.chakrahq.com/v1/ext/plugin/whatsapp/api/${encodeURIComponent(ver)}/${encodeURIComponent(wabaId)}/message_templates`;

@@ -25,7 +25,7 @@ export default async function handler(req, res) {
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
     const { apiKey, limit, page, orderField, debug } = body;
-    if (!apiKey) { res.status(400).json({ error: "Missing 'apiKey' — WhatsApp Settings में API key डालो" }); return; }
+    if (!apiKey) { res.status(400).json({ error: "Missing 'apiKey' — add the API key in WhatsApp Settings" }); return; }
 
     const headers = { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" };
     const call = (payload) => fetch("https://api.chakrahq.com/v1/ext/chat", {

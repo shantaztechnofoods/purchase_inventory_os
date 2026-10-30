@@ -12,38 +12,62 @@
 // normal chat; Chakra's ordering is not guaranteed, so we sort here rather
 // than trusting the upstream order.
 
-// Flattens whatever Chakra calls an attachment into one shape the inbox can
-// render: { kind, mediaId, mimeType, caption, filename }. Exported so the
-// shapes stay under test instead of being discovered in production.
+// Finds every attachment in a message, wherever Chakra put it, and flattens it
+// to { kind, mediaId, url, mimeType, caption, filename }.
+//
+// The shape is not documented. A photo can arrive as an attachments[] row, as
+// WhatsApp's own { image: { id, mime_type } }, nested under body, or as a
+// hosted file URL instead of a media id. Rather than bet on one, the message is
+// walked a few levels deep and any node carrying a media id or a file URL is
+// taken. Exported so the shapes stay under test.
+const MEDIA_KEYS = ["image", "audio", "voice", "video", "document", "sticker"];
+const URL_KEYS = ["url", "link", "mediaUrl", "media_url", "fileUrl", "file_url", "publicUrl", "downloadUrl", "s3Url", "src"];
+
 export function normaliseAttachments(m) {
-  const rows = [
-    ...(Array.isArray(m?.attachments) ? m.attachments : []),
-    ...(Array.isArray(m?.body?.attachments) ? m.body.attachments : []),
-  ];
+  const found = [];
+  const seen = new Set();
 
-  // WhatsApp's own message JSON has no attachments array at all — the media
-  // sits under a key named after its type.
-  for (const kind of ["image", "audio", "voice", "video", "document", "sticker"]) {
-    const node = m?.[kind] || m?.body?.[kind];
-    if (node && typeof node === "object") rows.push({ ...node, type: kind });
+  const walk = (node, hint, depth) => {
+    if (!node || typeof node !== "object" || depth > 5) return;
+    if (Array.isArray(node)) { node.forEach((n) => walk(n, hint, depth + 1)); return; }
+
+    const mimeType = String(node.mimeType || node.mime_type || node.contentType || node.content_type || "").split(";")[0].trim();
+    const type     = String(node.type || node.kind || node.mediaType || "").toLowerCase();
+    const url      = URL_KEYS.map((k) => node[k]).find((v) => typeof v === "string" && /^https?:\/\//.test(v)) || "";
+    const looksMedia = !!(mimeType || url || hint || MEDIA_KEYS.includes(type));
+    const mediaId  = node.mediaId || node.media_id || (looksMedia && (mimeType || hint) ? node.id : "") || "";
+
+    if (looksMedia && (mediaId || url)) {
+      const key = String(mediaId || url);
+      if (!seen.has(key)) {
+        seen.add(key);
+        const kind = /^image\//.test(mimeType) ? "image"
+                   : /^audio\//.test(mimeType) ? "audio"
+                   : /^video\//.test(mimeType) ? "video"
+                   : MEDIA_KEYS.includes(type) ? type
+                   : hint || "file";
+        found.push({
+          kind: kind === "sticker" ? "image" : kind === "voice" ? "audio" : kind,
+          mediaId: String(mediaId || ""),
+          url,
+          mimeType,
+          caption:  node.caption || "",
+          filename: node.filename || node.fileName || node.name || "",
+        });
+      }
+      return;
+    }
+    for (const [k, v] of Object.entries(node)) {
+      if (v && typeof v === "object") walk(v, MEDIA_KEYS.includes(k) ? k : (k === "attachments" ? "" : hint), depth + 1);
+    }
+  };
+
+  if (m && typeof m === "object") {
+    for (const [k, v] of Object.entries(m)) {
+      if (v && typeof v === "object") walk(v, MEDIA_KEYS.includes(k) ? k : "", 1);
+    }
   }
-
-  return rows.map((a) => {
-    const mimeType = String(a?.mimeType || a?.mime_type || a?.contentType || "").split(";")[0];
-    const type     = String(a?.type || a?.kind || a?.mediaType || "").toLowerCase();
-    return {
-      // The declared type is often missing while the MIME is not, so the MIME
-      // decides when it can: a photo must be drawn, a document only listed.
-      kind:     /^image\//.test(mimeType) ? "image"
-              : /^audio\//.test(mimeType) ? "audio"
-              : /^video\//.test(mimeType) ? "video"
-              : type || "file",
-      mediaId:  a?.mediaId || a?.media_id || a?.id || a?.externalId || "",
-      mimeType,
-      caption:  a?.caption || "",
-      filename: a?.filename || a?.name || "",
-    };
-  }).filter((a) => a.mediaId || a.filename || a.caption);
+  return found;
 }
 
 export default async function handler(req, res) {

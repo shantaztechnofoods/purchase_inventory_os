@@ -53,8 +53,8 @@ export default async function handler(req, res) {
     const { to, message, templateName, mapping, apiKey, pluginId, phoneId } = body;
 
     if (!to)       { res.status(400).json({ error: "Missing 'to'" }); return; }
-    if (!apiKey)   { res.status(400).json({ error: "Missing 'apiKey' — WhatsApp page में API key configure करो" }); return; }
-    if (!pluginId) { res.status(400).json({ error: "Missing 'pluginId' — WhatsApp page में Plugin ID configure करो" }); return; }
+    if (!apiKey)   { res.status(400).json({ error: "Missing 'apiKey' — add the API key in WhatsApp Settings" }); return; }
+    if (!pluginId) { res.status(400).json({ error: "Missing 'pluginId' — add the Plugin ID in WhatsApp Settings" }); return; }
 
     // Normalize phone: strip +, spaces, dashes, parentheses.
     const phone = String(to).replace(/[\s+\-()]/g, "");
@@ -98,7 +98,7 @@ export default async function handler(req, res) {
     // This is what ERP alerts use: a template is the only message WhatsApp
     // delivers to someone who has not written in the last 24 hours.
     if (body.template && body.template.name) {
-      if (!phoneId) { res.status(400).json({ error: "Missing 'phoneId' — WhatsApp Settings में Phone number ID डालो" }); return; }
+      if (!phoneId) { res.status(400).json({ error: "Missing 'phoneId' — add the Phone number ID in WhatsApp Settings" }); return; }
       const url = `${BASE}/${pluginId}/api/v21.0/${phoneId}/messages`;
       const resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(buildTemplatePayload(phone, body.template)) });
       const result = await resp.json().catch(() => ({}));

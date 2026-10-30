@@ -2322,24 +2322,6 @@ input, textarea, select {
   background: var(--wa-live);
 }
 
-/* Hide-from-inbox, revealed on hover or keyboard focus. Always visible it
-   would be an invitation to clear the list; never visible it would be a
-   feature nobody finds. On touch, where there is no hover, it stays shown. */
-.wa-row-act {
-  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  color: var(--wa-ink-2); opacity: 0;
-  transition: opacity .12s ease, background .12s ease;
-}
-.wa-row:hover .wa-row-act,
-.wa-row:focus-within .wa-row-act { opacity: 1; }
-.wa-row-act:hover { background: rgba(17,27,33,.08); color: var(--wa-ink); }
-/* Out of the layout until wanted: an invisible button still reserved 30px in
-   every row and truncated names to "Rajesh P…" on a tablet. */
-.wa-row:not(:hover):not(:focus-within) .wa-row-act { display: none; }
-/* Touch has no hover, so the row button would never appear. The same action
-   sits in the thread header, one tap away, so rows stay clean there. */
-@media (hover: none) { .wa-row-act { display: none !important; } }
 
 /* ── Attachments ──────────────────────────────────────────────────────── */
 /* A photo of a fault IS the message, so it gets the bubble's full width
@@ -2537,3 +2519,8 @@ input, textarea, select {
 
 .wa-rule { display: flex; align-items: flex-start; gap: 6px; padding: 10px 0; }
 .wa-rule + .wa-rule { border-top: 1px solid var(--wa-line); }
+.wa-att-dl {
+  display: inline-flex; align-items: center; gap: 5px; margin-top: 5px;
+  font-size: 12px; font-weight: 600; color: var(--wa-ink-2);
+}
+.wa-att-dl:hover { color: var(--wa-ink); text-decoration: underline; }
