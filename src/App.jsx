@@ -71,6 +71,7 @@ import { mapRow as vendorMapRow, parseRows as vendorParseRows } from "./utils/ve
 import { parseRows as itemParseRows, generateItemCode, buildRowsFromSheet as itemBuildRowsFromSheet } from "./utils/itemImport.js";
 import { parseBomPaste } from "./utils/bomPaste.js";
 import { receivedPoRates, bomCostLines, bomCostSummary, validateBomLines, formatINR, RATE_SOURCE_LABEL } from "./utils/bomCost.js";
+import { PHYSICAL_RACK_LAYOUT, physicalRackFamily, rackCapacityFor, buildFamilyRacks, firstFreeSlot, canAssignSlot, slotLabel, rackKeyNorm } from "./utils/rackSlots.js";
 import { getActiveCompany, normalizePOSettings, openPOPdf, PO_TEMPLATE_OPTIONS } from "./utils/poTemplate.js";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -482,45 +483,9 @@ const CustomTooltip = ({ active, payload, label }) => {
 const MACHINE_STAGES = ["BOM Issued", "Assembly", "Mechanical", "Electrical", "Trial", "Ready"];
 
 // ── Physical rack layout (2026-10-30) ────────────────────────────────────────
-// The Production Rack View mirrors the racks on the shop floor. Each family is
-// laid out as `columns` vertical pairs: an M rack with its R rack directly
-// below it, every rack holding `setsPerRack` machine sets. A family's sets
-// come from the BOMs listed in `boms` (matched ignoring case, spaces and
-// dashes, so "KM10" and "KM-10" are the same model) and fill the racks oldest
-// first, column by column: M (1), R (1), M (2), R (2).
-//
-// To add a rack, raise `columns`; to add a model, add a family. Nothing else
-// in the ERP needs to change.
-const PHYSICAL_RACK_LAYOUT = {
-  setsPerRack: 2,
-  tiers: ["M", "R"],            // top → bottom within each vertical pair
-  families: [
-    { id: "10", label: "10", columns: 2, color: "#1d4ed8", boms: ["KM10"] },
-    { id: "15", label: "15", columns: 2, color: "#15803d", boms: ["KM15"] },
-    { id: "20", label: "20", columns: 2, color: "#ea580c", boms: ["KM20"] },
-  ],
-};
-const rackKeyNorm = (k) => String(k || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-function physicalRackFamily(bomKey) {
-  const k = rackKeyNorm(bomKey);
-  return PHYSICAL_RACK_LAYOUT.families.find((f) => f.boms.some((b) => rackKeyNorm(b) === k)) || null;
-}
-// Set slots a BOM has on the physical racks, or null when it has none.
-function physicalRackSlots(bomKey) {
-  const f = physicalRackFamily(bomKey);
-  return f ? f.columns * PHYSICAL_RACK_LAYOUT.tiers.length * PHYSICAL_RACK_LAYOUT.setsPerRack : null;
-}
-// The capacity every rack check should use for a BOM.
-//
-// 2026-10-30 — only the fixed racks above exist on the floor. A model without
-// a fixed rack has no rack at all: Save To Rack is never offered for it and
-// its builds go straight to Direct Production. The BOM's own `rackCapacity`
-// no longer creates a rack (it used to conjure an "Other rack" card per BOM).
-// Machines already parked under such a BOM stay visible until started.
-function rackCapacityFor(bomKey, _def) {
-  const slots = physicalRackSlots(bomKey);
-  return slots != null ? slots : 0;
-}
+// The Production Rack View mirrors the racks on the shop floor. The fixed
+// layout and every slot rule now live in utils/rackSlots.js (2026-10-31,
+// brief §14) so they can be unit-tested; the names below are unchanged.
 
 // Navigation icons.
 //
@@ -16474,6 +16439,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   onRaisePendingItem,
   // Migration 036 — a production head releases a machine off the rack.
   onReleaseHandover,
+  // 2026-10-31 — rack slots (brief §14): pin a rack machine to one slot, or
+  // reserve an empty slot for the next BOM set issued for that model.
+  onAssignRackSlot, onReserveRackSlot,
   // Material-arrived badge. A critical part issued later from Pending Stock is
   // already recorded as a `pending_fulfilled` audit row, but nothing told the
   // department waiting on it that it had arrived — they found out by asking.
@@ -17115,38 +17083,34 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     return pendingLog.filter((p) => p.serialNo && p.serialNo === m.serialNo && p.bomKey === m.bomKey);
   };
 
-  const openStartProd = (rack) => {
+  const openStartProd = (rack, preselectId = null) => {
     if (rack.ready === 0) return;
     setStartProd(rack);
-    setStartSel(new Set());
+    setStartSel(preselectId != null ? new Set([preselectId]) : new Set());
     setStartErr("");
   };
+  // 2026-10-31 — Fill / Assign Machine for one empty slot (brief §14).
+  const [fillSlot, setFillSlot] = useState(null); // { slotId, family, rack }
+  const [fillErr,  setFillErr]  = useState("");
 
   // ── Physical rack layout (see PHYSICAL_RACK_LAYOUT) ──
   // Splits each family's waiting sets across its real racks, oldest first,
   // two per rack. Purely a view over rackMachinesFor(): nothing about how a
   // set gets onto or off the rack changes.
+  // 2026-10-31 — slot-level view (brief §14). Machines whose Assembly →
+  // Mechanical hand-over is parked on the rack are "assembled" in their slot.
+  const awaitingReleaseIds = new Set((handovers || [])
+    .filter((h) => h && h.status === "pending" && h.releaseRequired && !h.releasedAt)
+    .map((h) => String(h.machineId)));
   const physicalFamilies = PHYSICAL_RACK_LAYOUT.families.map((f) => {
-    const keys = rackData.filter((r) => physicalRackFamily(r.key)?.id === f.id).map((r) => r.key);
-    const sets = keys.flatMap((k) => rackMachinesFor(k))
-      .sort((a, b) => (a.createdDate || "").localeCompare(b.createdDate || "") || (Number(a.id) || 0) - (Number(b.id) || 0));
-    const per = PHYSICAL_RACK_LAYOUT.setsPerRack;
-    const tiers = PHYSICAL_RACK_LAYOUT.tiers;
-    const columns = Array.from({ length: f.columns }, (_, c) => tiers.map((tier, t) => {
-      const slot = c * tiers.length + t;
-      const machines = sets.slice(slot * per, slot * per + per);
-      const ready = machines.length;
-      return {
-        id: `${tier}-${f.label}-${c + 1}`,
-        name: `${tier}-${f.label} (${c + 1})`,
-        machines, ready, capacity: per, empty: per - ready,
-        state: ready >= per ? "full" : ready > 0 ? "partial" : "empty",
-        // Start Production opens on the model of the sets this rack holds.
-        bomRack: ready ? rackData.find((r) => r.key === machines[0].bomKey) : null,
-      };
-    }));
-    const slots = f.columns * tiers.length * per;
-    return { ...f, columns, overflow: Math.max(0, sets.length - slots) };
+    const built = buildFamilyRacks(f, machineLog, awaitingReleaseIds);
+    const columns = built.columns.map((pair) => pair.map((rack) => ({
+      ...rack,
+      machines: rack.slots.filter((sl) => sl.machine).map((sl) => sl.machine),
+      // Start Production opens on the model of the sets this rack holds.
+      bomRack: rack.ready ? rackData.find((r) => r.key === rack.slots.find((sl) => sl.status === "set").machine.bomKey) : null,
+    })));
+    return { ...f, columns, overflow: built.overflow.length, overflowMachines: built.overflow };
   });
   // Models with no place in the physical layout keep their old card, but only
   // while a set is actually waiting — so it can still be started.
@@ -17242,7 +17206,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           // No overflow-hidden: it clipped the BOM ⋮ menu. no-lift: this card
           // holds the BOM popups (serial, drawer, delete) — a hover transform
           // here re-anchors them to the card and they flicker. See index.css.
-          <div className="section-card no-lift">
+          <div className="section-card no-lift" id="mt-bom-section">
             <button type="button" onClick={toggleBom} aria-expanded={bomOpen}
                     className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left">
               <span className="text-[13px] font-bold" style={{ color: "var(--text-strong)" }}>Issue a BOM</span>
@@ -17916,49 +17880,74 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           <span className="w-2 h-2 rounded-full border-2 bg-white" style={{ borderColor: f.color }} />
                         </div>
                       )}
-                      <div role="button" tabIndex={rack.ready > 0 ? 0 : -1}
+                      <div className="rounded-xl overflow-hidden bg-white"
                            aria-label={`${rack.name}: ${rack.ready} of ${rack.capacity} sets ready`}
-                           onClick={go}
-                           onKeyDown={(e) => { if (rack.ready > 0 && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); go(); } }}
-                           className="rounded-xl overflow-hidden bg-white outline-none transition-all focus-visible:ring-2"
-                           style={{ border: `1px solid ${f.color}40`, cursor: rack.ready > 0 ? "pointer" : "default",
-                                    boxShadow: "0 1px 2px rgba(17,24,39,0.05)" }}
-                           onMouseEnter={(e) => { if (rack.ready > 0) e.currentTarget.style.transform = "translateY(-1px)"; }}
-                           onMouseLeave={(e) => { e.currentTarget.style.transform = ""; }}>
+                           style={{ border: `1px solid ${f.color}40`, boxShadow: "0 1px 2px rgba(17,24,39,0.05)" }}>
                         <div className="px-3 py-2 flex items-center justify-between gap-2" style={{ background: f.color }}>
                           <div className="text-[13px] font-black text-white truncate">{rack.name}</div>
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
-                                style={{ background: "rgba(0,0,0,0.22)" }}>{rack.capacity} Sets</span>
+                                style={{ background: "rgba(0,0,0,0.22)" }}>{rack.occupied}/{rack.capacity} · {S.label}</span>
                         </div>
-                        <div className="px-3 pt-2.5 pb-3" style={{ background: S.bg }}>
-                          <div className="flex items-center justify-center gap-1 flex-wrap mb-2">
-                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
-                                  style={{ background: S.color + "1f", color: S.color, border: `1px solid ${S.color}40` }}>
-                              {S.icon} {S.label}
-                            </span>
-                            {shortN > 0 && (
-                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full"
-                                    title={`${shortN} set(s) on this rack are still waiting for components`}
-                                    style={{ background: "rgba(217,119,6,0.16)", color: "#b45309", border: "1px solid rgba(217,119,6,0.35)" }}>
-                                ⚠ {shortN} incomplete
-                              </span>
-                            )}
-                          </div>
-                          <div className="grid grid-cols-3 gap-1 text-center mb-2">
-                            {[["Ready", rack.ready, S.color], ["Capacity", rack.capacity, "#64748b"], ["Empty", rack.empty, "#94a3b8"]].map(([lbl, val, col]) => (
-                              <div key={lbl}>
-                                <div className="text-[8.5px] text-slate-500 uppercase tracking-wide">{lbl}</div>
-                                <div className="text-lg font-black leading-tight" style={{ color: col, fontVariantNumeric: "tabular-nums" }}>{val}</div>
+                        {/* One row per slot — its own status and its own action. */}
+                        <div className="p-2 space-y-1.5" style={{ background: S.bg }}>
+                          {rack.slots.map((sl) => {
+                            const m = sl.machine;
+                            const short = m ? pendingForMachine(m).length : 0;
+                            const SL = {
+                              empty:      { label: "Empty",      color: "#64748b", bg: "rgba(17,24,39,0.03)",   border: "1px dashed rgba(17,24,39,0.18)" },
+                              set:        { label: short ? "Set · incomplete" : "Set ready", color: short ? "#b45309" : "#15803d", bg: short ? "rgba(217,119,6,0.08)" : "rgba(21,128,61,0.08)", border: `1px solid ${short ? "rgba(217,119,6,0.35)" : "rgba(21,128,61,0.3)"}` },
+                              assembling: { label: "In assembly", color: "#6d28d9", bg: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.3)" },
+                              assembled:  { label: "Assembled · awaiting release", color: "#4338ca", bg: "rgba(99,102,241,0.10)", border: "1px solid rgba(99,102,241,0.35)" },
+                            }[sl.status];
+                            const ho = sl.status === "assembled" ? (handovers || []).find((h) => h && h.status === "pending" && String(h.machineId) === String(m.id)) : null;
+                            return (
+                              <div key={sl.id} className="rounded-lg px-2.5 py-2" style={{ background: SL.bg, border: SL.border }}
+                                   data-slot={sl.id} aria-label={`${slotLabel(sl.id)}: ${SL.label}${m ? ` · ${m.serialNo || m.bomKey}` : ""}`}>
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-[9px] font-bold" style={{ color: "var(--text-dim)" }}>Slot {sl.position}</span>
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: SL.color + "1f", color: SL.color }}>{SL.label}</span>
+                                </div>
+                                {m ? (
+                                  <div className="mt-1">
+                                    <div className="text-[11px] font-bold truncate" style={{ color: "var(--text-strong)" }}>{m.bomLabel || m.bomKey}</div>
+                                    <div className="text-[10px] font-mono truncate" style={{ color: "var(--text-muted)" }}>{m.serialNo || "(no serial)"}{sl.pinned ? "" : " · auto-placed"}</div>
+                                    {short > 0 && <div className="text-[9px] font-semibold" style={{ color: "#b45309" }} title={pendingForMachine(m).map((p) => `${p.item || p.name || p.code} ${p.pendingQty} ${p.unit || ""}`).join(", ")}>⚠ {short} component{short === 1 ? "" : "s"} still to collect</div>}
+                                    <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                                      {sl.status === "set" && rack.bomRack && canDo("machines", "updateStage") && (
+                                        <button type="button" onClick={() => openStartProd(rack.bomRack, m.id)}
+                                                className="text-[10px] font-bold px-2 py-1 rounded-md text-white" style={{ background: "#15803d" }}>▶ Start assembly</button>
+                                      )}
+                                      {sl.status === "assembled" && ho && canDo("machines", "release") && onReleaseHandover && (
+                                        <button type="button"
+                                                onClick={async () => {
+                                                  const r = await onReleaseHandover(ho.id);
+                                                  if (r && r.success === false) showToast("Could not release", r.error || "", "urgent");
+                                                  else showToast(`${m.bomKey}${m.serialNo ? ` — ${m.serialNo}` : ""}`, `Released from ${slotLabel(sl.id)} → ${ho.toDepartment}`);
+                                                }}
+                                                className="text-[10px] font-bold px-2 py-1 rounded-md text-white" style={{ background: "#4f46e5" }}>Release to {ho.toDepartment} →</button>
+                                      )}
+                                      {sl.status === "assembled" && !canDo("machines", "release") && (
+                                        <span className="text-[9px]" style={{ color: "var(--text-dim)" }}>waiting for the production head</span>
+                                      )}
+                                      {sl.status === "assembling" && (
+                                        <span className="text-[9px]" style={{ color: "var(--text-dim)" }}>slot kept until released</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="mt-1.5">
+                                    {canDo("outward", "bom") ? (
+                                      <button type="button" onClick={() => { setFillErr(""); setFillSlot({ slotId: sl.id, family: f, rack }); }}
+                                              className="text-[10px] font-bold px-2 py-1 rounded-md w-full"
+                                              style={{ background: "var(--surface-card)", color: f.color, border: `1px solid ${f.color}55` }}>＋ Fill / assign machine</button>
+                                    ) : (
+                                      <span className="text-[9px]" style={{ color: "var(--text-dim)" }}>empty</span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
-                            ))}
-                          </div>
-                          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(17,24,39,0.07)" }}>
-                            <div className="h-full transition-all" style={{ width: `${pct}%`, background: S.color }} />
-                          </div>
-                          {/* Space always reserved, so every card in a row is the
-                              same height and the R racks line up across columns. */}
-                          <div className="mt-1.5 text-[9.5px] font-bold text-center text-blue-500"
-                               style={{ visibility: rack.ready > 0 ? "visible" : "hidden" }}>▶ Start production</div>
+                            );
+                          })}
                         </div>
                       </div>
                     </React.Fragment>
@@ -17971,7 +17960,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               loud rather than silently dropped from view. */}
           {physicalFamilies.filter((f) => f.overflow > 0).map((f) => (
             <div key={f.id} className="mt-2 text-[10.5px] font-semibold" style={{ color: "#b45309" }}>
-              ⚠ {f.overflow} more {f.label} set{f.overflow === 1 ? "" : "s"} waiting than the M-{f.label} / R-{f.label} racks hold
+              ⚠ {f.overflow} more {f.label} machine{f.overflow === 1 ? "" : "s"} than the M-{f.label} / R-{f.label} racks hold: {f.overflowMachines.map((m) => m.serialNo || m.bomKey).join(", ")} — use Fill on an empty slot to place one.
             </div>
           ))}
 
@@ -19030,6 +19019,73 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       })()}
 
       {/* ── Start Production Modal ── */}
+      {fillSlot && (() => {
+        const f = fillSlot.family;
+        const famKeys = Object.keys(bomDefs || {}).filter((k) => physicalRackFamily(k)?.id === f.id);
+        const candidates = machineLog
+          .filter((m) => m.status !== "completed" && m.stage === "BOM Issued" && physicalRackFamily(m.bomKey)?.id === f.id && m.rackSlot !== fillSlot.slotId)
+          .sort((a, b) => (a.createdDate || "").localeCompare(b.createdDate || ""));
+        return (
+        <div className="modal-backdrop fixed inset-0 z-[70] flex items-center justify-center p-4"
+             style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
+             onClick={(e) => e.target === e.currentTarget && setFillSlot(null)}>
+          <div className="w-full max-w-md rounded-2xl p-6 space-y-4"
+               style={{ background: "var(--surface-elevated)", border: `1px solid ${f.color}66`, boxShadow: "0 40px 80px rgba(17,24,39,0.22)" }}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: f.color + "22", color: f.color }}>＋</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-black" style={{ color: "var(--text-strong)" }}>Fill {slotLabel(fillSlot.slotId)}</div>
+                <div className="text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>Model {famKeys.join(" / ") || f.label} only · one machine per slot</div>
+              </div>
+              <button onClick={() => setFillSlot(null)} className="text-slate-500 hover:text-slate-900 transition-colors text-lg leading-none">✕</button>
+            </div>
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--text-dim)" }}>Machines on the rack without this slot</div>
+              {candidates.length === 0 ? (
+                <div className="text-[11px] rounded-lg px-3 py-2.5" style={{ background: "rgba(17,24,39,0.03)", color: "var(--text-muted)" }}>No {f.label} set is waiting to be placed.</div>
+              ) : (
+                <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                  {candidates.map((m) => (
+                    <div key={m.id} className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12px] font-mono font-bold truncate" style={{ color: "var(--text-strong)" }}>{m.serialNo || "(no serial)"}</div>
+                        <div className="text-[9px]" style={{ color: "var(--text-dim)" }}>{m.bomKey} · issued {m.createdDate}{m.rackSlot ? ` · now in ${slotLabel(m.rackSlot)}` : " · auto-placed"}</div>
+                      </div>
+                      <button type="button"
+                              onClick={async () => {
+                                setFillErr("");
+                                const r = onAssignRackSlot ? await onAssignRackSlot(m.id, fillSlot.slotId) : { success: false, error: "Not available" };
+                                if (!r || r.success === false) { setFillErr((r && r.error) || "Could not assign"); return; }
+                                showToast(`${m.bomKey} — ${m.serialNo || ""}`, `Placed in ${slotLabel(fillSlot.slotId)}`);
+                                setFillSlot(null);
+                              }}
+                              className="text-[10px] font-bold px-2.5 py-1.5 rounded-md text-white flex-shrink-0" style={{ background: f.color }}>Assign here</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {bomSection && canDo("outward", "bom") && (
+              <div className="rounded-xl p-3" style={{ background: "rgba(17,24,39,0.03)", border: "1px dashed rgba(17,24,39,0.15)" }}>
+                <div className="text-[11px] font-bold" style={{ color: "var(--text-strong)" }}>Issue a new BOM set into this slot</div>
+                <div className="text-[10px] mt-0.5 mb-2" style={{ color: "var(--text-muted)" }}>Open the {famKeys[0] || f.label} BOM above and Save To Rack — the new set is placed in {slotLabel(fillSlot.slotId)}.</div>
+                <button type="button"
+                        onClick={() => {
+                          if (onReserveRackSlot) onReserveRackSlot(fillSlot.slotId, famKeys[0] || null);
+                          if (!bomOpen) toggleBom();
+                          setFillSlot(null);
+                          showToast(`${slotLabel(fillSlot.slotId)} reserved`, `Issue the ${famKeys[0] || f.label} BOM and choose Save To Rack`);
+                          setTimeout(() => { try { document.getElementById("mt-bom-section")?.scrollIntoView({ behavior: "smooth", block: "start" }); } catch {} }, 50);
+                        }}
+                        className="text-[10px] font-bold px-2.5 py-1.5 rounded-md" style={{ background: "var(--surface-card)", color: f.color, border: `1px solid ${f.color}55` }}>Reserve slot & open BOM →</button>
+              </div>
+            )}
+            {fillErr && <div className="text-[11px] font-semibold" style={{ color: "#b91c1c" }}>⚠ {fillErr}</div>}
+          </div>
+        </div>
+        );
+      })()}
+
       {startProd && (
         <div className="modal-backdrop fixed inset-0 z-[70] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
@@ -23690,12 +23746,24 @@ export default function App() {
     // clock immediately; rack-bound machines stay at "BOM Issued" until Start
     // Production (handleStartProduction below) resets the clock to Assembly.
     const nowIso = new Date().toISOString();
+    // 2026-10-31 — rack slot (brief §14): the reserved slot from a Fill action
+    // when it is for this model and still empty, else the first free slot.
+    // Direct production never takes a slot.
+    let rackSlot = null;
+    if (!directMode) {
+      const awaiting = new Set((handovers || []).filter((h) => h && h.status === "pending" && h.releaseRequired && !h.releasedAt).map((h) => String(h.machineId)));
+      const reserved = rackSlotReservationRef.current;
+      const preferred = reserved && (!reserved.bomKey || rackKeyNorm(reserved.bomKey) === rackKeyNorm(bomKey)) ? reserved.slotId : null;
+      rackSlot = firstFreeSlot(bomKey, machineLog, awaiting, preferred);
+      if (rackSlot) rackSlotReservationRef.current = null;
+    }
     const newMachine = {
       id:          Date.now(),
       issueId:     issueId || null,
       bomKey,
       bomLabel,
       serialNo,
+      rackSlot,
       stage:       initialStage,
       status:      "active",
       createdDate: dateStr,
@@ -23710,6 +23778,14 @@ export default function App() {
       deptDurations:       deptDurations || null,
     };
     setMachineLog((prev) => [newMachine, ...prev]);
+    if (rackSlot) {
+      logAudit({
+        type: "rack_slot_assigned", module: "Machine",
+        action: `Placed on rack ${slotLabel(rackSlot)}: ${bomKey}${serialNo ? ` [${serialNo}]` : ""}`,
+        ref: bomKey, serialNo: serialNo || "",
+        details: { slotId: rackSlot, how: "bom_outward", issueId },
+      });
+    }
     // 2026-10-30 — every critical item not issued at Outward becomes a pending
     // job on this machine: part missing, owed by Stores, with the reason the
     // store operator wrote. Kind 'owed': the machine may move through the
@@ -23852,7 +23928,7 @@ export default function App() {
         ...m,
         stage:   "Assembly",
         status:  "active",
-        history: [...(m.history || []), { stage: "Assembly", date: dateStr, note: "Started production from rack" }],
+        history: [...(m.history || []), { stage: "Assembly", date: dateStr, note: m.rackSlot ? `Started assembly from rack ${slotLabel(m.rackSlot)}` : "Started production from rack" }],
         // Phase A: Assembly clock starts here for rack-origin machines.
         currentDepartment:   "Assembly",
         departmentEnteredAt: nowIso,
@@ -23863,7 +23939,7 @@ export default function App() {
         machineUpdate(m.id, {
           stage: "Assembly",
           status: "active",
-          history: [...(m.history || []), { stage: "Assembly", date: dateStr, note: "Started production from rack" }],
+          history: [...(m.history || []), { stage: "Assembly", date: dateStr, note: m.rackSlot ? `Started assembly from rack ${slotLabel(m.rackSlot)}` : "Started production from rack" }],
           currentDepartment:   "Assembly",
           departmentEnteredAt: nowIso,
         })
@@ -23897,6 +23973,54 @@ export default function App() {
       details: { serialNos: serials },
     });
     return { success: true, count: targets.length, serials };
+  };
+
+  // 2026-10-31 — rack slots (brief §14).
+  // A Fill action reserves an empty slot for the next BOM set of that model;
+  // consumed by handleCreateMachine (Save To Rack) and dropped otherwise.
+  const rackSlotReservationRef = useRef(null); // { slotId, bomKey }
+  const handleReserveRackSlot = (slotId, bomKey) => { rackSlotReservationRef.current = slotId ? { slotId, bomKey: bomKey || null } : null; };
+  // Pin one rack machine to one exact slot. Refuses a taken slot, a slot of
+  // another model's rack, or a machine that is not on the rack.
+  const handleAssignRackSlot = async (machineId, slotId) => {
+    const machine = machineLog.find((m) => String(m.id) === String(machineId));
+    const awaiting = new Set((handovers || []).filter((h) => h && h.status === "pending" && h.releaseRequired && !h.releasedAt).map((h) => String(h.machineId)));
+    const chk = canAssignSlot(machine, slotId, machineLog, awaiting);
+    if (!chk.ok) return { success: false, error: chk.error };
+    const prevSlot = machine.rackSlot || null;
+    setMachineLog((prev) => prev.map((m) => (String(m.id) === String(machineId) ? { ...m, rackSlot: slotId } : m)));
+    if (isSupabaseEnabled()) {
+      const r = await machineUpdate(machine.id, { rackSlot: slotId });
+      if (!r.success) {
+        setMachineLog((prev) => prev.map((m) => (String(m.id) === String(machineId) ? { ...m, rackSlot: prevSlot } : m)));
+        return { success: false, error: r.error || "Could not save the slot" };
+      }
+    } else {
+      machineUpdate(machine.id, { rackSlot: slotId });
+    }
+    logAudit({
+      type: "rack_slot_assigned", module: "Machine",
+      action: `Placed on rack ${slotLabel(slotId)}: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}${prevSlot ? ` (moved from ${slotLabel(prevSlot)})` : ""}`,
+      ref: machine.bomKey, serialNo: machine.serialNo || "",
+      oldValue: { slotId: prevSlot }, newValue: { slotId },
+      details: { machineId: machine.id, how: "fill" },
+    });
+    return { success: true };
+  };
+  // The slot is freed when the assembled machine leaves the rack (release),
+  // or when the set is removed from the rack.
+  const clearRackSlot = (machine, why) => {
+    if (!machine || !machine.rackSlot) return;
+    const slotId = machine.rackSlot;
+    setMachineLog((prev) => prev.map((m) => (String(m.id) === String(machine.id) ? { ...m, rackSlot: null } : m)));
+    machineUpdate(machine.id, { rackSlot: null }).then((r) => { if (!r.success) console.warn("[App] rack slot clear failed", r.error); });
+    logAudit({
+      type: "rack_slot_released", module: "Machine",
+      action: `Rack ${slotLabel(slotId)} is empty again: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""} — ${why}`,
+      ref: machine.bomKey, serialNo: machine.serialNo || "",
+      oldValue: { slotId }, newValue: { slotId: null },
+      details: { machineId: machine.id, why },
+    });
   };
 
   // Feature 3: remove a machine from the rack. Restores the materials that
@@ -23961,7 +24085,7 @@ export default function App() {
       type: "machine_rack_removed", module: "Machine",
       action: `Rack build removed: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""} — ${issuedLines.length} component(s) returned to stock`,
       ref: machine.bomKey, serialNo: machine.serialNo || "",
-      details: { issueId: machine.issueId, restored: issuedLines.map((l) => ({ code: l.code, qty: l.issueQty })) },
+      details: { rackSlot: machine.rackSlot || null,  issueId: machine.issueId, restored: issuedLines.map((l) => ({ code: l.code, qty: l.issueQty })) },
     });
 
     return { success: true, restored: issuedLines.length };
@@ -24702,6 +24826,7 @@ export default function App() {
       ? { ...x, releasedAt: res.handover?.releasedAt || new Date().toISOString(), releasedBy: currentUser.id }
       : x));
     const machine = machineLog.find((m) => String(m.id) === String(h?.machineId));
+    clearRackSlot(machine, `released to ${h?.toDepartment || "next department"}`);
     logAudit({
       type: "handover_released", module: "Machine",
       action: `Released from rack to ${h?.toDepartment || "next dept"}: ${machine?.bomKey || ""}${machine?.serialNo ? ` [${machine.serialNo}]` : ""}`,
@@ -25018,6 +25143,8 @@ export default function App() {
                               onRaisePendingItem={handleRaisePendingItem}
                               /* Migration 036 — release a machine off the rack */
                               onReleaseHandover={handleReleaseHandover}
+                              onAssignRackSlot={handleAssignRackSlot}
+                              onReserveRackSlot={handleReserveRackSlot}
                               /* Migration 028 */
                               onSubmitDuringWorkChecklist={handleSubmitDuringWorkChecklist}
                               /* Migration 029 */

@@ -105,7 +105,12 @@ test("every path to Ready asks the pending-jobs gate", () => {
 });
 
 test("racks are the fixed floor racks only — no capacity from the BOM", () => {
-  assert.match(app, /function rackCapacityFor\(bomKey, _def\) \{\s*const slots = physicalRackSlots\(bomKey\);\s*return slots != null \? slots : 0;/);
+  // 2026-10-31 — the rule moved to utils/rackSlots.js with the slot logic; the
+  // app must import it from there rather than carry its own copy.
+  const rackSlots = fs.readFileSync(path.join(root, "src/utils/rackSlots.js"), "utf8");
+  assert.match(rackSlots, /export function rackCapacityFor\(bomKey, _def, layout = PHYSICAL_RACK_LAYOUT\) \{\s*const slots = physicalRackSlots\(bomKey, layout\);\s*return slots != null \? slots : 0;/);
+  assert.match(app, /import \{[^}]*rackCapacityFor[^}]*\} from "\.\/utils\/rackSlots\.js"/);
+  assert.doesNotMatch(app, /\nfunction rackCapacityFor\(/);
 });
 
 test("Outward skips the durations popup when the BOM carries all four", () => {

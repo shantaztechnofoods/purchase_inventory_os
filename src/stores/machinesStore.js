@@ -30,6 +30,8 @@ function toRow(m) {
   // department submits Finish & Transfer → Ready. Stripped-on-retry for
   // pre-032 schemas (isMissingColumnError path in updateMachine).
   if (m.trialCertificate      !== undefined) base.trial_certificate     = m.trialCertificate     || null;
+  // Migration 045 — fixed rack slot the machine occupies ("M-10-1#2").
+  if (m.rackSlot              !== undefined) base.rack_slot             = m.rackSlot             || null;
   return base;
 }
 function fromRow(r) {
@@ -54,6 +56,8 @@ function fromRow(r) {
     deptDurations:       (r.dept_durations && typeof r.dept_durations === "object") ? r.dept_durations : null,
     // Migration 032 — Trial Certificate payload. NULL for pre-032 rows.
     trialCertificate:    (r.trial_certificate && typeof r.trial_certificate === "object") ? r.trial_certificate : null,
+    // Migration 045 — rack slot id, null for legacy rows (placed oldest-first).
+    rackSlot:            r.rack_slot || null,
   };
 }
 
@@ -124,6 +128,7 @@ export async function createMachine(m) {
     delete slim.pending_handover_id;
     delete slim.dept_durations;
     delete slim.trial_certificate;
+    delete slim.rack_slot;
     ({ data, error } = await c.from("machine_log").insert(slim).select().single());
   }
   if (error) { console.error("[machines:create] failed", error); return { success: false, error: error.message }; }
@@ -164,6 +169,8 @@ export async function updateMachine(id, updates) {
   if (updates.pendingHandoverId     !== undefined) row.pending_handover_id   = updates.pendingHandoverId;    // may be null to clear
   // Migration 032 — Trial Certificate payload (optional; strip on retry if schema not yet applied).
   if (updates.trialCertificate      !== undefined) row.trial_certificate     = updates.trialCertificate     || null;
+  // Migration 045 — rack slot (may be null to clear).
+  if (updates.rackSlot              !== undefined) row.rack_slot             = updates.rackSlot             || null;
 
   // `.select()` is not decoration. Without it, PostgREST answers an UPDATE that
   // matched ZERO rows with no error and no data, and this function reported
@@ -181,6 +188,7 @@ export async function updateMachine(id, updates) {
     delete row.department_entered_at;
     delete row.pending_handover_id;
     delete row.trial_certificate;
+    delete row.rack_slot;
     ({ data, error } = await c.from("machine_log").update(row).eq("id", id).select("id"));
   }
   if (error) { console.error("[machines:update] failed", error); return { success: false, error: error.message }; }
