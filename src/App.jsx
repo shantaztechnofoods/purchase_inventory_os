@@ -70,6 +70,7 @@ import {
 import { mapRow as vendorMapRow, parseRows as vendorParseRows } from "./utils/vendorImport.js";
 import { parseRows as itemParseRows, generateItemCode, buildRowsFromSheet as itemBuildRowsFromSheet } from "./utils/itemImport.js";
 import { parseBomPaste } from "./utils/bomPaste.js";
+import { receivedPoRates, bomCostLines, bomCostSummary, validateBomLines, formatINR, RATE_SOURCE_LABEL } from "./utils/bomCost.js";
 import { getActiveCompany, normalizePOSettings, openPOPdf, PO_TEMPLATE_OPTIONS } from "./utils/poTemplate.js";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -11571,6 +11572,103 @@ function BOMPasteLines({ inventory = [], existingLines = [], onApply = () => {} 
 
 // ─── BOM DRAWER ───────────────────────────────────────────────────────────────
 
+// ── BOM Cost & Rates (2026-10-31, brief §12) ─────────────────────────────────
+// Component-wise rates and the machine BOM total, from existing data only.
+// A line with no verified rate shows "Missing rate"; an authorized user can
+// enter and save it (stored as the item's default purchase rate, with an
+// audit entry) — the ERP never fills a rate in on its own.
+function BomCostPanel({ lines, findInv, pos = [], units = 1, canSetRate = false, onSetItemRate }) {
+  const poRates = useMemo(() => receivedPoRates(pos), [pos]);
+  const costLines = bomCostLines(lines, findInv, poRates, units);
+  const sum = bomCostSummary(costLines);
+  const [draft, setDraft] = useState({});   // code → typed rate
+  const [busy,  setBusy]  = useState({});
+  const [err,   setErr]   = useState({});
+  const save = async (code) => {
+    const r = Number(draft[code]);
+    if (!(r > 0)) { setErr((e) => ({ ...e, [code]: "Enter a rate above 0" })); return; }
+    setBusy((b) => ({ ...b, [code]: true })); setErr((e) => ({ ...e, [code]: "" }));
+    const res = onSetItemRate ? await onSetItemRate(code, r) : { success: false, error: "not available" };
+    setBusy((b) => ({ ...b, [code]: false }));
+    if (!res || res.success === false) setErr((e) => ({ ...e, [code]: (res && res.error) || "Could not save" }));
+    else setDraft((d) => { const n = { ...d }; delete n[code]; return n; });
+  };
+  const STATUS = {
+    ok:           { label: "Rate OK",      color: "#15803d", bg: "rgba(21,128,61,0.08)" },
+    missing_rate: { label: "Missing rate", color: "#b91c1c", bg: "rgba(185,28,28,0.08)" },
+    missing_item: { label: "Not in Item Master", color: "#b45309", bg: "rgba(180,83,9,0.10)" },
+    zero_qty:     { label: "Qty is 0",     color: "#b45309", bg: "rgba(180,83,9,0.10)" },
+  };
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface-card)" }}>
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 flex-wrap" style={{ background: "rgba(17,24,39,0.03)", borderBottom: "1px solid var(--border-subtle)" }}>
+        <div>
+          <div className="text-[12px] font-bold" style={{ color: "var(--text-strong)" }}>Cost & rates · {units} unit{units === 1 ? "" : "s"}</div>
+          <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>Rates from Item Master and received POs only — nothing is estimated.</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[16px] font-extrabold tabular-nums" style={{ color: sum.complete ? "#15803d" : "var(--text-strong)" }}>{formatINR(sum.knownTotal)}</div>
+          <div className="text-[10px] font-semibold" style={{ color: sum.complete ? "#15803d" : "#b91c1c" }}>
+            {sum.complete ? "Complete BOM cost" : `Incomplete · ${sum.missingRate} missing rate${sum.missingRate === 1 ? "" : "s"}${sum.missingItem ? ` · ${sum.missingItem} unknown item${sum.missingItem === 1 ? "" : "s"}` : ""}${sum.duplicates.length ? ` · duplicate: ${sum.duplicates.join(", ")}` : ""}${sum.zeroQty ? ` · ${sum.zeroQty} zero qty` : ""}`}
+          </div>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[11px]" style={{ minWidth: 560 }}>
+          <thead>
+            <tr style={{ color: "var(--text-dim)" }}>
+              {["Component", "Qty", "Unit", "Rate", "Amount", "Status"].map((h) => (
+                <th key={h} className={`px-3 py-1.5 font-semibold text-left ${h === "Qty" || h === "Rate" || h === "Amount" ? "text-right" : ""}`}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {costLines.map((l, i) => {
+              const st = STATUS[l.status] || STATUS.ok;
+              return (
+                <tr key={l.code + i} style={{ borderTop: "1px solid var(--border-subtle)", background: l.duplicate ? "rgba(180,83,9,0.06)" : undefined }}>
+                  <td className="px-3 py-1.5">
+                    <div className="font-bold" style={{ color: "var(--text-strong)" }}>{l.name}</div>
+                    <div className="font-mono text-[10px]" style={{ color: "var(--text-dim)" }}>{l.code}{l.duplicate ? " · duplicate line" : ""}</div>
+                  </td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{l.qty}{units > 1 ? <span style={{ color: "var(--text-dim)" }}> × {units} = {l.totalQty}</span> : null}</td>
+                  <td className="px-3 py-1.5">{l.unit || <span style={{ color: "#b45309" }}>no unit</span>}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">
+                    {l.rate != null ? (
+                      <div>
+                        <div className="font-semibold">{formatINR(l.rate)}</div>
+                        <div className="text-[9px]" style={{ color: "var(--text-dim)" }} title={l.poId ? `From ${l.poId}` : ""}>{RATE_SOURCE_LABEL[l.rateSource]}{l.poId ? ` ${l.poId}` : ""}</div>
+                      </div>
+                    ) : l.status === "missing_rate" && canSetRate ? (
+                      <div className="flex items-center gap-1 justify-end">
+                        <input type="number" min="0" step="0.01" placeholder="₹ rate" value={draft[l.code] ?? ""}
+                               onChange={(e) => setDraft((d) => ({ ...d, [l.code]: e.target.value }))}
+                               className="w-24 px-2 py-1 rounded-md text-[11px] text-right" style={{ border: "1px solid var(--border-rim)", background: "var(--surface-input)" }} />
+                        <button type="button" disabled={!!busy[l.code]} onClick={() => save(l.code)}
+                                className="btn-primary text-[10px] px-2 py-1 rounded-md disabled:opacity-50">{busy[l.code] ? "…" : "Save"}</button>
+                      </div>
+                    ) : "—"}
+                    {err[l.code] && <div className="text-[9px]" style={{ color: "#b91c1c" }}>{err[l.code]}</div>}
+                  </td>
+                  <td className="px-3 py-1.5 text-right tabular-nums font-semibold">{l.amount != null ? formatINR(l.amount) : "—"}</td>
+                  <td className="px-3 py-1.5">
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {!canSetRate && sum.missingRate > 0 && (
+        <div className="px-4 py-2 text-[10px]" style={{ color: "var(--text-dim)", borderTop: "1px solid var(--border-subtle)" }}>
+          Missing rates can be entered by a user with Inventory → Edit permission (Item Master, or here).
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock, onClose, onIssue, onUpdateBOM, onRenameBOM, allBomKeys = [], onAfterRename, serialNo = "", rackReady = 0, settings = {}, checklistTemplates = [], onCreateChecklistTemplate, onUpdateChecklistTemplate, onDeleteChecklistTemplate, canConfigChecklist = false,
   // Feature 2 — Req 2: history of outward issues for serial-number deduplication.
   outwardLog = [],
@@ -11581,7 +11679,11 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   // Called when a stock movement is rejected during the issue commit. The
   // drawer has already closed by then, so the message has to go somewhere that
   // outlives it — the persistent save-error banner on the app shell.
-  onStockIssueFailed = () => {} }) {
+  onStockIssueFailed = () => {},
+  // 2026-10-31 — cost & rates panel (brief §12).
+  pos = [], canSetRate = false, onSetItemRate }) {
+  const [showCostPanel, setShowCostPanel] = useState(false);
+  const [editValidationErr, setEditValidationErr] = useState("");
   const [search,       setSearch]       = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [catCollapsed, setCatCollapsed] = useState({});
@@ -12087,6 +12189,10 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     const dErr = validateDurationsForm(editDurations);
     if (dErr) { setEditDurErr(dErr); return; }
     setEditDurErr("");
+    // 2026-10-31 — duplicate lines and zero quantities never reach the store.
+    const v = validateBomLines(editItems, findInv);
+    if (!v.ok) { setEditValidationErr(v.errors.join(" ")); return; }
+    setEditValidationErr("");
     // First save items + rack capacity + durations under the existing key
     onUpdateBOM(bomKey, {
       ...bom,
@@ -12142,12 +12248,29 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             <button onClick={() => onUnitsChange(units + 1)} className="w-6 h-6 rounded text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-white/10 transition-all">+</button>
           </div>
 
+          {(() => {
+            const cs = bomCostSummary(bomCostLines(sourceItems, findInv, receivedPoRates(pos), units));
+            return (
+              <button onClick={() => setShowCostPanel((v) => !v)} title="Component rates and BOM cost"
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all"
+                      style={showCostPanel ? { background: "rgba(21,128,61,0.10)", color: "#15803d", borderColor: "rgba(21,128,61,0.35)" }
+                                           : { background: "var(--surface-card)", color: cs.complete ? "#15803d" : "#b91c1c", borderColor: "var(--border-rim)" }}>
+                💰 {formatINR(cs.knownTotal)}{cs.complete ? "" : ` · ${cs.missingRate + cs.missingItem} missing`}
+              </button>
+            );
+          })()}
           <button onClick={() => { if (editMode) { setEditMode(false); resetEditState(); } else { resetEditState(); setEditMode(true); } }}
                   className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${editMode ? "bg-amber-500/10 text-amber-700 border-amber-500/30" : "bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-900"}`}>
             {editMode ? "✕ Cancel" : "✏️ Edit BOM"}
           </button>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-900 text-[11px] font-bold px-3 py-1.5 rounded-lg hover:bg-slate-50 border border-slate-200 transition-all">✕ Close</button>
         </div>
+
+        {showCostPanel && (
+          <div className="px-6 pb-4" style={{ maxHeight: "46vh", overflowY: "auto" }}>
+            <BomCostPanel lines={sourceItems} findInv={findInv} pos={pos} units={units} canSetRate={canSetRate} onSetItemRate={onSetItemRate} />
+          </div>
+        )}
 
         {/* Search + filter bar */}
         {!editMode && (
@@ -12464,6 +12587,12 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               </div>
             )}
 
+            {editValidationErr && (
+              <div className="text-[11px] font-semibold rounded-xl px-4 py-2.5" style={{ background: "rgba(185,28,28,0.08)", color: "#b91c1c", border: "1px solid rgba(185,28,28,0.25)" }}>⚠ {editValidationErr}</div>
+            )}
+            {(() => { const w = validateBomLines(editItems, findInv).warnings; return w.length ? (
+              <div className="text-[10px] rounded-xl px-4 py-2" style={{ background: "rgba(180,83,9,0.08)", color: "#b45309", border: "1px solid rgba(180,83,9,0.25)" }}>{w.map((x, i) => <div key={i}>⚠ {x}</div>)}</div>
+            ) : null; })()}
             <div className="flex gap-3 pt-2">
               <button onClick={() => { setEditMode(false); resetEditState(); }}
                       className="text-xs font-bold text-slate-400 px-5 py-2.5 rounded-xl border border-slate-200 hover:text-slate-900 hover:border-white/20 transition-all">Discard Changes</button>
@@ -13083,7 +13212,9 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
   // "→ Open Inventory" button). Optional; falls back to no-op.
   onNavigate = () => {},
   // Surfaces a rejected stock movement after the issue drawer has closed.
-  onStockIssueFailed = () => {} }) {
+  onStockIssueFailed = () => {},
+  // 2026-10-31 — BOM cost & rates (brief §12).
+  pos = [], canSetRate = false, onSetItemRate }) {
   // Feature 3: confirm + remove rack machine. The button only appears when a
   // remover prop is provided AND the operator has the permission. Stays in
   // local state so the confirmation persists across re-renders of the modal.
@@ -13567,6 +13698,9 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
           outwardLog={outwardLog}
           onNavigate={onNavigate}
           onStockIssueFailed={onStockIssueFailed}
+          pos={pos}
+          canSetRate={canSetRate}
+          onSetItemRate={onSetItemRate}
         />
       )}
 
@@ -24803,6 +24937,8 @@ export default function App() {
   // the same component, data and handlers, never a second copy.
   const outwardPageProps = {
     items, handleUpdateStock,
+    // 2026-10-31 — BOM cost panel: received-PO rates + authorized rate entry.
+    pos, canSetRate: canDo("inventory", "edit"), onSetItemRate: handleSetItemDefaultRate,
     bomDefs, onUpdateBOM: handleUpdateBOM,
     onCreateBOM: handleCreateBOM, onRenameBOM: handleRenameBOM,
     outwardLog, onAddOutward: handleAddOutward,
