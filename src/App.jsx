@@ -17913,7 +17913,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                     <div className="text-[10px] font-mono truncate" style={{ color: "var(--text-muted)" }}>{m.serialNo || "(no serial)"}{sl.pinned ? "" : " · auto-placed"}</div>
                                     {short > 0 && <div className="text-[9px] font-semibold" style={{ color: "#b45309" }} title={pendingForMachine(m).map((p) => `${p.item || p.name || p.code} ${p.pendingQty} ${p.unit || ""}`).join(", ")}>⚠ {short} component{short === 1 ? "" : "s"} still to collect</div>}
                                     <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-                                      {sl.status === "set" && rack.bomRack && canDo("machines", "updateStage") && (
+                                      {sl.status === "set" && rack.bomRack && (
                                         <button type="button" onClick={() => openStartProd(rack.bomRack, m.id)}
                                                 className="text-[10px] font-bold px-2 py-1 rounded-md text-white" style={{ background: "#15803d" }}>▶ Start assembly</button>
                                       )}
@@ -22167,6 +22167,8 @@ export default function App() {
   // mount; refreshed by realtime (new handlers in rtHandovers below). Falls back
   // gracefully to [] when migration 021 isn't applied yet.
   const [handovers,  setHandovers]  = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_handovers"); if (s) return JSON.parse(s); } catch {} return []; });
+  // 2026-10-31 — rack slot reserved by a Fill action: { slotId, bomKey }.
+  const rackSlotReservationRef = useRef(null);
   // Phase B — department workflow depth. Each falls back silently if its
   // migration hasn't been applied yet (the stores swallow errors to [] / {}).
   const [checklistTemplates, setChecklistTemplates] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_checklist_templates"); if (s) return JSON.parse(s); } catch {} return []; });
@@ -23978,7 +23980,8 @@ export default function App() {
   // 2026-10-31 — rack slots (brief §14).
   // A Fill action reserves an empty slot for the next BOM set of that model;
   // consumed by handleCreateMachine (Save To Rack) and dropped otherwise.
-  const rackSlotReservationRef = useRef(null); // { slotId, bomKey }
+  // (rackSlotReservationRef is declared with the other hooks near the top of
+  // App — hooks must run before the login early-return.)
   const handleReserveRackSlot = (slotId, bomKey) => { rackSlotReservationRef.current = slotId ? { slotId, bomKey: bomKey || null } : null; };
   // Pin one rack machine to one exact slot. Refuses a taken slot, a slot of
   // another model's rack, or a machine that is not on the rack.
