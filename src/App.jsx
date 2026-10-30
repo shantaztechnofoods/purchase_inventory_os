@@ -6554,8 +6554,11 @@ function WhatsAppPage({ settings = {}, onSave }) {
           <div className="flex-1 flex min-h-0">
 
             {/* ── Conversation list ── */}
-            <div className="flex flex-col min-h-0 wa-list"
-                 style={{ width: activeChat ? 360 : "100%", borderRight: "1px solid var(--wa-line)" }}>
+            {/* Fixed-width list, flexible thread — the split WhatsApp Web uses.
+                A percentage width here fought the flex-1 sibling and squeezed
+                the thread pane into a sliver. */}
+            <div className="flex flex-col min-h-0 wa-list flex-shrink-0"
+                 style={{ width: 380, borderRight: "1px solid var(--wa-line)" }}>
 
               <div className="px-4 py-3 flex items-center gap-2 flex-shrink-0 wa-list-head">
                 <div className="flex-1 min-w-0">
