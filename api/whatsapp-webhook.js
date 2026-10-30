@@ -36,7 +36,12 @@ import crypto from "node:crypto";
 // Chakra sent, so a parsed-and-reserialised object would not match.
 export const config = { api: { bodyParser: false } };
 
-const GEMINI_MODEL   = "gemini-3.8-flash";
+// Models get retired without warning — gemini-2.0-flash was, mid-setup, and
+// the replacement Google's own error suggested was not available to this key
+// either. "gemini-flash-latest" is an alias that always resolves to the
+// current flash model, so a retirement stops being an outage; the explicit
+// versions behind it are the fallback if the alias is ever unavailable.
+const GEMINI_MODELS = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-3-flash-preview"];
 const WA_API_VERSION = "v21.0";
 const MAX_MEDIA_BYTES = 15 * 1024 * 1024;
 
@@ -267,28 +272,37 @@ export default async function handler(req, res) {
     }
 
     // ── Ask Gemini ──
-    let gJson;
+    const gBody = JSON.stringify({
+      systemInstruction: {
+        parts: [{ text: SYSTEM_PROMPT + (settings.waAgentTraining || "(abhi koi training nahi di gayi hai)") }],
+      },
+      contents: [{ role: "user", parts }],
+      generationConfig: { maxOutputTokens: 600, temperature: 0.6 },
+    });
+
+    let gJson, lastErr = "";
     try {
-      const gResp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": settings.waGeminiKey },
-          body: JSON.stringify({
-            systemInstruction: {
-              parts: [{ text: SYSTEM_PROMPT + (settings.waAgentTraining || "(abhi koi training nahi di gayi hai)") }],
-            },
-            contents: [{ role: "user", parts }],
-            generationConfig: { maxOutputTokens: 600, temperature: 0.6 },
-          }),
-          // A hung upstream must not hang the webhook: Chakra is waiting on
-          // this response, and a serverless function that never returns is
-          // killed without saying why.
-          signal: AbortSignal.timeout(20000),
-        },
-      );
-      gJson = await gResp.json().catch(() => ({}));
-      if (!gResp.ok) return done({ skipped: `gemini HTTP ${gResp.status}`, detail: gJson?.error?.message });
+      for (const model of GEMINI_MODELS) {
+        const gResp = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": settings.waGeminiKey },
+            body: gBody,
+            // A hung upstream must not hang the webhook: Chakra is waiting on
+            // this response, and a serverless function that never returns is
+            // killed without saying why.
+            signal: AbortSignal.timeout(20000),
+          },
+        );
+        const j = await gResp.json().catch(() => ({}));
+        if (gResp.ok) { gJson = j; break; }
+        lastErr = `${model}: HTTP ${gResp.status} ${j?.error?.message || ""}`.trim();
+        // Only a missing/unsupported model is worth trying the next name for.
+        // A bad key or a quota error would fail identically on all of them.
+        if (gResp.status !== 404 && gResp.status !== 400) break;
+      }
+      if (!gJson) return done({ skipped: "gemini unavailable", detail: lastErr });
     } catch (e) {
       return done({ skipped: `gemini call failed: ${e?.message || e}` });
     }
