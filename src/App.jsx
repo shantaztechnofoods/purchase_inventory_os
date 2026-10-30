@@ -16504,8 +16504,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             The Outward page's own BOM section, embedded: issuing here and
             issuing from Outward are the same component and the same code. */}
         {bomSection && (
-          // No overflow-hidden: it clipped the BOM ⋮ menu.
-          <div className="section-card">
+          // No overflow-hidden: it clipped the BOM ⋮ menu. no-lift: this card
+          // holds the BOM popups (serial, drawer, delete) — a hover transform
+          // here re-anchors them to the card and they flicker. See index.css.
+          <div className="section-card no-lift">
             <button type="button" onClick={toggleBom} aria-expanded={bomOpen}
                     className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left">
               <span className="text-[13px] font-bold" style={{ color: "var(--text-strong)" }}>Issue a BOM</span>

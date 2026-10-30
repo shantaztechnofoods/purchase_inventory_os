@@ -2047,6 +2047,15 @@ tbody tr:hover {
   }
 }
 
+/* A section card that hosts popups (Machine Tracker's embedded BOM Outward)
+   must never carry a transform. A transform makes the card the containing
+   block for its position:fixed descendants, so on hover every BOM popup
+   shrank into the card and jumped; the pointer then left the card, the lift
+   dropped, the popup went full-screen again, and the loop repeated — the
+   whole-screen flicker on Open BOM (2026-10-30). */
+.section-card.no-lift,
+.section-card.no-lift:hover { transform: none; }
+
 /* ── Smooth sidebar nav items — slide indicator ──────────────────────────── */
 aside nav button {
   position: relative;
