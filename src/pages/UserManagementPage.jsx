@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { PageHeader } from "../components/PageHeader.jsx";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { hashPassword, getRoleLabel, getRoleColor, fetchAllUsers, updateUserDepartments } from "../auth/authStore.js";
 import { DEPARTMENT_SEQUENCE } from "../utils/handoverLogic.js";
@@ -315,29 +316,23 @@ export default function UserManagementPage({ canDo }) {
       )}
 
       {/* Header */}
-      <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid rgba(26,31,46,0.06)" }}>
-        <div>
-          <div className="text-base font-bold" style={{ color: "var(--text-strong)" }}>User Management</div>
-          <div className="text-xs text-slate-500 mt-0.5">{users.length} user{users.length !== 1 ? "s" : ""} in the system</div>
-        </div>
-        <div className="flex items-center gap-3">
+      <PageHeader title="User Management" subtitle={`${users.length} user${users.length !== 1 ? "s" : ""} in the system`}>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users…"
-            className="px-3 py-1.5 rounded-lg text-xs placeholder-slate-400 outline-none w-44"
+            className="px-3 py-1.5 rounded-lg text-xs placeholder-slate-400 outline-none w-full sm:w-44"
             style={inputStyle} />
           {(isSuperAdmin || canDo?.("users", "create")) && (
             <button onClick={openAdd}
               className="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all"
-              style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 4px 12px rgba(176, 18, 24,0.35)", color: "#ffffff" }}>
+              style={{ background: "#B01218", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
               + Add User
             </button>
           )}
-        </div>
-      </div>
+        </PageHeader>
 
       {/* Table */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
-        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(26,31,46,0.07)" }}>
-          <table className="w-full text-xs">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+        <div className="rounded-xl overflow-x-auto" style={{ border: "1px solid rgba(26,31,46,0.07)" }}>
+          <table className="w-full text-xs" style={{ minWidth: 720 }}>
             <thead>
               <tr style={{ background: "rgba(26,31,46,0.04)", borderBottom: "1px solid rgba(26,31,46,0.07)" }}>
                 <th className="px-4 py-3 text-left font-semibold text-slate-600">Username</th>
@@ -533,7 +528,7 @@ export default function UserManagementPage({ canDo }) {
                 <button type="submit" disabled={submitting}
                   className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
                   style={{
-                    background: submitting ? "rgba(176, 18, 24,0.4)" : "linear-gradient(135deg,#D71920,#B01218)",
+                    background: submitting ? "rgba(176, 18, 24,0.4)" : "#B01218",
                     boxShadow: submitting ? "none" : "0 4px 12px rgba(176, 18, 24,0.35)",
                     cursor: submitting ? "wait" : "pointer",
                     color: "#ffffff",
@@ -644,7 +639,7 @@ export default function UserManagementPage({ canDo }) {
                 disabled={deleteSubmitting}
                 className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2"
                 style={{
-                  background: "linear-gradient(135deg,#ef4444,#dc2626)",
+                  background: "#dc2626",
                   boxShadow: deleteSubmitting ? "none" : "0 4px 12px rgba(239,68,68,0.35)",
                   opacity: deleteSubmitting ? 0.6 : 1,
                   cursor: deleteSubmitting ? "wait" : "pointer",

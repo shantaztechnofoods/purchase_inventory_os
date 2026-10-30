@@ -370,7 +370,7 @@ function ProfileModal({ user, roleLabel, roleColor, onClose, onSave }) {
           </button>
           <button onClick={handleSave}
             className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
-            style={{ background: "linear-gradient(135deg,#d92028,#b31820)", color: "#ffffff", boxShadow: "0 4px 12px rgba(217,32,40,0.28)" }}>
+            style={{ background: "#b31820", color: "#ffffff", boxShadow: "0 1px 2px rgba(17,24,39,0.14)" }}>
             Save Changes
           </button>
         </div>
@@ -553,9 +553,9 @@ function ChangePasswordModal({ user, onClose, onLocalSave, onSupabaseSaved }) {
                 disabled={!currentPw || !newPw || !confirmPw || saving}
                 className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
                 style={{
-                  background: "linear-gradient(135deg,#d92028,#b31820)",
+                  background: "#b31820",
                   color: "#ffffff",
-                  boxShadow: "0 4px 12px rgba(217,32,40,0.28)",
+                  boxShadow: "0 1px 2px rgba(17,24,39,0.14)",
                   opacity: (!currentPw || !newPw || !confirmPw || saving) ? 0.4 : 1,
                   cursor: saving ? "wait" : (!currentPw || !newPw || !confirmPw) ? "not-allowed" : "pointer",
                 }}>

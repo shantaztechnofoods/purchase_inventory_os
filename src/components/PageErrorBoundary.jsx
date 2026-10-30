@@ -91,7 +91,7 @@ export default class PageErrorBoundary extends Component {
             <div className="flex flex-wrap gap-2">
               <button onClick={onRetry}
                       className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-white border transition-all"
-                      style={{ background: "linear-gradient(135deg,#D71920,#B01218)", borderColor: "rgba(176, 18, 24,0.5)" }}>
+                      style={{ background: "#B01218", borderColor: "rgba(176, 18, 24,0.5)", color: "#ffffff" }}>
                 ↻ Try again
               </button>
               {onHome && (

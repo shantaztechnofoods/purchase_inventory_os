@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { PageHeader } from "../components/PageHeader.jsx";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { getAuditLog, subscribeAudit, fetchAuditFromSupabase } from "../auth/auditStore.js";
 import { isSupabaseEnabled } from "../config/env.js";
@@ -238,15 +239,10 @@ export default function AuditHistoryPage() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid rgba(26,31,46,0.06)" }}>
-        <div>
-          <div className="text-base font-bold" style={{ color: "var(--text-strong)" }}>Audit Trail</div>
-          <div className="text-xs text-slate-500 mt-0.5">
-            {sorted.length.toLocaleString("en-IN")} of {logs.length.toLocaleString("en-IN")} entries
-            {sorted.length !== logs.length && <span className="text-amber-700 ml-1">· filtered</span>}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
+      <PageHeader title="Audit Trail" subtitle={<>
+        {sorted.length.toLocaleString("en-IN")} of {logs.length.toLocaleString("en-IN")} entries
+        {sorted.length !== logs.length && <span className="text-amber-700 ml-1">· filtered</span>}
+      </>}>
           <button onClick={() => exportCSV(sorted)}
             className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all"
             style={{ background: "rgba(26,31,46,0.05)", border: "1px solid rgba(26,31,46,0.1)" }}>
@@ -257,8 +253,7 @@ export default function AuditHistoryPage() {
             style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)" }}>
             📊 Excel
           </button>
-        </div>
-      </div>
+      </PageHeader>
 
       {/* Filters */}
       <div className="px-6 py-3 flex flex-wrap items-center gap-2" style={{ background: "rgba(26,31,46,0.04)", borderBottom: "1px solid rgba(26,31,46,0.05)" }}>
@@ -410,8 +405,8 @@ export default function AuditHistoryPage() {
       </div>
 
       {/* Pagination */}
-      <div className="px-6 py-3 flex items-center justify-between flex-shrink-0" style={{ borderTop: "1px solid rgba(26,31,46,0.06)", background: "rgba(26,31,46,0.04)" }}>
-        <div className="flex items-center gap-3 text-[11px] text-slate-500">
+      <div className="px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 flex-shrink-0" style={{ borderTop: "1px solid rgba(26,31,46,0.06)", background: "rgba(26,31,46,0.04)" }}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
           <span>Rows per page:</span>
           <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}
             className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 outline-none">

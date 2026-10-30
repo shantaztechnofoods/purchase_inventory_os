@@ -248,7 +248,7 @@ export default function POSettings({ value, onChange, onPersist, isSuperAdmin = 
               <button onClick={() => onPersist(po)}
                       title="Save all companies to Supabase"
                       className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-white border border-blue-500/50 transition-all"
-                      style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 10px rgba(215, 25, 32,0.30)" }}>
+                      style={{ background: "#B01218", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                 💾 Save Company
               </button>
             )}
@@ -256,7 +256,7 @@ export default function POSettings({ value, onChange, onPersist, isSuperAdmin = 
               ? <span className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-emerald-300 bg-emerald-500/10 border border-emerald-500/30">✓ Active for POs</span>
               : <button onClick={() => setActive(active.id)}
                         className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-white border border-emerald-500/50 transition-all"
-                        style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 10px rgba(34,197,94,0.25)" }}>
+                        style={{ background: "#15803d", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                   Set as Active
                 </button>}
             {po.companies.length > 1 && (

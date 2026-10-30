@@ -25,6 +25,7 @@ import RoleManagementPage from "./pages/RoleManagementPage.jsx";
 import AccessDeniedPage from "./components/AccessDeniedPage.jsx";
 import UserProfileMenu from "./components/UserProfileMenu.jsx";
 import PageErrorBoundary from "./components/PageErrorBoundary.jsx";
+import { MobileNavContext } from "./components/PageHeader.jsx";
 import ItemSearchSelect from "./components/ItemSearchSelect.jsx";
 import VendorSearchSelect from "./components/VendorSearchSelect.jsx";
 import { appendAuditWithUser, getAuditLog, subscribeAudit } from "./auth/auditStore.js";
@@ -649,7 +650,7 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
 // about the shell. A context carries it there without threading a prop through
 // all fifteen — and without the button drifting out of the header into a
 // floating control that overlaps page content.
-const MobileNavContext = React.createContext(null);
+// MobileNavContext now lives in components/PageHeader.jsx (shared with src/pages).
 
 function Topbar({ title, subtitle, children }) {
   const onMenu = React.useContext(MobileNavContext);
@@ -661,7 +662,7 @@ function Topbar({ title, subtitle, children }) {
   const timeStr = time.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
   return (
-    <div className="flex-shrink-0 no-print flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3.5"
+    <div className="page-header flex-shrink-0 no-print flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-2.5 px-4 sm:px-6 py-3.5"
          style={{ background: "var(--surface-card)", borderBottom: "1px solid var(--border-subtle)" }}>
       {/* Opens the navigation drawer. Hidden from md up, where the sidebar is
           a permanent column and this would be a button to nothing. */}
@@ -672,15 +673,15 @@ function Topbar({ title, subtitle, children }) {
           <Menu size={18} aria-hidden="true" />
         </button>
       )}
-      <div className="flex-1 min-w-0">
-        <h1 className="text-[17px] font-extrabold tracking-[-0.02em] leading-none" style={{ color: "var(--text-strong)" }}>{title}</h1>
-        {subtitle && <p className="text-[11.5px] mt-1.5 leading-none font-normal" style={{ color: "var(--text-dim)" }}>{subtitle}</p>}
+      <div className="flex-1 min-w-[150px]">
+        <h1 className="text-[17px] font-extrabold tracking-[-0.02em] leading-tight" style={{ color: "var(--text-strong)" }}>{title}</h1>
+        {subtitle && <p className="text-[11.5px] mt-1 leading-snug font-normal" style={{ color: "var(--text-dim)" }}>{subtitle}</p>}
       </div>
       <div className="text-[11px] tabular-nums hidden md:flex items-center gap-1.5 flex-shrink-0 px-3 py-1.5 rounded-lg"
            style={{ fontFamily: "'Inter',system-ui,sans-serif", color: "var(--text-dim)", background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
         {timeStr}
       </div>
-      <div className="flex items-center gap-2 flex-shrink-0">{children}</div>
+      {children && <div className="page-header-actions flex items-center gap-2 flex-wrap">{children}</div>}
     </div>
   );
 }
@@ -1683,7 +1684,7 @@ function ItemDetailModal({ item, category, onClose, onDelete, onUpdateStock, onE
                        style={{ fontVariantNumeric: "tabular-nums" }} />
                 <button onClick={handleAdjust}
                         className="px-4 py-2 rounded-xl text-xs font-bold text-white transition-all duration-200"
-                        style={{ background: "linear-gradient(135deg,#D71920,#B01218)", border: "1px solid rgba(176, 18, 24,0.5)", boxShadow: "0 0 12px rgba(215, 25, 32,0.35)" }}>
+                        style={{ background: "#B01218", border: "1px solid rgba(176, 18, 24,0.5)", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                   Confirm
                 </button>
                 <button onClick={() => { setAdjustMode(null); setAdjustQty(""); }}
@@ -3028,9 +3029,9 @@ function ItemImportModal({ items, onImport, onClose }) {
             <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
             <button onClick={handleImport} disabled={!rows || (readyCount + updateCount) === 0}
                     className="text-xs font-black px-5 py-2 rounded-xl text-white transition-opacity"
-                    style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 20px rgba(215, 25, 32,0.4)",
+                    style={{ background: "#B01218", boxShadow: "0 1px 2px rgba(17,24,39,0.14)",
                              opacity: (!rows || (readyCount + updateCount) === 0) ? 0.4 : 1,
-                             cursor: (!rows || (readyCount + updateCount) === 0) ? "not-allowed" : "pointer" }}>
+                             cursor: (!rows || (readyCount + updateCount) === 0) ? "not-allowed" : "pointer", color: "#ffffff" }}>
               {(() => { const total = readyCount + updateCount; return `Import${total > 0 ? ` ${total} Item${total !== 1 ? "s" : ""}` : ""}`; })()}
             </button>
           </div>
@@ -3560,7 +3561,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
               <div className="flex-1" />
               <button onClick={() => handleConfirmDelete(deleteModal.category, deleteModal.item.code)}
                       className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-4 py-1.5 text-white border transition-all"
-                      style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", borderColor: "rgba(239,68,68,0.5)", boxShadow: "0 0 12px rgba(239,68,68,0.2)" }}>
+                      style={{ background: "#b91c1c", borderColor: "rgba(239,68,68,0.5)", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                 🗑️ Delete
               </button>
             </div>
@@ -3651,7 +3652,14 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
                 {/* Preview: first 10 chips inline when collapsed, +N more badge */}
                 {!attentionOpen && (
                   <div className="hidden md:flex items-center gap-1.5 overflow-hidden flex-1 min-w-0">
-                    {alerts.slice(0, 10).map(chipFor)}
+                    {/* Preview chips are labels, not buttons: they sit inside the
+                        header toggle and a <button> may not contain a <button>. */}
+                    {alerts.slice(0, 10).map((i) => (
+                      <span key={i.code} className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-lg flex-shrink-0"
+                            style={{ background: i.status === "critical" ? "rgba(220,38,38,0.08)" : "rgba(217,119,6,0.08)", border: i.status === "critical" ? "1px solid rgba(220,38,38,0.22)" : "1px solid rgba(217,119,6,0.22)", color: i.status === "critical" ? "#dc2626" : "#b45309" }}>
+                        {i.code} · {i.stock} {i.unit}
+                      </span>
+                    ))}
                     {alerts.length > 10 && (
                       <span className="text-[10px] font-bold text-slate-400 px-2 py-0.5 rounded-lg flex-shrink-0"
                             style={{ background: "rgba(17,24,39,0.04)", border: "1px solid var(--border-rim)" }}>
@@ -4339,7 +4347,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
                      onKeyDown={(e) => e.key === "Enter" && addLine()} />
               <button onClick={addLine}
                       className="px-3 py-2 rounded-xl text-xs font-bold text-white"
-                      style={{ background: "linear-gradient(135deg,#D71920,#B01218)", border: "1px solid rgba(176, 18, 24,0.5)", boxShadow: "0 0 10px rgba(215, 25, 32,0.3)" }}>
+                      style={{ background: "#B01218", border: "1px solid rgba(176, 18, 24,0.5)", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                 + Add
               </button>
             </div>
@@ -4488,7 +4496,7 @@ function POModal({ initialPO, vendorList, items, onSave, onClose, prefill = null
             </button>
             <button onClick={() => handleSave("pending")}
                     className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
-                    style={{ background: "linear-gradient(135deg,#D71920,#B01218)", borderColor: "rgba(176, 18, 24,0.5)", boxShadow: "0 0 12px rgba(215, 25, 32,0.45)" }}>
+                    style={{ background: "#B01218", borderColor: "rgba(176, 18, 24,0.5)", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
               📤 Submit for Approval
             </button>
           </div>
@@ -4659,7 +4667,7 @@ function PODetailModal({ po, onClose, onApprove, onMarkOrdered, onMarkReceived, 
           {["approved","ordered"].includes(po.status) && (
             <button onClick={() => { setConfirmReceive(true); setConfirmDelete(false); }}
                     className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-slate-900 border transition-all"
-                    style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", borderColor: "rgba(34,197,94,0.5)", boxShadow: "0 0 10px rgba(34,197,94,0.3)" }}>
+                    style={{ background: "#15803d", borderColor: "rgba(34,197,94,0.5)", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
               ✅ Mark Received
             </button>
           )}
@@ -5029,9 +5037,9 @@ function VendorImportModal({ vendorList, onImport, onClose }) {
             <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
             <button onClick={handleImport} disabled={!rows || (readyCount + updateCount) === 0}
                     className="text-xs font-black px-5 py-2 rounded-xl text-white transition-opacity"
-                    style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 20px rgba(215, 25, 32,0.4)",
+                    style={{ background: "#B01218", boxShadow: "0 1px 2px rgba(17,24,39,0.14)",
                              opacity: (!rows || (readyCount + updateCount) === 0) ? 0.4 : 1,
-                             cursor: (!rows || (readyCount + updateCount) === 0) ? "not-allowed" : "pointer" }}>
+                             cursor: (!rows || (readyCount + updateCount) === 0) ? "not-allowed" : "pointer", color: "#ffffff" }}>
               {(() => {
                 const total = readyCount + updateCount;
                 return `Import${total > 0 ? ` ${total} Vendor${total !== 1 ? "s" : ""}` : ""}`;
@@ -5176,7 +5184,7 @@ function VendorModal({ initialVendor, onSave, onClose }) {
           <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
           <button onClick={handleSave}
                   className="text-xs font-black px-5 py-2 rounded-xl text-white"
-                  style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 20px rgba(215, 25, 32,0.4)" }}>
+                  style={{ background: "#B01218", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
             {isEdit ? "Save Changes" : "Add Vendor"}
           </button>
         </div>
@@ -6147,9 +6155,9 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
               <input value={input} onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && send(input)}
                 placeholder="Ask about inventory, POs, vendors..."
-                className="flex-1 rounded-lg px-3 py-2.5 text-[13px] outline-none"
+                className="flex-1 min-w-0 rounded-lg px-3 py-2.5 text-[13px] outline-none"
                 style={{ background: "var(--surface-base)", border: "1px solid var(--border-rim)", color: "var(--text)" }} />
-              <Btn variant="primary" size="sm" onClick={() => send(input)}>Send ↗</Btn>
+              <Btn variant="primary" size="sm" className="flex-shrink-0" onClick={() => send(input)}>Send ↗</Btn>
             </div>
           </div>
         </div>
@@ -8326,7 +8334,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
         {canConfig && !editing && (
           <button onClick={() => start(null)}
                   className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg"
-                  style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 10px rgba(215, 25, 32,0.3)" }}>
+                  style={{ background: "#B01218", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
             + Add Checklist
           </button>
         )}
@@ -8441,7 +8449,7 @@ function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUp
               Cancel
             </button>
             {canConfig && (
-              <button onClick={save} disabled={busy} className="text-[11px] font-black text-slate-900 px-4 py-1.5 rounded-lg disabled:opacity-50" style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", color: "#fff" }}>
+              <button onClick={save} disabled={busy} className="text-[11px] font-black text-slate-900 px-4 py-1.5 rounded-lg disabled:opacity-50" style={{ background: "#15803d", color: "#fff" }}>
                 {busy ? "⏳ Saving…" : "Save Checklist"}
               </button>
             )}
@@ -8523,7 +8531,7 @@ function DeptEmployeesRow({ dept, assigned, notAssigned, canConfig, onSaveUserDe
           </select>
           <button onClick={addWorker} disabled={!pickValue || busy}
                   className="text-[11px] font-black text-slate-900 px-3 py-1.5 rounded-md transition-all disabled:opacity-40"
-                  style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 10px rgba(34,197,94,0.25)" }}>
+                  style={{ background: "#15803d", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
             Add
           </button>
         </div>
@@ -8609,7 +8617,7 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
         {canConfig && !editing && (
           <button onClick={() => start(null)}
                   className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg"
-                  style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 10px rgba(215, 25, 32,0.3)" }}>
+                  style={{ background: "#B01218", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
             + Add Employee
           </button>
         )}
@@ -8665,7 +8673,7 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
           <div className="flex gap-2">
             <button onClick={save} disabled={busy}
                     className="text-[11px] font-black text-slate-900 px-4 py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ background: "linear-gradient(135deg,#16a34a,#15803d)" }}>
+                    style={{ background: "#15803d", color: "#ffffff" }}>
               {busy ? "Saving…" : "Save"}
             </button>
             <button onClick={() => { setEditing(null); setErr(""); }} disabled={busy}
@@ -8873,7 +8881,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
         )}
         <button onClick={() => handleSave()}
                 className="inline-flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl transition-all duration-200"
-                style={{ background: saved ? "rgba(22,163,74,0.12)" : "linear-gradient(135deg,#D71920,#B01218)", color: saved ? "#15803d" : "#fff", border: saved ? "1px solid rgba(22,163,74,0.35)" : "1px solid rgba(176,18,24,0.45)", boxShadow: saved ? "none" : "0 0 12px rgba(215, 25, 32,0.3)" }}>
+                style={{ background: saved ? "rgba(22,163,74,0.12)" : "#B01218", color: saved ? "#15803d" : "#fff", border: saved ? "1px solid rgba(22,163,74,0.35)" : "1px solid rgba(176,18,24,0.45)", boxShadow: saved ? "none" : "0 0 12px rgba(215, 25, 32,0.3)" }}>
           {saved ? "✅ Saved!" : "💾 Save Changes"}
         </button>
       </Topbar>
@@ -9337,7 +9345,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                   } catch (err) { alert("❌ Error: " + err.message); }
                 }}
                   className="w-full py-3 rounded-xl text-[13px] font-bold text-white transition-all hover:scale-[1.01] active:scale-[0.99]"
-                  style={{ background: "linear-gradient(135deg,#25d366,#128c7e)", boxShadow: "0 4px 12px rgba(37,211,102,0.35)" }}>
+                  style={{ background: "#128c7e", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                   📩 Send test message
                 </button>
               )}
@@ -9864,14 +9872,14 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
         {canDo("pipeline","create") && (
           <button onClick={openVendorWizard}
                   className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-slate-900 border transition-all"
-                  style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", borderColor: "rgba(34,197,94,0.5)" }}>
+                  style={{ background: "#15803d", borderColor: "rgba(34,197,94,0.5)", color: "#ffffff" }}>
             📦 Create Vendor PO
           </button>
         )}
         {canDo("pipeline","create") && (
           <button onClick={() => { setCreatePrefill(null); setShowCreatePO(true); }}
                   className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
-                  style={{ background: "linear-gradient(135deg,#D71920,#B01218)", borderColor: "rgba(176, 18, 24,0.5)" }}>
+                  style={{ background: "#B01218", borderColor: "rgba(176, 18, 24,0.5)", color: "#ffffff" }}>
             + New PO
           </button>
         )}
@@ -10235,7 +10243,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                       style={{ background: "rgba(17,24,39,0.04)", border: "1px solid var(--border-rim)" }}>Cancel</button>
               <button onClick={confirmWizVendor} disabled={!vendorWizVendor}
                       className="flex-1 py-2.5 rounded-xl text-xs font-black text-slate-900 transition-all disabled:opacity-50"
-                      style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.35)" }}>
+                      style={{ background: "#15803d", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                 Open PO →
               </button>
             </div>
@@ -10442,7 +10450,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               {viewPO.status === "approved" && canDo("pipeline","ordered") && (
                 <button onClick={() => { setMoModal(viewPO); setViewPO(null); setEta(""); setEtaCustom(""); }}
                         className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
-                        style={{ background:"linear-gradient(135deg,#D71920,#B01218)", borderColor:"rgba(176, 18, 24,0.5)" }}>
+                        style={{ background:"#B01218", borderColor:"rgba(176, 18, 24,0.5)", color: "#ffffff" }}>
                   📋 Confirm Order + ETA
                 </button>
               )}
@@ -10451,7 +10459,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                 return fu ? (
                   <button onClick={() => { setFuModal(fu); setViewPO(null); setFuFreq(1); setFuCustom(""); }}
                           className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-white border transition-all"
-                          style={{ background:"linear-gradient(135deg,#7c3aed,#6d28d9)", borderColor:"rgba(167,139,250,0.5)" }}>
+                          style={{ background:"#6d28d9", borderColor:"rgba(167,139,250,0.5)", color: "#ffffff" }}>
                     🔔 Follow-Up Done
                   </button>
                 ) : null;
@@ -10459,14 +10467,14 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               {["ordered","overdue"].includes(viewPO.status) && canDo("pipeline","receive") && (
                 <button onClick={() => { handleReceive(viewPO.id); setViewPO(null); }}
                         className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-slate-900 border transition-all"
-                        style={{ background:"linear-gradient(135deg,#16a34a,#15803d)", borderColor:"rgba(34,197,94,0.5)" }}>
+                        style={{ background:"#15803d", borderColor:"rgba(34,197,94,0.5)", color: "#ffffff" }}>
                   📦 Mark Received
                 </button>
               )}
               {viewPO.status === "received" && isSuperAdmin && onReverseReceive && (
                 <button onClick={() => { setReverseModal(viewPO.id); setReverseReason(""); setReverseErr(""); }}
                         className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 text-slate-900 border transition-all"
-                        style={{ background:"linear-gradient(135deg,#f59e0b,#d97706)", borderColor:"rgba(251,191,36,0.5)" }}
+                        style={{ background:"#b45309", borderColor:"rgba(251,191,36,0.5)", color: "#ffffff" }}
                         title="Super Admin only: reverts stock and PO status">
                   ↩ Reverse Receive
                 </button>
@@ -10518,7 +10526,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
                 setReverseModal(null); setReverseReason(""); setReverseErr("");
               }}
                 className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-2 text-slate-900 border transition-all"
-                style={{ background:"linear-gradient(135deg,#f59e0b,#d97706)", borderColor:"rgba(251,191,36,0.5)" }}>
+                style={{ background:"#b45309", borderColor:"rgba(251,191,36,0.5)", color: "#ffffff" }}>
                 Reverse Receive
               </button>
             </div>
@@ -10577,7 +10585,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               <Btn variant="ghost" size="sm" onClick={()=>{setMoModal(null);setEta("");setEtaCustom("");}}>Cancel</Btn>
               <button onClick={handleConfirm} disabled={!eta||(eta==="custom"&&!etaCustom)}
                       className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-4 py-1.5 text-white border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                      style={{ background:"linear-gradient(135deg,#D71920,#B01218)", borderColor:"rgba(176, 18, 24,0.5)" }}>
+                      style={{ background:"#B01218", borderColor:"rgba(176, 18, 24,0.5)", color: "#ffffff" }}>
                 ✅ Confirm & Start Follow-Up
               </button>
             </div>
@@ -10613,7 +10621,7 @@ function OrderPipelinePage({ items, pos, vendorList, followUps, onUpdatePO, onCr
               <Btn variant="ghost" size="sm" onClick={()=>setFuModal(null)}>Cancel</Btn>
               <button onClick={handleFuDone} disabled={fuFreq==="custom"&&!fuCustom}
                       className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-4 py-1.5 text-white border transition-all disabled:opacity-40"
-                      style={{ background:"linear-gradient(135deg,#7c3aed,#6d28d9)", borderColor:"rgba(167,139,250,0.5)" }}>
+                      style={{ background:"#6d28d9", borderColor:"rgba(167,139,250,0.5)", color: "#ffffff" }}>
                 ✓ Done — Schedule Next
               </button>
             </div>
@@ -10889,7 +10897,7 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
             {canDo("inward","submit") && (
               <button onClick={handleSubmit} disabled={submitting}
                       className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-slate-900 border transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                      style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", borderColor: "rgba(34,197,94,0.5)", boxShadow: "0 0 16px rgba(34,197,94,0.3)" }}>
+                      style={{ background: "#15803d", borderColor: "rgba(34,197,94,0.5)", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                 {submitting ? "⏳ Submitting…" : "📥 Submit Inward"}
               </button>
             )}
@@ -11352,7 +11360,7 @@ function BomChecklistSlots({
                 </button>
                 <button onClick={saveSlot} disabled={busy}
                         className="text-xs font-black text-slate-900 px-4 py-1.5 rounded-lg transition-all disabled:opacity-50"
-                        style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.3)" }}>
+                        style={{ background: "#15803d", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                   {busy ? "Saving…" : "✓ Save Checklist"}
                 </button>
               </div>
@@ -11522,7 +11530,7 @@ function BOMPasteLines({ inventory = [], existingLines = [], onApply = () => {} 
       <div className="flex items-center gap-2 mt-3">
         <button onClick={apply} disabled={addCount === 0}
                 className="px-4 py-2 rounded-lg text-xs font-bold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ background: "linear-gradient(135deg,#D71920,#B01218)" }}>
+                style={{ background: "#B01218", color: "#ffffff" }}>
           Add {addCount} line{plural(addCount)}
         </button>
         <button onClick={reset} disabled={!hasPaste}
@@ -11818,8 +11826,8 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   const rightCats = categories.filter((c) => c === "Electrical");
 
   const colHeader = (
-    <div className="sticky top-0 z-10 grid gap-0 px-6 py-2.5 text-[10px] font-medium text-slate-500 uppercase tracking-[0.16em]"
-         style={{ gridTemplateColumns: "28px 1fr 72px 72px 80px 72px", background: "#f8f9fb", borderBottom: "1px solid rgba(17,24,39,0.08)" }}>
+    <div className="sticky top-0 z-10 grid gap-0 px-3 sm:px-6 py-2.5 text-[10px] font-medium text-slate-500 uppercase tracking-[0.08em] sm:tracking-[0.16em]"
+         style={{ gridTemplateColumns: "var(--bom-cols)", background: "#f8f9fb", borderBottom: "1px solid rgba(17,24,39,0.08)" }}>
       <div /><div>Item / Code</div>
       <div className="text-right">Have</div>
       <div className="text-right">Need</div>
@@ -11854,8 +11862,8 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
           const partialFill = item.available > 0 && item.available < item.required ? (item.available / item.required) * 100 : 0;
           return (
             <div key={item.code}
-                 className={`grid gap-0 items-center px-6 py-2 border-b border-slate-200 transition-all hover:bg-transparent ${!rowChecked ? "opacity-35" : ""}`}
-                 style={{ gridTemplateColumns: "28px 1fr 72px 72px 80px 72px", background: rowChecked && item.status !== "green" ? `${sc}07` : "" }}>
+                 className={`grid gap-0 items-center px-3 sm:px-6 py-2 border-b border-slate-200 transition-all hover:bg-transparent ${!rowChecked ? "opacity-35" : ""}`}
+                 style={{ gridTemplateColumns: "var(--bom-cols)", background: rowChecked && item.status !== "green" ? `${sc}07` : "" }}>
               <div><input type="checkbox" checked={rowChecked} onChange={(e) => setChecked((p) => ({ ...p, [item.code]: e.target.checked }))} className="accent-blue-500 w-3.5 h-3.5" /></div>
               <div className="min-w-0 pr-3">
                 <div className="flex items-center gap-1.5">
@@ -12185,15 +12193,16 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex flex-col" style={{ background: "var(--surface-page)" }}>
+    <div className="bom-drawer fixed inset-0 z-[70] flex flex-col" style={{ background: "var(--surface-page)" }}>
 
-      {/* ── Header ── */}
+      {/* ── Header ── wraps on a phone: title first, then units / cost /
+             edit / close on their own row (they used to run off-screen). */}
       <div className="flex-shrink-0" style={{ background: "var(--surface-card)", borderBottom: "1px solid var(--border-subtle)" }}>
-        <div className="flex items-center gap-4 px-6 py-4">
+        <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-2.5 px-4 sm:px-6 py-3 sm:py-4">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black text-slate-900 flex-shrink-0"
                style={{ background: bom.color + "22", border: `1px solid ${bom.color}55` }}>{bomKey}</div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-black text-slate-900">{bomKey} — {bom.label}</div>
+          <div className="flex-1 min-w-[170px]">
+            <div className="text-sm font-black text-slate-900 leading-snug">{bomKey} — {bom.label}</div>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               {serialNo && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:"rgba(215, 25, 32,0.12)", color:"#b01218", border:"1px solid rgba(215, 25, 32,0.25)" }}>S/N: {serialNo}</span>
@@ -12239,7 +12248,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
         {/* Search + filter bar */}
         {!editMode && (
-          <div className="flex items-center gap-2 px-6 pb-4 flex-wrap">
+          <div className="flex items-center gap-2 px-4 sm:px-6 pb-4 flex-wrap">
             <div className="relative flex-1 min-w-[180px]">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 text-xs">🔍</span>
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search items, codes..."
@@ -12389,7 +12398,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                     </div>
                     <button onClick={() => onNavigate("inventory")}
                             className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
-                            style={{ background: "linear-gradient(135deg,#B45309,#B45309)", boxShadow: "0 0 12px rgba(217, 119, 6,0.3)" }}>
+                            style={{ background: "#B45309", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                       → Open Inventory to edit
                     </button>
                   </div>
@@ -12443,14 +12452,14 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
             <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(17,24,39,0.08)" }}>
               <div className="grid gap-0 px-4 py-2 text-[10px] font-medium text-slate-500 uppercase tracking-wide"
-                   style={{ gridTemplateColumns: "1fr 100px 120px 60px", background: "rgba(17,24,39,0.03)" }}>
+                   style={{ gridTemplateColumns: "var(--bom-edit-cols, minmax(0,1fr) 100px 120px 60px)", background: "rgba(17,24,39,0.03)" }}>
                 <div>Item</div><div className="text-center">Category</div><div className="text-center">Qty / Unit</div><div />
               </div>
               {editItems.map((ei, idx) => {
                 const inv = findInv(ei.code);
                 return (
                   <div key={ei.code} className={`grid gap-0 items-center px-4 py-3 hover:bg-transparent ${idx > 0 ? "border-t border-slate-200" : ""}`}
-                       style={{ gridTemplateColumns: "1fr 100px 120px 60px" }}>
+                       style={{ gridTemplateColumns: "var(--bom-edit-cols, minmax(0,1fr) 100px 120px 60px)" }}>
                     <div>
                       <div className="text-[11px] font-semibold text-slate-900">{inv?.name || ei.code}</div>
                       <div className="flex items-center gap-2 mt-0.5">
@@ -12516,7 +12525,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                          placeholder="Qty" className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none modal-input"
                          style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
                   <button onClick={addItemToBOM} className="px-4 py-2 rounded-lg text-xs font-bold text-white"
-                          style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 14px rgba(215, 25, 32,0.3)" }}>Add</button>
+                          style={{ background: "#B01218", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>Add</button>
                 </div>
               </div>
               {addErr && <div className="text-[10px] text-red-400 mt-2">⚠ {addErr}</div>}
@@ -12563,7 +12572,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                       className="text-xs font-bold text-slate-400 px-5 py-2.5 rounded-xl border border-slate-200 hover:text-slate-900 hover:border-white/20 transition-all">Discard Changes</button>
               <button onClick={saveBOMEdit}
                       className="text-xs font-black text-slate-900 px-8 py-2.5 rounded-xl transition-all"
-                      style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.3)" }}>✓ Save BOM</button>
+                      style={{ background: "#15803d", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>✓ Save BOM</button>
             </div>
           </div></div>
 
@@ -12592,13 +12601,13 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
       {/* ── Sticky summary bar ── */}
       {!editMode && (
-        <div className="flex-shrink-0" style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)" }}>
+        <div className="bom-summary flex-shrink-0" style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)" }}>
           {/* Migration 026 — critical items get a dedicated BOM-Outward popup
               (rendered below, see "Critical Item Confirmation" modal). The
               inline panel that used to live here was moved out so the
               confirmation is impossible to miss and the summary bar stays
               focused on quantities + the issue action. */}
-          <div className="px-6 pt-3">
+          <div className="px-4 sm:px-6 pt-3">
             <input value={issueNote} onChange={(e) => setIssueNote(e.target.value)}
                    placeholder="Issue reference / note (optional)..."
                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-xs text-slate-700 placeholder-slate-400 outline-none focus:border-blue-500/30" />
@@ -12619,9 +12628,9 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               </div>
             </div>
           )}
-          <div className="flex items-center gap-4 px-6 py-3 flex-wrap">
+          <div className="flex items-center gap-x-4 gap-y-2.5 px-4 sm:px-6 py-3 flex-wrap">
             {/* Pills */}
-            <div className="flex items-center gap-3 flex-1 flex-wrap text-[11px]">
+            <div className="flex items-center gap-x-3 gap-y-1 flex-1 basis-full sm:basis-auto flex-wrap text-[11px]">
               <span className="text-slate-500"><span className="font-black text-slate-900">{checkedE.length}</span> selected</span>
               <span className="text-slate-700">·</span>
               <span className="text-slate-400">Issuing <span className="font-black text-green-400">{totalIssuing}</span> units</span>
@@ -12652,8 +12661,8 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                         }
                       }}
                       disabled={!canSubmit}
-                      className="text-xs font-black text-slate-900 px-6 py-2.5 rounded-xl border transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                      style={{ background: canSubmit ? `linear-gradient(135deg,${bom.color}dd,${bom.color}99)` : "#1f2937", boxShadow: canSubmit ? `0 0 18px ${bom.color}35` : "none", borderColor: `${bom.color}55` }}>
+                      className="text-xs font-black px-6 py-2.5 rounded-xl border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ background: canSubmit ? "#b01218" : "#9ca3af", color: "#ffffff", boxShadow: canSubmit ? "0 1px 2px rgba(17,24,39,0.14)" : "none", borderColor: "transparent" }}>
                 📤 Issue Stock
               </button>
             ) : (
@@ -12665,7 +12674,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 <button onClick={() => setConfirmIssue(false)} className="text-xs font-bold text-slate-500 px-3 py-2 rounded-lg border border-slate-200 hover:text-slate-900 transition-all">No</button>
                 <button onClick={() => doIssue()} disabled={issuing}
                         className="text-xs font-black text-slate-900 px-5 py-2 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{ background: hasOverIssue ? "linear-gradient(135deg,#d97706,#b45309)" : "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: hasOverIssue ? "0 0 14px rgba(217,119,6,0.4)" : "0 0 14px rgba(34,197,94,0.3)" }}>
+                        style={{ background: hasOverIssue ? "#b45309" : "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: hasOverIssue ? "0 0 14px rgba(217,119,6,0.4)" : "0 0 14px rgba(34,197,94,0.3)", color: "#ffffff" }}>
                   {issuing ? "⏳ Issuing…" : hasOverIssue ? "⚠ Confirm Over-Issue" : "✓ Confirm Issue"}
                 </button>
               </div>
@@ -12881,7 +12890,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                         }}
                         disabled={issuing || !allCriticalResolved}
                         className="text-xs font-black px-5 py-2.5 rounded-xl text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                        style={{ background: !allCriticalResolved ? "#94a3b8" : skippedN ? "linear-gradient(135deg,#d97706,#b45309)" : "linear-gradient(135deg,#16a34a,#15803d)" }}>
+                        style={{ background: !allCriticalResolved ? "#94a3b8" : skippedN ? "#b45309" : "linear-gradient(135deg,#16a34a,#15803d)", color: "#ffffff" }}>
                   {issuing ? "⏳ Issuing…"
                     : !allCriticalResolved ? "🔒 Verify or explain each critical item"
                     : criticalLines.length === 0 ? "✓ Checked, continue"
@@ -13050,8 +13059,8 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                         }}
                         disabled={issuing}
                         className="text-xs font-black text-white px-4 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{ background: "linear-gradient(135deg,#D71920,#B01218)",
-                                 boxShadow: "0 0 14px rgba(163,62,42,0.3)" }}>
+                        style={{ background: "#B01218",
+                                 boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                   ✓ Save Durations & Continue
                 </button>
               </div>
@@ -13187,6 +13196,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
   // 2026-06-02d — BOM card actions menu (⋮) state. `actionsKey` is the open
   // card; `confirmDeleteBOM` is the safe-delete confirmation modal.
   const [actionsKey,       setActionsKey]       = useState(null);
+  const [actionsUp,        setActionsUp]        = useState(false);
   const [confirmDeleteBOM, setConfirmDeleteBOM] = useState(null); // { key, info }
   const [bomActionToast,   setBomActionToast]   = useState(null);
   // Close the actions menu on any outside click.
@@ -13464,7 +13474,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                 </button>
                 <button onClick={confirmSerial}
                         className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-all"
-                        style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 20px rgba(215, 25, 32,0.3)" }}>
+                        style={{ background: "#B01218", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                   Proceed to Issue →
                 </button>
               </div>
@@ -13575,7 +13585,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                             }
                           }}
                         className="inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-4 py-1.5 text-white border transition-all"
-                        style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", borderColor: "rgba(239,68,68,0.5)" }}>
+                        style={{ background: "#b91c1c", borderColor: "rgba(239,68,68,0.5)", color: "#ffffff" }}>
                   🗑 Delete BOM
                 </button>
               )}
@@ -13629,7 +13639,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                           }
                         }}
                       className="inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-4 py-1.5 text-white border transition-all"
-                      style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", borderColor: "rgba(239,68,68,0.5)" }}>
+                      style={{ background: "#b91c1c", borderColor: "rgba(239,68,68,0.5)", color: "#ffffff" }}>
                 🗑 Remove
               </button>
             </div>
@@ -13728,7 +13738,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                       const inv = findItem(ci.code);
                       return (
                         <div key={ci.code} className="grid items-center gap-2 px-3 py-2 rounded-lg"
-                             style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.04)", gridTemplateColumns: "1fr 120px 100px 40px" }}>
+                             style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.04)", gridTemplateColumns: "var(--bom-create-cols, minmax(0,1fr) 120px 100px 40px)" }}>
                           <div>
                             <div className="text-[11px] font-semibold text-slate-900">{inv?.name || ci.code}</div>
                             <div className="flex items-center gap-2 mt-0.5">
@@ -13801,7 +13811,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                     style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
                   <button onClick={addCreateItem}
                     className="px-4 py-2 rounded-lg text-xs font-bold text-white mt-2"
-                    style={{ background: "linear-gradient(135deg,#D71920,#B01218)" }}>+ Add</button>
+                    style={{ background: "#B01218", color: "#ffffff" }}>+ Add</button>
                 </div>
               </div>
 
@@ -13841,7 +13851,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
               </button>
               <button onClick={submitCreateBOM}
                 className="flex-1 py-2.5 rounded-xl text-xs font-black text-slate-900 transition-all"
-                style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.35)" }}>
+                style={{ background: "#15803d", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                 ✓ Create BOM
               </button>
             </div>
@@ -13874,7 +13884,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
             {canDo("outward","editBOM") && onCreateBOM && (
               <button onClick={openCreateBOM}
                 className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-white transition-all"
-                style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 14px rgba(215, 25, 32,0.3)" }}>
+                style={{ background: "#B01218", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                 + New BOM
               </button>
             )}
@@ -13891,7 +13901,13 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
               const actionsMenu = (
                       <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                         <button
-                          onClick={(e) => { e.stopPropagation(); setActionsKey(actionsKey === bomKey ? null : bomKey); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Open upward when the menu (~190px) would run past the
+                            // bottom of the screen (last BOM row on a phone).
+                            try { const r = e.currentTarget.getBoundingClientRect(); setActionsUp(window.innerHeight - r.bottom < 200 && r.top > 200); } catch {}
+                            setActionsKey(actionsKey === bomKey ? null : bomKey);
+                          }}
                           title="BOM actions"
                           className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all"
                           aria-haspopup="menu" aria-expanded={actionsKey === bomKey}>
@@ -13899,7 +13915,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                         </button>
                         {actionsKey === bomKey && (
                           <div role="menu" onMouseDown={(e) => e.stopPropagation()}
-                               className="absolute right-0 top-full mt-1 z-30 w-44 rounded-lg overflow-hidden"
+                               className={`absolute right-0 ${actionsUp ? "bottom-full mb-1" : "top-full mt-1"} z-30 w-44 rounded-lg overflow-hidden`}
                                style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-rim)", boxShadow: "0 24px 60px rgba(17,24,39,0.18)" }}>
                             <button onClick={() => { setActionsKey(null); if (canDo("outward","bom")) openBomFlow(); }}
                                     className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center gap-2">
@@ -14130,7 +14146,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
             {canDo("outward","manual") && (
               <button onClick={handleManualSubmit} disabled={manualBusy}
                       className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white border transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                      style={{ background: "linear-gradient(135deg,#B45309,#B45309)", borderColor: "rgba(217, 119, 6,0.5)", boxShadow: "0 0 16px rgba(217, 119, 6,0.3)" }}>
+                      style={{ background: "#B45309", borderColor: "rgba(217, 119, 6,0.5)", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                 {manualBusy ? "⏳ Issuing…" : "📤 Issue Stock"}
               </button>
             )}
@@ -15185,7 +15201,7 @@ function ReportCenterPage({
                 </select>
                 <button onClick={printReport} disabled={!pickedId}
                         className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all disabled:opacity-40"
-                        style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 10px rgba(215, 25, 32,0.3)" }}>
+                        style={{ background: "#B01218", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                   🖨 Print / Save as PDF
                 </button>
               </div>
@@ -15463,7 +15479,7 @@ function SignaturePad({ onSave, onCancel, initialSvg = "", light = false }) {
         )}
         <button type="button" onClick={save}
                 className="text-[11px] font-black text-white px-4 py-1.5 rounded-lg transition-all"
-                style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 12px rgba(215, 25, 32,0.3)" }}>
+                style={{ background: "#B01218", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
           Save Signature
         </button>
       </div>
@@ -17458,7 +17474,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                     {canAccept && onAcceptHandover ? (
                       <button onClick={() => openAcceptModal(h)}
                               className="text-[12px] font-black text-slate-900 px-5 py-2.5 rounded-xl transition-all hover:scale-105"
-                              style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 4px 14px rgba(34,197,94,0.35)", minWidth: 160 }}>
+                              style={{ background: "#15803d", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", minWidth: 160, color: "#ffffff" }}>
                         ✓ Accept Machine
                       </button>
                     ) : (
@@ -18165,13 +18181,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 <div className="px-5 py-4">
                   <div className="flex items-start gap-4 flex-wrap">
 
-                    {/* Machine identity */}
-                    <div className="flex items-center gap-3 flex-shrink-0">
+                    {/* Machine identity — may shrink and wrap so a 360px phone
+                        never pushes the stage pills past the screen edge. */}
+                    <div className="flex items-center gap-3 min-w-0 max-w-full">
                       <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[11px] font-black text-slate-900 flex-shrink-0"
                            style={{ background: stageColor + "1a", border: `1px solid ${stageColor}45` }}>
                         {machine.bomKey}
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <div className="text-sm font-bold text-slate-900">{machine.bomLabel}</div>
                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           <span className="text-[10px] font-mono text-blue-400 font-bold">S/N: {machine.serialNo}</span>
@@ -18303,7 +18320,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           <button onClick={() => handleStageUpdate(machine)}
                                   disabled={!selStage}
                                   className="text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                                  style={{ background: selStage ? "linear-gradient(135deg,#D71920,#B01218)" : "transparent", borderColor: selStage ? "rgba(215, 25, 32,0.4)" : "rgba(17,24,39,0.10)", color: selStage ? "white" : "#6b7280" }}>
+                                  style={{ background: selStage ? "#B01218" : "transparent", borderColor: selStage ? "rgba(215, 25, 32,0.4)" : "rgba(17,24,39,0.10)", color: selStage ? "white" : "#6b7280" }}>
                             Update
                           </button>
                         </>
@@ -18323,7 +18340,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         && pickTemplate(checklistTemplates, machine.bomKey, machine.currentDepartment || machine.stage, "during_work") && (
                         <button onClick={() => openDuringWorkModal(machine)}
                                 className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
-                                style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 10px rgba(215, 25, 32,0.3)" }}
+                                style={{ background: "#B01218", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}
                                 title="During-Work Checks">
                           📋 During-Work Checks
                         </button>
@@ -18369,7 +18386,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         ) : (
                           <button onClick={() => openFinishModal(machine)}
                                   className={`font-black text-white rounded-lg transition-all ${isFloorLogin ? "text-[14px] px-5 py-2.5" : "text-[11px] px-3 py-1.5"}`}
-                                  style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 4px 14px -2px rgba(22,163,74,0.4)" }}
+                                  style={{ background: "#15803d", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}
                                   title={`Finish ${machine.currentDepartment || machine.stage} → ${nextDepartment(machine.currentDepartment || machine.stage)}`}>
                             {isFloorLogin ? `✓ Send to → ${nextDepartment(machine.currentDepartment || machine.stage)}` : "Finish & Transfer →"}
                           </button>
@@ -18404,7 +18421,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                           else showToast(`${machine.bomKey}${machine.serialNo ? ` — ${machine.serialNo}` : ""}`, `${h.toDepartment} can now pick it up`);
                                         }}
                                         className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
-                                        style={{ background: "linear-gradient(135deg,#6366f1,#4f46e5)", boxShadow: "0 0 10px rgba(99,102,241,0.3)" }}
+                                        style={{ background: "#4f46e5", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}
                                         title={`Tell ${h.toDepartment} to pick this machine up off the rack`}>
                                   Send to {h.toDepartment} →
                                 </button>
@@ -18843,7 +18860,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               {pullBack.error && <div className="mt-3 text-[11px] font-bold px-3 py-2 rounded-lg" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", color: "#dc2626" }}>{pullBack.error}</div>}
               <div className="flex gap-2 mt-4">
                 <button type="button" onClick={() => setPullBack(null)} disabled={pullBack.busy} className="flex-1 h-11 rounded-lg text-[13px] font-bold text-slate-600 border transition-all disabled:opacity-40" style={{ borderColor: "rgba(17,24,39,0.12)" }}>Cancel</button>
-                <button type="button" onClick={submit} disabled={pullBack.busy} className="flex-[2] h-11 rounded-lg text-[13px] font-black text-white transition-all disabled:opacity-50" style={{ background: "linear-gradient(135deg,#ef4444,#dc2626)" }}>
+                <button type="button" onClick={submit} disabled={pullBack.busy} className="flex-[2] h-11 rounded-lg text-[13px] font-black text-white transition-all disabled:opacity-50" style={{ background: "#dc2626", color: "#ffffff" }}>
                   {pullBack.busy ? "Pulling back…" : "↩ Pull back machine"}
                 </button>
               </div>
@@ -18907,7 +18924,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 </button>
                 <button type="button" onClick={submit} disabled={jobAction.busy}
                         className="flex-[2] h-11 rounded-lg text-[13px] font-black text-white transition-all disabled:opacity-50"
-                        style={{ background: isReceive ? "linear-gradient(135deg,#2563eb,#1d4ed8)" : "linear-gradient(135deg,#16a34a,#15803d)" }}>
+                        style={{ background: isReceive ? "#1d4ed8" : "linear-gradient(135deg,#16a34a,#15803d)", color: "#ffffff" }}>
                   {jobAction.busy ? "Saving…" : isReceive ? "✓ Part received" : "✓ Work completed"}
                 </button>
               </div>
@@ -19042,7 +19059,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               </button>
               <button type="button" onClick={submit} disabled={raiseBusy}
                       className="flex-[2] h-11 rounded-lg text-[13px] font-black text-slate-900 transition-all disabled:opacity-50"
-                      style={{ background: "linear-gradient(135deg,#ef4444,#dc2626)" }}>
+                      style={{ background: "#dc2626", color: "#ffffff" }}>
                 {raiseBusy ? "Sending…" : (raiseDept ? `Call ${raiseDept}` : "Send")}
               </button>
             </div>
@@ -19235,7 +19252,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               </button>
               <button onClick={confirmStartProd}
                 className="flex-1 py-2.5 rounded-xl text-xs font-black text-slate-900 transition-all"
-                style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.35)" }}>
+                style={{ background: "#15803d", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                 ▶ Start Production
               </button>
             </div>
@@ -19290,7 +19307,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           }
                         }}
                       className="inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-4 py-1.5 text-white border transition-all"
-                      style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", borderColor: "rgba(239,68,68,0.5)" }}>
+                      style={{ background: "#b91c1c", borderColor: "rgba(239,68,68,0.5)", color: "#ffffff" }}>
                 🗑 Remove
               </button>
             </div>
@@ -19824,7 +19841,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 {!needSig && (
                   <button onClick={submitAcceptHandover} disabled={busy || (workflow.require_password_at_accept && !password)}
                           className="text-[12px] font-black text-slate-900 px-6 py-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                          style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 4px 14px rgba(34,197,94,0.35)" }}>
+                          style={{ background: "#15803d", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                     {busy ? "⏳ Accepting…" : (workflow.require_password_at_accept ? "Verify & Accept" : "Confirm Acceptance")}
                   </button>
                 )}
@@ -19893,7 +19910,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 </button>
                 <button onClick={submitDuringWork} disabled={busy}
                         className="text-xs font-black text-white px-4 py-1.5 rounded-lg transition-all disabled:opacity-50"
-                        style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 0 14px rgba(215, 25, 32,0.3)" }}>
+                        style={{ background: "#B01218", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                   {busy ? "Saving…" : "✓ Save Checks"}
                 </button>
               </div>
@@ -20367,8 +20384,8 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                   </button>
                   <button onClick={commitConfirm} disabled={!ready}
                           className="text-xs font-black text-slate-900 px-4 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                          style={{ background: !ready ? "#1f2937" : "linear-gradient(135deg,#16a34a,#15803d)",
-                                   boxShadow: !ready ? "none" : "0 0 14px rgba(34,197,94,0.3)" }}>
+                          style={{ background: !ready ? "#1f2937" : "#15803d",
+                                   boxShadow: !ready ? "none" : "0 0 14px rgba(34,197,94,0.3)", color: "#ffffff" }}>
                     {!ready ? "🔒 Complete Confirmations" : "✓ Confirm & Issue"}
                   </button>
                 </div>
@@ -20418,7 +20435,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                 {availN > 0 && canDo("pending","fulfill") && (
                   <button onClick={openFulfillAll}
                           className="text-[11px] font-bold text-slate-900 px-4 py-1.5 rounded-lg transition-all"
-                          style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 0 14px rgba(34,197,94,0.25)" }}>
+                          style={{ background: "#15803d", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                     ✓ Issue All Available ({availN})
                   </button>
                 )}
@@ -20485,7 +20502,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                           {gCanN > 0 && canDo("pending","fulfill") && (
                             <button onClick={() => openGiveAllForGroup(group)}
                                     className="text-[10px] font-bold text-slate-900 px-3 py-1.5 rounded-lg border transition-all whitespace-nowrap"
-                                    style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", borderColor: "rgba(34,197,94,0.3)" }}>
+                                    style={{ background: "#15803d", borderColor: "rgba(34,197,94,0.3)", color: "#ffffff" }}>
                               Give All ({gCanN})
                             </button>
                           )}
@@ -20536,7 +20553,7 @@ function PendingPage({ pendingLog, onClearPending, onFulfillPending, onFulfillGr
                                 {entry.avail !== "none" && canDo("pending","fulfill") ? (
                                   <button onClick={() => openGiveMaterial(entry)}
                                           className="text-[10px] font-bold text-slate-900 px-3 py-1.5 rounded-lg border whitespace-nowrap transition-all flex items-center gap-1"
-                                          style={{ background: entry.avail === "full" ? "linear-gradient(135deg,#16a34a,#15803d)" : "linear-gradient(135deg,#d97706,#b45309)", borderColor: entry.avail === "full" ? "rgba(34,197,94,0.3)" : "rgba(217,119,6,0.3)", boxShadow: entry.avail === "full" ? "0 0 10px rgba(34,197,94,0.18)" : "0 0 10px rgba(217,119,6,0.15)" }}>
+                                          style={{ background: entry.avail === "full" ? "#15803d" : "linear-gradient(135deg,#d97706,#b45309)", borderColor: entry.avail === "full" ? "rgba(34,197,94,0.3)" : "rgba(217,119,6,0.3)", boxShadow: entry.avail === "full" ? "0 0 10px rgba(34,197,94,0.18)" : "0 0 10px rgba(217,119,6,0.15)", color: "#ffffff" }}>
                                     {entry.isCritical && <span title="Critical item — confirmation required">🔒</span>}
                                     {entry.avail === "full" ? "✓ Give Material" : `Issue ${entry.canIssue} ${entry.unit}`}
                                   </button>
@@ -21222,7 +21239,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
             {invRows.length === 0 ? (
               <div className="text-center py-20 text-slate-600 text-sm">No inventory movements recorded yet.</div>
             ) : (
-              <div className="rounded-xl overflow-hidden" style={{ border:"1px solid rgba(17,24,39,0.06)" }}>
+              <div className="grid-table rounded-xl" style={{ border:"1px solid rgba(17,24,39,0.06)", "--gt-min": "880px" }}>
                 <div className="grid text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-2.5"
                      style={{ gridTemplateColumns:"90px 130px 50px 90px 1fr 70px 60px 120px 120px", background:"rgba(17,24,39,0.03)", borderBottom:"1px solid rgba(17,24,39,0.06)" }}>
                   <div>Date</div><div>Type</div><div>Dir</div><div>Code</div><div>Item</div><div className="text-right">Qty</div><div>Unit</div><div>Vendor</div><div>Reference</div>
@@ -21414,7 +21431,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
             {pendingAllRows.length === 0 ? (
               <div className="text-center py-20 text-slate-600 text-sm">No pending material records.</div>
             ) : (
-              <div className="rounded-xl overflow-hidden" style={{ border:"1px solid rgba(17,24,39,0.06)" }}>
+              <div className="grid-table rounded-xl" style={{ border:"1px solid rgba(17,24,39,0.06)", "--gt-min": "640px" }}>
                 <div className="grid text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-2.5"
                      style={{ gridTemplateColumns:"90px 1fr 130px 110px 80px 80px", background:"rgba(17,24,39,0.03)", borderBottom:"1px solid rgba(17,24,39,0.06)" }}>
                   <div>Code</div><div>Item Name</div><div>BOM / Machine</div><div>Serial No</div><div className="text-right">Qty</div><div className="text-center">Status</div>
@@ -21516,7 +21533,7 @@ function HistoryPage({ auditLog, pos, inwardLog, outwardLog, pendingLog, machine
                 URL.revokeObjectURL(url);
               }}
                 className="px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
-                style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 4px 12px rgba(176, 18, 24,0.35)" }}>
+                style={{ background: "#B01218", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                 📥 Download Report
               </button>
             </div>
@@ -22583,7 +22600,7 @@ export default function App() {
           <div className="flex gap-2">
             <button onClick={retryAuthLoad}
                     className="flex-1 py-2 rounded-xl text-xs font-semibold text-white"
-                    style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 4px 12px rgba(176, 18, 24,0.35)" }}>
+                    style={{ background: "#B01218", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
               ↻ Retry
             </button>
             <button onClick={() => { try { localStorage.removeItem("erp_session"); } catch {} try { localStorage.removeItem("erp_supabase_session"); } catch {} try { window.location.reload(); } catch {} }}
@@ -25452,23 +25469,36 @@ export default function App() {
       )}
 
       {/* ── Mobile bottom nav ── */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around py-2 px-1 no-print"
+      {/* 2026-10-31 — same stroked icons as the sidebar (emoji rendered
+          differently on every phone), only pages this login may open, and a
+          "More" button that opens the full navigation. */}
+      <nav aria-label="Quick navigation" className="mobile-tabbar md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-stretch justify-around pt-1.5 px-1 no-print"
            style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)", boxShadow: "0 -2px 8px rgba(0,0,0,0.06)" }}>
         {[
-          { id: "dashboard", icon: "📊", label: "Home" },
-          { id: "machines",  icon: "⚙️", label: "Machines" },
-          { id: "outward",   icon: "📦", label: "Outward" },
-          { id: "pipeline",  icon: "📋", label: "Pipeline" },
-          { id: "whatsapp",  icon: "💬", label: "WhatsApp" },
-        ].map((item) => (
-          <button key={item.id} onClick={() => { setActivePage(item.id); setMobileNavOpen(false); }}
-            className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-[10px] font-semibold transition-colors"
-            style={{ color: activePage === item.id ? "var(--brand)" : "var(--text-dim)", background: activePage === item.id ? "rgba(var(--brand-rgb), 0.06)" : "transparent" }}>
-            <span className="text-[18px]">{item.icon}</span>
-            <span>{item.label}</span>
-          </button>
-        ))}
-      </div>
+          { id: "dashboard", Icon: LayoutDashboard, label: "Home" },
+          { id: "machines",  Icon: Wrench,          label: "Machines" },
+          { id: "outward",   Icon: ArrowUpFromLine, label: "Outward" },
+          { id: "pipeline",  Icon: RefreshCw,       label: "Pipeline" },
+          { id: "whatsapp",  Icon: MessageCircle,   label: "WhatsApp" },
+        ].filter((item) => canView(item.id)).map((item) => {
+          const on = activePage === item.id;
+          return (
+            <button key={item.id} onClick={() => { setActivePage(item.id); setMobileNavOpen(false); }}
+              aria-current={on ? "page" : undefined}
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1 rounded-lg text-[10.5px] font-semibold transition-colors"
+              style={{ color: on ? "var(--brand)" : "var(--text-dim)", background: on ? "rgba(var(--brand-rgb), 0.06)" : "transparent", minHeight: 48 }}>
+              <item.Icon size={20} strokeWidth={on ? 2.4 : 2} aria-hidden="true" />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+        <button onClick={() => setMobileNavOpen(true)} aria-label="All pages"
+          className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1 rounded-lg text-[10.5px] font-semibold"
+          style={{ color: "var(--text-dim)", minHeight: 48 }}>
+          <Menu size={20} aria-hidden="true" />
+          <span>More</span>
+        </button>
+      </nav>
     </div>
     </MobileNavContext.Provider>
   );

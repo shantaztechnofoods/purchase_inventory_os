@@ -2552,3 +2552,65 @@ body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-for
 body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-indigo-200 { color: #4338ca; }
 body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-slate-300 { color: #475569; }
 body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-slate-400 { color: #64748b; }
+
+/* ── 2026-10-31 responsive audit fixes ─────────────────────────────────────
+   1. Phone: the fixed bottom tab bar (≈60px) sat over the last 60px of every
+      page — the final table rows, form Save buttons and the AI/WhatsApp input
+      were underneath it. Every page body now ends with room for the bar plus
+      the iPhone home-indicator inset. */
+@media (max-width: 767.98px) {
+  .app-shell > .flex-1,
+  .app-shell > .flex-1 > .flex-1.overflow-y-auto { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  .mobile-tabbar { padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
+}
+/* 2. Tablet / small laptop (768–1279px): the phone rules above stop at 767px,
+      so wide tables and long dropdown menus could still push past the card.
+      Tables inside a page scroll in their own box at these widths too. */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  .section-card table, .rounded-xl > table, .rounded-2xl > table { display: block; overflow-x: auto; max-width: 100%; }
+  .section-card table > thead, .rounded-xl > table > thead, .rounded-2xl > table > thead { display: table-header-group; }
+}
+/* 3. Popovers / menus never extend past the screen edge. */
+[role="menu"], .dropdown-menu { max-width: calc(100vw - 16px); max-height: calc(100dvh - 24px); overflow-y: auto; }
+/* 4. Modals on every size: never taller than the screen; actions stay reachable. */
+.modal-backdrop > div { max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; }
+/* 5. Phone legibility floor: 8–9.5px labels (badges, slot captions, table
+      sub-lines) were unreadable at arm's length on the shop floor. */
+@media (max-width: 767.98px) {
+  .text-\[8px\], .text-\[8\.5px\], .text-\[9px\], .text-\[9\.5px\] { font-size: 10px !important; line-height: 1.35; }
+}
+/* 6. BOM issue drawer on a phone: header + filters + summary used the whole
+      screen and squeezed the component list to zero height. Below 768px the
+      drawer scrolls as one page; the summary bar sticks to the bottom so
+      "Issue Stock" is always one tap away. */
+@media (max-width: 767.98px) {
+  .bom-drawer { overflow-y: auto; overscroll-behavior: contain; }
+  .bom-drawer > * { flex-shrink: 0; }
+  .bom-drawer > .flex-1 { flex: none; overflow: visible; }
+  .bom-drawer > .flex-1 .overflow-y-auto, .bom-drawer > .flex-1 .overflow-hidden { overflow: visible; }
+  .bom-drawer > .bom-summary { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -6px 18px rgba(17,24,39,0.08); }
+}
+/* 7. Grid-based "tables". The BOM issue rows used fixed 28/72/72/80/72px
+      columns, which on a 360px phone left the item-name column 0px wide.
+      Phone gets narrower numeric columns; wide history grids scroll inside
+      their own box instead of crushing the text column. */
+.bom-drawer { --bom-cols: 28px minmax(0,1fr) 72px 72px 80px 72px; }
+@media (max-width: 767.98px) { .bom-drawer { --bom-cols: 24px minmax(0,1fr) 42px 42px 62px 46px; } }
+.grid-table { overflow-x: auto; overscroll-behavior-x: contain; }
+.grid-table > * { min-width: var(--gt-min, 100%); }
+@media (max-width: 767.98px) {
+  :root { --bom-edit-cols: minmax(0,1fr) 64px 96px 36px; --bom-create-cols: minmax(0,1fr) 84px 78px 32px; }
+}
+
+/* 8. Second contrast sweep (2026-10-31 audit): the remaining pale text colours. */
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-red-400,
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-red-200 { color: #b91c1c; }
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-green-400,
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-emerald-400 { color: #15803d; }
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-purple-200,
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-purple-300,
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-purple-400,
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-violet-300 { color: #6d28d9; }
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-yellow-400,
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-amber-400 { color: #b45309; }
+body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-pink-300 { color: #be185d; }

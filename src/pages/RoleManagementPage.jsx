@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { PageHeader } from "../components/PageHeader.jsx";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { DEFAULT_ROLES } from "../auth/authStore.js";
 import { appendAuditWithUser } from "../auth/auditStore.js";
@@ -162,12 +163,7 @@ export default function RoleManagementPage({ canDo }) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid rgba(26,31,46,0.06)" }}>
-        <div>
-          <div className="text-base font-bold" style={{ color: "var(--text-strong)" }}>Role Management</div>
-          <div className="text-xs text-slate-500 mt-0.5">{Object.keys(roles).length} role{Object.keys(roles).length !== 1 ? "s" : ""} configured</div>
-        </div>
-        <div className="flex items-center gap-2.5">
+      <PageHeader title="Role Management" subtitle={`${Object.keys(roles).length} role${Object.keys(roles).length !== 1 ? "s" : ""} configured`}>
           {isSuperAdmin && (
             <button onClick={handleReset}
               className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-900 transition-all"
@@ -178,12 +174,11 @@ export default function RoleManagementPage({ canDo }) {
           {canCreate && (
             <button onClick={openAdd}
               className="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all"
-              style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 4px 12px rgba(176, 18, 24,0.35)", color: "#ffffff" }}>
+              style={{ background: "#B01218", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
               + New Role
             </button>
           )}
-        </div>
-      </div>
+        </PageHeader>
 
       {/* Role Cards */}
       <div className="flex-1 overflow-y-auto px-6 py-5">
@@ -355,7 +350,7 @@ export default function RoleManagementPage({ canDo }) {
               </button>
               <button onClick={handleSave} disabled={!editForm.label.trim() || (isNew && !newRoleKey.trim())}
                 className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
-                style={{ background: "linear-gradient(135deg,#D71920,#B01218)", boxShadow: "0 4px 12px rgba(176, 18, 24,0.35)", opacity: (!editForm.label.trim() || (isNew && !newRoleKey.trim())) ? 0.4 : 1, color: "#ffffff" }}>
+                style={{ background: "#B01218", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", opacity: (!editForm.label.trim() || (isNew && !newRoleKey.trim())) ? 0.4 : 1, color: "#ffffff" }}>
                 {isNew ? "Create Role" : "Save Changes"}
               </button>
             </div>
@@ -380,7 +375,7 @@ export default function RoleManagementPage({ canDo }) {
               </button>
               <button onClick={() => handleDelete(deleteConfirm)}
                 className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
-                style={{ background: "linear-gradient(135deg,#ef4444,#dc2626)", boxShadow: "0 4px 12px rgba(239,68,68,0.35)", color: "#ffffff" }}>
+                style={{ background: "#dc2626", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}>
                 Delete Role
               </button>
             </div>
