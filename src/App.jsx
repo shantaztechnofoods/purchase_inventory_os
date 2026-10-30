@@ -9725,6 +9725,12 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   const [criticalInputs,    setCriticalInputs]    = useState({});
   const [criticalErr,       setCriticalErr]       = useState("");
   const [showCriticalModal, setShowCriticalModal] = useState(false);
+  // Migration 037 — store-floor check-point briefing. Shown once, before the
+  // critical-item confirmation, so the operator reads what to verify BEFORE
+  // they start ticking items off. `cpAcknowledged` keeps it from re-opening
+  // when they step back and forth through the confirm flow.
+  const [showCPBrief,   setShowCPBrief]   = useState(false);
+  const [cpAcknowledged, setCpAcknowledged] = useState(false);
   // Feature 2 — Req 2: set of all serial numbers already issued historically.
   // Used to block reuse of the same serial across multiple outward events.
   const usedSerials = useMemo(() => {
@@ -9768,8 +9774,13 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
   const sourceItems = editMode ? editItems : bom.items;
 
-  const enriched = sourceItems.map(({ code, qty }) => {
+  const enriched = sourceItems.map(({ code, qty, checkPoints }) => {
     const inv      = findInv(code);
+    // Migration 037 — the BOM line's own check points win. A line saved before
+    // 037 has none, so we fall back to the item's current template rather than
+    // showing the operator nothing on a BOM built earlier.
+    const linePoints = Array.isArray(checkPoints) ? checkPoints
+                     : (Array.isArray(inv?.checkPoints) ? inv.checkPoints : []);
     const required = qty * units;
     const available = inv?.stock ?? 0;
     const maxIssue  = Math.min(required, available);
@@ -9779,7 +9790,8 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     const overQty    = Math.max(0, issueQty - required);
     const status    = available >= required ? "green" : available > 0 ? "orange" : "red";
     return { code, baseQty: qty, required, available, issueQty, pendingQty, overQty, status,
-             name: inv?.name || code, unit: inv?.unit || "—", category: inv?.category || "Other", inv };
+             name: inv?.name || code, unit: inv?.unit || "—", category: inv?.category || "Other", inv,
+             checkPoints: linePoints };
   });
 
   const isItemChecked = (code) => checked[code] !== false;
@@ -9811,6 +9823,10 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   // checkbox-mode requires a single confirmation. Non-empty whitespace-trimmed
   // serials only. The ready flag gates the Confirm button.
   const criticalLines = checkedE.filter((i) => i.issueQty > 0 && i.inv && i.inv.isCritical);
+  // Migration 037 — lines actually being issued that carry check points. Drives
+  // the briefing popup; empty means there is nothing to brief and the operator
+  // goes straight to the existing confirm flow.
+  const cpBriefLines  = checkedE.filter((i) => i.issueQty > 0 && (i.checkPoints || []).length > 0);
   const isCriticalLineReady = (line) => {
     const type = line.inv.outwardInputType === "serial" ? "serial" : "checkbox";
     const state = criticalInputs[line.code] || {};
@@ -10120,7 +10136,13 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
         // Rounded like the parser does: the stored BOM line must not carry a
         // 0.30000000000000004-class float artifact into the database.
         if (at >= 0) next[at].qty = Math.round(((Number(next[at].qty) || 0) + l.qty) * 10000) / 10000;
-        else next.push({ code: l.code, qty: l.qty });
+        else {
+          // Migration 037 — a pasted line inherits the item's check-point
+          // template too, so bulk-built BOMs reach Outward with the same
+          // instructions a hand-added line would carry.
+          const inv = findInv(l.code);
+          next.push({ code: l.code, qty: l.qty, checkPoints: Array.isArray(inv?.checkPoints) ? [...inv.checkPoints] : [] });
+        }
       }
       return next;
     });
@@ -10577,6 +10599,12 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             <button onClick={onClose} className="text-xs font-bold text-slate-500 px-4 py-2.5 rounded-xl border border-slate-200 hover:text-slate-900 hover:border-white/20 transition-all">Cancel</button>
             {!confirmIssue ? (
               <button onClick={() => {
+                        // Migration 037 — check-point briefing comes FIRST, so the
+                        // operator reads what to verify before ticking anything off.
+                        if (!cpAcknowledged && cpBriefLines.length > 0) {
+                          setShowCPBrief(true);
+                          return;
+                        }
                         // Critical items in this outward → open the dedicated
                         // Critical Item Confirmation modal first. Non-critical
                         // outward keeps the lightweight inline confirm.
@@ -10620,6 +10648,79 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
           The modal never appears during BOM create / edit (editMode gates
           the entire sticky summary bar + Issue button, so the trigger path
           is unreachable in edit mode). */}
+      {/* Migration 037 — CHECK-POINT BRIEFING. The first thing the store
+          operator sees when issuing: every item going out, with the check
+          points that BOM carries for it. Acknowledging it hands off to the
+          existing critical-confirmation / inline-confirm flow unchanged. */}
+      {!editMode && showCPBrief && (
+        <div className="modal-backdrop fixed inset-0 z-[60] flex items-center justify-center p-4"
+             style={{ background: "rgba(17,24,39,0.5)", backdropFilter: "blur(14px)" }}
+             onClick={(e) => e.target === e.currentTarget && setShowCPBrief(false)}>
+          <div className="w-full max-w-xl rounded-2xl overflow-hidden flex flex-col"
+               style={{ maxHeight: "88vh", background: "var(--surface-elevated)",
+                        border: "1px solid rgba(217,119,6,0.4)", boxShadow: "0 40px 100px rgba(17,24,39,0.25)" }}>
+
+            <div className="px-6 py-5 border-b border-slate-200 flex-shrink-0"
+                 style={{ background: "linear-gradient(90deg,rgba(217,119,6,0.12),rgba(217,119,6,0.05))" }}>
+              <div className="text-[15px] font-semibold text-slate-900">📋 निकालने से पहले ये check कर लो</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">
+                {bom.label || bomKey} — {cpBriefLines.length} item पर check points हैं
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3">
+              {cpBriefLines.map((l) => (
+                <div key={l.code} className="rounded-xl overflow-hidden"
+                     style={{ border: "1px solid rgba(17,24,39,0.10)" }}>
+                  <div className="px-4 py-2.5 flex items-center justify-between"
+                       style={{ background: "rgba(17,24,39,0.03)" }}>
+                    <div>
+                      <div className="text-[12px] font-bold text-slate-900">
+                        {l.name}
+                        {l.inv?.isCritical && (
+                          <span className="ml-2 text-[9px] font-black px-1.5 py-0.5 rounded"
+                                style={{ background: "rgba(239,68,68,0.12)", color: "#dc2626" }}>CRITICAL</span>
+                        )}
+                      </div>
+                      <div className="text-[9px] font-mono text-slate-500">{l.code}</div>
+                    </div>
+                    <div className="text-[11px] font-bold text-slate-700" style={{ fontVariantNumeric: "tabular-nums" }}>
+                      {l.issueQty} {l.unit}
+                    </div>
+                  </div>
+                  <div className="px-4 py-3 space-y-1.5">
+                    {(l.checkPoints || []).map((cp, i) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <span className="text-[11px] mt-0.5">✅</span>
+                        <span className="text-[12px] text-slate-800 leading-snug">{cp}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between gap-2 flex-shrink-0">
+              <div className="text-[10px] text-slate-500">ये points इस BOM के लिए सेट किए गए हैं</div>
+              <div className="flex gap-2">
+                <Btn variant="ghost" size="sm" onClick={() => setShowCPBrief(false)}>वापस</Btn>
+                <button onClick={() => {
+                          setCpAcknowledged(true);
+                          setShowCPBrief(false);
+                          // Hand off to the flow the Issue button would have run.
+                          if (criticalLines.length > 0) { setCriticalErr(""); setShowCriticalModal(true); }
+                          else setConfirmIssue(true);
+                        }}
+                        className="text-xs font-black px-5 py-2.5 rounded-xl text-white transition-all"
+                        style={{ background: "linear-gradient(135deg,#d97706,#b45309)" }}>
+                  ✓ देख लिया, आगे बढ़ो
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {!editMode && showCriticalModal && (
         <div className="modal-backdrop fixed inset-0 z-[85] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
@@ -10926,6 +11027,107 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
 // ─── OUTWARD PAGE ─────────────────────────────────────────────────────────────
 
+// ─── BOM LINE CHECK POINTS MODAL ───────────────────────────────────────────
+// Per-BOM override of an item's check points (migration 037).
+//
+// The item carries a TEMPLATE list in Item Master. When the item is picked into
+// a BOM the line inherits a copy; this modal edits THAT COPY. So the same motor
+// can carry "check shaft play" in KM10's BOM and a different set in KM15's,
+// while the Item Master template stays untouched. "Reset to item template"
+// pulls the current template back in when the operator wants to start over.
+function BomLineCheckPointsModal({ code, itemName = "", bomLabel = "", current = [], template = [], onSave, onClose }) {
+  const [points, setPoints] = useState(() => (Array.isArray(current) ? current.filter(Boolean) : []));
+  const [draft,  setDraft]  = useState("");
+
+  useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  const add = () => {
+    const t = draft.trim();
+    if (!t) return;
+    setPoints((p) => p.includes(t) ? p : [...p, t]);
+    setDraft("");
+  };
+  const remove = (i) => setPoints((p) => p.filter((_, idx) => idx !== i));
+
+  const tmpl = (template || []).filter(Boolean);
+  const differsFromTemplate =
+    tmpl.length !== points.length || tmpl.some((t, i) => t !== points[i]);
+
+  const save = () => {
+    const d = draft.trim();
+    onSave(d && !points.includes(d) ? [...points, d] : points);
+  };
+
+  return (
+    <div className="modal-backdrop fixed inset-0 z-[60] flex items-center justify-center p-4"
+         style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(14px)" }}
+         onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="w-full max-w-lg rounded-2xl overflow-hidden flex flex-col"
+           style={{ maxHeight: "88vh", background: "var(--surface-elevated)",
+                    border: "1px solid rgba(217,119,6,0.35)", boxShadow: "0 40px 100px rgba(17,24,39,0.22)" }}>
+
+        <div className="px-6 py-5 border-b border-slate-200 flex-shrink-0"
+             style={{ background: "linear-gradient(90deg,rgba(217,119,6,0.10),rgba(217,119,6,0.04))" }}>
+          <div className="text-[15px] font-semibold text-slate-900">✅ Check Points</div>
+          <div className="text-[11px] text-slate-500 mt-0.5">
+            {itemName || code}{bomLabel ? <> — सिर्फ़ <b>{bomLabel}</b> के BOM के लिए</> : null}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3">
+          <div className="text-[11px] text-slate-500">
+            Outward के वक़्त store वाले को ये points दिखेंगे. यहाँ किया बदलाव <b>सिर्फ़ इस BOM</b> का है — Item Master वाला template वैसा ही रहेगा.
+          </div>
+
+          {points.length === 0 && (
+            <div className="px-4 py-6 rounded-xl text-center text-[12px] text-slate-500"
+                 style={{ background: "rgba(17,24,39,0.03)", border: "1px dashed rgba(17,24,39,0.15)" }}>
+              कोई check point नहीं. नीचे से जोड़ो.
+            </div>
+          )}
+
+          {points.map((cp, i) => (
+            <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                 style={{ background: "rgba(217,119,6,0.06)", border: "1px solid rgba(217,119,6,0.25)" }}>
+              <span className="text-[11px]">✅</span>
+              <span className="flex-1 text-[12px] text-slate-800 leading-snug">{cp}</span>
+              <button type="button" onClick={() => remove(i)}
+                      className="w-5 h-5 rounded flex items-center justify-center text-slate-500 hover:text-red-600 text-[11px] font-bold">✕</button>
+            </div>
+          ))}
+
+          <div className="flex gap-2">
+            <input value={draft} onChange={(e) => setDraft(e.target.value)}
+                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+                   placeholder="जैसे: Shaft play check करो"
+                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-900 outline-none modal-input" />
+            <button type="button" onClick={add} disabled={!draft.trim()}
+                    className="px-4 rounded-xl text-[12px] font-bold text-white disabled:opacity-40 flex-shrink-0"
+                    style={{ background: "#D71920" }}>+ Add</button>
+          </div>
+
+          {tmpl.length > 0 && differsFromTemplate && (
+            <button type="button" onClick={() => setPoints([...tmpl])}
+                    className="w-full px-4 py-2.5 rounded-xl text-[11px] font-bold text-slate-600 transition-all"
+                    style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.12)" }}>
+              ↺ Item Master वाले template पर वापस ({tmpl.length} points)
+            </button>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-2 flex-shrink-0">
+          <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
+          <Btn variant="primary" size="sm" onClick={save}>Save</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateBOM, onRenameBOM, outwardLog, onAddOutward, pendingLog, onClearPending, onCreateMachine, machineLog = [], canDo = () => true, onRemoveRackMachine, onDuplicateBOM, onDeleteBOM, computeBOMDeletionInfo, settings = {},
   checklistTemplates = [], onCreateChecklistTemplate, onUpdateChecklistTemplate, onDeleteChecklistTemplate,
   // 2026-10-22 — navigate out of Outward (used by BOM Edit → Critical Items
@@ -10965,7 +11167,9 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
   // Create BOM modal state
   const [showCreate,    setShowCreate]    = useState(false);
   const [createForm,    setCreateForm]    = useState({ key: "", label: "", rackCapacity: "0" });
-  const [createItems,   setCreateItems]   = useState([]); // [{ code, qty }]
+  const [createItems,   setCreateItems]   = useState([]); // [{ code, qty, checkPoints }]
+  // Which create-BOM line has its per-BOM check points open (migration 037).
+  const [cpEditCode,    setCpEditCode]    = useState(null);
   const [createAddCode, setCreateAddCode] = useState("");
   const [createAddQty,  setCreateAddQty]  = useState("1");
   const [createErr,     setCreateErr]     = useState("");
@@ -11079,7 +11283,13 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
     if (!createAddCode) { setCreateErr("Select a component to add"); return; }
     if (!qty || qty <= 0) { setCreateErr("Enter a valid quantity"); return; }
     if (createItems.some((i) => i.code === createAddCode)) { setCreateErr("Component already added"); return; }
-    setCreateItems((p) => [...p, { code: createAddCode, qty }]);
+    // Migration 037 — the line inherits a COPY of the item's check-point
+    // template. A copy, not a reference: editing the line later must not write
+    // back to Item Master, and editing Item Master must not silently rewrite
+    // BOMs that were already built against the old points.
+    const inv = findItem(createAddCode);
+    const inherited = Array.isArray(inv?.checkPoints) ? [...inv.checkPoints] : [];
+    setCreateItems((p) => [...p, { code: createAddCode, qty, checkPoints: inherited }]);
     setCreateAddCode(""); setCreateAddQty("1"); setCreateErr("");
   };
   // Bulk counterpart of addCreateItem — commits the lines BOMPasteLines has
@@ -11096,7 +11306,11 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
         // Rounded like the parser does: the stored BOM line must not carry a
         // 0.30000000000000004-class float artifact into the database.
         if (at >= 0) next[at].qty = Math.round(((Number(next[at].qty) || 0) + l.qty) * 10000) / 10000;
-        else next.push({ code: l.code, qty: l.qty });
+        else {
+          // Same inheritance as addCreateItem (migration 037).
+          const inv = findItem(l.code);
+          next.push({ code: l.code, qty: l.qty, checkPoints: Array.isArray(inv?.checkPoints) ? [...inv.checkPoints] : [] });
+        }
       }
       return next;
     });
@@ -11445,7 +11659,20 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                              style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.04)", gridTemplateColumns: "1fr 120px 100px 40px" }}>
                           <div>
                             <div className="text-[11px] font-semibold text-slate-900">{inv?.name || ci.code}</div>
-                            <div className="text-[9px] font-mono text-slate-600">{ci.code}</div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <div className="text-[9px] font-mono text-slate-600">{ci.code}</div>
+                              {/* Migration 037 — per-BOM check points for this line. */}
+                              <button type="button" onClick={() => setCpEditCode(ci.code)}
+                                      title="इस BOM के लिए check points"
+                                      className="text-[9px] font-bold px-1.5 py-0.5 rounded transition-all"
+                                      style={{
+                                        background: (ci.checkPoints || []).length ? "rgba(217,119,6,0.12)" : "rgba(17,24,39,0.05)",
+                                        color:      (ci.checkPoints || []).length ? "#b45309" : "#64748b",
+                                        border:     `1px solid ${(ci.checkPoints || []).length ? "rgba(217,119,6,0.3)" : "rgba(17,24,39,0.12)"}`,
+                                      }}>
+                                ✅ {(ci.checkPoints || []).length || "+"}
+                              </button>
+                            </div>
                           </div>
                           <div className="text-[10px] text-slate-500 text-center">{inv?.category || "—"}</div>
                           <div className="flex items-center gap-1.5 justify-end">
@@ -11462,6 +11689,27 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                     })}
                   </div>
                 )}
+
+                {/* Migration 037 — per-BOM check points for the selected line. */}
+                {cpEditCode && (() => {
+                  const line = createItems.find((i) => i.code === cpEditCode);
+                  if (!line) return null;
+                  const inv = findItem(cpEditCode);
+                  return (
+                    <BomLineCheckPointsModal
+                      code={cpEditCode}
+                      itemName={inv?.name || cpEditCode}
+                      bomLabel={createForm.label || createForm.key}
+                      current={line.checkPoints || []}
+                      template={inv?.checkPoints || []}
+                      onClose={() => setCpEditCode(null)}
+                      onSave={(pts) => {
+                        setCreateItems((p) => p.map((i) => i.code === cpEditCode ? { ...i, checkPoints: pts } : i));
+                        setCpEditCode(null);
+                      }}
+                    />
+                  );
+                })()}
 
                 <div className="flex items-center gap-2 flex-wrap pt-2" style={{ borderTop: "1px dashed rgba(17,24,39,0.10)" }}>
                   <div className="flex-1 min-w-[200px] mt-2">
@@ -20249,7 +20497,14 @@ export default function App() {
     const newBom = {
       label: def.label.trim(),
       color,
-      items: def.items.filter((i) => i.code && Number(i.qty) > 0).map((i) => ({ code: i.code, qty: Number(i.qty) })),
+      // Migration 037 — checkPoints must survive this normalisation. The map
+      // used to flatten each line to {code, qty}, which would have silently
+      // dropped the per-BOM check points the operator just set.
+      items: def.items.filter((i) => i.code && Number(i.qty) > 0).map((i) => ({
+        code: i.code,
+        qty: Number(i.qty),
+        checkPoints: Array.isArray(i.checkPoints) ? i.checkPoints.filter(Boolean) : [],
+      })),
       rackCapacity: Math.max(0, parseInt(def.rackCapacity, 10) || 0),
     };
     setBomDefs((prev) => ({ ...prev, [k]: newBom }));
