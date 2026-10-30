@@ -82,6 +82,12 @@ function fromRow(r) {
     // change behaviour. outwardInputType is only meaningful when isCritical.
     isCritical:         !!r.is_critical,
     outwardInputType:   r.outward_input_type || null,
+    // Per-item check points (migration 037). The store-floor instructions an
+    // operator must verify for this item ("Handle with care", "Check shaft
+    // diameter"). BOM lines inherit a copy of these at selection time and may
+    // override them per-BOM, so this array is the TEMPLATE, not the live list.
+    // Empty array for legacy rows / pre-037 schemas.
+    checkPoints:        Array.isArray(r.check_points) ? r.check_points : [],
   };
 }
 
@@ -194,6 +200,8 @@ export async function createItem(category, item) {
       outward_input_type: item.isCritical && (item.outwardInputType === "checkbox" || item.outwardInputType === "serial")
         ? item.outwardInputType
         : null,
+      // 037 — per-item check points. Stripped by the retry below on pre-037 schemas.
+      check_points:       Array.isArray(item.checkPoints) ? item.checkPoints : [],
     };
     // Strip 020 from baseRow for the retry path; if 020 column is missing the
     // first insert will fail with isMissingColumnError and retry without media,
@@ -210,8 +218,19 @@ export async function createItem(category, item) {
     let insertData, insertError;
     try {
       let resp = await c.from("items").insert(fullRow).select().single();
+      // Tier 1 — only check_points (037) is missing. Strip JUST that column and
+      // keep media / gst_rate / is_critical. Collapsing straight to the bare row
+      // here would silently drop the critical-item flag on every insert for any
+      // database that has 016/018/026 but not yet 037.
       if (resp.error && isMissingColumnError(resp.error)) {
-        console.warn(`[${traceId}] step 4.5 — optional columns missing (run migrations 016 / 018 / 020) — retrying without`);
+        console.warn(`[${traceId}] step 4.5a — check_points missing (run migration 037) — retrying without it`);
+        const without037 = { ...fullRow };
+        delete without037.check_points;
+        resp = await c.from("items").insert(without037).select().single();
+      }
+      // Tier 2 — an older optional column is missing too; fall back to the bare row.
+      if (resp.error && isMissingColumnError(resp.error)) {
+        console.warn(`[${traceId}] step 4.5b — optional columns missing (run migrations 016 / 018 / 020 / 026) — retrying bare`);
         mediaStripped = userProvidedMedia;
         resp = await c.from("items").insert(baseRowWithoutOptional).select().single();
       }
@@ -342,6 +361,8 @@ export async function updateItem(originalCode, originalCategory, updatedItem, ne
     outward_input_type: updatedItem.isCritical && (updatedItem.outwardInputType === "checkbox" || updatedItem.outwardInputType === "serial")
       ? updatedItem.outwardInputType
       : null,
+    // 037 — per-item check points. Stripped by the retry below on pre-037 schemas.
+    check_points:       Array.isArray(updatedItem.checkPoints) ? updatedItem.checkPoints : [],
   };
   // Track whether the schema-tolerant retry actually fired AND the user had supplied
   // media (so we can surface a visible warning — silent drop is what caused the
@@ -359,8 +380,18 @@ export async function updateItem(originalCode, originalCategory, updatedItem, ne
   };
 
   let resp = await buildQuery(fullRow);
+  // Tier 1 — only check_points (037) is missing. Strip JUST that column so an
+  // edit on a 016/018/026 database does not silently wipe is_critical, gst_rate
+  // or the item's media by collapsing to baseRow.
   if (resp.error && isMissingColumnError(resp.error)) {
-    console.warn("[items:update] media columns missing (run migration 016) — retrying without");
+    console.warn("[items:update] check_points missing (run migration 037) — retrying without it");
+    const without037 = { ...fullRow };
+    delete without037.check_points;
+    resp = await buildQuery(without037);
+  }
+  // Tier 2 — an older optional column is missing too; fall back to the bare row.
+  if (resp.error && isMissingColumnError(resp.error)) {
+    console.warn("[items:update] media/gst/critical columns missing (run migrations 016 / 018 / 026) — retrying bare");
     mediaStripped = userProvidedMedia;
     resp = await buildQuery(baseRow);
   }

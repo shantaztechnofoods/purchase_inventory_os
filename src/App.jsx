@@ -2076,6 +2076,25 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
     isCritical: false,
     outwardInputType: "checkbox",
   });
+
+  // Per-item check points (migration 037) — the TEMPLATE an operator must verify
+  // for this item. BOM lines inherit a copy at selection time, so editing these
+  // never rewrites check points already carried by existing BOMs.
+  const [checkPoints, setCheckPoints] = useState(() =>
+    Array.isArray(initialValues?.checkPoints) ? initialValues.checkPoints.filter(Boolean) : []);
+  const [cpDraft, setCpDraft] = useState("");
+  const addCheckPoint = () => {
+    const t = cpDraft.trim();
+    if (!t) return;
+    setCheckPoints((prev) => prev.includes(t) ? prev : [...prev, t]);
+    setCpDraft("");
+  };
+  const removeCheckPoint = (i) => setCheckPoints((prev) => prev.filter((_, idx) => idx !== i));
+
+  // Everything that is not needed to get an item onto the floor lives behind
+  // this toggle — purchasing rates, GST, vendors and media. Collapsed by default
+  // so the add-item form stays short; nothing is removed, just tucked away.
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [errors,       setErrors]       = useState({});
   const [vendorLinks,  setVendorLinks]  = useState(initVendorLinks);
   const [vendorSearch, setVendorSearch] = useState("");
@@ -2201,6 +2220,13 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
       // normalises either way, but we null-out the type to keep the row clean.
       isCritical:       !!form.isCritical,
       outwardInputType: form.isCritical ? form.outwardInputType : null,
+      // Migration 037 — check-point template for this item. Any text still
+      // sitting in the draft box is included, so a half-typed point isn't lost
+      // when the operator hits Save without pressing +.
+      checkPoints: (() => {
+        const d = cpDraft.trim();
+        return d && !checkPoints.includes(d) ? [...checkPoints, d] : checkPoints;
+      })(),
     });
   };
 
@@ -2318,27 +2344,6 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
             </div>
           </div>
 
-          {/* Row 2c — GST Rate (ERP migration 018) + Default Purchase Rate (020) */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label text="GST Rate" />
-              <select value={form.gstRate} onChange={(e) => set("gstRate", e.target.value)} className={inp(false)} style={selectStyle}>
-                <option value="">— Not set —</option>
-                {ITEM_GST_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
-              </select>
-              <div className="text-[10px] text-slate-500 mt-1">Used by auto GST calculation in PO modal (multi-rate / itemwise purchases).</div>
-            </div>
-            <div>
-              <Label text="Default Purchase Rate (₹)" />
-              <input type="number" min="0" step="0.01" value={form.defaultPurchaseRate}
-                     onChange={(e) => set("defaultPurchaseRate", e.target.value)}
-                     placeholder="e.g. 150"
-                     className={inp(false)}
-                     style={{ fontVariantNumeric: "tabular-nums" }} />
-              <div className="text-[10px] text-slate-500 mt-1">PO line rate fallback when Last Purchase Rate is 0.</div>
-            </div>
-          </div>
-
           {/* Row 2d — Critical Item flag + Outward Input Type (migration 026).
               When Critical Item = Yes, BOM Outward will require the operator to
               either tick a confirmation box or enter one serial per unit before
@@ -2400,6 +2405,73 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
               <StatusBadge status={computedStatus} />
             </div>
           )}
+
+          {/* Check Points (migration 037) — what the store operator must verify
+              for this item. These are the TEMPLATE: when the item is picked into
+              a BOM the line inherits a copy, which that BOM can then edit on its
+              own without touching this list. */}
+          <div>
+            <Label text={`Check Points${checkPoints.length ? ` (${checkPoints.length})` : ""}`} />
+            <div className="text-[10px] text-slate-500 mb-2">
+              Outward के वक़्त store वाले को ये points popup में दिखेंगे. जैसे — "Handle with care", "Shaft diameter check करो".
+            </div>
+
+            {checkPoints.length > 0 && (
+              <div className="space-y-1.5 mb-2">
+                {checkPoints.map((cp, i) => (
+                  <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                       style={{ background: "rgba(217,119,6,0.06)", border: "1px solid rgba(217,119,6,0.25)" }}>
+                    <span className="text-[11px]">✅</span>
+                    <span className="flex-1 text-[12px] text-slate-800 leading-snug">{cp}</span>
+                    <button type="button" onClick={() => removeCheckPoint(i)}
+                            className="w-5 h-5 rounded flex items-center justify-center text-slate-500 hover:text-red-600 text-[11px] font-bold">✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <input value={cpDraft} onChange={(e) => setCpDraft(e.target.value)}
+                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCheckPoint(); } }}
+                     placeholder="जैसे: Handle with care — rubber item"
+                     className={inp(false)} />
+              <button type="button" onClick={addCheckPoint} disabled={!cpDraft.trim()}
+                      className="px-4 rounded-xl text-[12px] font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                      style={{ background: "#D71920" }}>+ Add</button>
+            </div>
+          </div>
+
+          {/* Advanced — purchasing, vendors and media. Collapsed by default so the
+              form stays short for the floor; nothing is removed, only tucked away. */}
+          <button type="button" onClick={() => setShowAdvanced((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-[12px] font-bold text-slate-700 transition-all"
+                  style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.12)" }}>
+            <span>⚙️ Purchase / Vendor / Media details {showAdvanced ? "" : "(optional)"}</span>
+            <span className="text-[10px]">{showAdvanced ? "▲ छुपाओ" : "▼ खोलो"}</span>
+          </button>
+
+          {showAdvanced && (<>
+
+          {/* GST Rate (migration 018) + Default Purchase Rate (020) */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label text="GST Rate" />
+              <select value={form.gstRate} onChange={(e) => set("gstRate", e.target.value)} className={inp(false)} style={selectStyle}>
+                <option value="">— Not set —</option>
+                {ITEM_GST_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+              </select>
+              <div className="text-[10px] text-slate-500 mt-1">Used by auto GST calculation in PO modal (multi-rate / itemwise purchases).</div>
+            </div>
+            <div>
+              <Label text="Default Purchase Rate (₹)" />
+              <input type="number" min="0" step="0.01" value={form.defaultPurchaseRate}
+                     onChange={(e) => set("defaultPurchaseRate", e.target.value)}
+                     placeholder="e.g. 150"
+                     className={inp(false)}
+                     style={{ fontVariantNumeric: "tabular-nums" }} />
+              <div className="text-[10px] text-slate-500 mt-1">PO line rate fallback when Last Purchase Rate is 0.</div>
+            </div>
+          </div>
 
           {/* Row 4 — Multi-vendor combobox (Vendor Master only) */}
           <div>
@@ -2633,6 +2705,8 @@ function AddItemModal({ machines, onSave, onClose, initialValues = null, vendorL
               </div>
             )}
           </div>
+
+          </>)}
         </div>
 
         {/* Footer */}
@@ -2869,7 +2943,178 @@ function ItemImportModal({ items, onImport, onClose }) {
 
 // ─── INVENTORY PAGE ───────────────────────────────────────────────────────────
 
-function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog = [], outwardLog = [], pendingLog = [], bomDefs = {}, machineLog = [], onLogAudit = () => {}, canDo = () => true, vendorList = [], onCreateItem, onUpdateItem, onDeleteItem, onBulkAddItems }) {
+// ─── CLEAR DEMO DATA MODAL ──────────────────────────────────────────────────
+// One-shot wipe of the demo items + demo BOMs created while trialling the ERP,
+// so the operator can start the real production run from a clean Item Master.
+//
+// Deliberately loops the SAME per-row handlers a manual delete uses
+// (onDeleteItem / onDeleteBOM) instead of adding a bulk store call: every
+// delete keeps its audit entry, its stock reversal and its Supabase round-trip.
+// Slower for a large list, but it cannot leave the ledger inconsistent.
+//
+// Order is load-bearing: BOMs are deleted FIRST, because handleDeleteBOM
+// reverses rack stock back onto the item rows. Wiping items first would strand
+// those restores against rows that no longer exist.
+function ClearDemoDataModal({ items = {}, bomDefs = {}, onDeleteItem, onDeleteBOM, onClose, onDone }) {
+  const flatItems = useMemo(
+    () => Object.entries(items).flatMap(([cat, arr]) => (arr || []).map((i) => ({ category: cat, code: i.code, name: i.name }))),
+    [items],
+  );
+  const bomKeys = useMemo(() => Object.keys(bomDefs || {}), [bomDefs]);
+
+  const [wipeItems, setWipeItems] = useState(true);
+  const [wipeBoms,  setWipeBoms]  = useState(true);
+  const [confirm,   setConfirm]   = useState("");
+  const [busy,      setBusy]      = useState(false);
+  const [progress,  setProgress]  = useState(null);   // { done, total, label }
+  const [result,    setResult]    = useState(null);   // { items, boms, failed: [] }
+
+  useEffect(() => {
+    const h = (e) => { if (e.key === "Escape" && !busy) onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose, busy]);
+
+  const total = (wipeBoms ? bomKeys.length : 0) + (wipeItems ? flatItems.length : 0);
+  const armed = confirm.trim().toUpperCase() === "DELETE" && total > 0 && !busy;
+
+  const run = async () => {
+    if (!armed) return;
+    setBusy(true);
+    const failed = [];
+    let doneCount = 0, bomsDeleted = 0, itemsDeleted = 0;
+
+    // Step 1 — BOMs first (restores rack stock back onto item rows).
+    if (wipeBoms) {
+      for (const key of bomKeys) {
+        setProgress({ done: doneCount, total, label: `BOM ${key}` });
+        try {
+          const res = onDeleteBOM ? await onDeleteBOM(key) : { success: false, error: "not wired" };
+          if (res?.success) bomsDeleted++;
+          else failed.push(`BOM ${key}: ${res?.error || "failed"}`);
+        } catch (e) {
+          failed.push(`BOM ${key}: ${e?.message || String(e)}`);
+        }
+        doneCount++;
+      }
+    }
+
+    // Step 2 — items.
+    if (wipeItems) {
+      for (const it of flatItems) {
+        setProgress({ done: doneCount, total, label: it.name || it.code });
+        try {
+          const res = onDeleteItem ? await onDeleteItem(it.category, it.code) : { success: false, error: "not wired" };
+          if (res?.success === false) failed.push(`${it.code}: ${res?.error || "failed"}`);
+          else itemsDeleted++;
+        } catch (e) {
+          failed.push(`${it.code}: ${e?.message || String(e)}`);
+        }
+        doneCount++;
+      }
+    }
+
+    setProgress(null);
+    setBusy(false);
+    setResult({ items: itemsDeleted, boms: bomsDeleted, failed });
+    if (onDone) onDone();
+  };
+
+  const row = "flex items-start gap-3 px-4 py-3 rounded-xl border";
+
+  return (
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
+         style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(14px)" }}
+         onClick={(e) => e.target === e.currentTarget && !busy && onClose()}>
+      <div className="w-full max-w-lg rounded-2xl overflow-hidden"
+           style={{ background: "var(--surface-elevated)", border: "1px solid rgba(239,68,68,0.35)",
+                    boxShadow: "0 40px 100px rgba(17,24,39,0.22)" }}>
+
+        <div className="px-6 py-5 border-b border-slate-200"
+             style={{ background: "linear-gradient(90deg,rgba(239,68,68,0.10),rgba(239,68,68,0.04))" }}>
+          <div className="text-[15px] font-semibold text-slate-900">🧹 Clear Demo Data</div>
+          <div className="text-[11px] text-slate-500 mt-0.5">Trial शुरू करने से पहले पुराना demo data हटाओ</div>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {!result && (
+            <>
+              <label className={row} style={{ borderColor: wipeBoms ? "rgba(239,68,68,0.35)" : "rgba(17,24,39,0.12)", background: "rgba(17,24,39,0.02)", cursor: busy ? "not-allowed" : "pointer" }}>
+                <input type="checkbox" checked={wipeBoms} disabled={busy}
+                       onChange={(e) => setWipeBoms(e.target.checked)} className="mt-0.5" />
+                <div>
+                  <div className="text-[13px] font-bold text-slate-900">सारे BOM delete करो ({bomKeys.length})</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">Rack में पड़ी machines का material वापस stock में आ जाएगा. Active production वाले BOM delete नहीं होंगे.</div>
+                </div>
+              </label>
+
+              <label className={row} style={{ borderColor: wipeItems ? "rgba(239,68,68,0.35)" : "rgba(17,24,39,0.12)", background: "rgba(17,24,39,0.02)", cursor: busy ? "not-allowed" : "pointer" }}>
+                <input type="checkbox" checked={wipeItems} disabled={busy}
+                       onChange={(e) => setWipeItems(e.target.checked)} className="mt-0.5" />
+                <div>
+                  <div className="text-[13px] font-bold text-slate-900">सारी Items delete करो ({flatItems.length})</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">Item Master पूरा खाली हो जाएगा.</div>
+                </div>
+              </label>
+
+              <div className="px-4 py-3 rounded-xl" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.25)" }}>
+                <div className="text-[11px] font-bold text-red-700">⚠️ ये वापस नहीं हो सकता (undo नहीं है)</div>
+                <div className="text-[11px] text-slate-600 mt-1">पक्का करने के लिए नीचे <b>DELETE</b> type करो.</div>
+              </div>
+
+              <input value={confirm} onChange={(e) => setConfirm(e.target.value)} disabled={busy}
+                     placeholder="DELETE"
+                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[13px] font-bold tracking-widest text-slate-900 outline-none modal-input" />
+
+              {busy && progress && (
+                <div>
+                  <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(17,24,39,0.08)" }}>
+                    <div className="h-full transition-all" style={{ width: `${Math.round((progress.done / Math.max(1, progress.total)) * 100)}%`, background: "#dc2626" }} />
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-1.5">
+                    {progress.done} / {progress.total} — {progress.label}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {result && (
+            <div className="space-y-3">
+              <div className="px-4 py-3 rounded-xl" style={{ background: "rgba(16,185,129,0.07)", border: "1px solid rgba(16,185,129,0.3)" }}>
+                <div className="text-[13px] font-bold text-emerald-700">✅ हो गया</div>
+                <div className="text-[12px] text-slate-700 mt-1">
+                  {result.boms} BOM और {result.items} item delete हुए.
+                </div>
+              </div>
+              {result.failed.length > 0 && (
+                <div className="px-4 py-3 rounded-xl max-h-44 overflow-y-auto" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.25)" }}>
+                  <div className="text-[11px] font-bold text-red-700 mb-1">{result.failed.length} नहीं हुए:</div>
+                  {result.failed.map((f, i) => (
+                    <div key={i} className="text-[10px] text-slate-600 leading-relaxed">• {f}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-2">
+          <Btn variant="ghost" size="sm" onClick={onClose} disabled={busy}>{result ? "बंद करो" : "Cancel"}</Btn>
+          {!result && (
+            <button onClick={run} disabled={!armed}
+                    className="text-xs font-bold px-4 py-2 rounded-lg text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{ background: "#dc2626" }}>
+              {busy ? "Deleting…" : `Delete ${total} item/BOM`}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog = [], outwardLog = [], pendingLog = [], bomDefs = {}, machineLog = [], onLogAudit = () => {}, canDo = () => true, vendorList = [], onCreateItem, onUpdateItem, onDeleteItem, onDeleteBOM, onBulkAddItems }) {
   const [search,        setSearch]        = useState("");
   // Search input ref so we can auto-focus on page mount (Tally-style: land
   // the cursor in search so the operator types straight away). Same pattern
@@ -2881,6 +3126,7 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
   const [sortDir,       setSortDir]       = useState("asc");
   const [showModal,     setShowModal]     = useState(false);
   const [showImport,    setShowImport]    = useState(false);
+  const [showClearDemo, setShowClearDemo] = useState(false);
   const [toast,         setToast]         = useState(null);
   const [lastAddedCode, setLastAddedCode] = useState(null);
   const [selectedItem,  setSelectedItem]  = useState(null);
@@ -3115,6 +3361,17 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
   return (
     <div className="flex-1 overflow-y-auto">
       {showModal && <AddItemModal machines={machines} onSave={handleAddItem} onClose={() => setShowModal(false)} vendorList={vendorList} />}
+      {showClearDemo && (
+        <ClearDemoDataModal
+          items={items}
+          bomDefs={bomDefs}
+          onDeleteItem={onDeleteItem}
+          onDeleteBOM={onDeleteBOM}
+          onClose={() => setShowClearDemo(false)}
+          onDone={() => setToast({ status: "safe", name: "Demo data cleared", machine: "Cleanup" })}
+        />
+      )}
+
       {showImport && (
         <ItemImportModal
           items={items}
@@ -3231,6 +3488,14 @@ function InventoryPage({ items, setItems, handleUpdateStock, pos = [], inwardLog
           <button onClick={() => setShowImport(true)}
                   className="text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-all flex items-center gap-1.5">
             ⬆ Import Items
+          </button>
+        )}
+        {canDo("inventory","delete") && (
+          <button onClick={() => setShowClearDemo(true)}
+                  title="Demo items + BOMs एक साथ delete करो"
+                  className="text-xs font-bold px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5"
+                  style={{ borderColor: "rgba(239,68,68,0.35)", color: "#dc2626" }}>
+            🧹 Clear Demo Data
           </button>
         )}
         {canDo("inventory","add") && <Btn variant="primary" size="sm" onClick={() => setShowModal(true)}>+ Add Item</Btn>}
@@ -21299,6 +21564,7 @@ export default function App() {
                               pendingLog={pendingLog} bomDefs={bomDefs} machineLog={machineLog}
                               onLogAudit={logAudit} canDo={canDo} vendorList={vendorList} settings={settings}
                               onCreateItem={handleCreateItemRow} onUpdateItem={handleUpdateItemRow} onDeleteItem={handleDeleteItemRow}
+                              onDeleteBOM={handleDeleteBOM}
                               onBulkAddItems={handleBulkAddItems} />,
     inward:    <InwardPage    items={items} handleUpdateStock={handleUpdateStock} vendorList={vendorList} onInwardComplete={handleInwardComplete} onAddInward={(entry) => { setInwardLog(prev => [entry, ...prev]); if (isSupabaseEnabled()) createInward(entry).then((r) => { if (!r.success) console.warn("[App] Inward create Supabase failed:", r.error); }); logAudit({ type: "inward_manual", module: "Inward", action: `Manual Inward: ${entry.item} × ${entry.qty}`, ref: entry.code, itemCode: entry.code, itemName: entry.item, vendor: entry.vendor, qty: entry.qty, details: { unit: entry.unit, notes: entry.notes } }); }} appInwardLog={inwardLog} canDo={canDo} />,
     outward:   <OutwardPage   items={items} handleUpdateStock={handleUpdateStock}
