@@ -52,9 +52,29 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
-    const { messages, trainingData, geminiKey } = body;
+    const { messages, trainingData, geminiKey, listModels } = body;
 
     if (!geminiKey) { res.status(400).json({ error: "Gemini API key chahiye — WhatsApp Settings mein daalo" }); return; }
+
+    // Model names get retired (gemini-2.0-flash already was), and the error
+    // only shows up at the moment someone is waiting for a reply. This asks
+    // Google which models the key can actually use.
+    if (listModels) {
+      const lr = await fetch("https://generativelanguage.googleapis.com/v1beta/models", {
+        headers: { "x-goog-api-key": geminiKey },
+        signal: AbortSignal.timeout(15000),
+      });
+      const lj = await lr.json().catch(() => ({}));
+      res.status(200).json({
+        success: true,
+        status: lr.status,
+        models: (lj?.models || [])
+          .filter((m) => (m?.supportedGenerationMethods || []).includes("generateContent"))
+          .map((m) => m.name),
+        error: lj?.error?.message || null,
+      });
+      return;
+    }
     if (!messages || !Array.isArray(messages)) { res.status(400).json({ error: "Missing messages array" }); return; }
 
     const systemPrompt = SYSTEM_PROMPT + (trainingData || "(abhi kuch nahi seekha, naya setup hai)");

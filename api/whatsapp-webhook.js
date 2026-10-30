@@ -281,6 +281,10 @@ export default async function handler(req, res) {
             contents: [{ role: "user", parts }],
             generationConfig: { maxOutputTokens: 600, temperature: 0.6 },
           }),
+          // A hung upstream must not hang the webhook: Chakra is waiting on
+          // this response, and a serverless function that never returns is
+          // killed without saying why.
+          signal: AbortSignal.timeout(20000),
         },
       );
       gJson = await gResp.json().catch(() => ({}));
