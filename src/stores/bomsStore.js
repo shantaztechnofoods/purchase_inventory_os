@@ -13,12 +13,29 @@ function toRow(key, b) {
     items:         b.items || [],
   };
 }
+// Migration 041 — per-department deadline minutes for this model. Kept out of
+// toRow so the missing-column retry below can drop it on a pre-041 schema.
+function durationsRow(b) {
+  const d = b && b.deptDurations;
+  if (!d || typeof d !== "object") return null;
+  const out = {};
+  for (const [dept, v] of Object.entries(d)) {
+    const mins = Number(v && v.minutes);
+    if (Number.isFinite(mins) && mins >= 0) out[dept] = { minutes: Math.floor(mins) };
+  }
+  return Object.keys(out).length ? out : null;
+}
+function isMissingDurationsColumn(error) {
+  const msg = `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`.toLowerCase();
+  return error?.code === "42703" || error?.code === "PGRST204" || msg.includes("dept_durations") || msg.includes("schema cache");
+}
 function fromRow(r) {
   return {
     label:        r.label,
     color:        r.color || "",
     rackCapacity: Number(r.rack_capacity) || 0,
     items:        Array.isArray(r.items) ? r.items : [],
+    deptDurations: r.dept_durations && typeof r.dept_durations === "object" ? r.dept_durations : null,
   };
 }
 
@@ -45,7 +62,13 @@ export async function createBOM(key, def) {
   if (!isSupabaseEnabled()) { const g = getLocal(); g[key] = def; setLocal(g); return { success: true }; }
   const c = getSupabase();
   if (!c) return { success: false, error: "no client" };
-  const { error } = await c.from("bom_definitions").insert(toRow(key, def));
+  const row = { ...toRow(key, def), dept_durations: durationsRow(def) };
+  let { error } = await c.from("bom_definitions").insert(row);
+  if (error && isMissingDurationsColumn(error)) {
+    console.warn("[boms:create] 041 dept_durations not in schema yet — retrying without it");
+    const { dept_durations: _d, ...legacy } = row;
+    ({ error } = await c.from("bom_definitions").insert(legacy));
+  }
   if (error) { console.error("[boms:create] failed", error); return { success: false, error: error.message }; }
   console.info("[boms:create] ok");
   return { success: true };
@@ -56,14 +79,19 @@ export async function updateBOM(key, def) {
   if (!isSupabaseEnabled()) { const g = getLocal(); g[key] = def; setLocal(g); return { success: true }; }
   const c = getSupabase();
   if (!c) return { success: false, error: "no client" };
-  const row = toRow(key, def); delete row.key;
+  const row = { ...toRow(key, def), dept_durations: durationsRow(def) }; delete row.key;
   // `.select("key")` is load-bearing: without it PostgREST answers an UPDATE
   // that matched ZERO rows with no error and no data, and this function
   // reported success for a write that never happened. `key` is the primary
   // key of bom_definitions (migration 002), so zero rows means either no such
   // BOM or an RLS policy hiding it from this user. Same trap as
   // machinesStore.updateMachine. Note the table has no `id` column.
-  const { data, error } = await c.from("bom_definitions").update(row).eq("key", key).select("key");
+  let { data, error } = await c.from("bom_definitions").update(row).eq("key", key).select("key");
+  if (error && isMissingDurationsColumn(error)) {
+    console.warn("[boms:update] 041 dept_durations not in schema yet — retrying without it");
+    const { dept_durations: _d, ...legacy } = row;
+    ({ data, error } = await c.from("bom_definitions").update(legacy).eq("key", key).select("key"));
+  }
   if (error) { console.error("[boms:update] failed", error); return { success: false, error: error.message }; }
   if (!Array.isArray(data) || data.length === 0) {
     const msg = `BOM ${key} was not updated — no such row, or it is not visible to this user`;

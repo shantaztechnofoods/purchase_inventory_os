@@ -51,11 +51,11 @@ import {
 } from "./utils/handoverLogic.js";
 // Phase B
 import { fetchTemplates, createTemplate, updateTemplate, deleteTemplate, fetchResponses, createResponse } from "./stores/checklistsStore.js";
-import { fetchPendingItems, createPendingItem, resolvePendingItem } from "./stores/pendingItemsStore.js";
+import { fetchPendingItems, createPendingItem, resolvePendingItem, receivePendingItem, pendingItemStage } from "./stores/pendingItemsStore.js";
 import { fetchAllAttachments, fetchAttachmentsForMachine, uploadAttachment, signedUrlFor, deleteAttachment } from "./stores/attachmentsStore.js";
 import { fetchRatings, createRating, overrideRating } from "./stores/ratingsStore.js";
 import { computeDepartmentRating, formatRatingBadge, summarizeMachineRatings, buildDepartmentScoreboard } from "./utils/ratingLogic.js";
-import { startChecklistResponse, toggleAnswer, setAnswerRemark, validateChecklistAnswers, snapshotResponse, pickTemplate, duplicateTemplateItems, setAllAnswers, countChecked } from "./utils/checklistLogic.js";
+import { startChecklistResponse, toggleAnswer, setAnswerRemark, validateChecklistAnswers, checklistProblemText, snapshotResponse, pickTemplate, duplicateTemplateItems, setAllAnswers, countChecked } from "./utils/checklistLogic.js";
 import { reconcileTeam, pickRememberedMain, readTeamMemory, writeTeamMemory } from "./utils/teamMemory.js";
 import { useRealtimeTables } from "./realtime/useRealtimeTables.js";
 import { fetchRecentMovements, MOVEMENT_META } from "./stores/stockMovementsStore.js";
@@ -504,16 +504,21 @@ function physicalRackFamily(bomKey) {
   const k = rackKeyNorm(bomKey);
   return PHYSICAL_RACK_LAYOUT.families.find((f) => f.boms.some((b) => rackKeyNorm(b) === k)) || null;
 }
-// Set slots a BOM has on the physical racks, or null when it has none — in
-// which case the BOM's own rackCapacity still applies, exactly as before.
+// Set slots a BOM has on the physical racks, or null when it has none.
 function physicalRackSlots(bomKey) {
   const f = physicalRackFamily(bomKey);
   return f ? f.columns * PHYSICAL_RACK_LAYOUT.tiers.length * PHYSICAL_RACK_LAYOUT.setsPerRack : null;
 }
 // The capacity every rack check should use for a BOM.
-function rackCapacityFor(bomKey, def) {
+//
+// 2026-10-30 — only the fixed racks above exist on the floor. A model without
+// a fixed rack has no rack at all: Save To Rack is never offered for it and
+// its builds go straight to Direct Production. The BOM's own `rackCapacity`
+// no longer creates a rack (it used to conjure an "Other rack" card per BOM).
+// Machines already parked under such a BOM stay visible until started.
+function rackCapacityFor(bomKey, _def) {
   const slots = physicalRackSlots(bomKey);
-  return slots != null ? slots : (Number(def?.rackCapacity) || 0);
+  return slots != null ? slots : 0;
 }
 
 // Navigation icons.
@@ -10755,13 +10760,124 @@ function InwardPage({ items, handleUpdateStock, vendorList, onInwardComplete, on
 // templates / responses stay valid and continue to drive the Machine Tracker
 // During-Work button when they exist. New BOMs cannot configure a during_work
 // slot — operators see only Before Receive + Before Dispatch.
+// 2026-10-30 — named for what the floor does with them. `before_dispatch` is
+// the sending department's Before Transfer checklist; `before_receive` is the
+// receiving department's After Acceptance checklist (completed on the Accept
+// screen when it takes the machine). The stored stage keys are unchanged so
+// every existing template and response stays valid.
 const CHECKLIST_STAGES = [
-  { key: "before_receive",  short: "Before Receive",   long: "Before Receiving / Accepting",
-    hint: "Checks done before accepting incoming material or machine work." },
-  { key: "before_dispatch", short: "Before Dispatch",  long: "Before Dispatch / Transfer",
-    hint: "Checks required before sending the machine to the next department." },
+  { key: "before_dispatch", short: "Before Transfer",  long: "Before Transfer (sending department)",
+    hint: "Checks the sending department must complete before Finish & Transfer to the next department." },
+  { key: "before_receive",  short: "After Acceptance", long: "After Acceptance (receiving department)",
+    hint: "Checks the receiving department completes when it accepts the machine." },
 ];
 const CHECKLIST_DEPTS = ["Assembly", "Mechanical", "Electrical", "Trial"];
+
+// ── Department durations on the BOM (migration 041, 2026-10-30) ──────────────
+// A model's per-department deadline is set once on its BOM and copied onto each
+// machine at Outward. `{Dept:{minutes}}` in the store; `{Dept:{days,hours}}` in
+// the form. A BOM with all four departments set skips the Outward popup.
+const DURATION_DEPTS = ["Assembly", "Mechanical", "Electrical", "Trial"];
+const minutesToDh = (mins) => {
+  const m = Math.max(0, Math.floor(Number(mins) || 0));
+  const hours = Math.floor(m / 60);
+  return { days: Math.floor(hours / 24), hours: hours % 24 };
+};
+const dhToMinutes = (dh) => {
+  const d = Math.max(0, Math.floor(Number(dh?.days)  || 0));
+  const h = Math.max(0, Math.floor(Number(dh?.hours) || 0));
+  return d * 24 * 60 + h * 60;
+};
+// Store shape → form shape. Falls back to the global settings for any
+// department the BOM does not set, so the form is always complete.
+function durationsFormFrom(bomDurations, settings) {
+  const wf = readDeptWorkflowSettings(settings);
+  const out = {};
+  for (const dept of DURATION_DEPTS) {
+    const fromBom = bomDurations && bomDurations[dept] && Number.isFinite(Number(bomDurations[dept].minutes));
+    out[dept] = minutesToDh(fromBom
+      ? bomDurations[dept].minutes
+      : (wf.dept_durations?.[dept]?.minutes ?? DEFAULT_DEPT_DURATIONS[dept].minutes));
+  }
+  return out;
+}
+const durationsStoreFrom = (form) => {
+  const out = {};
+  for (const dept of DURATION_DEPTS) out[dept] = { minutes: dhToMinutes(form?.[dept]) };
+  return out;
+};
+// True when the BOM itself carries a duration for every department.
+const bomHasAllDurations = (bom) =>
+  !!bom?.deptDurations && DURATION_DEPTS.every((d) => Number.isFinite(Number(bom.deptDurations[d]?.minutes)));
+const validateDurationsForm = (form) => {
+  for (const dept of DURATION_DEPTS) {
+    if (Number(form?.[dept]?.hours) >= 24) return `${dept}: hours must be less than 24 — use days for anything 24h or longer.`;
+  }
+  return "";
+};
+
+// Days/hours per department. Used on BOM Create, BOM Edit and (unchanged in
+// look) the Outward durations popup.
+function DeptDurationFields({ value, onChange, disabled = false }) {
+  const setField = (dept, k, v) => {
+    const n = Math.max(0, Math.floor(Number(v) || 0));
+    onChange({ ...value, [dept]: { ...(value?.[dept] || { days: 0, hours: 0 }), [k]: n } });
+  };
+  return (
+    <div className="space-y-2">
+      {DURATION_DEPTS.map((dept) => {
+        const row = value?.[dept] || { days: 0, hours: 0 };
+        return (
+          <div key={dept} className="rounded-xl px-3 py-2 flex items-center gap-3 flex-wrap"
+               style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.10)" }}>
+            <div className="min-w-[96px] text-[12px] font-bold text-slate-900">{dept}</div>
+            <div className="flex items-center gap-2 flex-1 justify-end">
+              <div className="flex items-center gap-1.5">
+                <input type="number" min="0" step="1" value={row.days} disabled={disabled}
+                       onChange={(e) => setField(dept, "days", e.target.value)}
+                       aria-label={`${dept} days`}
+                       className="w-16 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 text-xs text-slate-900 outline-none text-right modal-input disabled:opacity-60"
+                       style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
+                <span className="text-[11px] text-slate-500">days</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <input type="number" min="0" max="23" step="1" value={row.hours} disabled={disabled}
+                       onChange={(e) => setField(dept, "hours", e.target.value)}
+                       aria-label={`${dept} hours`}
+                       className="w-16 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 text-xs text-slate-900 outline-none text-right modal-input disabled:opacity-60"
+                       style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
+                <span className="text-[11px] text-slate-500">hours</span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// What the fixed rack situation is for a model — shown read-only on BOM Create
+// and BOM Edit now that capacity is not a per-BOM setting.
+function RackStatusNote({ bomKey }) {
+  const fam = physicalRackFamily(bomKey);
+  const slots = physicalRackSlots(bomKey);
+  return (
+    <div className="rounded-xl p-3 flex items-start gap-3"
+         style={{ background: fam ? "rgba(21,128,61,0.06)" : "rgba(17,24,39,0.03)", border: `1px solid ${fam ? "rgba(21,128,61,0.25)" : "rgba(17,24,39,0.10)"}` }}>
+      <span className="text-base">📦</span>
+      <div className="min-w-0">
+        <div className="text-[11px] font-bold text-slate-900">
+          {fam ? `Fixed rack ${fam.label} · ${slots} machine sets` : "No fixed rack for this model"}
+        </div>
+        <div className="text-[10px] text-slate-500 mt-0.5">
+          {fam
+            ? `M-${fam.label} / R-${fam.label} racks, ${PHYSICAL_RACK_LAYOUT.setsPerRack} sets each. At Outward the operator chooses Save To Rack or Direct Production; a full rack refuses the save.`
+            : "Builds go straight to Direct Production at Outward. Racks are the fixed floor racks only — none is created per BOM."}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function BomChecklistSlots({
   bomKey = null,                 // null = BOM create (buffered); non-null = BOMDrawer edit (immediate writes)
@@ -10897,7 +11013,7 @@ function BomChecklistSlots({
   const DeptRow = ({ dept }) => (
     <div className="rounded-xl p-3" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
       <div className="text-[11px] font-black text-slate-900 mb-2 uppercase tracking-wider">{dept}</div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {CHECKLIST_STAGES.map((s) => {
           const slot = slotFor(dept, s.key);
           const count = slot?.items?.length || 0;
@@ -10925,7 +11041,7 @@ function BomChecklistSlots({
   return (
     <div className="space-y-2">
       <div className="text-[10px] text-slate-500">
-        Add a checklist for any stage you want to control. Operators will see it automatically at Accept, during work, or at Finish &amp; Transfer. Leave a stage empty if no check is needed. Reusing a template copies the steps — editing one BOM never changes another.
+        Before Transfer is completed by the sending department at Finish &amp; Transfer; After Acceptance by the receiving department when it accepts the machine. Steps marked "Must do" have to be ticked — a remark does not excuse them. Leave a stage empty if no check is needed. Reusing a template copies the steps — editing one BOM never changes another.
       </div>
       {CHECKLIST_DEPTS.map((d) => <DeptRow key={d} dept={d} />)}
 
@@ -11237,6 +11353,9 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   const [editMode,     setEditMode]     = useState(false);
   const [editItems,    setEditItems]    = useState(() => bom.items.map((i) => ({ ...i })));
   const [editRackCap,  setEditRackCap]  = useState(() => bom.rackCapacity ?? 0);
+  // Migration 041 — department durations live on the BOM.
+  const [editDurations, setEditDurations] = useState(() => durationsFormFrom(bom.deptDurations, settings));
+  const [editDurErr,    setEditDurErr]    = useState("");
   const [editKey,      setEditKey]      = useState(bomKey);
   const [editLabel,    setEditLabel]    = useState(bom.label || "");
   // 2026-10-22 — the two "clearly visible options" at the top of BOM Edit
@@ -11301,20 +11420,11 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   // record once, at BOM Outward. We intentionally expose NO general edit UI
   // afterwards — the spec requires a controlled process for later corrections.
   const [showDurationModal, setShowDurationModal] = useState(false);
-  const [durationForm,      setDurationForm]      = useState(() => {
-    const wf = readDeptWorkflowSettings(settings);
-    const toDh = (mins) => {
-      const m = Math.max(0, Math.floor(Number(mins) || 0));
-      const hours = Math.floor(m / 60);
-      return { days: Math.floor(hours / 24), hours: hours % 24 };
-    };
-    return {
-      Assembly:   toDh(wf.dept_durations?.Assembly?.minutes   ?? DEFAULT_DEPT_DURATIONS.Assembly.minutes),
-      Mechanical: toDh(wf.dept_durations?.Mechanical?.minutes ?? DEFAULT_DEPT_DURATIONS.Mechanical.minutes),
-      Electrical: toDh(wf.dept_durations?.Electrical?.minutes ?? DEFAULT_DEPT_DURATIONS.Electrical.minutes),
-      Trial:      toDh(wf.dept_durations?.Trial?.minutes      ?? DEFAULT_DEPT_DURATIONS.Trial.minutes),
-    };
-  });
+  // Migration 041 — pre-filled from the BOM's own durations when it has them,
+  // else from the global settings. When the BOM has all four, the popup is not
+  // shown at all: the saved durations are copied onto the machine as-is.
+  const bomDurationsSet = bomHasAllDurations(bom);
+  const [durationForm,      setDurationForm]      = useState(() => durationsFormFrom(bom?.deptDurations, settings));
   const [durationErr, setDurationErr] = useState("");
 
   const allFlat  = Object.entries(items).flatMap(([cat, list]) => list.map((i) => ({ ...i, category: cat })));
@@ -11554,7 +11664,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     // after the critical modal; it defaults to the live workflow settings so
     // one click is enough for the common case. Non-serial manual outward
     // skips this — there's no machine to attach the deadlines to.
-    if (serialNo && !durationConfirmed) {
+    if (serialNo && !durationConfirmed && !bomDurationsSet) {
       setDurationErr("");
       setShowDurationModal(true);
       return;
@@ -11629,13 +11739,15 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     const moves = [];
     checkedE.forEach((item) => {
       // A critical item left unverified (with its reason) is NOT issued: no
-      // stock moves and, for now, no Pending Stock row — tracking it is the
-      // next piece of work. It is still written to the outward record with
-      // quantity 0 and the remark, so the reason is never lost.
+      // stock moves. It is written to the outward record with quantity 0 and
+      // the remark, and (2026-10-30) raised as a pending job against the new
+      // machine — see handleCreateMachine — so it is followed up, not
+      // remembered. requiredQty is the BOM requirement, not the stock-capped
+      // issue quantity.
       if (skippedCodes.has(item.code)) {
         const type = item.inv?.outwardInputType === "serial" ? "serial" : "checkbox";
         issued.push({ ...item, issueQty: 0, pendingQty: 0,
-          criticalInput: { type, confirmed: false, notIssued: true, remark: criticalRemark(item), requiredQty: item.issueQty } });
+          criticalInput: { type, confirmed: false, notIssued: true, remark: criticalRemark(item), requiredQty: item.required ?? item.issueQty } });
         return;
       }
       if (item.issueQty > 0 && item.inv) {
@@ -11735,11 +11847,15 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     if (newKey !== bomKey && allBomKeys.some((k) => k === newKey)) {
       setRenameErr("A BOM with this key already exists"); return;
     }
-    // First save items + rack capacity under the existing key
+    const dErr = validateDurationsForm(editDurations);
+    if (dErr) { setEditDurErr(dErr); return; }
+    setEditDurErr("");
+    // First save items + rack capacity + durations under the existing key
     onUpdateBOM(bomKey, {
       ...bom,
       items: editItems.filter((i) => i.qty > 0),
       rackCapacity: Math.max(0, parseInt(editRackCap, 10) || 0),
+      deptDurations: durationsStoreFrom(editDurations),
     });
     // Then rename if key or label changed
     if ((newKey !== bomKey || newLabel !== bom.label) && onRenameBOM) {
@@ -11753,6 +11869,8 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   const resetEditState = () => {
     setEditItems(bom.items.map((i) => ({ ...i })));
     setEditRackCap(bom.rackCapacity ?? 0);
+    setEditDurations(durationsFormFrom(bom.deptDurations, settings));
+    setEditDurErr("");
     setEditKey(bomKey);
     setEditLabel(bom.label || "");
     setRenameErr("");
@@ -11981,27 +12099,21 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               {renameErr && <div className="text-[10px] text-red-400 mt-2">⚠ {renameErr}</div>}
             </div>
 
-            {/* Rack Assignment + Capacity */}
+            {/* Production rack — fixed floor racks only (2026-10-30). */}
+            <RackStatusNote bomKey={bomKey} />
+
+            {/* Migration 041 — department durations for this model. Copied onto
+                every machine at Outward, so the operator is not asked again. */}
             <div className="rounded-xl p-4" style={{ background: "rgba(215, 25, 32,0.05)", border: "1px solid rgba(215, 25, 32,0.2)" }}>
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-lg">📦</span>
+              <div className="flex items-center gap-3 flex-wrap mb-3">
+                <span className="text-lg">⏱️</span>
                 <div className="flex-1 min-w-[160px]">
-                  <div className="text-[11px] font-bold text-slate-900">Production Rack</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">Rack ID: <span className="font-mono text-slate-500">{bomKey}</span> · Used by Machine Tracker → Rack View</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Rack Capacity</label>
-                  <input type="number" min="0" step="1" value={editRackCap}
-                         onChange={(e) => setEditRackCap(e.target.value)}
-                         placeholder="0"
-                         className="w-24 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 outline-none text-right modal-input"
-                         style={{ fontFamily: "'Inter',system-ui,sans-serif" }} />
-                  <span className="text-[10px] text-slate-500">slots</span>
+                  <div className="text-[11px] font-bold text-slate-900">Department Durations</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">Deadline for each department on every machine of this model. Used at Outward without asking the store again.</div>
                 </div>
               </div>
-              <div className="text-[10px] text-slate-500 mt-2">
-                Set to <span className="text-slate-500 font-bold">0</span> if this model doesn't use a rack. Replenishment alerts fire when Ready &lt; Capacity.
-              </div>
+              <DeptDurationFields value={editDurations} onChange={(v) => { setEditDurations(v); setEditDurErr(""); }} />
+              {editDurErr && <div className="text-[10px] text-red-500 font-bold mt-2">⚠ {editDurErr}</div>}
             </div>
 
             <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(17,24,39,0.08)" }}>
@@ -12767,6 +12879,8 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
   // Create BOM modal state
   const [showCreate,    setShowCreate]    = useState(false);
   const [createForm,    setCreateForm]    = useState({ key: "", label: "", rackCapacity: "0" });
+  // Migration 041 — durations for the new model, pre-filled from settings.
+  const [createDurations, setCreateDurations] = useState(() => durationsFormFrom(null, settings));
   const [createItems,   setCreateItems]   = useState([]); // [{ code, qty, checkPoints }]
   // Which create-BOM line has its per-BOM check points open (migration 037).
   const [cpEditCode,    setCpEditCode]    = useState(null);
@@ -12834,7 +12948,14 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
       // Migration 027 — forward the per-machine duration overrides captured
       // in the Department Durations popup. Null when the operator somehow
       // skipped the popup (shouldn't happen for serial path, but defensive).
-      onCreateMachine(data.bomKey, data.label, data.serialNo, data.date, id, data.destination || "rack", data.deptDurations || null);
+      // 2026-10-30 — critical items left unverified at this outward follow the
+      // machine as pending jobs (part missing), so they are not forgotten.
+      const notIssued = (data.issued || [])
+        .filter((it) => it && it.criticalInput && it.criticalInput.notIssued)
+        .map((it) => ({ code: it.code, name: it.name, unit: it.unit,
+                        qty: Number(it.criticalInput.requiredQty) || Number(it.required) || 0,
+                        remark: it.criticalInput.remark || "" }));
+      onCreateMachine(data.bomKey, data.label, data.serialNo, data.date, id, data.destination || "rack", data.deptDurations || null, notIssued);
     }
     const destSuffix = data.destination === "direct" ? " · direct production" : "";
     showToast(`${data.bomKey} × ${data.units} issued${destSuffix}`, data.serialNo ? `S/N: ${data.serialNo}` : data.label);
@@ -12871,6 +12992,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
   // ── Create BOM helpers ──
   const openCreateBOM = () => {
     setCreateForm({ key: "", label: "", rackCapacity: "0" });
+    setCreateDurations(durationsFormFrom(null, settings));
     setCreateItems([]);
     setCreateAddCode("");
     setCreateAddQty("1");
@@ -12921,10 +13043,13 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
     if (!createForm.label.trim()) { setCreateErr("Machine Model Name is required"); return; }
     if (createItems.length === 0) { setCreateErr("Add at least one component"); return; }
     const bomKey = createForm.key.trim().toUpperCase().replace(/\s+/g, "-");
+    const dErr = validateDurationsForm(createDurations);
+    if (dErr) { setCreateErr(dErr); return; }
     const res = onCreateBOM(bomKey, {
       label: createForm.label,
       items: createItems,
       rackCapacity: createForm.rackCapacity,
+      deptDurations: durationsStoreFrom(createDurations),
     });
     if (res?.success === false) { setCreateErr(res.error); return; }
     // Migration 028 — flush buffered checklists after BOM row exists. Each
@@ -13226,20 +13351,24 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                   <OLabel text="BOM Key" req />
                   <input value={createForm.key} onChange={(e) => { setCreateForm((f) => ({ ...f, key: e.target.value.toUpperCase() })); setCreateErr(""); }}
                     placeholder="e.g. MIX-100" className={inpCls + " font-mono"} />
-                  <div className="text-[10px] text-slate-600 mt-1">Unique short code. Used as Rack ID and machine prefix.</div>
+                  <div className="text-[10px] text-slate-600 mt-1">Unique short code. Used as machine prefix.</div>
                 </div>
                 <div>
                   <OLabel text="Machine Model Name" req />
                   <input value={createForm.label} onChange={(e) => { setCreateForm((f) => ({ ...f, label: e.target.value })); setCreateErr(""); }}
                     placeholder="e.g. Industrial Mixer 100kg" className={inpCls} />
                 </div>
-                <div>
-                  <OLabel text="Rack Capacity" />
-                  <input type="number" min="0" step="1" value={createForm.rackCapacity}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, rackCapacity: e.target.value }))}
-                    placeholder="0" className={inpCls + " text-right"} />
-                  <div className="text-[10px] text-slate-600 mt-1">Slots on the production rack. 0 = no rack tracking.</div>
+                <div className="col-span-2">
+                  <OLabel text="Production Rack" />
+                  <RackStatusNote bomKey={createForm.key} />
                 </div>
+              </div>
+
+              {/* Migration 041 — department durations for this model */}
+              <div className="rounded-xl p-4" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
+                <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wide mb-1">Department Durations</div>
+                <div className="text-[10px] text-slate-600 mb-3">Deadline for each department on every machine of this model. Outward copies these onto the machine without asking again.</div>
+                <DeptDurationFields value={createDurations} onChange={(v) => { setCreateDurations(v); setCreateErr(""); }} />
               </div>
 
               <div className="rounded-xl p-4" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
@@ -15746,6 +15875,78 @@ function ChecklistBulkBar({ answers, onSetAll }) {
   );
 }
 
+// ── Pending jobs recorded at a hand-over (2026-10-30) ────────────────────────
+// One row per unfinished job or missing part on the machine. `description` is
+// what the job is (required); part code, quantity and reason are optional and
+// make the job traceable in Pending Jobs. Rows that are entirely empty are
+// dropped by the caller. Accepts legacy string rows and upgrades them.
+const emptyPendingJob = () => ({ description: "", itemCode: "", itemName: "", qty: "", reason: "" });
+const normalizePendingJob = (r) => typeof r === "string" ? { ...emptyPendingJob(), description: r } : { ...emptyPendingJob(), ...(r || {}) };
+const pendingJobIsBlank = (r) => { const j = normalizePendingJob(r); return !j.description.trim() && !j.itemCode.trim() && !j.reason.trim(); };
+// Rows worth saving, with a description guaranteed (a part alone is enough).
+const cleanPendingJobs = (rows) => (Array.isArray(rows) ? rows : []).map(normalizePendingJob)
+  .filter((j) => !pendingJobIsBlank(j))
+  .map((j) => ({
+    description: j.description.trim() || `Missing part: ${j.itemName.trim() || j.itemCode.trim()}${j.qty ? ` × ${j.qty}` : ""}`,
+    itemCode: j.itemCode.trim(), itemName: j.itemName.trim(),
+    qty: j.qty === "" || j.qty == null ? null : Number(j.qty),
+    reason: j.reason.trim(),
+  }));
+
+function PendingJobRows({ rows, onChange, inventory = [], accent = "#b45309", addLabel = "+ Add pending job", disabled = false }) {
+  const list = (Array.isArray(rows) ? rows : []).map(normalizePendingJob);
+  const set = (i, patch) => onChange(list.map((r, idx) => idx === i ? { ...r, ...patch } : r));
+  const codes = inventory.slice(0, 2000);
+  const listId = "pending-job-codes";
+  const inp = "min-w-0 w-full rounded-lg px-2.5 py-2 text-[12px] text-slate-800 outline-none";
+  const bd = { background: "var(--surface-elevated)", border: `1px solid ${accent}66` };
+  return (
+    <div className="space-y-2">
+      {codes.length > 0 && (
+        <datalist id={listId}>
+          {codes.map((it) => <option key={it.code} value={it.code}>{it.name}</option>)}
+        </datalist>
+      )}
+      {list.map((r, i) => (
+        <div key={i} className="rounded-lg p-2 space-y-1.5" style={{ background: `${accent}0d`, border: `1px solid ${accent}40` }}>
+          <div className="flex gap-2">
+            <input value={r.description} disabled={disabled}
+                   onChange={(e) => set(i, { description: e.target.value })}
+                   placeholder="What is pending? e.g. fit the gearbox cover once it arrives"
+                   className={`flex-1 min-w-0 ${inp}`} style={bd} />
+            <button type="button" disabled={disabled} onClick={() => onChange(list.filter((_, idx) => idx !== i))}
+                    className="text-[11px] font-bold text-slate-500 hover:text-red-600 px-2 rounded-lg border border-slate-200 flex-shrink-0">
+              Remove
+            </button>
+          </div>
+          <div className="grid grid-cols-[1fr_72px] sm:grid-cols-[150px_72px_1fr] gap-1.5">
+            <input value={r.itemCode} disabled={disabled} list={codes.length ? listId : undefined}
+                   onChange={(e) => {
+                     const code = e.target.value;
+                     const hit = codes.find((it) => it.code.toLowerCase() === code.trim().toLowerCase());
+                     set(i, { itemCode: code, itemName: hit ? hit.name : r.itemName });
+                   }}
+                   placeholder="Part / item code" className={`${inp} font-mono`} style={bd} />
+            <input type="number" min="0" step="any" value={r.qty} disabled={disabled}
+                   onChange={(e) => set(i, { qty: e.target.value })}
+                   placeholder="Qty" className={`${inp} text-right`} style={bd} />
+            <input value={r.reason} disabled={disabled}
+                   onChange={(e) => set(i, { reason: e.target.value })}
+                   placeholder="Reason — e.g. not in store, on order, damaged"
+                   className={`col-span-2 sm:col-span-1 ${inp}`} style={bd} />
+          </div>
+          {r.itemName && <div className="text-[10px] text-slate-500 px-0.5">{r.itemName}</div>}
+        </div>
+      ))}
+      <button type="button" disabled={disabled} onClick={() => onChange([...list, emptyPendingJob()])}
+              className="text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all disabled:opacity-50"
+              style={{ background: `${accent}14`, border: `1px solid ${accent}66`, color: accent }}>
+        {addLabel}
+      </button>
+    </div>
+  );
+}
+
 function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo = () => true, bomDefs = {}, onStartProduction, onRemoveRackMachine, onUpdateBOM,
   // 2026-10-30 — the BOM Outward section (an embedded OutwardPage), or null
   // when this role may not issue a BOM.
@@ -15759,7 +15960,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   handovers = [], settings = {}, onFinishTransfer, onAcceptHandover, onRegisterSignature, currentUser = null,
   // Phase B props (optional — fall back to [] when migrations not applied)
   checklistTemplates = [], pendingHandoverItems = [], attachments = [], deptRatings = [],
-  onUploadAttachment, onDeleteAttachment, onResolvePendingItem,
+  // 2026-10-30 — Item Master, so a pending job can name the missing part by code.
+  items = {},
+  onUploadAttachment, onDeleteAttachment, onResolvePendingItem, onReceivePendingItem,
   // Migration 028 — During-Work checklist handler. Optional; button hides when
   // no template is configured for the machine's current department.
   onSubmitDuringWorkChecklist,
@@ -15801,10 +16004,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   const isAdminUser = currentUser?.role === "super_admin" || currentUser?.role === "Admin";
   // Phase 1 — raise-issue modal: { machine } while open.
   const [raiseModal, setRaiseModal] = useState(null);
+  // 2026-10-30 — pending jobs: part lookup + receive/complete actions.
+  const inventoryFlat = useMemo(() => Object.entries(items || {}).flatMap(([cat, list]) => (list || []).map((i) => ({ code: i.code, name: i.name, unit: i.unit, category: cat }))), [items]);
+  const [jobAction, setJobAction] = useState(null); // { item, action: "receive"|"complete", notes, busy, error }
   const [raiseText,  setRaiseText]  = useState("");
   const [raiseDept,  setRaiseDept]  = useState("");
   const [raiseErr,   setRaiseErr]   = useState("");
   const [raiseBusy,  setRaiseBusy]  = useState(false);
+  const [raisePart,  setRaisePart]  = useState(emptyPendingJob()); // optional missing part on a reported issue
   const [voiceActive, setVoiceActive] = useState(false);
   const voiceRecRef = React.useRef(null);
 
@@ -15852,21 +16059,6 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   // render so both Outward and Machine Tracker can remove rack machines.
   const [removeRackConfirm, setRemoveRackConfirm] = useState(null); // { machineId, serialNo, bomKey }
 
-  // 2026-06-05f — Rack management on rack cards (parity with BOM card ⋮ menu in
-  // Outward). Lets the operator edit Rack Capacity or Delete Rack from inside
-  // Machine Tracker, without going back to Outward to edit the BOM.
-  //   rackActionsKey   → which rack card's menu is open (closes on outside click)
-  //   editRackModal    → { key, label, capacity }   while the operator enters new capacity
-  //   deleteRackConfirm → { key, label, ready }     while the operator confirms delete
-  const [rackActionsKey,   setRackActionsKey]   = useState(null);
-  const [editRackModal,    setEditRackModal]    = useState(null);
-  const [deleteRackConfirm, setDeleteRackConfirm] = useState(null);
-  useEffect(() => {
-    if (!rackActionsKey) return;
-    const close = () => setRackActionsKey(null);
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [rackActionsKey]);
 
   // Phase A — department workflow state.
   const workflow = readDeptWorkflowSettings(settings);
@@ -16001,7 +16193,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     const { machine, template, answers } = duringWorkModal;
     const chk = validateChecklistAnswers(answers);
     if (!chk.ok) {
-      setDuringWorkModal((prev) => prev ? { ...prev, error: `Add a short note for ${chk.missing.length} unticked item${chk.missing.length === 1 ? "" : "s"}.` } : prev);
+      setDuringWorkModal((prev) => prev ? { ...prev, error: checklistProblemText(chk) } : prev);
       return;
     }
     setDuringWorkModal((prev) => prev ? { ...prev, busy: true, error: "" } : prev);
@@ -16072,7 +16264,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     if (template && Array.isArray(answers) && answers.length) {
       const chk = validateChecklistAnswers(answers);
       if (!chk.ok) {
-        showToast("Checklist incomplete", `Add a remark for ${chk.missing.length} unchecked item${chk.missing.length === 1 ? "" : "s"}.`);
+        showToast("Checklist incomplete", checklistProblemText(chk), "urgent");
         return;
       }
     }
@@ -16118,7 +16310,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         workedBySnapshot,                  // full snapshot including emp members
         // Phase 1 — jobs this department still owes on the machine it is
         // handing over. Recorded against fromDepartment, not the receiver.
-        owedItems:         (Array.isArray(owedItems) ? owedItems : []).map((d) => String(d || "").trim()).filter(Boolean),
+        owedItems:         cleanPendingJobs(owedItems),
         mainEmployeeId,
         mainEmployeeSignatureSvg: mainSigSvg,
       });
@@ -16159,7 +16351,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         .map((m) => m.name),
     );
     setAcceptModal({ handover, password: "", needSig: false, sigSvg: null, busy: false, error: "",
-                     pendingItemsToRaise: [""], newPendingText: "",
+                     pendingItemsToRaise: [], newPendingText: "",
                      checklistTemplate, checklistAnswers, acceptTeamMembers });
     // Pre-check: does the current user have a stored signature? If not, we
     // show the pad before password re-auth. The actual signature creation
@@ -16180,6 +16372,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       setAcceptModal((prev) => prev ? { ...prev, error: "Please register your signature first." } : prev);
       return;
     }
+    // 2026-10-30 — the receiving employees must be named when the department
+    // has employees configured. Acceptance is a record of who took the machine.
+    const deptHasEmps = (settings?.employeeMembers || []).some((m) => m && m.active && Array.isArray(m.departments) && m.departments.includes(handover.toDepartment));
+    if (deptHasEmps && acceptTeamMembers.filter(Boolean).length === 0) {
+      setAcceptModal((prev) => prev ? { ...prev, error: "Select the employees receiving this machine." } : prev);
+      return;
+    }
     // Password is only required when the admin has opted into
     // require_password_at_accept. Default: single-click acceptance.
     if (workflow.require_password_at_accept && !password) {
@@ -16192,7 +16391,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     if (checklistTemplate && Array.isArray(checklistAnswers) && checklistAnswers.length) {
       const chk = validateChecklistAnswers(checklistAnswers);
       if (!chk.ok) {
-        setAcceptModal((prev) => prev ? { ...prev, error: `Checklist incomplete — add a remark for ${chk.missing.length} unchecked item${chk.missing.length === 1 ? "" : "s"}.` } : prev);
+        setAcceptModal((prev) => prev ? { ...prev, error: `Checklist incomplete — ${checklistProblemText(chk)}` } : prev);
         return;
       }
     }
@@ -16204,7 +16403,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         return;
       }
     }
-    const pendingItemsToRaise = (acceptModal.pendingItemsToRaise || []).filter((s) => s && s.trim());
+    const pendingItemsToRaise = cleanPendingJobs(acceptModal.pendingItemsToRaise);
     const res = await onAcceptHandover({ handoverId: handover.id, password, pendingItemsToRaise,
                                          // Pass through so the handler can snapshot the Before-Receive response.
                                          checklistTemplate, checklistAnswers,
@@ -16312,7 +16511,12 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   // Transfer & Accept lists every machine still moving through the line —
   // the ones to finish & transfer, release, or accept — whatever summary
   // tile was last clicked on the Production tab.
-  const listForTab = () => (mtTab === "transfer" ? active : filtered);
+  const listForTab = () => (mtTab === "pending" ? [] : mtTab === "transfer" ? active : filtered);
+  // 2026-10-30 — Pending Jobs: every open job in the factory (a floor login
+  // sees only what is assigned to its own departments), grouped by machine.
+  const openJobsScoped = (pendingHandoverItems || [])
+    .filter((p) => p.status === "open")
+    .filter((p) => !scopeMine || myDepartments.includes(p.assignedDepartment));
   const filtered  = filter === "active" ? active
                    : filter === "completed" ? completed
                    : filter === "pendingAccept" ? pendingAccept
@@ -16435,7 +16639,8 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   const handleStageUpdate = (machine) => {
     const newStage = stageMap[machine.id];
     if (!newStage || newStage === machine.stage) return;
-    onUpdateStage(machine.id, newStage);
+    const r = onUpdateStage(machine.id, newStage);
+    if (r && r.success === false) { showToast("Stage not changed", r.error || "", "urgent"); return; }
     showToast(`${machine.bomKey} — ${machine.serialNo}`, `Stage: ${machine.stage} → ${newStage}`);
     setStageMap((p) => ({ ...p, [machine.id]: "" }));
   };
@@ -16525,6 +16730,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           const tabs = [
             { id: "production", label: "Production" },
             { id: "transfer",   label: "Transfer & Accept", badge: waitingN },
+            { id: "pending",    label: "Pending Jobs", badge: openJobsScoped.length, badgeColor: "#dc2626" },
           ];
           return (
             <div className="flex items-center gap-1 border-b overflow-x-auto" style={{ borderColor: "var(--border-subtle)" }} role="tablist">
@@ -16538,10 +16744,104 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   {t.label}
                   {t.badge > 0 && (
                     <span className="min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center"
-                          style={{ background: "#d97706" }}>{t.badge}</span>
+                          style={{ background: t.badgeColor || "#d97706" }}>{t.badge}</span>
                   )}
                 </button>
               ))}
+            </div>
+          );
+        })()}
+
+        {/* ── Pending Jobs (2026-10-30) ──
+            Every unfinished job and missing part, grouped by machine and serial
+            number, with the department that owes it. The responsible department
+            records the part as received, then the work as completed, here or on
+            the machine card — the same handlers either way. */}
+        {mtTab === "pending" && (() => {
+          const byMachine = openJobsScoped.reduce((acc, p) => {
+            const k = String(p.machineId);
+            (acc[k] = acc[k] || []).push(p);
+            return acc;
+          }, {});
+          const groups = Object.entries(byMachine).map(([id, list]) => {
+            const m = machineLog.find((x) => String(x.id) === id) || null;
+            return { id, m, list: list.slice().sort((a, b) => String(a.raisedAt || "").localeCompare(String(b.raisedAt || ""))) };
+          }).sort((a, b) => (a.m?.serialNo || "").localeCompare(b.m?.serialNo || ""));
+          const canAct = canFinishTransfer(canDo);
+          const receivedN = openJobsScoped.filter((p) => p.receivedAt).length;
+          const partsN    = openJobsScoped.filter((p) => p.itemCode).length;
+          return (
+            <div className="section-card p-4 sm:p-5">
+              <div className="flex items-center gap-2.5 flex-wrap mb-4">
+                <div className="sec-icon" style={{ background: "rgba(220,38,38,0.08)", color: "#dc2626" }}><AlertOctagon size={16} /></div>
+                <span className="text-[13px] font-bold" style={{ color: "var(--text-strong)" }}>Pending Jobs</span>
+                <span className="sp-pill sp-pill-red">{openJobsScoped.length} open</span>
+                {partsN > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(217,119,6,0.12)", color: "#b45309" }}>{partsN} missing part{partsN === 1 ? "" : "s"}</span>}
+                {receivedN > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(37,99,235,0.1)", color: "#1d4ed8" }}>{receivedN} part{receivedN === 1 ? "" : "s"} received · work to finish</span>}
+                <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>a machine cannot be marked Ready while any job here is open</span>
+              </div>
+              {groups.length === 0 && (
+                <div className="py-12 text-center">
+                  <div className="text-3xl mb-2">✅</div>
+                  <div className="text-[12px] font-bold text-slate-700">No pending jobs</div>
+                  <div className="text-[10.5px] text-slate-500 mt-1">Jobs recorded at Finish &amp; Transfer, at Accept, from Report Issue, or for parts not issued at BOM Outward will appear here.</div>
+                </div>
+              )}
+              <div className="space-y-3">
+                {groups.map(({ id, m, list }) => (
+                  <div key={id} className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(17,24,39,0.10)" }}>
+                    <div className="px-3 py-2 flex items-center gap-2 flex-wrap" style={{ background: "rgba(17,24,39,0.03)" }}>
+                      <span className="text-[12px] font-black text-slate-900">{m?.bomKey || "Machine"}</span>
+                      {m?.serialNo && <span className="text-[11px] font-mono font-bold text-slate-700">S/N {m.serialNo}</span>}
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.1)", color: "#4338ca" }}>
+                        now in {m?.status === "completed" ? "Ready" : (m?.currentDepartment || m?.stage || "—")}
+                      </span>
+                      <span className="text-[10px] text-slate-500 ml-auto">{list.length} job{list.length === 1 ? "" : "s"}</span>
+                    </div>
+                    <div className="divide-y" style={{ borderColor: "rgba(17,24,39,0.06)" }}>
+                      {list.map((p) => {
+                        const stage = pendingItemStage(p);
+                        const chip = stage === "received"
+                          ? { label: "Part received · finish work", bg: "rgba(37,99,235,0.1)", fg: "#1d4ed8" }
+                          : { label: p.itemCode ? "Awaiting part" : "Awaiting work", bg: "rgba(217,119,6,0.12)", fg: "#b45309" };
+                        return (
+                          <div key={p.id} className="px-3 py-2.5 flex items-start gap-3 flex-wrap">
+                            <div className="flex-1 min-w-[200px]">
+                              <div className="text-[12px] text-slate-800 font-semibold">{p.description}</div>
+                              <div className="flex items-center gap-x-3 gap-y-1 flex-wrap mt-1 text-[10.5px] text-slate-500">
+                                {p.itemCode && <span>Part <span className="font-mono font-bold text-slate-700">{p.itemCode}</span>{p.itemName ? ` · ${p.itemName}` : ""}{p.qty != null ? ` · qty ${p.qty}` : ""}</span>}
+                                {p.reason && <span>Reason: {p.reason}</span>}
+                                <span>Reported {p.raisedAt ? fmtDate(new Date(p.raisedAt)) : "—"}{p.raisedInDepartment ? ` in ${p.raisedInDepartment}` : ""}</span>
+                                {p.receivedAt && <span>Received {fmtDate(new Date(p.receivedAt))}{p.receivedNotes ? ` · ${p.receivedNotes}` : ""}</span>}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(239,68,68,0.1)", color: "#b91c1c" }}>
+                                {p.assignedDepartment || "Unassigned"}
+                              </span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: chip.bg, color: chip.fg }}>{chip.label}</span>
+                              {canAct && onReceivePendingItem && !p.receivedAt && (
+                                <button type="button" onClick={() => setJobAction({ item: p, action: "receive", notes: "", busy: false, error: "" })}
+                                        className="text-[10.5px] font-bold px-2.5 py-1 rounded-lg border transition-all"
+                                        style={{ background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.35)", color: "#1d4ed8" }}>
+                                  Part received
+                                </button>
+                              )}
+                              {canAct && onResolvePendingItem && (
+                                <button type="button" onClick={() => setJobAction({ item: p, action: "complete", notes: "", busy: false, error: "" })}
+                                        className="text-[10.5px] font-bold px-2.5 py-1 rounded-lg border transition-all"
+                                        style={{ background: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.35)", color: "#15803d" }}>
+                                  Work completed
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           );
         })()}
@@ -16975,19 +17275,21 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           // act on and a card that never moved.
           const holdCount = askedFor.filter((h) => isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick)).length;
           const cards = [
-            { key: "pendingAccept", label: "To Accept",           value: pendingNotOverdue, sub: "waiting for next dept",  color: "#b45309", bg: "rgba(217, 119, 6,0.08)" },
+            { key: "pendingAccept", label: "Pending Acceptance",  value: pendingNotOverdue, sub: "waiting for next dept",  color: "#b45309", bg: "rgba(217, 119, 6,0.08)" },
             { key: "hold",          label: "On HOLD",            value: holdCount,         sub: "accept deadline passed", color: "#dc2626", bg: "rgba(239,68,68,0.1)"  },
             { key: "onRack",        label: "On Rack",            value: awaitingRelease.length, sub: "awaiting head release", color: "#4338ca", bg: "rgba(99,102,241,0.08)" },
             { key: "active",        label: "Active Builds",      value: active.length,       sub: "in production",           color: "#b45309", bg: "rgba(251,191,36,0.08)" },
             { key: "completed",     label: "Completed",          value: completed.length,    sub: "ready for delivery",      color: "#15803d", bg: "rgba(34,197,94,0.08)" },
+            // 2026-10-30 — open jobs / missing parts across the factory; opens the Pending Jobs tab.
+            { key: "jobs",          label: "Pending Jobs",       value: openJobsScoped.length, sub: "parts & work still open", color: "#dc2626", bg: "rgba(239,68,68,0.08)", tab: "pending" },
           ];
           return (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
               {cards.map((c) => {
                 const active = filter === c.key;
-                const stripCls = c.key === "active" ? "status-strip-blue" : c.key === "completed" ? "status-strip-green" : c.key === "hold" ? "status-strip-red" : c.key === "pendingAccept" ? "status-strip-yellow" : "status-strip-purple";
+                const stripCls = c.key === "active" ? "status-strip-blue" : c.key === "completed" ? "status-strip-green" : c.key === "hold" || c.key === "jobs" ? "status-strip-red" : c.key === "pendingAccept" ? "status-strip-yellow" : "status-strip-purple";
                 return (
-                  <button key={c.key} onClick={() => setFilter(c.key)}
+                  <button key={c.key} onClick={() => (c.tab ? setMtTab(c.tab) : setFilter(c.key))}
                           className={`kpi-tile status-strip ${stripCls} text-left`}
                           style={active ? { borderColor: c.color, boxShadow: `0 0 0 1px ${c.color}, 0 4px 16px -4px ${c.color}55` } : {}}>
                     <div className="flex items-center justify-between mb-2">
@@ -17127,7 +17429,6 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   empty:   { color: "#b91c1c", bg: "rgba(239,68,68,0.06)",  border: "rgba(239,68,68,0.22)", label: "Empty",   icon: "○" },
                 }[r.state];
                 const pct = r.capacity > 0 ? Math.min(100, Math.round((r.ready / r.capacity) * 100)) : 0;
-                const canManage = !!(onUpdateBOM && bomDefs[r.key] && canDo("outward","bom"));
                 // How many machines sitting on this rack are still short of
                 // components. Surfaced on the card so the store sees it without
                 // opening Start Production.
@@ -17171,40 +17472,6 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                               style={{ background: STATE.color + "22", color: STATE.color, border: `1px solid ${STATE.color}40` }}>
                           {STATE.icon} {STATE.label}
                         </span>
-                        {canManage && (
-                          <div className="relative" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); setRackActionsKey(rackActionsKey === r.key ? null : r.key); }}
-                              title="Rack actions"
-                              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all"
-                              aria-haspopup="menu" aria-expanded={rackActionsKey === r.key}>
-                              ⋮
-                            </button>
-                            {rackActionsKey === r.key && (
-                              <div role="menu" onMouseDown={(e) => e.stopPropagation()}
-                                   className="absolute right-0 top-full mt-1 z-30 w-44 rounded-lg overflow-hidden"
-                                   style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-rim)", boxShadow: "0 24px 60px rgba(17,24,39,0.18)" }}>
-                                <button type="button"
-                                        onClick={() => {
-                                          setRackActionsKey(null);
-                                          setEditRackModal({ key: r.key, label: r.label, capacity: r.capacity || 0 });
-                                        }}
-                                        className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center gap-2">
-                                  <span>✏️</span>Edit Rack Capacity
-                                </button>
-                                <button type="button"
-                                        onClick={() => {
-                                          setRackActionsKey(null);
-                                          setDeleteRackConfirm({ key: r.key, label: r.label, ready: r.ready });
-                                        }}
-                                        className="w-full text-left px-3 py-2 text-[11px] font-bold text-red-400 hover:bg-red-500/10 transition-all flex items-center gap-2 border-t border-slate-200">
-                                  <span>🗑</span>Delete Rack
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </div>
                     </div>
 
@@ -17260,7 +17527,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         )}
 
         {/* ── Empty state ── */}
-        {listForTab().length === 0 && (
+        {mtTab !== "pending" && listForTab().length === 0 && (
           <div className="bg-white border border-slate-200 rounded-xl py-20 text-center">
             <div className="text-5xl mb-4">🔧</div>
             <div className="text-sm font-bold text-slate-900 mb-2">No Machines Tracked</div>
@@ -17450,7 +17717,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           Lets Trial call Mechanical back without the machine
                           itself moving backwards, which is how Shantaz works. */}
                       {!isComplete && machine.stage !== "BOM Issued" && !machine.pendingHandoverId && onRaisePendingItem && canDo("machines","accept") && (
-                        <button onClick={() => { setRaiseModal({ machine }); setRaiseText(""); setRaiseDept(""); setRaiseErr(""); }}
+                        <button onClick={() => { setRaiseModal({ machine }); setRaiseText(""); setRaiseDept(""); setRaiseErr(""); setRaisePart(emptyPendingJob()); }}
                                 className="text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all"
                                 style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.35)", color: "#dc2626" }}
                                 title="Report a fault and call the department responsible">
@@ -17474,15 +17741,15 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                   title={`${machineOpenItems.length} open issue${machineOpenItems.length === 1 ? "" : "s"} must be resolved before this machine can move on. Open History to resolve them.`}>
                             Blocked · {machineOpenItems.length} open issue{machineOpenItems.length === 1 ? "" : "s"}
                           </button>
-                        ) : (!isFloorLogin && nextDepartment(machine.currentDepartment || machine.stage) === "Ready" && machineOwedItems.length > 0) ? (
+                        ) : (nextDepartment(machine.currentDepartment || machine.stage) === "Ready" && machineOpenAll.length > 0) ? (
                           /* Phase 1 — a machine may move between departments with
                              work still owed on it, but it must not be presented as
                              ready for delivery while anything is outstanding. */
                           <button type="button" disabled
                                   className="text-[11px] font-black px-3 py-1.5 rounded-lg border cursor-not-allowed"
                                   style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.3)", color: "#dc2626" }}
-                                  title={`${machineOwedItems.length} job${machineOwedItems.length === 1 ? "" : "s"} still owed on this machine (${[...new Set(machineOwedItems.map((p) => p.assignedDepartment).filter(Boolean))].join(", ") || "unassigned"}). It cannot be marked Ready until they are done.`}>
-                            Cannot be Ready · {machineOwedItems.length} job{machineOwedItems.length === 1 ? "" : "s"} owed
+                                  title={`${machineOpenAll.length} pending job${machineOpenAll.length === 1 ? "" : "s"} still open on this machine (${[...new Set(machineOpenAll.map((p) => p.assignedDepartment).filter(Boolean))].join(", ") || "unassigned"}). It cannot be marked Ready until they are completed in Pending Jobs.`}>
+                            Cannot be Ready · {machineOpenAll.length} pending job{machineOpenAll.length === 1 ? "" : "s"}
                           </button>
                         ) : (
                           <button onClick={() => openFinishModal(machine)}
@@ -17778,26 +18045,40 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           {machinePendingItems.length > 0 && (
                             <div className="space-y-1.5">
                               {machinePendingItems.map((p) => (
-                                <div key={p.id} className="rounded px-2 py-1.5" style={{ background: p.status === "resolved" ? "rgba(34,197,94,0.06)" : "rgba(217, 119, 6,0.08)", border: `1px solid ${p.status === "resolved" ? "rgba(34,197,94,0.25)" : "rgba(217, 119, 6,0.3)"}` }}>
+                                <div key={p.id} className="rounded px-2 py-1.5" style={{ background: p.status === "resolved" ? "rgba(34,197,94,0.06)" : p.receivedAt ? "rgba(37,99,235,0.06)" : "rgba(217, 119, 6,0.08)", border: `1px solid ${p.status === "resolved" ? "rgba(34,197,94,0.25)" : p.receivedAt ? "rgba(37,99,235,0.3)" : "rgba(217, 119, 6,0.3)"}` }}>
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className="text-[11px] text-slate-700 flex-1">{p.description}</span>
                                     {p.status === "resolved" ? (
-                                      <span className="text-[9px] font-bold text-emerald-300">✓ Resolved</span>
+                                      <span className="text-[9px] font-bold text-emerald-700">✓ Completed</span>
                                     ) : (
-                                      canFinishTransfer(canDo) && onResolvePendingItem && (
-                                        <button onClick={async () => {
-                                                   const notes = window.prompt("Resolution notes (optional):", "");
-                                                   if (notes === null) return;
-                                                   const r = await onResolvePendingItem(p.id, { notes });
-                                                   if (r && r.success === false) showToast("Resolve failed", r.error || "", "urgent");
-                                                   else showToast("Pending item resolved", "");
-                                                }}
-                                                className="text-[10px] font-bold text-emerald-300 hover:text-emerald-200 px-2 py-0.5 rounded border border-emerald-500/40 bg-emerald-500/10">
-                                          Mark resolved
-                                        </button>
-                                      )
+                                      <>
+                                        <span className="text-[9px] font-bold" style={{ color: p.receivedAt ? "#1d4ed8" : "#b45309" }}>
+                                          {p.receivedAt ? "Part received · finish work" : p.itemCode ? "Awaiting part" : "Awaiting work"}
+                                        </span>
+                                        {canFinishTransfer(canDo) && onReceivePendingItem && !p.receivedAt && (
+                                          <button onClick={() => setJobAction({ item: p, action: "receive", notes: "", busy: false, error: "" })}
+                                                  className="text-[10px] font-bold px-2 py-0.5 rounded border"
+                                                  style={{ color: "#1d4ed8", borderColor: "rgba(37,99,235,0.4)", background: "rgba(37,99,235,0.08)" }}>
+                                            Part received
+                                          </button>
+                                        )}
+                                        {canFinishTransfer(canDo) && onResolvePendingItem && (
+                                          <button onClick={() => setJobAction({ item: p, action: "complete", notes: "", busy: false, error: "" })}
+                                                  className="text-[10px] font-bold px-2 py-0.5 rounded border"
+                                                  style={{ color: "#15803d", borderColor: "rgba(22,163,74,0.4)", background: "rgba(22,163,74,0.08)" }}>
+                                            Work completed
+                                          </button>
+                                        )}
+                                      </>
                                     )}
                                   </div>
+                                  {(p.itemCode || p.reason) && (
+                                    <div className="text-[10px] text-slate-500 mt-0.5">
+                                      {p.itemCode && <span>Part <span className="font-mono font-bold text-slate-700">{p.itemCode}</span>{p.itemName ? ` · ${p.itemName}` : ""}{p.qty != null ? ` · qty ${p.qty}` : ""}</span>}
+                                      {p.itemCode && p.reason && " · "}
+                                      {p.reason && <span>Reason: {p.reason}</span>}
+                                    </div>
+                                  )}
                                   {/* Phase 1 — who has been called to fix this. */}
                                   {p.assignedDepartment && p.status !== "resolved" && (
                                     <div className="text-[10px] font-bold mt-1" style={{ color: "#dc2626" }}>
@@ -17877,138 +18158,69 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
       </div>
 
-      {/* ── 2026-06-05f — Edit Rack Capacity Modal ──
-          Updates the BOM definition's rackCapacity in place. The rack card
-          re-renders immediately (capacity, empty, state, progress bar) because
-          rackData reads bomDefs from props. */}
-      {editRackModal && (
-        <div className="modal-backdrop fixed inset-0 z-[80] flex items-center justify-center p-4"
-             style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
-             onClick={(e) => e.target === e.currentTarget && setEditRackModal(null)}>
-          <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-               style={{ background: "var(--surface-elevated)", border: "1px solid rgba(215, 25, 32,0.4)", boxShadow: "0 40px 80px rgba(17,24,39,0.22)" }}>
-            <div className="px-5 py-4 border-b border-slate-200"
-                 style={{ background: "rgba(215, 25, 32,0.06)" }}>
-              <div className="text-sm font-black text-blue-300">✏️ Edit Rack Capacity</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">
-                {editRackModal.key} · {editRackModal.label}
+      {/* ── Pending job action (2026-10-30): part received / work completed ── */}
+      {jobAction && (() => {
+        const p = jobAction.item;
+        const m = machineLog.find((x) => String(x.id) === String(p.machineId)) || null;
+        const isReceive = jobAction.action === "receive";
+        const submit = async () => {
+          if (jobAction.busy) return;
+          setJobAction((prev) => prev ? { ...prev, busy: true, error: "" } : prev);
+          const r = isReceive
+            ? await onReceivePendingItem(p.id, { notes: jobAction.notes.trim() })
+            : await onResolvePendingItem(p.id, { notes: jobAction.notes.trim() });
+          if (r && r.success === false) { setJobAction((prev) => prev ? { ...prev, busy: false, error: r.error || "Could not save." } : prev); return; }
+          setJobAction(null);
+          showToast(isReceive ? "Part received" : "Work completed",
+                    `${m?.bomKey || ""}${m?.serialNo ? ` · S/N ${m.serialNo}` : ""}${p.itemCode ? ` · ${p.itemCode}` : ""}`);
+        };
+        return (
+          <div className="modal-backdrop fixed inset-0 z-[72] flex items-center justify-center p-4"
+               style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
+               onClick={(e) => e.target === e.currentTarget && !jobAction.busy && setJobAction(null)}>
+            <div className="w-full max-w-md rounded-2xl p-5"
+                 style={{ background: "var(--surface-raised)", border: `1px solid ${isReceive ? "rgba(37,99,235,0.35)" : "rgba(22,163,74,0.35)"}`, boxShadow: "0 24px 70px rgba(17,24,39,0.2)" }}>
+              <h3 className="text-base font-black text-slate-800 mb-1">{isReceive ? "Part received" : "Work completed"}</h3>
+              <p className="text-[11px] text-slate-500 mb-3">
+                {m?.bomKey || "Machine"}{m?.serialNo ? ` · S/N ${m.serialNo}` : ""}{p.assignedDepartment ? ` · ${p.assignedDepartment}` : ""}
+              </p>
+              <div className="rounded-lg px-3 py-2 mb-3 text-[11.5px] text-slate-700" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
+                <div className="font-semibold">{p.description}</div>
+                {p.itemCode && <div className="text-[10.5px] text-slate-500 mt-0.5">Part <span className="font-mono font-bold text-slate-700">{p.itemCode}</span>{p.itemName ? ` · ${p.itemName}` : ""}{p.qty != null ? ` · qty ${p.qty}` : ""}</div>}
+                {p.reason && <div className="text-[10.5px] text-slate-500">Reason: {p.reason}</div>}
+                {p.receivedAt && <div className="text-[10.5px] mt-0.5" style={{ color: "#1d4ed8" }}>Part received {fmtDate(new Date(p.receivedAt))}</div>}
               </div>
-            </div>
-            <div className="px-5 py-4 space-y-3">
-              <div>
-                <div className="text-[10px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">New Capacity</div>
-                <input
-                  autoFocus
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={editRackModal.capacity}
-                  onChange={(e) => setEditRackModal((prev) => prev ? { ...prev, capacity: e.target.value } : prev)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") { setEditRackModal(null); return; }
-                    if (e.key === "Enter") {
-                      const cap = Math.max(0, parseInt(editRackModal.capacity, 10) || 0);
-                      const def = bomDefs[editRackModal.key];
-                      if (def && onUpdateBOM) onUpdateBOM(editRackModal.key, { ...def, rackCapacity: cap });
-                      showToast(`${editRackModal.key} rack capacity → ${cap}`, cap === 0 ? "Rack tracking disabled" : `${cap} slot${cap === 1 ? "" : "s"}`);
-                      setEditRackModal(null);
-                    }
-                  }}
-                  className="w-full px-3 py-2 rounded-lg text-sm text-slate-900 outline-none transition-all text-right font-mono"
-                  style={{ background: "rgba(17,24,39,0.04)", border: "1px solid var(--border-rim)" }}
-                />
-                <div className="text-[10px] text-slate-600 mt-1">0 = no rack tracking. The card disappears from Production Rack View when capacity drops to 0.</div>
-              </div>
-            </div>
-            <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-end gap-2"
-                 style={{ background: "#f8f9fb" }}>
-              <button onClick={() => setEditRackModal(null)}
-                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all">
-                Cancel
-              </button>
-              <button onClick={() => {
-                        const cap = Math.max(0, parseInt(editRackModal.capacity, 10) || 0);
-                        const def = bomDefs[editRackModal.key];
-                        if (def && onUpdateBOM) onUpdateBOM(editRackModal.key, { ...def, rackCapacity: cap });
-                        showToast(`${editRackModal.key} rack capacity → ${cap}`, cap === 0 ? "Rack tracking disabled" : `${cap} slot${cap === 1 ? "" : "s"}`);
-                        setEditRackModal(null);
-                      }}
-                      className="text-[11px] font-bold px-4 py-1.5 rounded-lg text-white border transition-all"
-                      style={{ background: "linear-gradient(135deg,#D71920,#B01218)", borderColor: "rgba(176, 18, 24,0.5)" }}>
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── 2026-06-05f — Delete Rack Confirmation ──
-          Delete just sets rackCapacity = 0 on the BOM. The rackData filter
-          (r.configured || r.ready > 0) hides the card when capacity is 0 and
-          no rack machines exist, so the card disappears instantly. Stock,
-          completed history, and the BOM definition's items/label/colour are
-          untouched. */}
-      {deleteRackConfirm && (
-        <div className="modal-backdrop fixed inset-0 z-[80] flex items-center justify-center p-4"
-             style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
-             onClick={(e) => e.target === e.currentTarget && setDeleteRackConfirm(null)}>
-          <div className="w-full max-w-sm rounded-2xl overflow-hidden"
-               style={{ background: "var(--surface-elevated)", border: `1px solid ${deleteRackConfirm.ready > 0 ? "rgba(245,158,11,0.4)" : "rgba(239,68,68,0.4)"}`, boxShadow: "0 40px 80px rgba(17,24,39,0.22)" }}>
-            <div className="px-5 py-4 border-b border-slate-200"
-                 style={{ background: deleteRackConfirm.ready > 0 ? "rgba(245,158,11,0.06)" : "rgba(239,68,68,0.06)" }}>
-              <div className={`text-sm font-black ${deleteRackConfirm.ready > 0 ? "text-amber-300" : "text-red-400"}`}>
-                {deleteRackConfirm.ready > 0 ? "⚠ Cannot Delete Rack" : "🗑 Delete Rack?"}
-              </div>
-              <div className="text-[10px] text-slate-500 mt-0.5">
-                {deleteRackConfirm.key} · {deleteRackConfirm.label}
-              </div>
-            </div>
-            <div className="px-5 py-4 space-y-2 text-[11px]">
-              {deleteRackConfirm.ready > 0 ? (
-                <>
-                  <div className="text-slate-500">
-                    This rack has <span className="font-bold text-slate-900">{deleteRackConfirm.ready}</span> machine{deleteRackConfirm.ready === 1 ? "" : "s"} waiting on it.
-                  </div>
-                  <div className="text-slate-400">
-                    <span className="font-bold text-amber-300">Remove rack machines first</span> (open the rack card → Start Production modal → ✕ Remove From Rack). Then return here to delete.
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="text-slate-500">
-                    Removes the rack configuration / card only. The BOM definition stays in Outward; you can re-enable rack tracking later by editing capacity.
-                  </div>
-                  <ul className="space-y-1 ml-1 mt-2">
-                    <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Stock is not touched</span></li>
-                    <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Production history is preserved</span></li>
-                    <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">Completed machines stay in Machine Tracker</span></li>
-                    <li className="flex gap-2"><span className="text-emerald-400">✓</span><span className="text-slate-400">BOM definition (items, label) retained</span></li>
-                  </ul>
-                </>
+              {isReceive && !p.receivedAt && (
+                <p className="text-[11px] text-slate-600 mb-2">Confirms the part has arrived for this machine. The job stays open until the work is marked completed.</p>
               )}
-            </div>
-            <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-end gap-2"
-                 style={{ background: "#f8f9fb" }}>
-              <button autoFocus onClick={() => setDeleteRackConfirm(null)}
-                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all">
-                {deleteRackConfirm.ready > 0 ? "Close" : "Cancel"}
-              </button>
-              {deleteRackConfirm.ready === 0 && (
-                <button onClick={() => {
-                          const def = bomDefs[deleteRackConfirm.key];
-                          if (def && onUpdateBOM) onUpdateBOM(deleteRackConfirm.key, { ...def, rackCapacity: 0 });
-                          showToast(`${deleteRackConfirm.key} rack deleted`, "Rack tracking disabled — BOM definition retained");
-                          setDeleteRackConfirm(null);
-                        }}
-                        className="text-[11px] font-bold px-4 py-1.5 rounded-lg text-white border transition-all"
-                        style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", borderColor: "rgba(239,68,68,0.5)" }}>
-                  🗑 Delete Rack
+              {!isReceive && p.itemCode && !p.receivedAt && (
+                <p className="text-[11px] font-bold mb-2" style={{ color: "#b45309" }}>This part has not been recorded as received. Mark it completed only if the work is actually done.</p>
+              )}
+              <label className="block text-[11px] font-bold text-slate-600 mb-1">{isReceive ? "Receipt note (optional)" : "Completion note (optional)"}</label>
+              <input value={jobAction.notes} disabled={jobAction.busy} autoFocus
+                     onChange={(e) => setJobAction((prev) => prev ? { ...prev, notes: e.target.value, error: "" } : prev)}
+                     onKeyDown={(e) => e.key === "Enter" && submit()}
+                     placeholder={isReceive ? "e.g. received from Stores, 2 pcs" : "e.g. fitted and tested"}
+                     className="w-full rounded-lg px-3 py-2.5 text-[13px] text-slate-800 outline-none"
+                     style={{ background: "var(--surface-elevated)", border: "1px solid rgba(17,24,39,0.12)" }} />
+              {jobAction.error && (
+                <div className="mt-3 text-[11px] font-bold px-3 py-2 rounded-lg" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", color: "#dc2626" }}>{jobAction.error}</div>
+              )}
+              <div className="flex gap-2 mt-4">
+                <button type="button" onClick={() => setJobAction(null)} disabled={jobAction.busy}
+                        className="flex-1 h-11 rounded-lg text-[13px] font-bold text-slate-600 border transition-all disabled:opacity-40" style={{ borderColor: "rgba(17,24,39,0.12)" }}>
+                  Cancel
                 </button>
-              )}
+                <button type="button" onClick={submit} disabled={jobAction.busy}
+                        className="flex-[2] h-11 rounded-lg text-[13px] font-black text-white transition-all disabled:opacity-50"
+                        style={{ background: isReceive ? "linear-gradient(135deg,#2563eb,#1d4ed8)" : "linear-gradient(135deg,#16a34a,#15803d)" }}>
+                  {jobAction.busy ? "Saving…" : isReceive ? "✓ Part received" : "✓ Work completed"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── Phase 1 — Report Issue Modal ──
           Raises a pending item against the department that must come and fix
@@ -18027,9 +18239,11 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           if (!desc)      { setRaiseErr("Describe the issue."); return; }
           if (!raiseDept) { setRaiseErr("Choose the department that must fix it."); return; }
           setRaiseBusy(true); setRaiseErr("");
+          const part = cleanPendingJobs([{ ...raisePart, description: desc }])[0] || {};
           const r = await onRaisePendingItem({
             machineId: m.id, description: desc,
             assignedDepartment: raiseDept, raisedInDepartment: here,
+            itemCode: part.itemCode || "", itemName: part.itemName || "", qty: part.qty ?? null, reason: part.reason || "",
           });
           setRaiseBusy(false);
           if (r && r.success === false) { setRaiseErr(r.error || "Could not save the issue."); return; }
@@ -18067,6 +18281,30 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 </button>
               )}
             </div>
+
+            {/* 2026-10-30 — optional missing part, so the job is traceable. */}
+            <div className="block text-[11px] font-bold text-slate-600 mt-4 mb-1.5">Missing part (optional)</div>
+            <div className="grid grid-cols-[1fr_72px] sm:grid-cols-[150px_72px_1fr] gap-1.5">
+              {inventoryFlat.length > 0 && (
+                <datalist id="raise-part-codes">
+                  {inventoryFlat.slice(0, 2000).map((it) => <option key={it.code} value={it.code}>{it.name}</option>)}
+                </datalist>
+              )}
+              <input value={raisePart.itemCode} disabled={raiseBusy} list={inventoryFlat.length ? "raise-part-codes" : undefined}
+                     onChange={(e) => { const code = e.target.value; const hit = inventoryFlat.find((it) => it.code.toLowerCase() === code.trim().toLowerCase()); setRaisePart((p) => ({ ...p, itemCode: code, itemName: hit ? hit.name : p.itemName })); }}
+                     placeholder="Part / item code" className="min-w-0 w-full rounded-lg px-2.5 py-2 text-[12px] text-slate-800 outline-none font-mono"
+                     style={{ background: "var(--surface-elevated)", border: "1px solid rgba(17,24,39,0.12)" }} />
+              <input type="number" min="0" step="any" value={raisePart.qty} disabled={raiseBusy}
+                     onChange={(e) => setRaisePart((p) => ({ ...p, qty: e.target.value }))}
+                     placeholder="Qty" className="min-w-0 w-full rounded-lg px-2.5 py-2 text-[12px] text-slate-800 outline-none text-right"
+                     style={{ background: "var(--surface-elevated)", border: "1px solid rgba(17,24,39,0.12)" }} />
+              <input value={raisePart.reason} disabled={raiseBusy}
+                     onChange={(e) => setRaisePart((p) => ({ ...p, reason: e.target.value }))}
+                     placeholder="Reason — e.g. not in store, on order"
+                     className="col-span-2 sm:col-span-1 min-w-0 w-full rounded-lg px-2.5 py-2 text-[12px] text-slate-800 outline-none"
+                     style={{ background: "var(--surface-elevated)", border: "1px solid rgba(17,24,39,0.12)" }} />
+            </div>
+            {raisePart.itemName && <div className="text-[10px] text-slate-500 mt-1">{raisePart.itemName}</div>}
 
             <label htmlFor="raise-dept" className="block text-[11px] font-bold text-slate-600 mt-4 mb-1.5">
               Which department must fix it
@@ -18511,7 +18749,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   </div>
                 )}
                 {!finishModal.template && (
-                  <div className="text-[10px] text-slate-500">No checklist template configured for {fromDepartment}. Admins can add one in Settings → Department Checklists.</div>
+                  <div className="text-[10px] text-slate-500">No Before Transfer checklist is configured for {fromDepartment} on this BOM. Admins can add one in BOM → Edit → Department Checklists.</div>
                 )}
 
                 {/* ── Phase 1 — work this department still owes ──
@@ -18525,26 +18763,8 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   <div className="text-[10px] text-slate-500 mb-2.5">
                     Leave empty if the work is complete. Anything listed here stays on {fromDepartment}&apos;s list and the machine cannot be marked Ready until it is done.
                   </div>
-                  {(finishModal.owedItems || []).map((desc, i) => (
-                    <div key={i} className="flex gap-2 mb-2">
-                      <input value={desc}
-                             onChange={(e) => setFinishModal((prev) => prev ? { ...prev, owedItems: (prev.owedItems || []).map((d, idx) => idx === i ? e.target.value : d) } : prev)}
-                             placeholder="e.g. fit the gearbox cover once it arrives"
-                             className="flex-1 rounded-lg px-3 py-2 text-[12px] text-slate-800 outline-none"
-                             style={{ background: "var(--surface-elevated)", border: "1px solid rgba(245,158,11,0.4)" }} />
-                      <button type="button"
-                              onClick={() => setFinishModal((prev) => prev ? { ...prev, owedItems: (prev.owedItems || []).filter((_, idx) => idx !== i) } : prev)}
-                              className="text-[11px] font-bold text-slate-500 hover:text-slate-700 px-2 rounded-lg border border-slate-200">
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                  <button type="button"
-                          onClick={() => setFinishModal((prev) => prev ? { ...prev, owedItems: [...(prev.owedItems || []), ""] } : prev)}
-                          className="text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all"
-                          style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.4)", color: "#b45309" }}>
-                    + Add pending job
-                  </button>
+                  <PendingJobRows rows={finishModal.owedItems || []} inventory={inventoryFlat} disabled={transferBusy}
+                                  onChange={(rows) => setFinishModal((prev) => prev ? { ...prev, owedItems: rows } : prev)} />
                 </div>
               </div>
               <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between flex-shrink-0 bg-white">
@@ -18657,7 +18877,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                             <li key={p.id}><span className="font-semibold">{p.raisedInDepartment}:</span> {p.description}</li>
                           ))}
                         </ul>
-                        <div className="text-[10px] text-slate-500 mt-1.5">These items appear in your checklist until resolved. Resolve them from the machine card's History panel after you accept.</div>
+                        <div className="text-[10px] text-slate-500 mt-1.5">These stay open on this machine. Record the part received and the work completed in the Pending Jobs tab, or on the machine card, after you accept.</div>
                       </div>
                     )}
                     {/* Migration 028 — Before-Receive checklist. Appears only
@@ -18668,7 +18888,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                     {acceptModal.checklistTemplate && (acceptModal.checklistAnswers || []).length > 0 && (
                       <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(215, 25, 32,0.05)", border: "1px solid rgba(215, 25, 32,0.3)" }}>
                         <div className="text-[10px] font-bold text-blue-200 uppercase tracking-wider mb-1">
-                          📋 {acceptModal.checklistTemplate.name || "Before-Receive Checklist"}
+                          📋 {acceptModal.checklistTemplate.name || "After Acceptance Checklist"}
                         </div>
                         <div className="text-[10px] text-slate-400 mb-2">
                           Tick each step after you check it. Any step you can't tick needs a short reason.
@@ -18705,34 +18925,19 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                     {/* Phase B — raise new pending items at this transfer */}
                     <div className="rounded-lg px-3 py-2" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.10)" }}>
                       <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Any work from {handover.fromDepartment} still pending? (optional)</div>
-                      <div className="space-y-2">
-                        {(acceptModal.pendingItemsToRaise || []).map((desc, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <input type="text" value={desc}
-                                   onChange={(e) => setField({ pendingItemsToRaise: (acceptModal.pendingItemsToRaise || []).map((d, idx) => idx === i ? e.target.value : d) })}
-                                   placeholder={`Pending item ${i + 1} (e.g. missing fasteners, incomplete wiring)`}
-                                   className="flex-1 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-900 placeholder-slate-500 outline-none focus:border-amber-500/60" />
-                            <button type="button"
-                                    onClick={() => setField({ pendingItemsToRaise: (acceptModal.pendingItemsToRaise || []).filter((_, idx) => idx !== i) })}
-                                    className="text-[11px] text-slate-500 hover:text-red-400 px-1">×</button>
-                          </div>
-                        ))}
-                        <button type="button"
-                                onClick={() => setField({ pendingItemsToRaise: [...(acceptModal.pendingItemsToRaise || []), ""] })}
-                                className="text-[11px] font-semibold text-blue-300 hover:text-blue-200">
-                          + Add another pending item
-                        </button>
-                      </div>
-                      <div className="text-[10px] text-slate-500 mt-1.5">Non-empty items are saved and shown in reports until marked completed.</div>
+                      <PendingJobRows rows={acceptModal.pendingItemsToRaise || []} inventory={inventoryFlat} disabled={acceptModal.busy}
+                                      accent="#dc2626" addLabel="+ Add pending job / missing part"
+                                      onChange={(rows) => setField({ pendingItemsToRaise: rows })} />
+                      <div className="text-[10px] text-slate-500 mt-1.5">Saved against this machine and serial number in Pending Jobs until the work is completed. Nothing recorded = nothing pending.</div>
                     </div>
                     {/* Feature 5 — team members present at acceptance */}
                     {acceptDeptEmps.length > 0 && (
                       <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.25)" }}>
                         <div className="text-[10px] font-bold text-indigo-200 uppercase tracking-wide mb-1.5">
-                          👥 Team members present (optional)
+                          👥 Receiving employees <span className="text-red-500">*</span>
                         </div>
                         <div className="text-[10px] text-slate-400 mb-2">
-                          Select factory workers who were present at this acceptance. For record-keeping only.
+                          Select the employees receiving this machine into {handover.toDepartment}. Recorded on the acceptance.
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {acceptDeptEmps.map((m) => {
@@ -21208,7 +21413,7 @@ export default function App() {
 
   const [allUsers,  setAllUsers]  = useState([]);
   useEffect(() => {
-    if (!SUPA) return;
+    // Local mode returns the localStorage users (see fetchDeptRoster).
     let cancelled = false;
     (async () => {
       // Migration 030 — roster view bypasses the users RLS so non-admin
@@ -22466,6 +22671,8 @@ export default function App() {
         checkPoints: Array.isArray(i.checkPoints) ? i.checkPoints.filter(Boolean) : [],
       })),
       rackCapacity: Math.max(0, parseInt(def.rackCapacity, 10) || 0),
+      // Migration 041 — department durations set on the BOM.
+      deptDurations: def.deptDurations && typeof def.deptDurations === "object" ? def.deptDurations : null,
     };
     setBomDefs((prev) => ({ ...prev, [k]: newBom }));
     if (isSupabaseEnabled()) bomCreate(k, newBom).then((r) => { if (!r.success) console.warn("[App] BOM create Supabase failed:", r.error); });
@@ -22494,6 +22701,7 @@ export default function App() {
       color:        palette[Object.keys(bomDefs).length % palette.length],
       items:        (src.items || []).map((i) => ({ code: i.code, qty: Number(i.qty) || 0 })),
       rackCapacity: Number(src.rackCapacity) || 0,
+      deptDurations: src.deptDurations || null,
     };
     setBomDefs((prev) => ({ ...prev, [newKey]: newBom }));
     if (isSupabaseEnabled()) bomCreate(newKey, newBom).then((r) => { if (!r.success) console.warn("[App] BOM duplicate Supabase failed:", r.error); });
@@ -22708,7 +22916,7 @@ export default function App() {
   };
 
   // ── Machine Tracker handlers ──
-  const handleCreateMachine = (bomKey, bomLabel, serialNo, date, issueId, destination = "rack", deptDurations = null) => {
+  const handleCreateMachine = (bomKey, bomLabel, serialNo, date, issueId, destination = "rack", deptDurations = null, notIssued = []) => {
     const dateStr = date || fmtDate(new Date());
     // Feature 1: direct production lands the machine in Assembly immediately,
     // skipping the BOM Issued / rack waiting stage. Used for R&D, prototypes,
@@ -22750,6 +22958,37 @@ export default function App() {
       deptDurations:       deptDurations || null,
     };
     setMachineLog((prev) => [newMachine, ...prev]);
+    // 2026-10-30 — every critical item not issued at Outward becomes a pending
+    // job on this machine: part missing, owed by Stores, with the reason the
+    // store operator wrote. Kind 'owed': the machine may move through the
+    // departments but cannot be marked Ready until the part is received and
+    // the work completed. Raised once the machine's real id is known.
+    const raiseNotIssued = (machineId) => {
+      for (const it of (Array.isArray(notIssued) ? notIssued : [])) {
+        if (!it || !it.code) continue;
+        const qtyTxt = it.qty ? ` × ${it.qty}${it.unit ? ` ${it.unit}` : ""}` : "";
+        createPendingItem({
+          machineId,
+          raisedInHandoverId: null,
+          raisedInDepartment: "Stores",
+          assignedDepartment: "Stores",
+          raisedBy: currentUser?.id || null,
+          description: `Part not issued at BOM Outward: ${it.name || it.code}${qtyTxt}`,
+          kind: "owed",
+          itemCode: it.code, itemName: it.name || "", qty: it.qty || null, reason: it.remark || "",
+        }).then((pr) => {
+          if (!pr.success) { console.warn("[App] not-issued pending job save failed", pr.error); return; }
+          setPendingHandoverItems((prev) => [pr.item, ...prev]);
+          logAudit({
+            type: "pending_item_raised", module: "Machine",
+            action: `Part not issued at Outward: ${it.name || it.code}${qtyTxt} — ${bomKey}${serialNo ? ` [${serialNo}]` : ""}`,
+            ref: bomKey, serialNo: serialNo || "",
+            details: { machineId, itemId: pr.item?.id, kind: "owed", assignedDepartment: "Stores", itemCode: it.code, qty: it.qty || null, reason: it.remark || "", issueId },
+          });
+        });
+      }
+    };
+    if (!isSupabaseEnabled()) raiseNotIssued(newMachine.id);
     // Adopt the id Postgres assigned.
     //
     // `machine_log.id` is a bigserial. The `Date.now()` above is a placeholder
@@ -22776,8 +23015,21 @@ export default function App() {
         if (realId != null && String(realId) !== String(newMachine.id)) {
           setMachineLog((prev) => prev.map((m) => (m.id === newMachine.id ? { ...m, id: realId } : m)));
         }
+        raiseNotIssued(realId != null ? realId : newMachine.id);
       });
     }
+  };
+
+  // 2026-10-30 — a machine is never Ready while a pending job on it is open
+  // (a part still to be received, work still to be completed). Every path to
+  // Ready — Finish & Transfer, Accept, the admin stage change — asks this.
+  const openJobsBlockingReady = (machineId) =>
+    (pendingHandoverItems || []).filter((p) => String(p.machineId) === String(machineId) && p.status === "open");
+  const readyBlockedError = (machineId) => {
+    const open = openJobsBlockingReady(machineId);
+    if (open.length === 0) return null;
+    const depts = [...new Set(open.map((p) => p.assignedDepartment).filter(Boolean))].join(", ");
+    return `Cannot mark Ready — ${open.length} pending job${open.length === 1 ? "" : "s"} still open${depts ? ` (${depts})` : ""}. Complete them in Pending Jobs first.`;
   };
 
   const handleUpdateMachineStage = (machineId, newStage) => {
@@ -22785,6 +23037,10 @@ export default function App() {
     const nowIso = new Date().toISOString();
     const machine = machineLog.find((m) => m.id === machineId);
     const isComplete = newStage === "Ready";
+    if (isComplete) {
+      const blocked = readyBlockedError(machineId);
+      if (blocked) { flashSaveError("Not Ready", `${machine?.bomKey || ""}${machine?.serialNo ? ` · ${machine.serialNo}` : ""}: ${blocked}`); return { success: false, error: blocked }; }
+    }
     logAudit({ type: isComplete ? "machine_completed" : "machine_stage", module: "Machine", action: `${machine?.bomKey || ""} [${machine?.serialNo || ""}] → ${newStage}`, ref: machine?.bomKey || "", serialNo: machine?.serialNo || "", details: { from: machine?.stage, to: newStage, bomLabel: machine?.bomLabel } });
     setMachineLog((prev) => prev.map((m) => {
       if (m.id !== machineId) return m;
@@ -23002,6 +23258,10 @@ export default function App() {
     const machine = machineLog.find((m) => m.id === machineId);
     if (!machine) return { success: false, error: "Machine not found" };
     if (machine.pendingHandoverId) return { success: false, error: "Handover already in progress for this machine." };
+    if (toDepartment === "Ready") {
+      const blocked = readyBlockedError(machineId);
+      if (blocked) return { success: false, error: blocked };
+    }
     // Race guard: a second click within the same tick still sees
     // pendingHandoverId as null. The ref flips synchronously, so the duplicate
     // is rejected here. Self-heals after 3s in case a downstream validation
@@ -23181,9 +23441,8 @@ export default function App() {
     // Phase 1 — record the jobs this department still owes. Raised against
     // fromDepartment (the department that owes the work), kind 'owed' so the
     // machine can still move between departments but cannot reach Ready.
-    for (const desc of (Array.isArray(owedItems) ? owedItems : [])) {
-      const text = String(desc || "").trim();
-      if (!text) continue;
+    for (const job of cleanPendingJobs(owedItems)) {
+      const text = job.description;
       const pr = await createPendingItem({
         machineId,
         raisedInHandoverId: res.handover.id,
@@ -23192,6 +23451,7 @@ export default function App() {
         raisedBy: currentUser.id,
         description: text,
         kind: "owed",
+        itemCode: job.itemCode, itemName: job.itemName, qty: job.qty, reason: job.reason,
       });
       if (pr.success) {
         setPendingHandoverItems((prev) => [pr.item, ...prev]);
@@ -23199,7 +23459,7 @@ export default function App() {
           type: "pending_item_raised", module: "Machine",
           action: `Job owed by ${fromDepartment}: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}`,
           ref: machine.bomKey, serialNo: machine.serialNo || "",
-          details: { machineId, itemId: pr.item?.id, handoverId: res.handover.id, kind: "owed", assignedDepartment: fromDepartment, description: text },
+          details: { machineId, itemId: pr.item?.id, handoverId: res.handover.id, kind: "owed", assignedDepartment: fromDepartment, description: text, itemCode: job.itemCode || undefined, qty: job.qty ?? undefined, reason: job.reason || undefined },
         });
       } else {
         console.warn("[App] handleFinishTransfer: owed item save failed", pr.error);
@@ -23223,6 +23483,10 @@ export default function App() {
     // shown for it; this refuses any other path that would skip the release.
     if (handover.releaseRequired && !handover.releasedAt) {
       return { success: false, error: "This machine is on the rack — a production head must release it first." };
+    }
+    if (handover.toDepartment === "Ready") {
+      const blocked = readyBlockedError(handover.machineId);
+      if (blocked) return { success: false, error: blocked };
     }
 
     // Permission check (receiving dept role; auto-mapped from updateStage).
@@ -23324,7 +23588,8 @@ export default function App() {
     });
 
     // Phase B — raise any pending items the receiver flagged.
-    for (const desc of (pendingItemsToRaise || []).filter((d) => d && d.trim())) {
+    for (const job of cleanPendingJobs(pendingItemsToRaise)) {
+      const desc = job.description;
       const pi = await createPendingItem({
         machineId: handover.machineId,
         raisedInHandoverId: handoverId,
@@ -23336,15 +23601,16 @@ export default function App() {
         assignedDepartment: handover.fromDepartment,
         kind: "fault",
         raisedBy: currentUser.id,
-        description: desc.trim(),
+        description: desc,
+        itemCode: job.itemCode, itemName: job.itemName, qty: job.qty, reason: job.reason,
       });
       if (pi.success) {
         setPendingHandoverItems((prev) => [pi.item, ...prev]);
         logAudit({
           type: "pending_item_raised", module: "Machine",
-          action: `Pending item raised: ${desc.trim()}  (${handover.bomKey}${handover.serialNo ? ` [${handover.serialNo}]` : ""})`,
+          action: `Pending item raised: ${desc}  (${handover.bomKey}${handover.serialNo ? ` [${handover.serialNo}]` : ""})`,
           ref: handover.bomKey, serialNo: handover.serialNo || "",
-          details: { handoverId, machineId: handover.machineId, raisedInDepartment: handover.fromDepartment },
+          details: { handoverId, machineId: handover.machineId, raisedInDepartment: handover.fromDepartment, itemCode: job.itemCode || undefined, qty: job.qty ?? undefined, reason: job.reason || undefined },
         });
       } else {
         console.warn("[App] handleAcceptHandover: pending-item save failed", pi.error);
@@ -23379,7 +23645,7 @@ export default function App() {
     // Phase B — compute + save a department rating snapshot for the sender's work.
     const openPendingItemsCount =
       (pendingHandoverItems.filter((p) => p.machineId === handover.machineId && p.status === "open").length)
-      + (pendingItemsToRaise || []).filter((d) => d && d.trim()).length;
+      + cleanPendingJobs(pendingItemsToRaise).length;
     const overrunMinutesForRating = Number(accRes.handover.overrunMinutes) || 0;
     const heldMinutesForRating = wasOverdue
       ? Math.max(0, timeToAcceptMin - (accRes.handover.acceptTimeoutMinutes || 0))
@@ -23515,7 +23781,7 @@ export default function App() {
   // Distinct from the Accept-time pending items: those blame the previous
   // department at handover, this one calls any department back to a machine
   // that is already being worked on. The machine never moves backwards.
-  const handleRaisePendingItem = async ({ machineId, description, assignedDepartment, raisedInDepartment }) => {
+  const handleRaisePendingItem = async ({ machineId, description, assignedDepartment, raisedInDepartment, itemCode = "", itemName = "", qty = null, reason = "" }) => {
     if (!currentUser?.id) return { success: false, error: "Not authenticated" };
     const desc = String(description || "").trim();
     if (!desc) return { success: false, error: "Describe the issue." };
@@ -23529,6 +23795,7 @@ export default function App() {
       description: desc,
       assignedDepartment: assignedDepartment || null,
       kind: "fault",
+      itemCode, itemName, qty, reason,
     });
     if (!res.success) return res;
     setPendingHandoverItems((prev) => [res.item, ...prev]);
@@ -23541,6 +23808,7 @@ export default function App() {
         raisedInDepartment: raisedInDepartment || machine.currentDepartment || machine.stage || "",
         assignedDepartment: assignedDepartment || null,
         description: desc,
+        itemCode: itemCode || undefined, qty: qty ?? undefined, reason: reason || undefined,
       },
     });
 
@@ -23603,6 +23871,26 @@ export default function App() {
       action: `Pending item resolved${machine ? ` for ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}` : ""}`,
       ref: machine?.bomKey || "", serialNo: machine?.serialNo || "",
       details: { itemId: id, notes: notes || "" },
+    });
+    return res;
+  };
+
+  // 2026-10-30 — the responsible department records that the missing part has
+  // arrived. The job stays open until "Work completed" (resolve) closes it.
+  const handleReceivePendingItem = async (id, { notes }) => {
+    const p = pendingHandoverItems.find((x) => x.id === id);
+    const machine = p ? machineLog.find((m) => String(m.id) === String(p.machineId)) || null : null;
+    const res = await receivePendingItem(id, { receivedBy: currentUser?.id, notes });
+    if (!res.success) return res;
+    const receivedAt = res.item?.receivedAt || new Date().toISOString();
+    setPendingHandoverItems((prev) => prev.map((x) => x.id === id
+      ? { ...x, receivedAt, receivedBy: currentUser?.id, receivedNotes: notes || "" }
+      : x));
+    logAudit({
+      type: "pending_item_received", module: "Machine",
+      action: `Part received${p?.itemCode ? ` (${p.itemCode}${p.qty ? ` × ${p.qty}` : ""})` : ""}${machine ? ` for ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}` : ""}`,
+      ref: machine?.bomKey || "", serialNo: machine?.serialNo || "",
+      details: { itemId: id, itemCode: p?.itemCode || undefined, qty: p?.qty ?? undefined, assignedDepartment: p?.assignedDepartment || undefined, notes: notes || "" },
     });
     return res;
   };
@@ -23836,6 +24124,7 @@ export default function App() {
                               onReverseReceive={handleReverseReceive}
                               onSetItemDefaultRate={handleSetItemDefaultRate} />,
     machines:  <MachinePage   machineLog={machineLog} onUpdateStage={handleUpdateMachineStage} onNavigate={setActivePage} canDo={canDo}
+                              items={items}
                               /* 2026-10-30 — BOM Outward, embedded at the top. Shown
                                  only to roles that may issue a BOM, same as Outward. */
                               bomSection={canView("outward") && canDo("outward", "bom") ? <OutwardPage {...outwardPageProps} embedded /> : null}
@@ -23857,6 +24146,7 @@ export default function App() {
                               onUploadAttachment={handleUploadAttachment}
                               onDeleteAttachment={handleDeleteAttachment}
                               onResolvePendingItem={handleResolvePendingItem}
+                              onReceivePendingItem={handleReceivePendingItem}
                               /* Phase 1 — raise a fault mid-work */
                               onRaisePendingItem={handleRaisePendingItem}
                               /* Migration 036 — release a machine off the rack */

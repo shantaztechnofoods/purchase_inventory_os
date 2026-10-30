@@ -226,7 +226,7 @@ const AUDIT_EVENT_TYPES = [
   "signature_registered",
   // Phase B — checklists / pending items / attachments / ratings
   "checklist_template_created", "checklist_template_updated", "checklist_template_deleted",
-  "pending_item_raised", "pending_item_resolved",
+  "pending_item_raised", "pending_item_resolved", "pending_item_received",
   // Migration 036 — a production head releases a machine off the rack.
   "handover_released",
   "attachment_uploaded", "attachment_deleted",
@@ -256,9 +256,9 @@ const USER_FACING_STRINGS = [
   "Save To Rack",
   "Direct Production",
   "Production Rack View",
-  "Edit Rack Capacity",
-  "Delete Rack",
-  "Remove From Rack",
+  // "Edit Rack Capacity" / "Delete Rack" removed 2026-10-30: racks are the
+  // fixed floor racks only, never created or sized per BOM.
+  "Remove from rack",
   "Rack is full",
 
   // Pending actions
@@ -285,7 +285,9 @@ const USER_FACING_STRINGS = [
   "Department Checklists",
   "Pending Handover Items",
   "Attachments",
-  "Mark resolved",
+  // 2026-10-30 — pending jobs: part received → work completed (replaces "Mark resolved")
+  "Work completed", "Part received", "Pending Jobs", "Cannot be Ready",
+  "Pending Acceptance",
   "Customer Progress Report",
   // Machine Tracker UX pass
   "Pending Acceptance",
@@ -334,9 +336,9 @@ const USER_FACING_STRINGS = [
   "Locked after Outward",
   // BOM Checklist Builder (migration 028, 2026-10-21)
   "Department Checklists (optional)",
-  "Before Receive",
+  "After Acceptance",
   "During Work",
-  "Before Dispatch",
+  "Before Transfer",
   "During-Work Checks",
   "Save Checklist",
   "+ Add Step",
@@ -391,7 +393,7 @@ const USER_FACING_STRINGS = [
   "+ Add factory worker",
   "factory workers without ERP logins",
   // Feature 5 — Accept multi-select (2026-10-27)
-  "Team members present",
+  "Receiving employees",
   "accept-side team",
   // Machine Tracker Settings page (2026-10-27)
   "Machine Tracker Settings",
@@ -460,7 +462,7 @@ const STORE_SURFACE = [
   { file: "signaturesStore.js", exports: ["getMySignature", "saveMySignature", "reauthenticateByPassword"] },
   // Phase B stores
   { file: "checklistsStore.js",   exports: ["fetchTemplates", "createTemplate", "updateTemplate", "deleteTemplate", "fetchResponses", "createResponse"] },
-  { file: "pendingItemsStore.js", exports: ["fetchPendingItems", "createPendingItem", "resolvePendingItem"] },
+  { file: "pendingItemsStore.js", exports: ["fetchPendingItems", "createPendingItem", "resolvePendingItem", "receivePendingItem", "pendingItemStage"] },
   { file: "attachmentsStore.js",  exports: ["fetchAllAttachments", "fetchAttachmentsForMachine", "uploadAttachment", "signedUrlFor", "deleteAttachment", "inferKind"] },
   { file: "ratingsStore.js",      exports: ["fetchRatings", "createRating", "overrideRating"] },
 ];

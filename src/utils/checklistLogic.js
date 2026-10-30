@@ -61,15 +61,28 @@ export function setAnswerRemark(answers, idx, remark) {
   return (answers || []).map((a, i) => i === idx ? { ...a, remark: String(remark || "") } : a);
 }
 
-// Validation: every unchecked item MUST have a non-empty remark before
-// the handover can be submitted. Returns { ok, missing: [index, index...] }
-// so the UI can highlight each failed row.
+// Validation before a handover can be submitted:
+//   · every unchecked item MUST have a non-empty remark          → `missing`
+//   · an item marked required ("Must do") MUST actually be ticked;
+//     a remark does not excuse it (2026-10-30)                   → `requiredMissing`
+// Returns { ok, missing, requiredMissing } (indexes) so the UI can highlight
+// each failed row. `ok` is false if either list is non-empty.
 export function validateChecklistAnswers(answers) {
   const missing = [];
+  const requiredMissing = [];
   (answers || []).forEach((a, i) => {
     if (!a.checked && !(a.remark && a.remark.trim())) missing.push(i);
+    if (!a.checked && a.required) requiredMissing.push(i);
   });
-  return { ok: missing.length === 0, missing };
+  return { ok: missing.length === 0 && requiredMissing.length === 0, missing, requiredMissing };
+}
+// One sentence for the operator, from a validate result.
+export function checklistProblemText(chk) {
+  if (!chk || chk.ok) return "";
+  if (chk.requiredMissing && chk.requiredMissing.length) {
+    return `${chk.requiredMissing.length} "Must do" item${chk.requiredMissing.length === 1 ? " is" : "s are"} not ticked — these are required and cannot be skipped.`;
+  }
+  return `Add a short note for ${chk.missing.length} unticked item${chk.missing.length === 1 ? "" : "s"}.`;
 }
 
 // Snapshot a response row for DB insert. Includes template id + version

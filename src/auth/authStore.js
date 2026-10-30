@@ -284,7 +284,15 @@ export async function fetchAllUsers() {
 // sensitive columns. Returns [{ id, username, fullName, status, departments }].
 // Falls back to fetchAllUsers() when the view doesn't exist yet (pre-030).
 export async function fetchDeptRoster() {
-  if (!isSupabaseEnabled()) return [];
+  // Local (offline dev) mode: the roster is the localStorage user list, so the
+  // Finish & Transfer picker works without Supabase too (2026-10-30).
+  if (!isSupabaseEnabled()) {
+    return getUsers().map((u) => ({
+      id: u.id, username: u.username, fullName: u.fullName || u.username, status: u.status || "active",
+      departments: Array.isArray(u.departments) ? u.departments : [],
+      role: u.role || null, mobile: u.mobile || "", overrides: u.overrides || null, lastLogin: u.lastLogin || null,
+    }));
+  }
   const c = getSupabase();
   if (!c) return [];
   const { data, error } = await c
