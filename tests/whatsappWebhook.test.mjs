@@ -166,3 +166,70 @@ test("a reply we just sent cannot come back in as something to answer", () => {
   assert.ok(parseInbound({ event: "smb_message_echo", payload: { message: ourReply } }).skip);
   assert.ok(parseInbound({ event: "status", payload: { message: ourReply } }).skip);
 });
+
+// ── Attachment normalisation (api/whatsapp-messages.js) ───────────────────
+// An inbound photo is often the entire message — a leaking pump, a torn seal.
+// Chakra's attachment shape is documented only by example, so each shape that
+// has actually been seen is pinned here instead of being rediscovered the next
+// time a photo renders as "📎".
+const { normaliseAttachments } = await import("../api/whatsapp-messages.js");
+
+test("normaliseAttachments: Chakra attachments array with mediaId", () => {
+  const out = normaliseAttachments({
+    attachments: [{ id: "MEDIA123", mimeType: "image/jpeg", caption: "pump leak" }],
+  });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].kind, "image");
+  assert.equal(out[0].mediaId, "MEDIA123");
+  assert.equal(out[0].caption, "pump leak");
+});
+
+test("normaliseAttachments: WhatsApp-native shape has no array, only a typed key", () => {
+  const out = normaliseAttachments({ image: { id: "IMG9", mime_type: "image/png" } });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].kind, "image");
+  assert.equal(out[0].mediaId, "IMG9");
+});
+
+test("normaliseAttachments: a voice note is audio, not a generic file", () => {
+  const out = normaliseAttachments({ attachments: [{ media_id: "V1", mime_type: "audio/ogg; codecs=opus" }] });
+  assert.equal(out[0].kind, "audio");
+  assert.equal(out[0].mimeType, "audio/ogg");
+});
+
+test("normaliseAttachments: MIME wins over a wrong declared type", () => {
+  // Seen in the wild: type says "document", the file is a JPEG. Drawing it as
+  // a download link would hide the photo the sender meant to show.
+  const out = normaliseAttachments({ attachments: [{ id: "X", type: "document", mimeType: "image/jpeg" }] });
+  assert.equal(out[0].kind, "image");
+});
+
+test("normaliseAttachments: a document keeps its filename and is not drawn", () => {
+  const out = normaliseAttachments({
+    attachments: [{ id: "D1", mimeType: "application/pdf", filename: "invoice.pdf", type: "document" }],
+  });
+  assert.equal(out[0].kind, "document");
+  assert.equal(out[0].filename, "invoice.pdf");
+});
+
+test("normaliseAttachments: a plain text message yields nothing", () => {
+  assert.deepEqual(normaliseAttachments({ text: "kal aa jao" }), []);
+  assert.deepEqual(normaliseAttachments({}), []);
+  assert.deepEqual(normaliseAttachments(null), []);
+});
+
+test("normaliseAttachments: rows with no id, name or caption are dropped", () => {
+  // An empty placeholder would render as an attachment tile with nothing in it.
+  assert.deepEqual(normaliseAttachments({ attachments: [{ mimeType: "image/jpeg" }] }), []);
+});
+
+// ── Unread / phone matching (src/App.jsx helpers, duplicated as pure logic) ──
+// These two decide whether a message shows as new and whose name is on it, so
+// they are worth pinning: a phone comparison that misses turns the whole
+// number book into dead weight.
+test("phone matching ignores country code, spaces and +", () => {
+  const key = (p) => { const d = String(p).replace(/[^0-9]/g, ""); return d.length > 10 ? d.slice(-10) : d; };
+  assert.equal(key("+91 93274 43134"), key("919327443134"));
+  assert.equal(key("09327443134"), key("9327443134"));
+  assert.notEqual(key("919327443134"), key("919327443135"));
+});

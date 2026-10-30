@@ -11,6 +11,7 @@ import {
   // WhatsApp module
   MessagesSquare, FileText, Sparkles, ScrollText as LogIcon,
   Search, Send, Paperclip, Smile, ArrowLeft, Check, CheckCheck, Clock, AlertCircle,
+  MessageSquarePlus, EyeOff, Eye, Image as ImageIcon, Mic, FileDown, Users, Trash2, Plus,
 } from "lucide-react";
 import { useAuth } from "./auth/AuthContext.jsx";
 // Migration 029 — list employees + save their department assignments.
@@ -593,6 +594,13 @@ function Sidebar({ activePage, setActivePage, collapsed, setCollapsed, badges = 
                 {isActive && <div className="sb-indicator" />}
                 <div className={`sb-icon w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${isActive ? "is-active" : ""}`}>
                   <item.Icon size={15} strokeWidth={isActive ? 2.4 : 2} aria-hidden="true" />
+                  {/* Collapsed, the count has nowhere to sit — but an unread
+                      WhatsApp message or a pending item still has to be
+                      noticeable, so the number becomes a dot on the icon. */}
+                  {collapsed && (badges[item.id] ?? item.badge) > 0 && (
+                    <span className="absolute top-1 right-1 w-2 h-2 rounded-full"
+                          style={{ background: "#ef4444", boxShadow: "0 0 0 2px var(--sb-bg, #0b1120)" }} />
+                  )}
                 </div>
                 {!collapsed && (
                   <>
@@ -6134,7 +6142,53 @@ function waAvatarColor(seed = "") {
   return WA_AVATAR_COLORS[h % WA_AVATAR_COLORS.length];
 }
 
+// ── WhatsApp number book ─────────────────────────────────────────────────
+// Chakra only knows the digits a message came from, so without this the inbox
+// reads as a column of phone numbers and nobody can tell the packing supervisor
+// from a wrong number. The book lives in the same settings row as the rest of
+// the WhatsApp config, so it follows the operator across devices and the
+// alert sender keeps reading the plain comma list it always has.
+function waParseDirectory(raw) {
+  if (Array.isArray(raw)) return raw;
+  try {
+    const v = JSON.parse(raw || "[]");
+    return Array.isArray(v) ? v : [];
+  } catch { return []; }
+}
+
+// WhatsApp hands back "919327443134", a person types "+91 93274 43134", and
+// both have to match the same row. Comparing only the last 10 digits sidesteps
+// country code, spaces and the leading +.
+function waPhoneKey(phone = "") {
+  const d = String(phone).replace(/[^0-9]/g, "");
+  return d.length > 10 ? d.slice(-10) : d;
+}
+
+// ── Unread tracking ──────────────────────────────────────────────────────
+// Chakra's chat list carries no unread flag, so "seen" is kept here: the
+// timestamp of the newest message that was on screen when a thread was last
+// opened. Stored in localStorage rather than settings because it is per-person
+// — the owner reading a message should not clear it for the store operator.
+const WA_SEEN_KEY = "erp_wa_seen";
+function waReadSeen() {
+  try { return JSON.parse(localStorage.getItem(WA_SEEN_KEY) || "{}") || {}; } catch { return {}; }
+}
+function waWriteSeen(map) {
+  try { localStorage.setItem(WA_SEEN_KEY, JSON.stringify(map)); } catch {}
+  // The ERP sidebar badge lives outside this page, so it is told directly
+  // instead of polling localStorage.
+  try { window.dispatchEvent(new Event("erp-wa-seen")); } catch {}
+}
+function waUnreadCount(chats = [], seen = {}, hidden = []) {
+  return chats.filter((c) =>
+    c.lastDirection === "inbound" &&
+    !hidden.includes(c.id) &&
+    Number(c.lastTs || 0) > Number(seen[c.id] || 0)
+  ).length;
+}
+
 function WhatsAppPage({ settings = {}, onSave }) {
+  const onMobileMenu = React.useContext(MobileNavContext);
   const [localSettings, setLocalSettings] = useState({
     waApiKey: settings.waApiKey || "",
     waPhoneId: settings.waPhoneId || "",
@@ -6142,6 +6196,12 @@ function WhatsAppPage({ settings = {}, onSave }) {
     waPluginId: settings.waPluginId || "",
     waOwnerPhone: settings.waOwnerPhone || "",
     waGroupNumbers: settings.waGroupNumbers || "",
+    // Names for the numbers in waGroupNumbers — see waParseDirectory.
+    waDirectory: settings.waDirectory || "",
+    // Chat ids kept out of the ERP inbox. This HIDES, it does not delete:
+    // Chakra stays the record of what the number actually received, and
+    // clearing a conversation for real is done in Chakra itself.
+    waHiddenChats: settings.waHiddenChats || "",
     waAnthropicKey: settings.waAnthropicKey || "",
     // Gemini powers the auto-reply agent. Chosen over Anthropic because it
     // reads text, images AND audio natively — a voice note needs no separate
@@ -6180,6 +6240,76 @@ function WhatsAppPage({ settings = {}, onSave }) {
   const [chatSearch,   setChatSearch]   = useState("");
   const threadEndRef = useRef(null);
 
+  // Which conversations have been read, and which are hidden from this inbox.
+  const [seen,       setSeen]       = useState(() => waReadSeen());
+  const [showHidden, setShowHidden] = useState(false);
+  // Downloaded attachments, keyed by "<messageId>:<index>". Fetched lazily and
+  // held for the session only: a data: URL in React state costs nothing once
+  // the thread is closed, and caching photos to disk is not ours to decide.
+  const [media, setMedia] = useState({});
+  // Starting a conversation from the ERP instead of waiting to be messaged.
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeTo,   setComposeTo]   = useState("");
+
+  // Setups that predate the number book already have a comma list of digits.
+  // Those numbers become rows with an empty name rather than disappearing, so
+  // the first time this screen opens the existing recipients are all there
+  // waiting to be named.
+  const directory = useMemo(() => {
+    const saved = waParseDirectory(localSettings.waDirectory);
+    if (saved.length) return saved;
+    return String(localSettings.waGroupNumbers || "")
+      .split(",").map((s) => s.trim()).filter(Boolean)
+      .map((phone) => ({ name: "", phone, dept: "" }));
+  }, [localSettings.waDirectory, localSettings.waGroupNumbers]);
+  const hiddenIds  = useMemo(() => {
+    try { const v = JSON.parse(localSettings.waHiddenChats || "[]"); return Array.isArray(v) ? v : []; }
+    catch { return []; }
+  }, [localSettings.waHiddenChats]);
+
+  // phone (last 10 digits) -> { name, dept }
+  const phoneBook = useMemo(() => {
+    const map = {};
+    directory.forEach((p) => { const k = waPhoneKey(p?.phone); if (k) map[k] = p; });
+    const ownerKey = waPhoneKey(localSettings.waOwnerPhone);
+    if (ownerKey && !map[ownerKey]) map[ownerKey] = { name: "Aap (owner)", dept: "" };
+    return map;
+  }, [directory, localSettings.waOwnerPhone]);
+
+  // The ERP's own name for a number always beats whatever the sender set as
+  // their WhatsApp display name — "Rajesh · Packing" is useful, "Raju bhai 🔥"
+  // is not.
+  const whoIs = (phone, fallback = "") => {
+    const hit = phoneBook[waPhoneKey(phone)];
+    if (hit?.name) return { name: hit.name, dept: hit.dept || "", known: true };
+    return { name: fallback || phone || "Unknown", dept: "", known: false };
+  };
+
+  const unread = useMemo(() => waUnreadCount(chats, seen, hiddenIds), [chats, seen, hiddenIds]);
+
+  // What the list actually shows: hidden conversations dropped unless asked
+  // for, then the search applied over the ERP's name, the department AND the
+  // digits — searching "packing" should find the packing supervisor even though
+  // Chakra has never heard the word.
+  const visibleChats = useMemo(() => {
+    const q = chatSearch.trim().toLowerCase();
+    return chats.filter((c) => {
+      if (!showHidden && hiddenIds.includes(c.id)) return false;
+      if (!q) return true;
+      const who = phoneBook[waPhoneKey(c.phone)] || {};
+      return [who.name, who.dept, c.name, c.phone]
+        .filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
+    });
+  }, [chats, chatSearch, showHidden, hiddenIds, phoneBook]);
+
+  // ── Settings state ──
+  // revealKey decides whether a saved secret shows as "Saved · …abc123" or as
+  // an editable box. A password field full of dots looks the same whether a
+  // key is stored or not, which is how a half-saved setup went unnoticed.
+  const [revealKey, setRevealKey] = useState({});
+  const [saveNote,  setSaveNote]  = useState("");
+  const [connCheck, setConnCheck] = useState(null); // null | checking | ok | bad
+
   // ── Message templates ──
   // A template is what lets the ERP START a conversation. Alerts fire at times
   // nobody is chatting, so without an approved template every outbound alert is
@@ -6210,6 +6340,52 @@ function WhatsAppPage({ settings = {}, onSave }) {
   const handleSave = () => {
     if (onSave) onSave({ ...settings, ...localSettings });
     setDirty(false);
+    setRevealKey({});
+    setSaveNote("Save ho gaya");
+    setTimeout(() => setSaveNote(""), 3000);
+  };
+
+  // What is still missing before anything can work. Named in the operator's
+  // words, not ours — "API key", not "waApiKey".
+  const setupMissing = [
+    !localSettings.waApiKey   && "API key",
+    !localSettings.waPluginId && "Plugin ID",
+    !localSettings.waPhoneId  && "Phone number ID",
+    !localSettings.waOwnerPhone && "aapka number",
+  ].filter(Boolean);
+
+  const deptNumbers = String(localSettings.waGroupNumbers || "")
+    .split(",").map((s) => s.trim()).filter(Boolean);
+
+  // The number book is the thing the operator edits; waGroupNumbers is derived
+  // from it on every change. Keeping that plain comma string in sync means the
+  // alert sender (and the deadline watcher in App) keep reading exactly what
+  // they always have — no migration, no second code path to get wrong.
+  const writeDirectory = (rows) => {
+    setLocalSettings((p) => ({
+      ...p,
+      waDirectory:    JSON.stringify(rows),
+      waGroupNumbers: rows.map((r) => String(r?.phone || "").trim()).filter(Boolean).join(", "),
+    }));
+    setDirty(true);
+  };
+  const setDirRow    = (i, patch) => writeDirectory(directory.map((r, j) => j === i ? { ...r, ...patch } : r));
+  const addDirRow    = ()         => writeDirectory([...directory, { name: "", phone: "", dept: "" }]);
+  const removeDirRow = (i)        => writeDirectory(directory.filter((_, j) => j !== i));
+
+  // A real call to Chakra, not a check that the boxes are non-empty. The old
+  // badge said "Connected" for a wrong key, which is worse than saying nothing.
+  const checkConnection = async () => {
+    if (!localSettings.waApiKey) return;
+    setConnCheck("checking");
+    try {
+      const { callWhatsAppFn } = await import("./stores/adminApi.js");
+      const res = await callWhatsAppFn("whatsapp-chats", { apiKey: localSettings.waApiKey });
+      setConnCheck(res?.success ? "ok" : "bad");
+      if (res?.success) setChats(res.chats || []);
+    } catch {
+      setConnCheck("bad");
+    }
   };
 
   const handleTest = async () => {
@@ -6239,32 +6415,92 @@ function WhatsAppPage({ settings = {}, onSave }) {
   };
 
   // ── Inbox loaders ───────────────────────────────────────────────────────
-  const loadChats = async () => {
+  // quiet=true is the 25-second background poll: no spinner, and a failed poll
+  // does not paint an error over a list that is still perfectly good.
+  const loadChats = async (quiet = false) => {
     if (!localSettings.waApiKey) { setChatsErr("पहले Settings में API key डालो"); return; }
-    setChatsLoading(true); setChatsErr("");
+    if (!quiet) { setChatsLoading(true); setChatsErr(""); }
     try {
       const { callWhatsAppFn } = await import("./stores/adminApi.js");
       const res = await callWhatsAppFn("whatsapp-chats", { apiKey: localSettings.waApiKey });
       if (res?.success) setChats(res.chats || []);
-      else setChatsErr(res?.error || "Chats नहीं आ सकीं");
+      else if (!quiet) setChatsErr(res?.error || "Chats नहीं आ सकीं");
     } catch (e) {
-      setChatsErr(e?.message || "Connection failed");
+      if (!quiet) setChatsErr(e?.message || "Connection failed");
     }
-    setChatsLoading(false);
+    if (!quiet) setChatsLoading(false);
   };
 
-  const openChat = async (chat) => {
-    setActiveChat(chat);
-    setMessages([]); setMsgsErr(""); setMsgsLoading(true);
+  // quiet=true is the background refresh of an already-open thread: it must not
+  // blank the messages or flash a spinner, or reading a long conversation would
+  // jump back to the top every few seconds.
+  const openChat = async (chat, quiet = false) => {
+    if (!quiet) {
+      setActiveChat(chat);
+      setMessages([]); setMsgsErr(""); setMsgsLoading(true);
+    }
+    // Opening a thread marks it read up to its newest message.
+    setSeen((prev) => {
+      const next = { ...prev, [chat.id]: Math.max(Number(chat.lastTs || 0), Number(prev[chat.id] || 0)) };
+      waWriteSeen(next);
+      return next;
+    });
     try {
       const { callWhatsAppFn } = await import("./stores/adminApi.js");
       const res = await callWhatsAppFn("whatsapp-messages", { apiKey: localSettings.waApiKey, chatId: chat.id });
-      if (res?.success) setMessages(res.messages || []);
-      else setMsgsErr(res?.error || "Messages नहीं आ सके");
+      if (res?.success) {
+        // An optimistic bubble whose send has not come back yet would vanish on
+        // a background refresh, so still-sending messages are kept on top.
+        setMessages((prev) => {
+          const pending = prev.filter((m) => m.status === "sending");
+          return [...(res.messages || []), ...pending];
+        });
+      } else if (!quiet) setMsgsErr(res?.error || "Messages नहीं आ सके");
     } catch (e) {
-      setMsgsErr(e?.message || "Connection failed");
+      if (!quiet) setMsgsErr(e?.message || "Connection failed");
     }
-    setMsgsLoading(false);
+    if (!quiet) setMsgsLoading(false);
+  };
+
+  // Hide from the ERP inbox. Deliberately not a delete: Chakra HQ remains the
+  // record of what the business number received, and wiping that is a decision
+  // taken in Chakra, not a side effect of tidying a list here.
+  const hideChat = (id) => {
+    const next = [...new Set([...hiddenIds, id])];
+    upd("waHiddenChats", JSON.stringify(next));
+    if (activeChat?.id === id) { setActiveChat(null); setMessages([]); }
+  };
+  const unhideChat = (id) => upd("waHiddenChats", JSON.stringify(hiddenIds.filter((x) => x !== id)));
+
+  // Attachments are fetched one at a time, on demand, through the server-side
+  // proxy — the API key needed to download them must never reach the browser.
+  const loadMedia = async (key, mediaId) => {
+    if (!mediaId || media[key]) return;
+    setMedia((p) => ({ ...p, [key]: { loading: true } }));
+    try {
+      const { callWhatsAppFn } = await import("./stores/adminApi.js");
+      const res = await callWhatsAppFn("whatsapp-media", { apiKey: localSettings.waApiKey, mediaId });
+      setMedia((p) => ({ ...p, [key]: res?.success ? { url: res.dataUrl, mimeType: res.mimeType } : { err: res?.error || "नहीं आ सका" } }));
+    } catch (e) {
+      setMedia((p) => ({ ...p, [key]: { err: e?.message || "नहीं आ सका" } }));
+    }
+  };
+
+  // Start a conversation with a number that has not messaged us. WhatsApp only
+  // allows this inside a 24-hour window opened by THEIR message, so if the
+  // number is new the first message has to be an approved template — which the
+  // compose box says plainly rather than letting the send fail silently.
+  const startChat = async () => {
+    const digits = composeTo.replace(/[^0-9]/g, "");
+    if (digits.length < 10) return;
+    const existing = chats.find((c) => waPhoneKey(c.phone) === waPhoneKey(digits));
+    setComposeOpen(false); setComposeTo("");
+    if (existing) { unhideChat(existing.id); openChat(existing); return; }
+    // No conversation yet: show a thread that exists only in the browser until
+    // the first message actually goes out.
+    const who = whoIs(digits);
+    setActiveChat({ id: `new-${digits}`, phone: digits, name: who.name, lastTs: 0, isNew: true });
+    setMessages([]); setMsgsErr("");
   };
 
   // Replying to someone who just messaged is a SESSION message, which WhatsApp
@@ -6290,7 +6526,22 @@ function WhatsAppPage({ settings = {}, onSave }) {
         ? { ...m, status: res?.success ? "sent" : "failed" }
         : m));
       if (!res?.success) setMsgsErr(res?.error || "Message नहीं गया");
-      else logWaMessage(activeChat.phone, text, "sent");
+      else {
+        logWaMessage(activeChat.phone, text, "sent");
+        // A conversation started from the ERP has no Chakra chat id until the
+        // first message lands, so the list is pulled again and the placeholder
+        // thread swapped for the real one.
+        if (activeChat.isNew) {
+          setTimeout(async () => {
+            await loadChats(true);
+            setChats((cur) => {
+              const real = cur.find((c) => waPhoneKey(c.phone) === waPhoneKey(activeChat.phone));
+              if (real) setActiveChat(real);
+              return cur;
+            });
+          }, 1500);
+        }
+      }
     } catch (e) {
       setMessages((prev) => prev.map((m) => m.id === optimistic.id ? { ...m, status: "failed" } : m));
       setMsgsErr(e?.message || "Send failed");
@@ -6309,6 +6560,69 @@ function WhatsAppPage({ settings = {}, onSave }) {
   useEffect(() => {
     if (threadEndRef.current) threadEndRef.current.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Messages arrive on the server whether or not anyone is looking at this
+  // page, so the inbox refreshes itself. Previously a new message only appeared
+  // if someone thought to press Refresh — which, for an alerting tool, is the
+  // one thing it must not require.
+  //
+  // Paused while the browser tab is hidden: a factory laptop can sit on this
+  // page all day, and polling a background tab is a call nobody will read.
+  useEffect(() => {
+    if (section !== "chats" || !localSettings.waApiKey) return;
+    const tick = () => { if (!document.hidden) loadChats(true); };
+    const t = setInterval(tick, 25000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section, localSettings.waApiKey]);
+
+  // The open conversation refreshes faster — this is where a reply is being
+  // waited for.
+  useEffect(() => {
+    if (section !== "chats" || !activeChat?.id || activeChat.isNew) return;
+    const t = setInterval(() => { if (!document.hidden) openChat(activeChat, true); }, 12000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section, activeChat?.id]);
+
+  // Photos load by themselves, the way they do on a phone — a fault photo that
+  // needs a click to appear is a fault photo nobody looks at. Capped at the
+  // twelve most recent, so opening a long thread does not pull down 200 images,
+  // and only images: a voice note or a PDF waits to be asked for.
+  useEffect(() => {
+    if (!activeChat?.id) return;
+    const wanted = [];
+    messages.forEach((m, mi) => (m.attachments || []).forEach((a, ai) => {
+      if (a.kind === "image" && a.mediaId) wanted.push([`${m.id || mi}:${ai}`, a.mediaId]);
+    }));
+    wanted.slice(-12).forEach(([key, id]) => { if (!media[key]) loadMedia(key, id); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, activeChat?.id]);
+
+  // When the last inbound message is older than 24 hours, WhatsApp's session
+  // window has closed and a plain text reply WILL be rejected by Meta. Saying
+  // so before the send is the difference between a clear rule and a mystery.
+  const sessionOpen = useMemo(() => {
+    const inbound = messages.filter((m) => m.direction === "inbound");
+    if (!inbound.length) return false;
+    const newest = Math.max(...inbound.map((m) => Number(m.ts || 0)));
+    const ms = newest < 1e12 ? newest * 1000 : newest;
+    return Date.now() - ms < 24 * 60 * 60 * 1000;
+  }, [messages]);
+
+  // A thread left open should not keep showing an unread mark as new messages
+  // land in it.
+  useEffect(() => {
+    if (!activeChat?.id || !messages.length) return;
+    const newest = Math.max(...messages.map((m) => Number(m.ts || 0)));
+    if (!newest) return;
+    setSeen((prev) => {
+      if (Number(prev[activeChat.id] || 0) >= newest) return prev;
+      const next = { ...prev, [activeChat.id]: newest };
+      waWriteSeen(next);
+      return next;
+    });
+  }, [messages, activeChat?.id]);
 
   // ── Template loaders ────────────────────────────────────────────────────
   const loadTemplates = async () => {
@@ -6501,7 +6815,8 @@ function WhatsAppPage({ settings = {}, onSave }) {
   // under a second name. Two places for one thing is a question the operator
   // has to answer every time they open the panel, so it is gone.
   const menuItems = [
-    { id: "chats",    Icon: MessagesSquare, label: "Chats",       badge: chats.length || null },
+    // Unread, not total: a count that never changes is a count nobody reads.
+    { id: "chats",    Icon: MessagesSquare, label: "Chats",       badge: unread || null },
     { id: "templates",Icon: FileText,       label: "Templates",   badge: templates.length || null },
     { id: "training", Icon: Sparkles,       label: "AI Training", badge: trainingData ? "●" : null },
     { id: "settings", Icon: Settings,       label: "Settings",    badge: dirty ? "●" : null },
@@ -6511,66 +6826,85 @@ function WhatsAppPage({ settings = {}, onSave }) {
     // has-active drives the one-pane-at-a-time behaviour on a phone: the list
     // and the conversation share the screen instead of fighting for it.
     <div className={`wa-root ${activeChat ? "has-active" : ""}`}>
-      <div className="wa-nav">
-        <div className="wa-nav-head">
+
+      {/* ── Module header ──
+          This used to be a second navy sidebar standing right beside the ERP's
+          own. Two dark rails in a row read as two different apps and ate 208px
+          of the width the conversation needed, so the sections became tabs in
+          an ERP page header — the same shape History & Reports and Settings
+          already use. */}
+      <div className="wa-top">
+        <div className="wa-top-row">
+          {/* Every other page gets this from Topbar. Without it a phone that
+              opened WhatsApp had no way back to the rest of the ERP. */}
+          {onMobileMenu && (
+            <button onClick={onMobileMenu} aria-label="Open navigation"
+                    className="nav-menu-btn flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center"
+                    style={{ color: "var(--wa-ink-2)", border: "1px solid var(--wa-line)" }}>
+              <Menu size={18} aria-hidden="true" />
+            </button>
+          )}
           <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
                style={{ background: "var(--wa-live)" }}>
             <WaLogo size={20} />
           </div>
-          <div className="min-w-0 wa-nav-title">
-            <div className="text-[13.5px] font-semibold text-white">WhatsApp</div>
-            <div className="text-[10.5px] flex items-center gap-1.5" style={{ color: connected ? "#7fd4a8" : "#e5c07b" }}>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-[17px] font-extrabold tracking-[-0.02em] leading-none"
+                style={{ color: "var(--wa-ink)" }}>WhatsApp</h1>
+            <div className="text-[11.5px] mt-1.5 leading-none flex items-center gap-1.5"
+                 style={{ color: "var(--wa-ink-2)" }}>
               <span className="inline-block w-1.5 h-1.5 rounded-full"
-                    style={{ background: connected ? "var(--wa-live)" : "#e5c07b" }} />
-              {connected ? "Connected" : "Not set up"}
+                    style={{ background: connected ? "var(--wa-live)" : "#d97706" }} />
+              {connected ? "+91 70161 00287" : "Abhi setup adhoora hai"}
             </div>
           </div>
-        </div>
-
-        <div className="flex-1 py-2 flex md:block">
-          {menuItems.map((item) => (
-            <button key={item.id} onClick={() => setSection(item.id)}
-                    title={item.label}
-                    className={`wa-nav-item ${section === item.id ? "is-on" : ""}`}>
-              <item.Icon size={18} className="flex-shrink-0" />
-              <span className="wa-nav-label">{item.label}</span>
-              {item.badge && <span className="wa-nav-badge">{item.badge}</span>}
-            </button>
-          ))}
-        </div>
-
-        {dirty && (
-          <div className="p-3 wa-nav-foot">
+          {dirty && (
             <button onClick={handleSave}
-                    className="w-full py-2.5 rounded-lg text-[12px] font-semibold text-white"
+                    className="px-4 py-2 rounded-lg text-[12px] font-semibold text-white flex-shrink-0"
                     style={{ background: "var(--wa-accent)" }}>
               Save changes
             </button>
-          </div>
-        )}
+          )}
+        </div>
+
+        <div className="wa-tabs">
+          {menuItems.map((item) => (
+            <button key={item.id} onClick={() => setSection(item.id)}
+                    className={`wa-tab ${section === item.id ? "is-on" : ""}`}>
+              <item.Icon size={15} className="flex-shrink-0" aria-hidden="true" />
+              <span>{item.label}</span>
+              {item.badge && <span className="wa-tab-badge">{item.badge}</span>}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── RIGHT: Content Area ── */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* ═══ CHATS (Quick Send) ═══ */}
+      {/* wa-pane is what the responsive rules hang off: below 760px the nav
+          drops to a bottom bar and this pane takes the whole screen. */}
+      <div className="wa-pane flex-col min-w-0 overflow-hidden">
+        {/* ═══ CHATS ═══ */}
         {section === "chats" && (
           <div className="flex-1 flex min-h-0">
 
             {/* ── Conversation list ── */}
-            {/* Fixed-width list, flexible thread — the split WhatsApp Web uses.
-                A percentage width here fought the flex-1 sibling and squeezed
-                the thread pane into a sliver. */}
-            <div className="flex flex-col min-h-0 wa-list flex-shrink-0"
-                 style={{ width: 380, borderRight: "1px solid var(--wa-line)" }}>
+            <div className="wa-list">
 
-              <div className="px-4 py-3 flex items-center gap-2 flex-shrink-0 wa-list-head">
+              <div className="wa-bar">
                 <div className="flex-1 min-w-0">
                   <div className="text-[15px] font-bold" style={{ color: "var(--wa-ink)" }}>Chats</div>
-                  <div className="text-[11px]" style={{ color: "var(--wa-ink-soft)" }}>
-                    {chatsLoading ? "आ रही हैं…" : chats.length ? `${chats.length} बातचीत` : "कोई बातचीत नहीं"}
+                  <div className="text-[11px]" style={{ color: "var(--wa-ink-2)" }}>
+                    {chatsLoading ? "आ रही हैं…"
+                      : unread ? `${unread} नया`
+                      : visibleChats.length ? `${visibleChats.length} बातचीत`
+                      : "कोई बातचीत नहीं"}
                   </div>
                 </div>
-                <button onClick={loadChats} disabled={chatsLoading} title="Refresh" className="wa-icon-btn">
+                <button onClick={() => { setComposeOpen(true); setComposeTo(""); }}
+                        className="wa-icon-btn" title="नई chat शुरू करो">
+                  <MessageSquarePlus size={18} />
+                </button>
+                <button onClick={() => loadChats()} disabled={chatsLoading} title="अभी refresh करो" className="wa-icon-btn">
                   <RefreshCw size={17} className={chatsLoading ? "animate-spin" : ""} />
                 </button>
               </div>
@@ -6578,12 +6912,58 @@ function WhatsAppPage({ settings = {}, onSave }) {
               <div className="px-3 py-2 flex-shrink-0" style={{ borderBottom: "1px solid var(--wa-line)" }}>
                 <div className="relative">
                   <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-                          style={{ color: "var(--wa-ink-soft)" }} />
+                          style={{ color: "var(--wa-ink-2)" }} />
                   <input value={chatSearch} onChange={(e) => setChatSearch(e.target.value)}
-                         placeholder="नाम या नंबर खोजो"
-                         className="wa-search" style={{ background: "var(--wa-panel)" }} />
+                         placeholder="नाम या नंबर खोजो" className="wa-search" />
                 </div>
               </div>
+
+              {/* Start a conversation with someone who has not messaged us.
+                  The number book comes first — typing digits is the fallback,
+                  not the main road. */}
+              {composeOpen && (
+                <div className="px-3 py-3 flex-shrink-0"
+                     style={{ background: "var(--wa-field)", borderBottom: "1px solid var(--wa-line)" }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-[12.5px] font-semibold" style={{ color: "var(--wa-ink)" }}>नई chat</div>
+                    <button onClick={() => setComposeOpen(false)} className="wa-icon-btn" style={{ width: 26, height: 26 }}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                  {directory.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {directory.filter((p) => p?.phone).map((p) => {
+                        const picked = waPhoneKey(composeTo) === waPhoneKey(p.phone);
+                        return (
+                          <button key={p.phone} onClick={() => setComposeTo(p.phone)}
+                                  className="text-[11.5px] px-2.5 py-1.5 rounded-full"
+                                  style={{
+                                    border: `1px solid ${picked ? "var(--wa-accent)" : "var(--wa-line)"}`,
+                                    background: picked ? "var(--wa-accent)" : "var(--wa-surface)",
+                                    color: picked ? "#fff" : "var(--wa-ink)",
+                                  }}>
+                            {p.name || p.phone}{p.dept ? ` · ${p.dept}` : ""}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input value={composeTo} autoFocus
+                           onChange={(e) => setComposeTo(e.target.value)}
+                           onKeyDown={(e) => { if (e.key === "Enter") startChat(); }}
+                           placeholder="919876543210"
+                           className="wa-field-input" style={{ flex: 1 }} />
+                    <button onClick={startChat} disabled={composeTo.replace(/[^0-9]/g, "").length < 10}
+                            className="px-3 rounded-lg text-[12.5px] font-semibold text-white flex-shrink-0 disabled:opacity-40"
+                            style={{ background: "var(--wa-accent)" }}>खोलो</button>
+                  </div>
+                  <div className="wa-field-help">
+                    {directory.length === 0 && "Settings में लोगों के नाम डाल दो तो यहाँ नाम से चुन सकोगे. "}
+                    Country code के साथ, बिना + या space.
+                  </div>
+                </div>
+              )}
 
               <div className="flex-1 overflow-y-auto">
                 {chatsErr && (
@@ -6594,104 +6974,207 @@ function WhatsAppPage({ settings = {}, onSave }) {
                   </div>
                 )}
 
-                {!chatsLoading && !chatsErr && chats.length === 0 && (
+                {!chatsLoading && !chatsErr && visibleChats.length === 0 && (
                   <div className="px-8 py-14 text-center">
                     <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center"
-                         style={{ background: "var(--wa-panel)" }}>
-                      <MessagesSquare size={28} style={{ color: "var(--wa-ink-soft)" }} />
+                         style={{ background: "var(--wa-field)" }}>
+                      <MessagesSquare size={28} style={{ color: "var(--wa-ink-2)" }} />
                     </div>
-                    <div className="text-[14px] font-bold mb-1" style={{ color: "var(--wa-ink)" }}>कोई chat नहीं है अभी</div>
-                    <div className="text-[12px] leading-relaxed" style={{ color: "var(--wa-ink-soft)" }}>
-                      कोई आपके WhatsApp नंबर पर message करेगा<br />तो वो यहाँ दिखेगा
+                    <div className="text-[14px] font-bold mb-1" style={{ color: "var(--wa-ink)" }}>
+                      {chatSearch ? "कुछ नहीं मिला" : "कोई chat नहीं है अभी"}
                     </div>
+                    <div className="text-[12px] leading-relaxed mb-4" style={{ color: "var(--wa-ink-2)" }}>
+                      {chatSearch
+                        ? <>इस नाम या नंबर से कोई बातचीत नहीं है</>
+                        : <>कोई आपके WhatsApp नंबर पर message करेगा<br />तो वो यहाँ अपने-आप दिखेगा</>}
+                    </div>
+                    {!chatSearch && (
+                      <button onClick={() => setComposeOpen(true)}
+                              className="text-[12px] font-semibold px-3.5 py-2 rounded-lg inline-flex items-center gap-1.5"
+                              style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>
+                        <Plus size={14} /> खुद से chat शुरू करो
+                      </button>
+                    )}
                   </div>
                 )}
 
-                {chats
-                  .filter((c) => {
-                    const q = chatSearch.trim().toLowerCase();
-                    if (!q) return true;
-                    return (c.name || "").toLowerCase().includes(q) || (c.phone || "").includes(q);
-                  })
-                  .map((c) => {
-                    const on = activeChat?.id === c.id;
-                    return (
-                      <button key={c.id} onClick={() => openChat(c)} className={`wa-row ${on ? "is-on" : ""}`}>
-                        <div className="wa-av" style={{ background: waAvatarColor(c.name || c.phone) }}>
-                          {(c.name || "?").trim().charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline justify-between gap-2">
-                            <div className="text-[14.5px] font-semibold truncate" style={{ color: "var(--wa-ink)" }}>{c.name}</div>
-                            <div className="text-[11px] flex-shrink-0" style={{ color: "var(--wa-ink-soft)" }}>{waTime(c.lastTs)}</div>
+                {visibleChats.map((c) => {
+                  const on   = activeChat?.id === c.id;
+                  const who  = whoIs(c.phone, c.name);
+                  const isUnread = c.lastDirection === "inbound" && Number(c.lastTs || 0) > Number(seen[c.id] || 0);
+                  const isHidden = hiddenIds.includes(c.id);
+                  return (
+                    <div key={c.id} role="button" tabIndex={0}
+                         onClick={() => openChat(c)}
+                         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openChat(c); } }}
+                         className={`wa-row ${on ? "is-on" : ""}`}>
+                      <div className="wa-av" style={{ background: waAvatarColor(who.name || c.phone) }}>
+                        {who.known || /[a-z]/i.test(who.name) ? (who.name || "?").trim().charAt(0).toUpperCase() : <User size={18} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <div className="text-[14.5px] truncate"
+                               style={{ color: "var(--wa-ink)", fontWeight: isUnread ? 700 : 600 }}>
+                            {who.name}
                           </div>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            {c.lastDirection === "outbound" && <CheckCheck size={14} className="flex-shrink-0 wa-tick-read" />}
-                            <div className="text-[13px] truncate" style={{ color: "var(--wa-ink-soft)" }}>
-                              {c.lastText || "—"}
-                            </div>
+                          <div className="text-[11px] flex-shrink-0"
+                               style={{ color: isUnread ? "var(--wa-live)" : "var(--wa-ink-2)", fontWeight: isUnread ? 700 : 400 }}>
+                            {waTime(c.lastTs)}
                           </div>
                         </div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {c.lastDirection === "outbound" && <CheckCheck size={14} className="flex-shrink-0 wa-tick-read" />}
+                          <div className="text-[13px] truncate flex-1"
+                               style={{ color: "var(--wa-ink-2)", fontWeight: isUnread ? 600 : 400 }}>
+                            {c.lastText || "—"}
+                          </div>
+                          {isUnread && <span className="wa-unread" />}
+                        </div>
+                        {/* The number book's answer, shown so a wrong entry is
+                            visible rather than silently mislabelling someone. */}
+                        {(who.dept || !who.known) && (
+                          <div className="text-[10.5px] mt-0.5 truncate" style={{ color: "var(--wa-ink-2)" }}>
+                            {who.known ? who.dept : c.phone}
+                          </div>
+                        )}
+                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); isHidden ? unhideChat(c.id) : hideChat(c.id); }}
+                              className="wa-row-act"
+                              title={isHidden ? "ERP में वापस दिखाओ" : "ERP की list से छिपाओ"}>
+                        {isHidden ? <Eye size={15} /> : <EyeOff size={15} />}
                       </button>
-                    );
-                  })}
+                    </div>
+                  );
+                })}
+
+                {/* Hidden conversations stay reachable. A tidy list that quietly
+                    swallows a real message would be worse than an untidy one. */}
+                {hiddenIds.length > 0 && (
+                  <button onClick={() => setShowHidden((v) => !v)}
+                          className="w-full px-4 py-3 text-[11.5px] flex items-center justify-center gap-1.5"
+                          style={{ color: "var(--wa-ink-2)", borderTop: "1px solid var(--wa-line)" }}>
+                    {showHidden ? <EyeOff size={13} /> : <Eye size={13} />}
+                    {showHidden ? "छिपाई हुई chats बंद करो" : `${hiddenIds.length} छिपाई हुई chat दिखाओ`}
+                  </button>
+                )}
               </div>
             </div>
 
             {/* ── Thread ── */}
             {!activeChat ? (
-              <div className="flex-1 wa-empty">
+              <div className="wa-thread-pane wa-empty">
                 <div className="w-20 h-20 rounded-full mb-5 flex items-center justify-center"
-                     style={{ background: "rgba(0,168,132,.12)" }}>
+                     style={{ background: "rgba(15,157,88,.12)" }}>
                   <WaLogo size={40} />
                 </div>
                 <div className="text-[20px] font-light mb-2" style={{ color: "var(--wa-ink)" }}>Shantaz WhatsApp</div>
-                <div className="text-[13px] max-w-sm leading-relaxed" style={{ color: "var(--wa-ink-soft)" }}>
+                <div className="text-[13px] max-w-sm leading-relaxed" style={{ color: "var(--wa-ink-2)" }}>
                   बाएँ से कोई chat चुनो और वहीं से जवाब दो.<br />
                   सारी बातचीत ERP में रहती है — किसी एक के फ़ोन में नहीं.
                 </div>
               </div>
             ) : (
-              <div className="flex-1 flex flex-col min-h-0">
+              <div className="wa-thread-pane">
 
                 <div className="px-4 py-2.5 flex items-center gap-3 flex-shrink-0"
-                     style={{ background: "var(--wa-panel)", borderBottom: "1px solid var(--wa-line)" }}>
+                     style={{ background: "var(--wa-field)", borderBottom: "1px solid var(--wa-line)" }}>
                   <button onClick={() => { setActiveChat(null); setMessages([]); setMsgsErr(""); }}
                           className="wa-icon-btn" title="वापस">
                     <ArrowLeft size={18} />
                   </button>
-                  <div className="wa-av" style={{ width: 40, height: 40, fontSize: 15, background: waAvatarColor(activeChat.name || activeChat.phone) }}>
-                    {(activeChat.name || "?").trim().charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[14.5px] font-semibold truncate" style={{ color: "var(--wa-ink)" }}>{activeChat.name}</div>
-                    <div className="text-[11.5px] truncate" style={{ color: "var(--wa-ink-soft)" }}>{activeChat.phone}</div>
-                  </div>
-                  <button onClick={() => openChat(activeChat)} disabled={msgsLoading} className="wa-icon-btn" title="Refresh">
-                    <RefreshCw size={17} className={msgsLoading ? "animate-spin" : ""} />
-                  </button>
+                  {(() => {
+                    const who = whoIs(activeChat.phone, activeChat.name);
+                    return (
+                      <>
+                        <div className="wa-av" style={{ width: 40, height: 40, fontSize: 15, background: waAvatarColor(who.name || activeChat.phone) }}>
+                          {who.known || /[a-z]/i.test(who.name) ? (who.name || "?").trim().charAt(0).toUpperCase() : <User size={18} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[14.5px] font-semibold truncate" style={{ color: "var(--wa-ink)" }}>{who.name}</div>
+                          <div className="text-[11.5px] truncate" style={{ color: "var(--wa-ink-2)" }}>
+                            {who.dept ? `${who.dept} · ` : ""}{activeChat.phone}
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                  {!activeChat.isNew && (
+                    <>
+                      <button onClick={() => hideChat(activeChat.id)} className="wa-icon-btn" title="ERP की list से छिपाओ">
+                        <EyeOff size={17} />
+                      </button>
+                      <button onClick={() => openChat(activeChat)} disabled={msgsLoading} className="wa-icon-btn" title="Refresh">
+                        <RefreshCw size={17} className={msgsLoading ? "animate-spin" : ""} />
+                      </button>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col wa-thread">
                   {msgsLoading && messages.length === 0 && (
-                    <div className="m-auto text-[12.5px]" style={{ color: "var(--wa-ink-soft)" }}>messages आ रहे हैं…</div>
+                    <div className="m-auto text-[12.5px]" style={{ color: "var(--wa-ink-2)" }}>messages आ रहे हैं…</div>
                   )}
                   {!msgsLoading && messages.length === 0 && !msgsErr && (
-                    <div className="m-auto text-[12.5px]" style={{ color: "var(--wa-ink-soft)" }}>इस chat में अभी कोई message नहीं</div>
+                    <div className="m-auto text-[12.5px] text-center" style={{ color: "var(--wa-ink-2)" }}>
+                      {activeChat.isNew
+                        ? <>यह नई chat है.<br />नीचे पहला message लिखो.</>
+                        : "इस chat में अभी कोई message नहीं"}
+                    </div>
                   )}
 
                   {messages.map((m, i) => {
                     const out  = m.direction === "outbound";
-                    // A date chip whenever the day changes, like WhatsApp.
                     const prev = messages[i - 1];
                     const day  = waDayLabel(m.ts);
                     const showDay = day && (!prev || waDayLabel(prev.ts) !== day);
+                    const atts = m.attachments || [];
                     return (
                       <React.Fragment key={m.id || i}>
                         {showDay && <div className="wa-day">{day}</div>}
                         <div className="flex w-full" style={{ justifyContent: out ? "flex-end" : "flex-start", marginTop: 2, marginBottom: 2 }}>
                           <div className={`wa-bubble ${out ? "is-out" : "is-in"} ${m.status === "sending" ? "wa-sending" : ""}`}>
-                            {m.text || (m.hasAttachment ? "📎 attachment" : "—")}
+                            {atts.map((a, ai) => {
+                              const key = `${m.id || i}:${ai}`;
+                              const got = media[key];
+                              if (a.kind === "image") {
+                                return (
+                                  <div key={ai} className="wa-att">
+                                    {got?.url
+                                      ? <img src={got.url} alt={a.caption || "photo"} className="wa-att-img"
+                                             onClick={() => window.open(got.url, "_blank")} />
+                                      : <div className="wa-att-ph">
+                                          <ImageIcon size={18} />
+                                          <span>{got?.loading ? "photo आ रही है…" : got?.err || "photo"}</span>
+                                        </div>}
+                                  </div>
+                                );
+                              }
+                              if (a.kind === "audio" || a.kind === "voice") {
+                                return (
+                                  <div key={ai} className="wa-att">
+                                    {got?.url
+                                      ? <audio controls src={got.url} className="w-full" style={{ height: 36 }} />
+                                      : <button onClick={() => loadMedia(key, a.mediaId)} className="wa-att-ph">
+                                          <Mic size={18} />
+                                          <span>{got?.loading ? "आ रहा है…" : got?.err || "voice note सुनो"}</span>
+                                        </button>}
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div key={ai} className="wa-att">
+                                  {got?.url
+                                    ? <a href={got.url} download={a.filename || "file"} className="wa-att-ph">
+                                        <FileDown size={18} /><span>{a.filename || "file save करो"}</span>
+                                      </a>
+                                    : <button onClick={() => loadMedia(key, a.mediaId)} className="wa-att-ph">
+                                        <Paperclip size={18} />
+                                        <span>{got?.loading ? "आ रहा है…" : got?.err || a.filename || "file"}</span>
+                                      </button>}
+                                </div>
+                              );
+                            })}
+                            {(m.text || atts.length === 0) && (m.text || "—")}
                             <span className="wa-meta">
                               {waClock(m.ts)}
                               {out && (
@@ -6717,9 +7200,24 @@ function WhatsAppPage({ settings = {}, onSave }) {
                   </div>
                 )}
 
+                {/* WhatsApp's own rule, said out loud. Without this the send
+                    just fails and the operator has no way to know why. */}
+                {!sessionOpen && (
+                  <div className="mx-3 mb-2 px-3 py-2 rounded-lg text-[11.5px] flex items-start gap-2 flex-shrink-0"
+                       style={{ background: "rgba(217,119,6,.08)", border: "1px solid rgba(217,119,6,.3)", color: "#92400e" }}>
+                    <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+                    <span>
+                      24 घंटे से इनका कोई message नहीं आया. WhatsApp का नियम है कि अब
+                      सीधा message नहीं जा सकता — पहले approved template भेजना पड़ता है,
+                      या वो आपको message करें तो 24 घंटे खुल जाते हैं.
+                    </span>
+                  </div>
+                )}
+
+                {/* No emoji or clip button here. Both were decoration — they
+                    were disabled, did nothing, and every disabled button is a
+                    question the operator asks once and then stops trusting. */}
                 <div className="px-3 py-2.5 flex items-center gap-2 flex-shrink-0 wa-composer">
-                  <button className="wa-icon-btn" title="Emoji (जल्द)" disabled><Smile size={20} /></button>
-                  <button className="wa-icon-btn" title="File (जल्द)" disabled><Paperclip size={19} /></button>
                   <input value={reply} onChange={(e) => setReply(e.target.value)}
                          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } }}
                          placeholder="Message likho…" className="wa-input" />
@@ -6874,7 +7372,7 @@ action. If you need any help with this update, simply reply to this message.`}
               {chatMessages.length === 0 && (
                 <div className="text-center py-12">
                   <div className="text-5xl mb-4">🤖</div>
-                  <div className="text-[15px] font-bold mb-2" style={{ color: "#111" }}>मैं Claude हूँ</div>
+                  <div className="text-[15px] font-bold mb-2" style={{ color: "#111" }}>मैं आपका WhatsApp agent हूँ</div>
                   <div className="text-[12px] mb-5" style={{ color: "#666" }}>मुझे train करो — Departments, contacts, alert rules सब सिखाओ।<br />मैं खुद सवाल पूछूँगा।</div>
                   <div className="flex flex-wrap justify-center gap-2">
                     {["Training शुरू करो", "Departments बताता हूँ", "Alert rules set करो", "Message format बदलो"].map((q) => (
@@ -6935,118 +7433,232 @@ action. If you need any help with this update, simply reply to this message.`}
 
         {/* ═══ SETTINGS ═══ */}
         {section === "settings" && (
-          <div className="flex-1 flex flex-col">
-            <div className="px-5 py-3 flex items-center gap-3" style={{ background: "var(--surface-raised)", borderBottom: "1px solid var(--border-subtle)" }}>
-              <span className="text-lg">⚙️</span>
-              <div>
-                <div className="text-[14px] font-bold" style={{ color: "var(--text)" }}>Settings</div>
-                <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>WhatsApp connection & alert configuration</div>
+          <div className="wa-page">
+            <div className="wa-wrap">
+
+              {/* Status first. The old badge only checked that the boxes were
+                  non-empty, so a wrong key still read "Connected". This reports
+                  what is actually true: which number is in use, whether the
+                  last real call to Chakra worked, and what is still missing. */}
+              <div className="wa-status">
+                <span className="wa-dot" style={{ background: setupMissing.length ? "#d97706" : connCheck === "bad" ? "var(--wa-accent)" : "var(--wa-live)" }} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[14px] font-semibold" style={{ color: "var(--wa-ink)" }}>
+                    {setupMissing.length
+                      ? "Setup adhoora hai"
+                      : connCheck === "bad" ? "Chakra HQ se baat nahi ho pa rahi"
+                      : connCheck === "ok"  ? "Chalu hai"
+                      : "Jaancha nahi gaya"}
+                  </div>
+                  <div className="text-[12px] mt-0.5" style={{ color: "var(--wa-ink-2)" }}>
+                    {setupMissing.length
+                      ? `Baaki hai: ${setupMissing.join(", ")}`
+                      : <>Business number <b>+91 70161 00287</b>{chats.length ? ` · ${chats.length} baatcheet` : ""}</>}
+                  </div>
+                </div>
+                <button onClick={checkConnection} disabled={connCheck === "checking" || !localSettings.waApiKey}
+                        className="text-[12px] font-semibold px-3 py-2 rounded-lg flex-shrink-0 disabled:opacity-40"
+                        style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>
+                  {connCheck === "checking" ? "Jaanch raha hoon…" : "Connection jaancho"}
+                </button>
               </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              {/* Connection Settings */}
-              <div className="rounded-xl p-4" style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
-                <div className="text-[11px] font-bold mb-3" style={{ color: "var(--text-dim)" }}>🔗 CHAKRA HQ CONNECTION</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+              {/* ── Connection ── */}
+              <div className="wa-card">
+                <div className="wa-card-head">
+                  <div className="wa-card-title">Chakra HQ connection</div>
+                  <div className="wa-card-note">
+                    Ye chaar cheezein Chakra HQ se aati hain. Ek baar daalne ke baad dobara chhoone ki zaroorat nahi.
+                  </div>
+                </div>
+                <div className="wa-card-body grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[
-                    { key: "waApiKey",       label: "API Key (Chakra HQ)",    type: "password", ph: "Bearer token paste करो" },
-                    { key: "waPluginId",     label: "Plugin ID",              type: "text",     ph: "Chakra HQ URL से copy करो" },
-                    { key: "waPhoneId",      label: "Phone Number ID",        type: "text",     ph: "WhatsApp Accounts से" },
-                    { key: "waWabaId",       label: "WABA ID",                type: "text",     ph: "Templates बनाने के लिए" },
-                    { key: "waOwnerPhone",   label: "Owner / Admin Phone",    type: "text",     ph: "919876543210", filter: /[^0-9]/g },
-                    { key: "waGroupNumbers", label: "Dept Heads (comma-sep)", type: "text",     ph: "919876543210, 919876543211" },
-                    { key: "waGeminiKey",    label: "Gemini API Key (AI)",    type: "password", ph: "aistudio.google.com से" },
-                    { key: "waAnthropicKey", label: "Anthropic API Key (optional)", type: "password", ph: "console.anthropic.com से" },
-                  ].map(({ key, label, type, ph, filter }) => (
-                    <div key={key}>
-                      <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-dim)" }}>{label}</div>
-                      <input type={type} value={localSettings[key]} onChange={(e) => upd(key, filter ? e.target.value.replace(filter, "") : e.target.value)}
-                             placeholder={ph} className="w-full px-3 py-2 rounded-lg text-[13px]"
-                             style={{ background: "var(--surface-base)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
+                    { key: "waApiKey",   label: "API key",         secret: true,  help: "Chakra HQ → API Integration → New ApiKey. Role Admin rakhna, warna chats nahi dikhengi." },
+                    { key: "waPluginId", label: "Plugin ID",       secret: false, help: "Chakra HQ → Whatsapp Accounts → View Plugin. Address bar me jo lamba number hai." },
+                    { key: "waPhoneId",  label: "Phone number ID", secret: false, help: "Chakra HQ → Whatsapp Accounts, aapke number ke neeche likha ID." },
+                    { key: "waWabaId",   label: "WABA ID",         secret: false, help: "Usi page par business account ka ID. Templates banane ke liye chahiye." },
+                  ].map(({ key, label, secret, help }) => {
+                    const val = localSettings[key] || "";
+                    return (
+                      <div key={key}>
+                        <div className="wa-field-label">{label}</div>
+                        {/* A password box full of dots looks identical whether a
+                            key is saved or not. This says which it is, and only
+                            opens an input when you actually want to change it. */}
+                        {secret && val && !revealKey[key] ? (
+                          <div className="flex items-center gap-2">
+                            <div className="wa-field-input flex items-center gap-2" style={{ color: "var(--wa-ink-2)" }}>
+                              <Check size={14} style={{ color: "var(--wa-live)" }} />
+                              Saved · …{val.slice(-6)}
+                            </div>
+                            <button onClick={() => setRevealKey((p) => ({ ...p, [key]: true }))}
+                                    className="text-[12px] font-semibold px-3 py-2 rounded-lg flex-shrink-0"
+                                    style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Badlo</button>
+                          </div>
+                        ) : (
+                          <input type={secret ? "password" : "text"} value={val}
+                                 onChange={(e) => upd(key, e.target.value.trim())}
+                                 placeholder={secret ? "Paste karo" : ""}
+                                 className="wa-field-input" />
+                        )}
+                        <div className="wa-field-help">{help}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* ── Who gets alerts ── */}
+              <div className="wa-card">
+                <div className="wa-card-head">
+                  <div className="wa-card-title">Alert kisko jaaye</div>
+                  <div className="wa-card-note">Machine par kuch hone par in numbers par WhatsApp jayega.</div>
+                </div>
+                <div className="wa-card-body space-y-4">
+                  <div>
+                    <div className="wa-field-label">Aapka number</div>
+                    <input value={localSettings.waOwnerPhone}
+                           onChange={(e) => upd("waOwnerPhone", e.target.value.replace(/[^0-9]/g, ""))}
+                           placeholder="919876543210" className="wa-field-input" />
+                    <div className="wa-field-help">Country code ke saath, bina + ya space. Har alert yahan aayega.</div>
+                  </div>
+                  {/* A comma-separated string of digits used to live here. It
+                      was enough to SEND an alert and useless for everything
+                      else: the inbox could not name whose message it was, and
+                      nobody could tell whether a number in the list was still
+                      the right person. Same list, with the two facts that make
+                      it readable — who, and which department. */}
+                  <div>
+                    <div className="wa-field-label">Baaki log — naam ke saath</div>
+                    <div className="space-y-2 mt-1">
+                      {directory.map((p, i) => (
+                        <div key={i} className="flex gap-2 items-center wa-dir-row">
+                          <input value={p.name || ""} placeholder="Naam"
+                                 onChange={(e) => setDirRow(i, { name: e.target.value })}
+                                 className="wa-field-input" style={{ flex: "1 1 32%" }} />
+                          <input value={p.phone || ""} placeholder="919876543210" inputMode="numeric"
+                                 onChange={(e) => setDirRow(i, { phone: e.target.value.replace(/[^0-9]/g, "") })}
+                                 className="wa-field-input" style={{ flex: "1 1 34%" }} />
+                          <input value={p.dept || ""} placeholder="Department"
+                                 onChange={(e) => setDirRow(i, { dept: e.target.value })}
+                                 className="wa-field-input" style={{ flex: "1 1 28%" }} />
+                          <button onClick={() => removeDirRow(i)} className="wa-icon-btn" title="Hatao">
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <button onClick={addDirRow}
+                            className="mt-2 text-[12px] font-semibold px-3 py-2 rounded-lg inline-flex items-center gap-1.5"
+                            style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>
+                      <Plus size={14} /> Aadmi jodo
+                    </button>
+                    <div className="wa-field-help">
+                      Inhe bhi wahi alert jayega jo aapko jata hai, aur Chats me inke
+                      message naam se dikhenge — number se nahi.
+                      {deptNumbers.length > 0 && ` Abhi ${deptNumbers.length} number set hain.`}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Alerts. Daily Summary used to sit here with a toggle that
+                  switched nothing on — no daily-summary code exists — so it is
+                  gone rather than quietly lying. ── */}
+              <div className="wa-card">
+                <div className="wa-card-head">
+                  <div className="wa-card-title">Kaunse alert bhejne hain</div>
+                  <div className="wa-card-note">Production floor par ye hone par turant WhatsApp jayega.</div>
+                </div>
+                <div className="wa-card-body pt-1">
+                  {[
+                    { key: "waNotifyIssue",    dot: "#dc2626", label: "Machine par issue",   desc: "Koi fault raise kare" },
+                    { key: "waNotifyTransfer", dot: "#0f9d58", label: "Transfer complete",   desc: "Machine agle department me gayi" },
+                    { key: "waNotifyDeadline", dot: "#d97706", label: "Deadline nikal gayi", desc: "Tay samay se zyada lag gaya" },
+                  ].map(({ key, dot, label, desc }) => (
+                    <div key={key} className="wa-switch-row">
+                      <span className="wa-dot" style={{ background: dot }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13.5px] font-semibold" style={{ color: "var(--wa-ink)" }}>{label}</div>
+                        <div className="text-[12px]" style={{ color: "var(--wa-ink-2)" }}>{desc}</div>
+                      </div>
+                      <button onClick={() => upd(key, !localSettings[key])} aria-pressed={!!localSettings[key]}
+                              className="wa-toggle"
+                              style={{ background: localSettings[key] ? "var(--wa-live)" : "#cbd5e1" }}>
+                        <i style={{ transform: localSettings[key] ? "translateX(21px)" : "translateX(3px)" }} />
+                      </button>
                     </div>
                   ))}
                 </div>
-                {connected && (
-                  <button onClick={handleTest} disabled={testStatus === "sending"} className="mt-3 px-4 py-1.5 rounded-lg text-[12px] font-bold text-white"
-                          style={{ background: testStatus === "success" ? "#15803d" : testStatus === "fail" ? "#dc2626" : "#25D366" }}>
-                    {testStatus === "sending" ? "⏳ Sending..." : testStatus === "success" ? "✅ Sent!" : testStatus === "fail" ? "❌ Failed" : "🔔 Test WhatsApp"}
-                  </button>
-                )}
               </div>
 
-              {/* Alert Toggles */}
-              <div className="rounded-xl p-4" style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
-                <div className="text-[11px] font-bold mb-3" style={{ color: "var(--text-dim)" }}>🔔 ALERT TRIGGERS</div>
-                {[
-                  { key: "waNotifyIssue",    icon: "🔴", label: "Issue Raised",      desc: "Machine issue → instant alert" },
-                  { key: "waNotifyTransfer", icon: "🟢", label: "Transfer Complete", desc: "Machine handover → notification" },
-                  { key: "waNotifyDeadline", icon: "🟡", label: "Deadline Exceeded", desc: "Time limit cross → auto alert" },
-                  { key: "waNotifyDaily",    icon: "📊", label: "Daily Summary",     desc: "Morning summary — 8 AM" },
-                  // Turns the Gemini auto-reply webhook on. Off by default so
-                  // nothing answers customers until the operator has trained it.
-                  { key: "waAutoReply",      icon: "🤖", label: "Auto-Reply (AI)",   desc: "आने वाले message का अपने-आप जवाब" },
-                ].map(({ key, icon, label, desc }) => (
-                  <div key={key} className="flex items-center justify-between py-2.5" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                    <div className="flex items-center gap-2">
-                      <span>{icon}</span>
-                      <div>
-                        <div className="text-[13px] font-semibold" style={{ color: "var(--text)" }}>{label}</div>
-                        <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>{desc}</div>
+              {/* ── Auto-reply. Moved out of the alert list, where it had
+                  nothing to do with machine events, and put beside the key
+                  that actually powers it. ── */}
+              <div className="wa-card">
+                <div className="wa-card-head">
+                  <div className="wa-card-title">Apne-aap jawab dena</div>
+                  <div className="wa-card-note">
+                    Koi aapke number par message kare to bina kisi ke baithe jawab chala jayega.
+                    Jo aap AI Training me sikhaoge, wahi bolega.
+                  </div>
+                </div>
+                <div className="wa-card-body">
+                  <div className="wa-switch-row" style={{ paddingTop: 0 }}>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13.5px] font-semibold" style={{ color: "var(--wa-ink)" }}>Auto-reply chalu</div>
+                      <div className="text-[12px]" style={{ color: "var(--wa-ink-2)" }}>
+                        {localSettings.waGeminiKey ? "Key set hai" : "Pehle neeche Gemini key daalo"}
                       </div>
                     </div>
-                    <button onClick={() => upd(key, !localSettings[key])}
-                            className="w-11 h-6 rounded-full transition-colors relative"
-                            style={{ background: localSettings[key] ? "#25D366" : "var(--border-subtle)" }}>
-                      <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
-                           style={{ transform: localSettings[key] ? "translateX(22px)" : "translateX(2px)" }} />
+                    <button onClick={() => upd("waAutoReply", !localSettings.waAutoReply)}
+                            disabled={!localSettings.waGeminiKey}
+                            aria-pressed={!!localSettings.waAutoReply}
+                            className="wa-toggle disabled:opacity-40"
+                            style={{ background: localSettings.waAutoReply ? "var(--wa-live)" : "#cbd5e1" }}>
+                      <i style={{ transform: localSettings.waAutoReply ? "translateX(21px)" : "translateX(3px)" }} />
                     </button>
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* ═══ MESSAGE LOG ═══ */}
-        {section === "log" && (
-          <div className="flex-1 flex flex-col">
-            <div className="px-5 py-3 flex items-center justify-between" style={{ background: "var(--surface-raised)", borderBottom: "1px solid var(--border-subtle)" }}>
-              <div className="flex items-center gap-3">
-                <span className="text-lg">📋</span>
-                <div>
-                  <div className="text-[14px] font-bold" style={{ color: "var(--text)" }}>Message Log</div>
-                  <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>{msgLog.length} messages total</div>
+                  <div className="pt-3">
+                    <div className="wa-field-label">Gemini API key</div>
+                    {localSettings.waGeminiKey && !revealKey.waGeminiKey ? (
+                      <div className="flex items-center gap-2">
+                        <div className="wa-field-input flex items-center gap-2" style={{ color: "var(--wa-ink-2)" }}>
+                          <Check size={14} style={{ color: "var(--wa-live)" }} />
+                          Saved · …{localSettings.waGeminiKey.slice(-6)}
+                        </div>
+                        <button onClick={() => setRevealKey((p) => ({ ...p, waGeminiKey: true }))}
+                                className="text-[12px] font-semibold px-3 py-2 rounded-lg flex-shrink-0"
+                                style={{ border: "1px solid var(--wa-line)", color: "var(--wa-ink)" }}>Badlo</button>
+                      </div>
+                    ) : (
+                      <input type="password" value={localSettings.waGeminiKey}
+                             onChange={(e) => upd("waGeminiKey", e.target.value.trim())}
+                             placeholder="Paste karo" className="wa-field-input" />
+                    )}
+                    <div className="wa-field-help">aistudio.google.com → Create API key</div>
+                  </div>
                 </div>
               </div>
-              {msgLog.length > 0 && (
-                <button onClick={() => { setMsgLog([]); try { localStorage.removeItem("erp_wa_log"); } catch {} }}
-                        className="text-[11px] px-3 py-1 rounded-lg font-medium" style={{ color: "#dc2626", background: "rgba(220,38,38,0.06)" }}>Clear All</button>
-              )}
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              {msgLog.length === 0 ? (
-                <div className="text-center py-16">
-                  <div className="text-5xl mb-4">📭</div>
-                  <div className="text-[15px] font-bold mb-2" style={{ color: "var(--text)" }}>No messages yet</div>
-                  <div className="text-[12px]" style={{ color: "var(--text-dim)" }}>WhatsApp alerts will appear here when triggered</div>
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {msgLog.map((m, i) => (
-                    <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl text-[12px]"
-                         style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
-                      <span className="text-[16px]">{m.status === "sent" ? "✅" : "❌"}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium" style={{ color: "var(--text)" }}>{m.message}</div>
-                        <div className="text-[11px] mt-0.5" style={{ color: "var(--text-dim)" }}>To: {m.to}</div>
-                      </div>
-                      <div className="text-[10px] whitespace-nowrap" style={{ color: "var(--text-dim)" }}>
-                        {new Date(m.time).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+
+              {/* Saving used to just make the button vanish, which left you
+                  guessing — twice today it looked saved when it was not. */}
+              <div className="flex items-center gap-3">
+                <button onClick={handleSave} disabled={!dirty}
+                        className="px-5 py-2.5 rounded-lg text-[13px] font-semibold text-white disabled:opacity-40"
+                        style={{ background: "var(--wa-accent)" }}>
+                  Save changes
+                </button>
+                {saveNote && (
+                  <span className="text-[12.5px] flex items-center gap-1.5" style={{ color: "var(--wa-live)" }}>
+                    <Check size={15} /> {saveNote}
+                  </span>
+                )}
+                {dirty && !saveNote && (
+                  <span className="text-[12.5px]" style={{ color: "var(--wa-ink-2)" }}>Kuch badla hai, abhi save nahi hua</span>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -19843,6 +20455,40 @@ export default function App() {
   // when Supabase is enabled; falls back silently to [] if the schema isn't
   // migrated yet or the fetch fails. Non-sensitive data (id, username,
   // full_name, departments) — safe to hold in client memory.
+  // ── WhatsApp unread badge ───────────────────────────────────────────────
+  // The point of putting WhatsApp inside the ERP is to find out something
+  // happened WITHOUT opening it. So the count is polled here, beside the
+  // sidebar that shows it, rather than inside the WhatsApp page — which only
+  // exists while someone is already looking at it.
+  //
+  // Deliberately cheap: nothing at all unless a key is configured, once a
+  // minute, paused on a hidden tab, and silent on failure — a sidebar number
+  // is never worth an error message.
+  const [waUnread, setWaUnread] = useState(0);
+  useEffect(() => {
+    if (!settings.waApiKey) { setWaUnread(0); return; }
+    let stop = false;
+    const poll = async () => {
+      if (document.hidden) return;
+      try {
+        const { callWhatsAppFn } = await import("./stores/adminApi.js");
+        const res = await callWhatsAppFn("whatsapp-chats", { apiKey: settings.waApiKey });
+        if (stop || !res?.success) return;
+        let hidden = [];
+        try { const v = JSON.parse(settings.waHiddenChats || "[]"); if (Array.isArray(v)) hidden = v; } catch {}
+        setWaUnread(waUnreadCount(res.chats || [], waReadSeen(), hidden));
+      } catch { /* a sidebar count is not worth surfacing a failure for */ }
+    };
+    // Recount the moment a thread is read, instead of waiting out the
+    // interval — a badge still showing "1" over an opened chat is worse than
+    // no badge, and one extra request per chat opened is cheap.
+    const onSeen = () => { poll(); };
+    window.addEventListener("erp-wa-seen", onSeen);
+    poll();
+    const t = setInterval(poll, 60000);
+    return () => { stop = true; clearInterval(t); window.removeEventListener("erp-wa-seen", onSeen); };
+  }, [settings.waApiKey, settings.waHiddenChats]);
+
   const [allUsers,  setAllUsers]  = useState([]);
   useEffect(() => {
     if (!SUPA) return;
@@ -22543,7 +23189,7 @@ export default function App() {
           collapsed={collapsed} setCollapsed={setCollapsed}
           mobileOpen={mobileNavOpen}
           onMobileClose={() => setMobileNavOpen(false)}
-          badges={{ pending: pendingLog.length, pipeline: pipelineBadge, machines: machineLog.filter((m) => m.status !== "completed" && m.stage !== "BOM Issued").length }}
+          badges={{ pending: pendingLog.length, pipeline: pipelineBadge, machines: machineLog.filter((m) => m.status !== "completed" && m.stage !== "BOM Issued").length, whatsapp: waUnread }}
           canView={canView}
           onSearchOpen={() => setShowSearch(true)}
           onNotifsOpen={() => setShowNotifs((v) => !v)}

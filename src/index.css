@@ -2222,9 +2222,6 @@ input, textarea, select {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  --wa-nav:        #0b1120;   /* ERP sidebar navy                      */
-  --wa-nav-2:      #141e33;
-  --wa-nav-on:     #1d2a44;
   --wa-surface:    #ffffff;
   --wa-field:      #f6f7f9;   /* ERP cool surface — headers, composer  */
   --wa-line:       #e6e9ef;
@@ -2239,30 +2236,52 @@ input, textarea, select {
 }
 
 /* ── Shell ────────────────────────────────────────────────────────────── */
-.wa-root { display: flex; height: 100%; min-height: 0; background: var(--wa-field); }
+/* flex:1 because pages sit side by side with the ERP sidebar in a row — without
+   it the module stopped at its content width and left a dead strip on the right. */
+.wa-root { flex: 1; min-width: 0; display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--wa-field); }
 .wa-pane { flex: 1; display: flex; min-width: 0; min-height: 0; }
 
-/* ── Nav rail ─────────────────────────────────────────────────────────── */
-.wa-nav {
-  width: 208px; flex-shrink: 0; display: flex; flex-direction: column;
-  background: var(--wa-nav); color: #cbd5e1;
+/* ── Module header ───────────────────────────────────────────────────── */
+/* The ERP already owns the left rail. A second one here made the module read
+   as a separate app bolted on, so the sections are tabs in a page header
+   instead — the shape every other multi-section ERP page uses. */
+.wa-top {
+  flex-shrink: 0; background: var(--wa-surface);
+  border-bottom: 1px solid var(--wa-line);
 }
-.wa-nav-head { padding: 16px; display: flex; align-items: center; gap: 10px; background: var(--wa-nav-2); }
-.wa-nav-item {
-  width: 100%; display: flex; align-items: center; gap: 11px;
-  padding: 11px 16px; text-align: left; color: #94a3b8;
-  border-left: 3px solid transparent;
-  transition: background .14s ease, color .14s ease;
+.wa-top-row { display: flex; align-items: center; gap: 12px; padding: 14px 24px 0; }
+/* The ERP's mobile Topbar rule wraps any bar holding the burger button and
+   pushes its last block onto a full-width second row, for the page actions.
+   Here the last block IS the title, so that rule split "WhatsApp" away from
+   its own logo. This header has no action row to make room for — kept on one
+   line. Scoped under .wa-root to outrank the :has() selector. */
+.wa-root .wa-top-row { flex-wrap: nowrap; align-items: center; }
+.wa-root .wa-top-row > div:last-child { flex: 1 1 0%; }
+
+
+.wa-tabs {
+  display: flex; align-items: center; gap: 2px;
+  padding: 10px 24px 0; overflow-x: auto; scrollbar-width: none;
 }
-.wa-nav-item:hover { background: var(--wa-nav-2); color: #e2e8f0; }
-.wa-nav-item.is-on { background: var(--wa-nav-on); color: #fff; border-left-color: var(--wa-accent); }
-.wa-nav-label { flex: 1; font-size: 13.5px; font-weight: 500; }
-.wa-nav-badge {
-  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
-  background: rgba(255,255,255,.14); color: #e2e8f0;
-  font-size: 11px; font-weight: 700; line-height: 20px; text-align: center;
+.wa-tabs::-webkit-scrollbar { display: none; }
+.wa-tab {
+  display: flex; align-items: center; gap: 7px; flex-shrink: 0;
+  padding: 8px 14px 9px; border-bottom: 2px solid transparent;
+  font-size: 12.5px; font-weight: 600; color: var(--wa-ink-2);
+  transition: color .14s ease, background .14s ease;
 }
-.wa-nav-item.is-on .wa-nav-badge { background: var(--wa-accent); color: #fff; }
+.wa-tab:hover { color: var(--wa-ink); }
+.wa-tab.is-on {
+  color: var(--wa-accent);
+  border-bottom-color: var(--wa-accent);
+  background: rgba(215, 25, 32, .05);
+}
+.wa-tab-badge {
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--wa-ink-2); color: #fff;
+  font-size: 10px; font-weight: 700; line-height: 18px; text-align: center;
+}
+.wa-tab.is-on .wa-tab-badge { background: var(--wa-accent); }
 
 /* ── Conversation list ────────────────────────────────────────────────── */
 .wa-list {
@@ -2296,6 +2315,47 @@ input, textarea, select {
   display: flex; align-items: center; justify-content: center;
   font-size: 15px; font-weight: 700; color: #fff;
 }
+
+/* Unread: a green dot, the one thing on this screen worth interrupting for. */
+.wa-unread {
+  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+  background: var(--wa-live);
+}
+
+/* Hide-from-inbox, revealed on hover or keyboard focus. Always visible it
+   would be an invitation to clear the list; never visible it would be a
+   feature nobody finds. On touch, where there is no hover, it stays shown. */
+.wa-row-act {
+  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--wa-ink-2); opacity: 0;
+  transition: opacity .12s ease, background .12s ease;
+}
+.wa-row:hover .wa-row-act,
+.wa-row:focus-within .wa-row-act { opacity: 1; }
+.wa-row-act:hover { background: rgba(17,27,33,.08); color: var(--wa-ink); }
+/* Out of the layout until wanted: an invisible button still reserved 30px in
+   every row and truncated names to "Rajesh P…" on a tablet. */
+.wa-row:not(:hover):not(:focus-within) .wa-row-act { display: none; }
+/* Touch has no hover, so the row button would never appear. The same action
+   sits in the thread header, one tap away, so rows stay clean there. */
+@media (hover: none) { .wa-row-act { display: none !important; } }
+
+/* ── Attachments ──────────────────────────────────────────────────────── */
+/* A photo of a fault IS the message, so it gets the bubble's full width
+   rather than a paperclip glyph standing in for it. */
+.wa-att { margin: -2px -5px 4px; }
+.wa-att-img {
+  display: block; width: 100%; max-width: 320px; max-height: 340px;
+  object-fit: cover; border-radius: 6px; cursor: zoom-in; background: rgba(17,27,33,.06);
+}
+.wa-att-ph {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 10px 12px; border-radius: 6px; text-align: left;
+  background: rgba(17,27,33,.05); color: var(--wa-ink-2);
+  font-size: 12.5px; line-height: 1.3;
+}
+.wa-att-ph:hover { background: rgba(17,27,33,.09); }
 
 /* ── Thread ───────────────────────────────────────────────────────────── */
 .wa-thread-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -2385,8 +2445,11 @@ input, textarea, select {
   width: 42px; height: 24px; border-radius: 12px; flex-shrink: 0; position: relative;
   transition: background .18s ease;
 }
+.wa-toggle { padding: 0; }
+/* left:0 matters — without it the knob takes its static position and the
+   translate pushes it clean off the end of the track. */
 .wa-toggle i {
-  position: absolute; top: 3px; width: 18px; height: 18px; border-radius: 50%;
+  position: absolute; top: 3px; left: 0; width: 18px; height: 18px; border-radius: 50%;
   background: #fff; box-shadow: 0 1px 3px rgba(11,20,26,.3);
   transition: transform .18s ease;
 }
@@ -2403,50 +2466,50 @@ input, textarea, select {
 }
 
 /* ── Responsive ───────────────────────────────────────────────────────── */
-/* Laptop: the rail loses its labels before the list loses its width, because
-   a cramped conversation list costs more than a cramped nav. */
+/* Laptop: the conversation list gives up width before anything is hidden —
+   a thread squeezed to a column of three-word lines is harder to read than a
+   slightly tighter list. */
 @media (max-width: 1180px) {
-  .wa-nav       { width: 60px; }
-  .wa-nav-label { display: none; }
-  .wa-nav-item  { justify-content: center; padding: 13px 0; gap: 0; }
-  .wa-nav-head  { justify-content: center; padding: 14px 0; }
-  .wa-nav-head .wa-nav-title { display: none; }
-  .wa-nav-badge {
-    position: absolute; transform: translate(14px, -12px);
-    min-width: 17px; height: 17px; line-height: 17px; padding: 0 4px; font-size: 10px;
-  }
-  .wa-nav-item  { position: relative; }
-  .wa-list      { width: 300px; }
+  .wa-list     { width: 300px; }
+  .wa-top-row  { padding: 12px 16px 0; }
+  .wa-tabs     { padding: 8px 16px 0; }
 }
 
-/* Phone and small tablet: one pane at a time, nav becomes a bottom bar —
-   the same shape the people using this already know from their phone. */
-@media (max-width: 760px) {
-  .wa-root { flex-direction: column; }
-  .wa-nav {
-    width: 100%; flex-direction: row; order: 2;
-    border-top: 1px solid rgba(255,255,255,.08);
-  }
-  .wa-nav-head, .wa-nav-foot { display: none; }
-  .wa-nav-item {
-    flex: 1; flex-direction: column; gap: 3px; padding: 9px 2px;
-    border-left: none; border-top: 3px solid transparent; justify-content: center;
-  }
-  .wa-nav-item.is-on { border-left-color: transparent; border-top-color: var(--wa-accent); }
-  .wa-nav-label { display: block; font-size: 10px; font-weight: 600; flex: none; }
-  .wa-nav-badge { position: absolute; transform: translate(16px, -4px); }
+/* Tablet: tabs lose their words and keep their icons, which is enough once
+   the colour and position do the telling. */
+@media (max-width: 920px) {
+  .wa-list { width: 268px; }
+  .wa-tab span:not(.wa-tab-badge) { display: none; }
+  .wa-tab { padding: 9px 16px 10px; }
+}
 
-  .wa-pane { order: 1; }
+/* Phone: one pane at a time. Opening a chat replaces the list and the back
+   arrow in the thread header brings it back — the same move as the phone
+   WhatsApp the floor staff already use. */
+@media (max-width: 760px) {
+  .wa-tabs { padding: 6px 8px 0; }
+  .wa-tab  { flex: 1; justify-content: center; padding: 10px 4px 11px; }
+
   .wa-list { width: 100%; border-right: none; }
   .wa-root:not(.has-active) .wa-thread-pane { display: none; }
   .wa-root.has-active .wa-list { display: none; }
 
   .wa-bubble { max-width: 86%; }
+  .wa-thread { padding-left: 12px; padding-right: 12px; }
   .wa-wrap   { padding: 16px 14px 40px; }
   .wa-card-head { padding: 14px 16px 0; }
   .wa-card-body { padding: 14px 16px 16px; }
+  /* Stacked, because three inputs and a delete button do not fit a phone
+     row without each one becoming unusable. */
+  /* Each person reads as one block: name on its own line, number and
+     department beneath it, a rule before the next person. */
+  .wa-dir-row { flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid var(--wa-line); }
+  .wa-dir-row > input:first-child { flex: 1 1 calc(100% - 44px) !important; }
+  .wa-dir-row > input:not(:first-child) { flex: 1 1 40% !important; }
+  .wa-dir-row > button { order: 1; }
+  .wa-dir-row > input:nth-child(2), .wa-dir-row > input:nth-child(3) { order: 2; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wa-row, .wa-nav-item, .wa-toggle, .wa-toggle i { transition: none; }
+  .wa-row, .wa-tab, .wa-toggle, .wa-toggle i { transition: none; }
 }
