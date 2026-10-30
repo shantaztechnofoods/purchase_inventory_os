@@ -51,7 +51,7 @@ import {
 } from "./utils/handoverLogic.js";
 // Phase B
 import { fetchTemplates, createTemplate, updateTemplate, deleteTemplate, fetchResponses, createResponse } from "./stores/checklistsStore.js";
-import { fetchPendingItems, createPendingItem, resolvePendingItem, receivePendingItem, pendingItemStage } from "./stores/pendingItemsStore.js";
+import { fetchPendingItems, createPendingItem, resolvePendingItem, receivePendingItem, pendingItemStage, pendingItemHistory } from "./stores/pendingItemsStore.js";
 import { fetchAllAttachments, fetchAttachmentsForMachine, uploadAttachment, signedUrlFor, deleteAttachment } from "./stores/attachmentsStore.js";
 import { fetchRatings, createRating, overrideRating } from "./stores/ratingsStore.js";
 import { computeDepartmentRating, formatRatingBadge, summarizeMachineRatings, buildDepartmentScoreboard } from "./utils/ratingLogic.js";
@@ -13898,6 +13898,8 @@ function AtoZMachineReport({
   machineLog = [], bomDefs = {}, handovers = [], pendingHandoverItems = [],
   deptRatings = [], checklistResponses = [], outwardLog = [], items = {},
   attachments = [], settings = {}, auditLog = [],
+  // 2026-10-30 — names for the pending-job history (who reported / received / completed).
+  allUsers = [],
 }) {
   const machine = (machineLog || []).find((m) => String(m.id) === String(machineId)) || null;
   if (!machine) {
@@ -14278,7 +14280,7 @@ function AtoZMachineReport({
                             <span className="text-slate-700 flex-1">{p.description}</span>
                             <span className="text-[9px] text-slate-500">raised in {p.raisedInDepartment}</span>
                           </div>
-                          {p.resolutionNotes && <div className="text-slate-400 italic mt-0.5">Resolution: {p.resolutionNotes}</div>}
+                          <JobHistory item={p} users={allUsers} compact />
                         </div>
                       ))}
                     </div>
@@ -14291,6 +14293,32 @@ function AtoZMachineReport({
       )}
     </div>
   );
+
+  // ── Pending jobs · full history (2026-10-30) ──────────────────────────
+  // Every job on the machine — raised at a hand-over, from Report Issue, from
+  // a checklist, or for a part not issued at Outward — with its three
+  // permanent entries: original reason, receive remark, completion.
+  const PendingJobsHistory = () => {
+    if (!machinePending.length) return null;
+    const jobs = machinePending.slice().sort((a, b) => String(a.raisedAt || "").localeCompare(String(b.raisedAt || "")));
+    return (
+      <div className="rounded-xl p-4 mb-5" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
+        <div className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-3">Pending jobs · history ({jobs.length})</div>
+        <div className="space-y-2">
+          {jobs.map((p) => (
+            <div key={p.id} className="rounded-lg px-3 py-2" style={{ background: "#fff", border: "1px solid rgba(17,24,39,0.08)" }}>
+              <div className="text-[11px] font-semibold text-slate-800">
+                {p.status === "resolved" ? "✓ " : "⏳ "}{p.description}
+                {p.itemCode && <span className="font-normal text-slate-500"> · <span className="font-mono">{p.itemCode}</span>{p.itemName ? ` ${p.itemName}` : ""}{p.qty != null ? ` × ${p.qty}` : ""}</span>}
+                <span className="font-normal text-slate-500"> · {p.assignedDepartment || "Unassigned"}</span>
+              </div>
+              <JobHistory item={p} users={allUsers} compact />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   // ── Section 5: Stage history (fallback / audit) ───────────────────────
   const StageHistory = () => (
@@ -14371,6 +14399,7 @@ function AtoZMachineReport({
       <CriticalParts />
       <Timeline />
       <TrialCertificate />
+      <PendingJobsHistory />
       <StageHistory />
       <AttachmentsList />
       <div className="text-[9px] text-slate-600 mt-2 text-center">
@@ -14381,6 +14410,7 @@ function AtoZMachineReport({
 }
 
 function ReportCenterPage({
+  allUsers = [],
   machineLog = [], handovers = [], pendingHandoverItems = [], deptRatings = [],
   attachments = [], checklistResponses = [], bomDefs = {}, settings = {},
   outwardLog = [], inwardLog = [], pos = [], items = {}, canDo = () => true,
@@ -14507,12 +14537,21 @@ function ReportCenterPage({
 
   const pendingRows = filteredPending.map((p) => {
     const m = (machineLog || []).find((mm) => mm.id === p.machineId);
+    const who = (id) => { if (!id) return ""; const u = (allUsers || []).find((x) => x.id === id); return u ? (u.fullName || u.username || id) : id; };
+    // Existing columns first (unchanged), then the part and the full history:
+    // original reason, receive remark and completion as separate columns.
     return {
       Machine: m?.bomKey || "", Serial: m?.serialNo || "",
       Description: p.description, RaisedInDepartment: p.raisedInDepartment,
       RaisedAt: p.raisedAt || "", Status: p.status,
       ResolvedInDepartment: p.resolvedInDepartment || "",
       ResolvedAt: p.resolvedAt || "", ResolutionNotes: p.resolutionNotes || "",
+      ResponsibleDepartment: p.assignedDepartment || "",
+      PartCode: p.itemCode || "", PartName: p.itemName || "", Qty: p.qty ?? "",
+      ReportedReason: p.reason || "", ReportedBy: who(p.raisedBy),
+      ReceivedAt: p.receivedAt || "", ReceivedBy: who(p.receivedBy),
+      ReceivedInDepartment: p.receivedInDepartment || "", ReceiveRemark: p.receivedNotes || "",
+      ResolvedBy: who(p.resolvedBy),
     };
   });
 
@@ -14790,6 +14829,7 @@ function ReportCenterPage({
                 items={items}
                 attachments={attachments}
                 settings={settings}
+                allUsers={allUsers}
               />
             </div>
           );
@@ -15881,6 +15921,40 @@ function ChecklistBulkBar({ answers, onSetAll }) {
   );
 }
 
+// ── Pending job history (2026-10-30) ─────────────────────────────────────────
+// The three permanent entries of a job — Reported (the original reason),
+// Part received (the receive remark), Work completed — each with who, which
+// department and when. Used in Pending Jobs, on the machine card, in the
+// machine's Production report and in the A-to-Z machine report.
+function JobHistory({ item, users = [], compact = false }) {
+  const entries = pendingItemHistory(item);
+  const nameOf = (id) => { if (!id) return ""; const u = (users || []).find((x) => x.id === id); return u ? (u.fullName || u.username || "") : ""; };
+  const when = (iso) => { if (!iso) return ""; const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : `${fmtDate(d)} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`; };
+  const tone = { reported: "#b45309", received: "#1d4ed8", completed: "#15803d" };
+  const textLabel = { reported: "Reason", received: "Receive remark", completed: "Completion note" };
+  return (
+    <ol className={`${compact ? "mt-1" : "mt-1.5"} space-y-1`} aria-label="Job history">
+      {entries.map((e) => {
+        const meta = [nameOf(e.by), e.department, when(e.at)].filter(Boolean).join(" · ");
+        return (
+          <li key={e.kind} className="flex items-start gap-2 text-[10.5px] leading-snug">
+            <span className="mt-[3px] w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: tone[e.kind] }} />
+            <div className="min-w-0">
+              <span className="font-bold" style={{ color: tone[e.kind] }}>{e.label}</span>
+              {meta && <span className="text-slate-500"> · {meta}</span>}
+              <div className="text-slate-700">
+                {e.text
+                  ? <><span className="text-slate-500">{textLabel[e.kind]}: </span>{e.text}</>
+                  : <span className="text-slate-400 italic">no {textLabel[e.kind].toLowerCase()} given</span>}
+              </div>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 // ── Pending jobs recorded at a hand-over (2026-10-30) ────────────────────────
 // One row per unfinished job or missing part on the machine. `description` is
 // what the job is (required); part code, quantity and reason are optional and
@@ -16847,13 +16921,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           <div key={p.id} className="px-3 py-2.5 flex items-start gap-3 flex-wrap">
                             <div className="flex-1 min-w-[200px]">
                               <div className="text-[12px] text-slate-800 font-semibold">{p.description}</div>
-                              <div className="flex items-center gap-x-3 gap-y-1 flex-wrap mt-1 text-[10.5px] text-slate-500">
-                                {p.itemCode && <span>Part <span className="font-mono font-bold text-slate-700">{p.itemCode}</span>{p.itemName ? ` · ${p.itemName}` : ""}{p.qty != null ? ` · qty ${p.qty}` : ""}</span>}
-                                {p.reason && <span>Reason: {p.reason}</span>}
-                                <span>Reported {p.raisedAt ? fmtDate(new Date(p.raisedAt)) : "—"}{p.raisedInDepartment ? ` in ${p.raisedInDepartment}` : ""}{userName(p.raisedBy) ? ` by ${userName(p.raisedBy)}` : ""}</span>
-                                {p.receivedAt && <span>Received {fmtDate(new Date(p.receivedAt))}{userName(p.receivedBy) ? ` by ${userName(p.receivedBy)}` : ""}{p.receivedNotes ? ` · ${p.receivedNotes}` : ""}</span>}
-                                {p.status === "resolved" && <span style={{ color: "#15803d" }}>Completed {p.resolvedAt ? fmtDate(new Date(p.resolvedAt)) : ""}{p.resolvedInDepartment ? ` in ${p.resolvedInDepartment}` : ""}{userName(p.resolvedBy) ? ` by ${userName(p.resolvedBy)}` : ""}{p.resolutionNotes ? ` · ${p.resolutionNotes}` : ""}</span>}
-                              </div>
+                              {p.itemCode && (
+                                <div className="mt-1 text-[10.5px] text-slate-500">
+                                  Part <span className="font-mono font-bold text-slate-700">{p.itemCode}</span>{p.itemName ? ` · ${p.itemName}` : ""}{p.qty != null ? ` · qty ${p.qty}` : ""}
+                                </div>
+                              )}
+                              {/* Permanent history: original reason, receive remark, completion. */}
+                              <JobHistory item={p} users={allUsers} />
                             </div>
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(239,68,68,0.1)", color: "#b91c1c" }}>
@@ -17988,6 +18062,29 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                               <div className="text-[10px] text-slate-500 mt-2">
                                 A star is lost for finishing late, for the next department accepting late, and for leaving an issue unresolved.
                               </div>
+                              {(() => {
+                                // Every pending job on this machine with its full history.
+                                const jobs = (pendingHandoverItems || []).filter((p) => String(p.machineId) === String(machine.id))
+                                  .slice().sort((a, b) => String(a.raisedAt || "").localeCompare(String(b.raisedAt || "")));
+                                if (!jobs.length) return null;
+                                return (
+                                  <div className="mt-3">
+                                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Pending jobs · history ({jobs.length})</div>
+                                    <div className="space-y-2">
+                                      {jobs.map((p) => (
+                                        <div key={p.id} className="rounded-lg px-2.5 py-2" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
+                                          <div className="text-[11px] font-semibold text-slate-800">
+                                            {p.description}
+                                            {p.itemCode && <span className="font-normal text-slate-500"> · <span className="font-mono">{p.itemCode}</span>{p.qty != null ? ` × ${p.qty}` : ""}</span>}
+                                            <span className="font-normal text-slate-500"> · {p.assignedDepartment || "Unassigned"}</span>
+                                          </div>
+                                          <JobHistory item={p} users={allUsers} compact />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </>
                           );
                         })()}
@@ -18128,23 +18225,19 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                       </>
                                     )}
                                   </div>
-                                  {(p.itemCode || p.reason) && (
+                                  {p.itemCode && (
                                     <div className="text-[10px] text-slate-500 mt-0.5">
-                                      {p.itemCode && <span>Part <span className="font-mono font-bold text-slate-700">{p.itemCode}</span>{p.itemName ? ` · ${p.itemName}` : ""}{p.qty != null ? ` · qty ${p.qty}` : ""}</span>}
-                                      {p.itemCode && p.reason && " · "}
-                                      {p.reason && <span>Reason: {p.reason}</span>}
+                                      Part <span className="font-mono font-bold text-slate-700">{p.itemCode}</span>{p.itemName ? ` · ${p.itemName}` : ""}{p.qty != null ? ` · qty ${p.qty}` : ""}
                                     </div>
                                   )}
+                                  <JobHistory item={p} users={allUsers} compact />
                                   {/* Phase 1 — who has been called to fix this. */}
                                   {p.assignedDepartment && p.status !== "resolved" && (
                                     <div className="text-[10px] font-bold mt-1" style={{ color: "#dc2626" }}>
                                       {p.assignedDepartment} called
                                     </div>
                                   )}
-                                  <div className="text-[9px] text-slate-500 mt-0.5">
-                                    From {p.raisedInDepartment}{p.resolvedInDepartment ? ` · Resolved in ${p.resolvedInDepartment}` : ""}
-                                    {p.resolutionNotes ? ` · "${p.resolutionNotes}"` : ""}
-                                  </div>
+
                                 </div>
                               ))}
                             </div>
@@ -18243,8 +18336,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               <div className="rounded-lg px-3 py-2 mb-3 text-[11.5px] text-slate-700" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
                 <div className="font-semibold">{p.description}</div>
                 {p.itemCode && <div className="text-[10.5px] text-slate-500 mt-0.5">Part <span className="font-mono font-bold text-slate-700">{p.itemCode}</span>{p.itemName ? ` · ${p.itemName}` : ""}{p.qty != null ? ` · qty ${p.qty}` : ""}</div>}
-                {p.reason && <div className="text-[10.5px] text-slate-500">Reason: {p.reason}</div>}
-                {p.receivedAt && <div className="text-[10.5px] mt-0.5" style={{ color: "#1d4ed8" }}>Part received {fmtDate(new Date(p.receivedAt))}</div>}
+                <JobHistory item={p} users={allUsers} compact />
               </div>
               {isReceive && !p.receivedAt && (
                 <p className="text-[11px] text-slate-600 mb-2">Confirms the part has arrived for this machine. The job stays open until the work is marked completed.</p>
@@ -18252,11 +18344,12 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               {!isReceive && p.itemCode && !p.receivedAt && (
                 <p className="text-[11px] font-bold mb-2" style={{ color: "#b45309" }}>This part has not been recorded as received. Mark it completed only if the work is actually done.</p>
               )}
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">{isReceive ? "Receipt note (optional)" : "Completion note (optional)"}</label>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1">{isReceive ? "Receive remark / reason (optional)" : "Completion note (optional)"}</label>
+              <div className="text-[10px] text-slate-500 mb-1.5">Saved as a separate history entry with your name, department and time. The original reason above is never changed.</div>
               <input value={jobAction.notes} disabled={jobAction.busy} autoFocus
                      onChange={(e) => setJobAction((prev) => prev ? { ...prev, notes: e.target.value, error: "" } : prev)}
                      onKeyDown={(e) => e.key === "Enter" && submit()}
-                     placeholder={isReceive ? "e.g. received from Stores, 2 pcs" : "e.g. fitted and tested"}
+                     placeholder={isReceive ? "e.g. received from Stores, 2 pcs — replacement for the damaged cover" : "e.g. fitted and tested"}
                      className="w-full rounded-lg px-3 py-2.5 text-[13px] text-slate-800 outline-none"
                      style={{ background: "var(--surface-elevated)", border: "1px solid rgba(17,24,39,0.12)" }} />
               {jobAction.error && (
@@ -24055,17 +24148,21 @@ export default function App() {
   const handleReceivePendingItem = async (id, { notes }) => {
     const p = pendingHandoverItems.find((x) => x.id === id);
     const machine = p ? machineLog.find((m) => String(m.id) === String(p.machineId)) || null : null;
-    const res = await receivePendingItem(id, { receivedBy: currentUser?.id, notes });
+    // The receipt is recorded by the department responsible for the job;
+    // falls back to where the machine is now. History entry 2 of 3.
+    const receivedInDepartment = p?.assignedDepartment || machine?.currentDepartment || machine?.stage || "";
+    const res = await receivePendingItem(id, { receivedBy: currentUser?.id, notes, receivedInDepartment });
     if (!res.success) return res;
     const receivedAt = res.item?.receivedAt || new Date().toISOString();
     setPendingHandoverItems((prev) => prev.map((x) => x.id === id
-      ? { ...x, receivedAt, receivedBy: currentUser?.id, receivedNotes: notes || "" }
+      ? { ...x, receivedAt, receivedBy: currentUser?.id, receivedNotes: notes || "",
+          receivedInDepartment: res.item?.receivedInDepartment || receivedInDepartment }
       : x));
     logAudit({
       type: "pending_item_received", module: "Machine",
       action: `Part received${p?.itemCode ? ` (${p.itemCode}${p.qty ? ` × ${p.qty}` : ""})` : ""}${machine ? ` for ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}` : ""}`,
       ref: machine?.bomKey || "", serialNo: machine?.serialNo || "",
-      details: { itemId: id, itemCode: p?.itemCode || undefined, qty: p?.qty ?? undefined, assignedDepartment: p?.assignedDepartment || undefined, notes: notes || "" },
+      details: { itemId: id, itemCode: p?.itemCode || undefined, qty: p?.qty ?? undefined, assignedDepartment: p?.assignedDepartment || undefined, receivedInDepartment, notes: notes || "", originalReason: p?.reason || undefined },
     });
     return res;
   };
@@ -24338,6 +24435,7 @@ export default function App() {
     whatsapp:  <WhatsAppPage settings={settings} onSave={handleSaveSettings} />,
     history:   <HistoryPage auditLog={auditLog} pos={pos} inwardLog={inwardLog} outwardLog={outwardLog} pendingLog={pendingLog} machineLog={machineLog} items={items} vendorList={vendorList} bomDefs={bomDefs} />,
     reports:   <ReportCenterPage
+                              allUsers={allUsers}
                               machineLog={machineLog} handovers={handovers}
                               pendingHandoverItems={pendingHandoverItems}
                               deptRatings={deptRatings} attachments={attachments}

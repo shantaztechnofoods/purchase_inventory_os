@@ -138,14 +138,60 @@ test("042: guard trigger rules are in the migration, with a rollback", () => {
 });
 
 test("042: the app only ever sends the fields the guard allows", () => {
-  const bodies = [...storeSrc.matchAll(/\.from\("pending_handover_items"\)\.update\(\{([\s\S]*?)\}\)/g)].map((m) => m[1]);
+  const bodies = [
+    ...[...storeSrc.matchAll(/\.from\("pending_handover_items"\)\.update\(\{([\s\S]*?)\}\)/g)].map((m) => m[1]),
+    ...[...storeSrc.matchAll(/const body = \{([\s\S]*?)\};/g)].map((m) => m[1]),
+  ];
   assert.equal(bodies.length, 2, "exactly two update paths: complete and receive");
   const keysOf = (b) => [...b.matchAll(/^\s*([a-z_]+)\s*:/gm)].map((m) => m[1]).sort();
   const allowedComplete = ["resolution_notes", "resolved_at", "resolved_by", "resolved_in_department", "status"];
-  const allowedReceive  = ["received_at", "received_by", "received_notes"];
+  const allowedReceive  = ["received_at", "received_by", "received_in_department", "received_notes"];
   for (const b of bodies) {
     const k = keysOf(b);
     const ok = JSON.stringify(k) === JSON.stringify(allowedComplete) || JSON.stringify(k) === JSON.stringify(allowedReceive);
     assert.ok(ok, `unexpected update payload keys: ${k.join(", ")}`);
   }
+});
+
+const mig043 = fs.readFileSync(path.join(root, "supabase/migrations/043_pending_item_receive_department.sql"), "utf8");
+const rb043  = fs.readFileSync(path.join(root, "supabase/migrations/043_pending_item_receive_department_rollback.sql"), "utf8");
+
+test("043: receive department column; guard keeps every 042 rule and allows it on receive only", () => {
+  assert.match(mig043, /ADD COLUMN IF NOT EXISTS received_in_department text/);
+  assert.match(mig043, /receive_keys\s+text\[\] := ARRAY\['received_at','received_by','received_notes','received_in_department'\]/);
+  assert.match(mig043, /complete_keys text\[\] := ARRAY\['status','resolved_at','resolved_by','resolved_in_department','resolution_notes'\]/);
+  assert.match(mig043, /IF OLD\.received_at IS NOT NULL THEN\s+RAISE EXCEPTION/);
+  assert.match(mig043, /IF OLD\.status = 'resolved' THEN\s+RAISE EXCEPTION/);
+  assert.match(mig043, /IF TG_OP = 'DELETE' THEN\s+RAISE EXCEPTION/);
+  assert.doesNotMatch(mig043, /POLICY/, "043 must not touch policies");
+  assert.match(rb043, /receive_keys\s+text\[\] := ARRAY\['received_at','received_by','received_notes'\]/);
+  assert.match(rb043, /DROP COLUMN IF EXISTS received_in_department/);
+});
+
+test("reason history: three separate entries, earlier ones never replaced", async () => {
+  const { pendingItemHistory } = await import("../src/stores/pendingItemsStore.js");
+  const job = { raisedAt: "2026-10-30T09:00:00Z", raisedBy: "u1", raisedInDepartment: "Assembly", reason: "Cover damaged, on order",
+                description: "Fit the cover", status: "open" };
+  assert.deepEqual(pendingItemHistory(job).map((e) => e.kind), ["reported"]);
+  const received = { ...job, receivedAt: "2026-10-31T10:00:00Z", receivedBy: "u2", receivedInDepartment: "Stores", receivedNotes: "Replacement received" };
+  const h2 = pendingItemHistory(received);
+  assert.deepEqual(h2.map((e) => e.kind), ["reported", "received"]);
+  assert.equal(h2[0].text, "Cover damaged, on order", "original reason unchanged");
+  assert.equal(h2[1].text, "Replacement received");
+  assert.equal(h2[1].department, "Stores");
+  const done = { ...received, status: "resolved", resolvedAt: "2026-10-31T12:00:00Z", resolvedBy: "u3", resolvedInDepartment: "Assembly", resolutionNotes: "Fitted" };
+  const h3 = pendingItemHistory(done);
+  assert.deepEqual(h3.map((e) => [e.kind, e.text, e.by, e.department]), [
+    ["reported", "Cover damaged, on order", "u1", "Assembly"],
+    ["received", "Replacement received", "u2", "Stores"],
+    ["completed", "Fitted", "u3", "Assembly"],
+  ]);
+});
+
+test("reason history is shown in Pending Jobs, machine card, Production report and A-to-Z report", () => {
+  const uses = (app.match(/<JobHistory item=\{p\}/g) || []).length;
+  assert.ok(uses >= 5, `expected JobHistory in 5 places, found ${uses}`);
+  assert.match(app, /<PendingJobsHistory \/>/);
+  assert.match(app, /ReportedReason: p\.reason/);
+  assert.match(app, /ReceiveRemark: p\.receivedNotes/);
 });

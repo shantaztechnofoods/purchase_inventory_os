@@ -58,7 +58,32 @@ const fromRow = (r) => ({
   receivedAt:           r.received_at || null,
   receivedBy:           r.received_by || null,
   receivedNotes:        r.received_notes || "",
+  // Migration 043 — department that recorded the receipt.
+  receivedInDepartment: r.received_in_department || "",
 });
+
+// The job's permanent history, oldest first: Reported → Part received →
+// Completed. Each entry comes from its own columns, so a later entry never
+// replaces an earlier one (and migration 042/043 locks them in the database).
+export function pendingItemHistory(p) {
+  if (!p) return [];
+  const out = [{
+    kind: "reported", label: "Reported",
+    at: p.raisedAt || null, by: p.raisedBy || null, department: p.raisedInDepartment || "",
+    text: p.reason || "", detail: p.description || "",
+  }];
+  if (p.receivedAt) out.push({
+    kind: "received", label: "Part received",
+    at: p.receivedAt, by: p.receivedBy || null, department: p.receivedInDepartment || "",
+    text: p.receivedNotes || "", detail: "",
+  });
+  if (p.status === "resolved") out.push({
+    kind: "completed", label: "Work completed",
+    at: p.resolvedAt || null, by: p.resolvedBy || null, department: p.resolvedInDepartment || "",
+    text: p.resolutionNotes || "", detail: "",
+  });
+  return out;
+}
 
 // Where a job is in its life: reported → awaiting part/work → received → completed.
 export function pendingItemStage(p) {
@@ -141,21 +166,31 @@ export async function resolvePendingItem(id, { resolvedBy, resolvedInDepartment,
 
 // Migration 039 — the responsible department records that the missing part has
 // arrived. The job stays open; "Work completed" (resolvePendingItem) closes it.
-export async function receivePendingItem(id, { receivedBy, notes }) {
+export async function receivePendingItem(id, { receivedBy, notes, receivedInDepartment = "" }) {
   const receivedAt = new Date().toISOString();
   if (!isSupabaseEnabled()) {
     const all = getLocal().map((p) => p.id === id && p.status === "open" && !p.receivedAt
-      ? { ...p, receivedAt, receivedBy, receivedNotes: notes || "" }
+      ? { ...p, receivedAt, receivedBy, receivedNotes: notes || "", receivedInDepartment: receivedInDepartment || "" }
       : p);
     setLocal(all);
     return { success: true, item: all.find((p) => p.id === id) };
   }
   const c = getSupabase(); if (!c) return { success: false, error: "no client" };
-  const { data, error } = await c.from("pending_handover_items").update({
+  const body = {
     received_at:    receivedAt,
     received_by:    receivedBy,
     received_notes: notes || null,
-  }).eq("id", id).eq("status", "open").is("received_at", null).select().maybeSingle();
+    received_in_department: receivedInDepartment || null,
+  };
+  const run = (b) => c.from("pending_handover_items").update(b)
+    .eq("id", id).eq("status", "open").is("received_at", null).select().maybeSingle();
+  let { data, error } = await run(body);
+  // Migration 043 not applied yet → save the receipt without the department.
+  if (error && isMissingColumnError(error) && /received_in_department/i.test(`${error.message || ""} ${error.details || ""}`)) {
+    console.warn("[pending_items:receive] 043 column not in schema yet — retrying without it");
+    const { received_in_department: _d, ...legacy } = body;
+    ({ data, error } = await run(legacy));
+  }
   if (error) { console.error("[pending_items:receive] failed", error); return { success: false, error: error.message }; }
   if (!data)  return { success: false, error: "This job is already received or completed." };
   return { success: true, item: fromRow(data) };
