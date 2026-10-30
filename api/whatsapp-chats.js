@@ -24,7 +24,7 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
-    const { apiKey, limit, page, orderField } = body;
+    const { apiKey, limit, page, orderField, debug } = body;
     if (!apiKey) { res.status(400).json({ error: "Missing 'apiKey' — WhatsApp Settings में API key डालो" }); return; }
 
     const headers = { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" };
@@ -35,14 +35,26 @@ export default async function handler(req, res) {
     // orderField takes a PLAIN field name. A "-latestMessageTs" (descending)
     // value is rejected with a 400, so newest-first is done by sorting the
     // flattened result below instead of asking the API for it.
-    let resp = await call({
-      orderField: orderField || "createdAt",
-      limit: Number(limit) || 50,
-      page: Number(page) || 1,
-    });
+    const firstBody = { orderField: orderField || "createdAt", limit: Number(limit) || 50, page: Number(page) || 1 };
+    let resp = await call(firstBody);
+    let usedFallback = false;
+    const firstStatus = resp.status;
     // The body schema is only documented by example, so a rejected shape falls
     // back to the minimal body the docs' own cURL sample uses.
-    if (resp.status === 400) resp = await call({});
+    if (resp.status === 400) { resp = await call({}); usedFallback = true; }
+
+    // Returns exactly what Chakra replied, so an empty inbox can be told apart
+    // from a request we built wrong or a key that cannot see chats.
+    if (debug) {
+      const rawText = await resp.text().catch(() => "");
+      res.status(200).json({
+        success: true, debug: true,
+        firstBodySent: firstBody, firstStatus, usedFallback,
+        finalStatus: resp.status,
+        rawPreview: rawText.slice(0, 1200),
+      });
+      return;
+    }
 
     const result = await resp.json().catch(() => ({}));
     if (!resp.ok) {
