@@ -23022,6 +23022,12 @@ export default function App() {
         machineId: handover.machineId,
         raisedInHandoverId: handoverId,
         raisedInDepartment: handover.fromDepartment,
+        // The Accept modal asks "any work from <fromDepartment> still
+        // pending?", so that department owns the fix. Without this the item
+        // was saved Unassigned: it showed under "Unassigned" in Departments
+        // Called and no department was ever asked to do it.
+        assignedDepartment: handover.fromDepartment,
+        kind: "fault",
         raisedBy: currentUser.id,
         description: desc.trim(),
       });
