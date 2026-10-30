@@ -22,11 +22,15 @@ export default async function handler(req, res) {
     if (!apiKey) { res.status(400).json({ error: "Missing 'apiKey'" }); return; }
     if (!chatId) { res.status(400).json({ error: "Missing 'chatId'" }); return; }
 
-    const resp = await fetch(`https://api.chakrahq.com/v1/ext/chat/${encodeURIComponent(chatId)}/message`, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ limit: 200, page: 1 }),
-    });
+    const url = `https://api.chakrahq.com/v1/ext/chat/${encodeURIComponent(chatId)}/message`;
+    const headers = { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" };
+    const call = (payload) => fetch(url, { method: "POST", headers, body: JSON.stringify(payload) });
+
+    // Same deal as the chat list: orderField is a plain field name, and the
+    // body schema is documented only by example — so a rejected shape falls
+    // back to the empty body the docs' own cURL sample sends.
+    let resp = await call({ orderField: "createdAt", limit: 200, page: 1 });
+    if (resp.status === 400) resp = await call({});
 
     const result = await resp.json().catch(() => ({}));
     if (!resp.ok) {

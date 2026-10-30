@@ -27,15 +27,22 @@ export default async function handler(req, res) {
     const { apiKey, limit, page, orderField } = body;
     if (!apiKey) { res.status(400).json({ error: "Missing 'apiKey' — WhatsApp Settings में API key डालो" }); return; }
 
-    const resp = await fetch("https://api.chakrahq.com/v1/ext/chat", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        orderField: orderField || "-latestMessageTs",
-        limit: Number(limit) || 50,
-        page: Number(page) || 1,
-      }),
+    const headers = { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" };
+    const call = (payload) => fetch("https://api.chakrahq.com/v1/ext/chat", {
+      method: "POST", headers, body: JSON.stringify(payload),
     });
+
+    // orderField takes a PLAIN field name. A "-latestMessageTs" (descending)
+    // value is rejected with a 400, so newest-first is done by sorting the
+    // flattened result below instead of asking the API for it.
+    let resp = await call({
+      orderField: orderField || "createdAt",
+      limit: Number(limit) || 50,
+      page: Number(page) || 1,
+    });
+    // The body schema is only documented by example, so a rejected shape falls
+    // back to the minimal body the docs' own cURL sample uses.
+    if (resp.status === 400) resp = await call({});
 
     const result = await resp.json().catch(() => ({}));
     if (!resp.ok) {
@@ -61,6 +68,10 @@ export default async function handler(req, res) {
       lastDirection: c?.latestMessageDirection || c?.latestMessage?.direction || "",
       status:        c?.status || "",
     }));
+
+    // Newest conversation first — the API orders by a plain field only, so the
+    // inbox ordering is applied here.
+    chats.sort((a, b) => (Number(b.lastTs) || 0) - (Number(a.lastTs) || 0));
 
     res.status(200).json({ success: true, chats });
   } catch (err) {
