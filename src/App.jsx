@@ -14113,6 +14113,11 @@ function ChecklistBulkBar({ answers, onSetAll }) {
 }
 
 function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo = () => true, bomDefs = {}, onStartProduction, onRemoveRackMachine, onUpdateBOM,
+  // Shortfall rows from BOM Outward. Used to show, on the rack, which
+  // components a machine sitting there is still waiting for — the store needs
+  // that before anyone tries to start production on it. Optional: [] simply
+  // hides the indicator.
+  pendingLog = [],
   // Phase A props (optional — the page keeps working if any are missing)
   handovers = [], settings = {}, onFinishTransfer, onAcceptHandover, onRegisterSignature, currentUser = null,
   // Phase B props (optional — fall back to [] when migrations not applied)
@@ -14703,6 +14708,19 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     machineLog.filter((m) => m.bomKey === key && m.stage === "BOM Issued")
               .sort((a, b) => (a.createdDate || "").localeCompare(b.createdDate || ""));
 
+  // Components a rack machine is still waiting for. Pending rows are written by
+  // BOM Outward carrying the same issueId as the machine it created, so that is
+  // the exact match; serial + bomKey is the fallback for rows written before
+  // issueId was threaded through. Rows already fulfilled are dropped by the
+  // App's fulfil handlers, so anything still here is genuinely outstanding.
+  const pendingForMachine = (m) => {
+    if (!m || !Array.isArray(pendingLog) || pendingLog.length === 0) return [];
+    const byIssue = m.issueId ? pendingLog.filter((p) => p.issueId && p.issueId === m.issueId) : [];
+    if (byIssue.length) return byIssue;
+    if (!m.serialNo) return [];
+    return pendingLog.filter((p) => p.serialNo && p.serialNo === m.serialNo && p.bomKey === m.bomKey);
+  };
+
   const openStartProd = (rack) => {
     if (rack.ready === 0) return;
     setStartProd(rack);
@@ -15242,6 +15260,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 }[r.state];
                 const pct = r.capacity > 0 ? Math.min(100, Math.round((r.ready / r.capacity) * 100)) : 0;
                 const canManage = !!(onUpdateBOM && bomDefs[r.key] && canDo("outward","bom"));
+                // How many machines sitting on this rack are still short of
+                // components. Surfaced on the card so the store sees it without
+                // opening Start Production.
+                const rackShortCount = rackMachinesFor(r.key).filter((m) => pendingForMachine(m).length > 0).length;
                 const activateRack = () => { if (r.ready > 0) openStartProd(r); };
                 return (
                   // role="button" wrapper so we can nest the actions ⋮ button
@@ -15270,6 +15292,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         <div className="text-[10px] text-slate-500 truncate mt-0.5">{r.label}</div>
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {rackShortCount > 0 && (
+                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full"
+                                title={`${rackShortCount} machine(s) on this rack are still waiting for components`}
+                                style={{ background: "rgba(217,119,6,0.16)", color: "#b45309", border: "1px solid rgba(217,119,6,0.35)" }}>
+                            ⚠ {rackShortCount} अधूरी
+                          </span>
+                        )}
                         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                               style={{ background: STATE.color + "22", color: STATE.color, border: `1px solid ${STATE.color}40` }}>
                           {STATE.icon} {STATE.label}
@@ -16238,10 +16267,12 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
                 {rackMachinesFor(startProd.key).map((m) => {
                   const sel = startSel.has(m.id);
+                  const stillPending = pendingForMachine(m);
                   return (
                     <div key={m.id}
-                         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all"
-                         style={{ background: sel ? "rgba(34,197,94,0.1)" : "rgba(17,24,39,0.03)", border: `1px solid ${sel ? "rgba(34,197,94,0.45)" : "rgba(17,24,39,0.10)"}` }}>
+                         className="w-full rounded-lg text-left transition-all"
+                         style={{ background: sel ? "rgba(34,197,94,0.1)" : "rgba(17,24,39,0.03)", border: `1px solid ${sel ? "rgba(34,197,94,0.45)" : stillPending.length ? "rgba(217,119,6,0.35)" : "rgba(17,24,39,0.10)"}` }}>
+                    <div className="w-full flex items-center gap-3 px-3 py-2.5">
                       <button onClick={() => { toggleStartSel(m.id); setStartErr(""); }}
                               className="flex items-center gap-3 flex-1 min-w-0 text-left">
                         <span className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 text-[10px] font-black"
@@ -16249,6 +16280,12 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           {sel ? "✓" : ""}
                         </span>
                         <span className="text-[12px] font-mono font-bold text-slate-900 flex-1 truncate">{m.serialNo || "(no serial)"}</span>
+                        {stillPending.length > 0 && (
+                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded flex-shrink-0"
+                                style={{ background: "rgba(217,119,6,0.14)", color: "#b45309", border: "1px solid rgba(217,119,6,0.3)" }}>
+                            ⚠ {stillPending.length} बाकी
+                          </span>
+                        )}
                         <span className="text-[9px] text-slate-500 flex-shrink-0">Issued {m.createdDate}</span>
                       </button>
                       {/* Feature 3: remove from rack — stock is reversed via the
@@ -16263,6 +16300,25 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           🗑
                         </button>
                       )}
+                    </div>
+
+                    {/* Which components this rack machine is still waiting for.
+                        The store needs this before production starts on it. */}
+                    {stillPending.length > 0 && (
+                      <div className="px-3 pb-2.5 pt-0.5" style={{ borderTop: "1px dashed rgba(217,119,6,0.3)" }}>
+                        <div className="text-[9px] font-black uppercase tracking-wide mt-1.5 mb-1" style={{ color: "#b45309" }}>
+                          अभी ये items लेना बाकी है
+                        </div>
+                        {stillPending.map((p, i) => (
+                          <div key={`${p.code}-${i}`} className="flex items-center justify-between gap-2 py-0.5">
+                            <span className="text-[10px] text-slate-700 truncate">{p.item || p.name || p.code}</span>
+                            <span className="text-[10px] font-bold flex-shrink-0" style={{ color: "#b45309", fontVariantNumeric: "tabular-nums" }}>
+                              {p.pendingQty} {p.unit || ""}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     </div>
                   );
                 })}
@@ -21861,6 +21917,7 @@ export default function App() {
                               onReverseReceive={handleReverseReceive}
                               onSetItemDefaultRate={handleSetItemDefaultRate} />,
     machines:  <MachinePage   machineLog={machineLog} onUpdateStage={handleUpdateMachineStage} onNavigate={setActivePage} canDo={canDo}
+                              pendingLog={pendingLog}
                               bomDefs={bomDefs} onStartProduction={handleStartProduction}
                               onRemoveRackMachine={handleRemoveRackMachine}
                               onUpdateBOM={handleUpdateBOM}
