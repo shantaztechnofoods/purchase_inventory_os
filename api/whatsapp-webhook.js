@@ -41,7 +41,13 @@ export const config = { api: { bodyParser: false } };
 // So this calls /v1beta/interactions, which is also simpler — one input array
 // carrying text, images and audio together.
 const GEMINI_URL    = "https://generativelanguage.googleapis.com/v1beta/interactions";
-const GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3-flash-preview"];
+// Ordered by what actually answers. gemini-3.8-flash is the model Google's own
+// errors recommend, but on this account it returns 503 "high demand" or simply
+// never responds, so it sits last. The first two were measured replying in
+// about a second. Each is tried in turn, because an overloaded model is a
+// temporary condition and the next one usually answers immediately.
+const GEMINI_MODELS = ["gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-3.8-flash"];
+const GEMINI_ATTEMPT_MS = 12000;
 const WA_API_VERSION = "v21.0";
 const MAX_MEDIA_BYTES = 15 * 1024 * 1024;
 
@@ -281,8 +287,8 @@ export default async function handler(req, res) {
     // store:false keeps this stateless — we hold no conversation on Google's
     // side, and each WhatsApp message is answered on its own.
     let gJson, lastErr = "";
-    try {
-      for (const model of GEMINI_MODELS) {
+    for (const model of GEMINI_MODELS) {
+      try {
         const gResp = await fetch(GEMINI_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": settings.waGeminiKey },
@@ -292,22 +298,25 @@ export default async function handler(req, res) {
             input,
             store: false,
           }),
-          // A hung upstream must not hang the webhook: Chakra is waiting on
-          // this response, and a serverless function that never returns is
-          // killed without saying why.
-          signal: AbortSignal.timeout(20000),
+          // Bound EACH attempt, not the whole loop: a model that hangs must
+          // cost one short wait and hand over to the next, not the entire
+          // budget. Chakra is waiting on this response, and a serverless
+          // function that never returns is killed without saying why.
+          signal: AbortSignal.timeout(GEMINI_ATTEMPT_MS),
         });
         const j = await gResp.json().catch(() => ({}));
         if (gResp.ok) { gJson = j; break; }
         lastErr = `${model}: HTTP ${gResp.status} ${j?.error?.message || ""}`.trim();
-        // Only a missing/unsupported model is worth trying the next name for.
-        // A bad key or a quota error would fail identically on all of them.
-        if (gResp.status !== 404 && gResp.status !== 400) break;
+        // 404/400 = wrong or retired model, 429/503 = busy right now. Both are
+        // worth trying the next model for. Anything else (a bad key, a blocked
+        // request) would fail identically on every model, so stop.
+        if (![400, 404, 429, 503].includes(gResp.status)) break;
+      } catch (e) {
+        // A timeout or network error on one model — try the next.
+        lastErr = `${model}: ${e?.message || e}`;
       }
-      if (!gJson) return done({ skipped: "gemini unavailable", detail: lastErr });
-    } catch (e) {
-      return done({ skipped: `gemini call failed: ${e?.message || e}` });
     }
+    if (!gJson) return done({ skipped: "gemini unavailable", detail: lastErr });
 
     // Interactions answers with steps[]; the reply is the text content of the
     // model_output step. Several steps can carry text, so they are joined.

@@ -16,7 +16,7 @@
 // used server-side only — never committed, never a browser third-party call.
 
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
-const MODEL      = "gemini-3.8-flash";
+const MODEL      = "gemini-3-flash-preview";
 
 const SYSTEM_PROMPT = `Tum Shantaz Technofoods ke WhatsApp auto-reply agent ho.
 
