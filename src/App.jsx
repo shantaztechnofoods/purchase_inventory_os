@@ -6300,8 +6300,21 @@ function WhatsAppPage({ settings = {}, onSave }) {
     language: "en",
     components: [
       {
+        // Meta rejects a template whose variables outweigh its fixed text
+        // ("too many variables for its length"), so the wording around the
+        // five slots is deliberately full sentences rather than bare labels.
         type: "BODY",
-        text: "Shantaz ERP Alert\n\n{{1}}\n\nMachine: {{2}}\nDepartment: {{3}}\nDetails: {{4}}\nTime: {{5}}",
+        text:
+          "Shantaz Technofoods - Production Update\n\n" +
+          "There is a new update on the production floor that needs your attention.\n\n" +
+          "Update type: {{1}}\n" +
+          "Machine: {{2}}\n" +
+          "Department: {{3}}\n" +
+          "Details: {{4}}\n" +
+          "Recorded at: {{5}}\n\n" +
+          "This message was sent automatically by the Shantaz Technofoods production system. " +
+          "Please check the machine in your department and take the necessary action. " +
+          "If you need any help with this update, simply reply to this message.",
         example: { body_text: [["Issue Raised", "KM10 (SN-1234)", "Mechanical", "Pump leak", "30 Oct, 10:54 AM"]] },
       },
     ],
@@ -6664,13 +6677,19 @@ function WhatsAppPage({ settings = {}, onSave }) {
                   </div>
                   <pre className="text-[11px] p-3 rounded-lg whitespace-pre-wrap leading-relaxed mb-3"
                        style={{ background: "rgba(17,24,39,0.04)", color: "var(--text)", fontFamily: "inherit" }}>
-{`Shantaz ERP Alert
+{`Shantaz Technofoods - Production Update
 
-{{1}}            ← Issue Raised / Transfer Complete / Deadline Exceeded
+There is a new update on the production floor that needs your attention.
+
+Update type: {{1}}     ← Issue Raised / Transfer Complete / Deadline Exceeded
 Machine: {{2}}
 Department: {{3}}
 Details: {{4}}
-Time: {{5}}`}
+Recorded at: {{5}}
+
+This message was sent automatically by the Shantaz Technofoods production
+system. Please check the machine in your department and take the necessary
+action. If you need any help with this update, simply reply to this message.`}
                   </pre>
                   <div className="text-[10px] mb-3" style={{ color: "var(--text-dim)" }}>
                     Name: <b>shantaz_erp_alert</b> · Category: <b>UTILITY</b> · Language: <b>en</b>
