@@ -8,6 +8,9 @@ import {
   ShieldCheck, Settings, User, KeyRound, Menu, X,
   Boxes, AlertOctagon, AlertTriangle, Wallet, Cog, CircleCheckBig,
   ClipboardList, PhoneCall, MessageCircle,
+  // WhatsApp module
+  MessagesSquare, FileText, Sparkles, ScrollText as LogIcon,
+  Search, Send, Paperclip, Smile, ArrowLeft, Check, CheckCheck, Clock, AlertCircle,
 } from "lucide-react";
 import { useAuth } from "./auth/AuthContext.jsx";
 // Migration 029 — list employees + save their department assignments.
@@ -6109,6 +6112,28 @@ function AIPage({ items, pos, vendorList = [], bomDefs = {}, machineLog = [], pe
 
 // ─── WHATSAPP PAGE ───────────────────────────────────────────────────────────
 
+// WhatsApp's own glyph is their trademark, so this is a plain speech bubble
+// with a handset — the same idea, drawn here, nothing copied.
+function WaLogo({ size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 2.5A9.3 9.3 0 0 0 2.7 11.8c0 1.7.46 3.3 1.27 4.68L2.5 21.5l5.2-1.4a9.3 9.3 0 1 0 4.3-17.6Z"
+            fill="#fff" opacity=".96" />
+      <path d="M9.1 7.4c-.2-.45-.4-.46-.6-.47h-.5c-.17 0-.46.07-.7.33-.24.26-.92.9-.92 2.2s.94 2.55 1.07 2.73c.13.17 1.82 2.9 4.5 3.96 2.22.87 2.67.7 3.16.65.48-.04 1.56-.63 1.78-1.25.22-.62.22-1.15.16-1.26-.07-.11-.24-.17-.5-.3-.26-.13-1.56-.77-1.8-.86-.24-.09-.42-.13-.6.13-.17.26-.68.86-.83 1.04-.15.17-.3.2-.57.07-.26-.13-1.11-.41-2.12-1.31-.78-.7-1.31-1.56-1.47-1.82-.15-.26-.01-.4.12-.53.12-.12.26-.3.39-.46.13-.15.17-.26.26-.44.09-.17.04-.33-.02-.46-.07-.13-.58-1.43-.8-1.96Z"
+            fill="#00a884" />
+    </svg>
+  );
+}
+
+// Same name always gets the same avatar colour, so a person is recognisable
+// down the list without storing anything.
+const WA_AVATAR_COLORS = ["#0ea5e9", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#6366f1", "#ef4444", "#14b8a6"];
+function waAvatarColor(seed = "") {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return WA_AVATAR_COLORS[h % WA_AVATAR_COLORS.length];
+}
+
 function WhatsAppPage({ settings = {}, onSave }) {
   const [localSettings, setLocalSettings] = useState({
     waApiKey: settings.waApiKey || "",
@@ -6152,6 +6177,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
   const [msgsErr,      setMsgsErr]      = useState("");
   const [reply,        setReply]        = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+  const [chatSearch,   setChatSearch]   = useState("");
   const threadEndRef = useRef(null);
 
   // ── Message templates ──
@@ -6365,12 +6391,44 @@ function WhatsAppPage({ settings = {}, onSave }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section, localSettings.waApiKey, localSettings.waWabaId]);
 
-  const waTime = (ts) => {
-    if (!ts) return "";
+  // Chakra sends seconds on some rows and milliseconds on others, so normalise
+  // before formatting — otherwise half the timestamps land in 1970.
+  const waDate = (ts) => {
+    if (!ts) return null;
     const n = Number(ts);
-    const d = new Date(n < 1e12 ? n * 1000 : n);   // Chakra sends seconds on some rows
-    if (isNaN(d.getTime())) return "";
-    return d.toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+    if (!n) return null;
+    const d = new Date(n < 1e12 ? n * 1000 : n);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  // Chat-list stamp: today shows a clock, this week a weekday, older a date —
+  // the same shorthand WhatsApp uses.
+  const waTime = (ts) => {
+    const d = waDate(ts);
+    if (!d) return "";
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    if (sameDay) return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+    const days = Math.round((now.setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) / 86400000);
+    if (days === 1) return "Kal";
+    if (days < 7)   return d.toLocaleDateString("en-IN", { weekday: "short" });
+    return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+  };
+
+  const waClock = (ts) => {
+    const d = waDate(ts);
+    return d ? d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "";
+  };
+
+  // Day separator chip inside the thread.
+  const waDayLabel = (ts) => {
+    const d = waDate(ts);
+    if (!d) return "";
+    const now = new Date();
+    const days = Math.round((new Date(now).setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) / 86400000);
+    if (days === 0) return "Aaj";
+    if (days === 1) return "Kal";
+    return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
   };
 
   const logWaMessage = (to, message, status) => {
@@ -6439,49 +6497,51 @@ function WhatsAppPage({ settings = {}, onSave }) {
   const connected = !!(localSettings.waApiKey && localSettings.waOwnerPhone);
 
   const menuItems = [
-    { id: "chats",    icon: "💬", label: "Chats",         badge: msgLog.filter((m) => m.status === "sent").length || null },
-    { id: "templates",icon: "📄", label: "Templates",     badge: null },
-    { id: "training", icon: "🤖", label: "AI Training",   badge: trainingData ? "●" : null },
-    { id: "settings", icon: "⚙️", label: "Settings",      badge: dirty ? "●" : null },
-    { id: "log",      icon: "📋", label: "Message Log",   badge: msgLog.length || null },
+    // The Chats badge counts real conversations, not our own sent-alert log —
+    // that is what the operator means by "how many chats do I have".
+    { id: "chats",    Icon: MessagesSquare, label: "Chats",       badge: chats.length || null },
+    { id: "templates",Icon: FileText,       label: "Templates",   badge: templates.length || null },
+    { id: "training", Icon: Sparkles,       label: "AI Training", badge: trainingData ? "●" : null },
+    { id: "settings", Icon: Settings,       label: "Settings",    badge: dirty ? "●" : null },
+    { id: "log",      Icon: LogIcon,        label: "Message Log", badge: msgLog.length || null },
   ];
 
   return (
     <div className="flex h-screen" style={{ background: "var(--surface-base)" }}>
-      {/* ── LEFT: WhatsApp Sidebar ── */}
-      <div className="w-[220px] flex-shrink-0 flex flex-col" style={{ background: "#075E54", color: "#fff" }}>
-        {/* WA Header */}
-        <div className="px-4 py-4 flex items-center gap-3" style={{ background: "#054D44" }}>
-          <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg" style={{ background: "#25D366" }}>📱</div>
-          <div>
+      {/* ── LEFT: module nav rail ── */}
+      <div className="w-[220px] flex-shrink-0 flex flex-col wa-nav">
+        <div className="px-4 py-4 flex items-center gap-3 wa-nav-head">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+               style={{ background: "var(--wa-green)" }}>
+            <WaLogo size={22} />
+          </div>
+          <div className="min-w-0">
             <div className="text-[14px] font-bold">WhatsApp</div>
-            <div className="text-[10px] opacity-70">{connected ? "🟢 Connected" : "🟡 Setup pending"}</div>
+            <div className="text-[10.5px] flex items-center gap-1.5" style={{ color: connected ? "#8fd6bd" : "#e5c07b" }}>
+              <span className="inline-block w-1.5 h-1.5 rounded-full"
+                    style={{ background: connected ? "var(--wa-green)" : "#e5c07b" }} />
+              {connected ? "Connected" : "Setup pending"}
+            </div>
           </div>
         </div>
 
-        {/* Menu Items */}
         <div className="flex-1 py-2">
           {menuItems.map((item) => (
             <button key={item.id} onClick={() => setSection(item.id)}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
-                    style={{ background: section === item.id ? "rgba(255,255,255,0.15)" : "transparent" }}>
-              <span className="text-[16px]">{item.icon}</span>
-              <span className="flex-1 text-[13px] font-medium">{item.label}</span>
-              {item.badge && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
-                      style={{ background: "#25D366", color: "#fff", minWidth: "18px", textAlign: "center" }}>
-                  {item.badge}
-                </span>
-              )}
+                    className={`wa-nav-item ${section === item.id ? "is-on" : ""}`}>
+              <span className="w-5 flex-shrink-0 flex items-center justify-center"><item.Icon size={18} /></span>
+              <span className="flex-1 text-[13.5px] font-medium">{item.label}</span>
+              {item.badge && <span className="wa-nav-badge">{item.badge}</span>}
             </button>
           ))}
         </div>
 
-        {/* Save Button */}
         {dirty && (
           <div className="p-3">
-            <button onClick={handleSave} className="w-full py-2 rounded-lg text-[12px] font-bold" style={{ background: "#25D366", color: "#fff" }}>
-              💾 Save Changes
+            <button onClick={handleSave}
+                    className="w-full py-2.5 rounded-lg text-[12px] font-bold transition-transform hover:scale-[1.02]"
+                    style={{ background: "var(--wa-green)", color: "#111b21" }}>
+              Save Changes
             </button>
           </div>
         )}
@@ -6494,151 +6554,171 @@ function WhatsAppPage({ settings = {}, onSave }) {
           <div className="flex-1 flex min-h-0">
 
             {/* ── Conversation list ── */}
-            <div className="flex flex-col min-h-0"
-                 style={{ width: activeChat ? 300 : "100%", borderRight: activeChat ? "1px solid var(--border-subtle)" : "none" }}>
-              <div className="px-5 py-3 flex items-center gap-3 flex-shrink-0"
-                   style={{ background: "var(--surface-raised)", borderBottom: "1px solid var(--border-subtle)" }}>
-                <span className="text-lg">💬</span>
+            <div className="flex flex-col min-h-0 wa-list"
+                 style={{ width: activeChat ? 360 : "100%", borderRight: "1px solid var(--wa-line)" }}>
+
+              <div className="px-4 py-3 flex items-center gap-2 flex-shrink-0 wa-list-head">
                 <div className="flex-1 min-w-0">
-                  <div className="text-[14px] font-bold" style={{ color: "var(--text)" }}>Chats</div>
-                  <div className="text-[11px] truncate" style={{ color: "var(--text-dim)" }}>
-                    {chatsLoading ? "आ रही हैं…" : `${chats.length} बातचीत`}
+                  <div className="text-[15px] font-bold" style={{ color: "var(--wa-ink)" }}>Chats</div>
+                  <div className="text-[11px]" style={{ color: "var(--wa-ink-soft)" }}>
+                    {chatsLoading ? "आ रही हैं…" : chats.length ? `${chats.length} बातचीत` : "कोई बातचीत नहीं"}
                   </div>
                 </div>
-                <button onClick={loadChats} disabled={chatsLoading}
-                        title="Refresh"
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[13px] disabled:opacity-40"
-                        style={{ background: "rgba(37,211,102,0.12)", color: "#128c7e" }}>
-                  {chatsLoading ? "⏳" : "⟳"}
+                <button onClick={loadChats} disabled={chatsLoading} title="Refresh" className="wa-icon-btn">
+                  <RefreshCw size={17} className={chatsLoading ? "animate-spin" : ""} />
                 </button>
+              </div>
+
+              <div className="px-3 py-2 flex-shrink-0" style={{ borderBottom: "1px solid var(--wa-line)" }}>
+                <div className="relative">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                          style={{ color: "var(--wa-ink-soft)" }} />
+                  <input value={chatSearch} onChange={(e) => setChatSearch(e.target.value)}
+                         placeholder="नाम या नंबर खोजो"
+                         className="wa-search" style={{ background: "var(--wa-panel)" }} />
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto">
                 {chatsErr && (
-                  <div className="m-3 px-3 py-2.5 rounded-lg text-[11px]"
-                       style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.3)", color: "#b91c1c" }}>
-                    ⚠️ {chatsErr}
+                  <div className="m-3 px-3 py-2.5 rounded-lg text-[11.5px] flex items-start gap-2"
+                       style={{ background: "rgba(220,38,38,.07)", border: "1px solid rgba(220,38,38,.28)", color: "#b91c1c" }}>
+                    <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+                    <span>{chatsErr}</span>
                   </div>
                 )}
 
                 {!chatsLoading && !chatsErr && chats.length === 0 && (
-                  <div className="text-center py-16 px-6">
-                    <div className="text-5xl mb-4">💬</div>
-                    <div className="text-[15px] font-bold mb-2" style={{ color: "var(--text)" }}>कोई chat नहीं है अभी</div>
-                    <div className="text-[12px]" style={{ color: "var(--text-dim)" }}>
-                      कोई आपके WhatsApp नंबर पर message करेगा तो यहाँ दिखेगा
+                  <div className="px-8 py-14 text-center">
+                    <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center"
+                         style={{ background: "var(--wa-panel)" }}>
+                      <MessagesSquare size={28} style={{ color: "var(--wa-ink-soft)" }} />
+                    </div>
+                    <div className="text-[14px] font-bold mb-1" style={{ color: "var(--wa-ink)" }}>कोई chat नहीं है अभी</div>
+                    <div className="text-[12px] leading-relaxed" style={{ color: "var(--wa-ink-soft)" }}>
+                      कोई आपके WhatsApp नंबर पर message करेगा<br />तो वो यहाँ दिखेगा
                     </div>
                   </div>
                 )}
 
-                {chats.map((c) => {
-                  const active = activeChat?.id === c.id;
-                  return (
-                    <button key={c.id} onClick={() => openChat(c)}
-                            className="w-full text-left px-4 py-3 flex items-start gap-3 transition-all"
-                            style={{
-                              background: active ? "rgba(37,211,102,0.10)" : "transparent",
-                              borderBottom: "1px solid var(--border-subtle)",
-                              borderLeft: active ? "3px solid #25d366" : "3px solid transparent",
-                            }}>
-                      <div className="w-10 h-10 rounded-full flex items-center justify-center text-[14px] font-bold flex-shrink-0"
-                           style={{ background: "rgba(37,211,102,0.15)", color: "#128c7e" }}>
-                        {(c.name || "?").trim().charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-[12.5px] font-bold truncate" style={{ color: "var(--text)" }}>{c.name}</div>
-                          <div className="text-[9px] flex-shrink-0" style={{ color: "var(--text-dim)" }}>{waTime(c.lastTs)}</div>
+                {chats
+                  .filter((c) => {
+                    const q = chatSearch.trim().toLowerCase();
+                    if (!q) return true;
+                    return (c.name || "").toLowerCase().includes(q) || (c.phone || "").includes(q);
+                  })
+                  .map((c) => {
+                    const on = activeChat?.id === c.id;
+                    return (
+                      <button key={c.id} onClick={() => openChat(c)} className={`wa-row ${on ? "is-on" : ""}`}>
+                        <div className="wa-av" style={{ background: waAvatarColor(c.name || c.phone) }}>
+                          {(c.name || "?").trim().charAt(0).toUpperCase()}
                         </div>
-                        <div className="text-[11.5px] truncate mt-0.5" style={{ color: "var(--text-dim)" }}>
-                          {c.lastDirection === "outbound" && <span style={{ color: "#128c7e" }}>✓ </span>}
-                          {c.lastText || "—"}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <div className="text-[14.5px] font-semibold truncate" style={{ color: "var(--wa-ink)" }}>{c.name}</div>
+                            <div className="text-[11px] flex-shrink-0" style={{ color: "var(--wa-ink-soft)" }}>{waTime(c.lastTs)}</div>
+                          </div>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            {c.lastDirection === "outbound" && <CheckCheck size={14} className="flex-shrink-0 wa-tick-read" />}
+                            <div className="text-[13px] truncate" style={{ color: "var(--wa-ink-soft)" }}>
+                              {c.lastText || "—"}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  );
-                })}
+                      </button>
+                    );
+                  })}
               </div>
             </div>
 
-            {/* ── Conversation thread ── */}
-            {activeChat && (
-              <div className="flex-1 flex flex-col min-h-0" style={{ background: "#efe7de" }}>
-                <div className="px-4 py-3 flex items-center gap-3 flex-shrink-0"
-                     style={{ background: "var(--surface-raised)", borderBottom: "1px solid var(--border-subtle)" }}>
+            {/* ── Thread ── */}
+            {!activeChat ? (
+              <div className="flex-1 wa-empty">
+                <div className="w-20 h-20 rounded-full mb-5 flex items-center justify-center"
+                     style={{ background: "rgba(0,168,132,.12)" }}>
+                  <WaLogo size={40} />
+                </div>
+                <div className="text-[20px] font-light mb-2" style={{ color: "var(--wa-ink)" }}>Shantaz WhatsApp</div>
+                <div className="text-[13px] max-w-sm leading-relaxed" style={{ color: "var(--wa-ink-soft)" }}>
+                  बाएँ से कोई chat चुनो और वहीं से जवाब दो.<br />
+                  सारी बातचीत ERP में रहती है — किसी एक के फ़ोन में नहीं.
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col min-h-0">
+
+                <div className="px-4 py-2.5 flex items-center gap-3 flex-shrink-0"
+                     style={{ background: "var(--wa-panel)", borderBottom: "1px solid var(--wa-line)" }}>
                   <button onClick={() => { setActiveChat(null); setMessages([]); setMsgsErr(""); }}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-[14px]"
-                          style={{ color: "var(--text-dim)" }}>←</button>
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-bold"
-                       style={{ background: "rgba(37,211,102,0.15)", color: "#128c7e" }}>
+                          className="wa-icon-btn" title="वापस">
+                    <ArrowLeft size={18} />
+                  </button>
+                  <div className="wa-av" style={{ width: 40, height: 40, fontSize: 15, background: waAvatarColor(activeChat.name || activeChat.phone) }}>
                     {(activeChat.name || "?").trim().charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-bold truncate" style={{ color: "var(--text)" }}>{activeChat.name}</div>
-                    <div className="text-[10.5px] font-mono truncate" style={{ color: "var(--text-dim)" }}>{activeChat.phone}</div>
+                    <div className="text-[14.5px] font-semibold truncate" style={{ color: "var(--wa-ink)" }}>{activeChat.name}</div>
+                    <div className="text-[11.5px] truncate" style={{ color: "var(--wa-ink-soft)" }}>{activeChat.phone}</div>
                   </div>
-                  <button onClick={() => openChat(activeChat)} disabled={msgsLoading}
-                          title="Refresh" className="w-8 h-8 rounded-lg flex items-center justify-center text-[13px] disabled:opacity-40"
-                          style={{ background: "rgba(37,211,102,0.12)", color: "#128c7e" }}>
-                    {msgsLoading ? "⏳" : "⟳"}
+                  <button onClick={() => openChat(activeChat)} disabled={msgsLoading} className="wa-icon-btn" title="Refresh">
+                    <RefreshCw size={17} className={msgsLoading ? "animate-spin" : ""} />
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+                <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col wa-thread">
                   {msgsLoading && messages.length === 0 && (
-                    <div className="text-center py-10 text-[12px]" style={{ color: "#5b6b63" }}>messages आ रहे हैं…</div>
+                    <div className="m-auto text-[12.5px]" style={{ color: "var(--wa-ink-soft)" }}>messages आ रहे हैं…</div>
                   )}
                   {!msgsLoading && messages.length === 0 && !msgsErr && (
-                    <div className="text-center py-10 text-[12px]" style={{ color: "#5b6b63" }}>इस chat में अभी कोई message नहीं</div>
+                    <div className="m-auto text-[12.5px]" style={{ color: "var(--wa-ink-soft)" }}>इस chat में अभी कोई message नहीं</div>
                   )}
 
-                  {messages.map((m) => {
-                    const out = m.direction === "outbound";
+                  {messages.map((m, i) => {
+                    const out  = m.direction === "outbound";
+                    // A date chip whenever the day changes, like WhatsApp.
+                    const prev = messages[i - 1];
+                    const day  = waDayLabel(m.ts);
+                    const showDay = day && (!prev || waDayLabel(prev.ts) !== day);
                     return (
-                      <div key={m.id} className="flex" style={{ justifyContent: out ? "flex-end" : "flex-start" }}>
-                        <div className="max-w-[78%] px-3 py-2 rounded-xl"
-                             style={{
-                               background: out ? "#d9fdd3" : "#ffffff",
-                               boxShadow: "0 1px 1px rgba(0,0,0,0.08)",
-                               borderTopRightRadius: out ? 4 : 12,
-                               borderTopLeftRadius:  out ? 12 : 4,
-                             }}>
-                          <div className="text-[12.5px] leading-snug whitespace-pre-wrap break-words" style={{ color: "#111b21" }}>
+                      <React.Fragment key={m.id || i}>
+                        {showDay && <div className="wa-day">{day}</div>}
+                        <div className="flex w-full" style={{ justifyContent: out ? "flex-end" : "flex-start", marginTop: 2, marginBottom: 2 }}>
+                          <div className={`wa-bubble ${out ? "is-out" : "is-in"} ${m.status === "sending" ? "wa-sending" : ""}`}>
                             {m.text || (m.hasAttachment ? "📎 attachment" : "—")}
-                          </div>
-                          <div className="flex items-center justify-end gap-1 mt-0.5">
-                            <span className="text-[9px]" style={{ color: "#667781" }}>{waTime(m.ts)}</span>
-                            {out && (
-                              <span className="text-[9px]" style={{ color: m.status === "failed" ? "#dc2626" : "#53bdeb" }}>
-                                {m.status === "failed" ? "✕" : m.status === "sending" ? "🕐" : "✓✓"}
-                              </span>
-                            )}
+                            <span className="wa-meta">
+                              {waClock(m.ts)}
+                              {out && (
+                                m.status === "failed"  ? <AlertCircle size={13} className="wa-tick-fail" />
+                              : m.status === "sending" ? <Clock size={12} />
+                              : m.status === "read"    ? <CheckCheck size={14} className="wa-tick-read" />
+                              :                          <CheckCheck size={14} />
+                              )}
+                            </span>
                           </div>
                         </div>
-                      </div>
+                      </React.Fragment>
                     );
                   })}
                   <div ref={threadEndRef} />
                 </div>
 
                 {msgsErr && (
-                  <div className="mx-4 mb-2 px-3 py-2 rounded-lg text-[11px] flex-shrink-0"
-                       style={{ background: "rgba(220,38,38,0.1)", border: "1px solid rgba(220,38,38,0.3)", color: "#b91c1c" }}>
-                    ⚠️ {msgsErr}
+                  <div className="mx-4 mb-2 px-3 py-2 rounded-lg text-[11.5px] flex items-start gap-2 flex-shrink-0"
+                       style={{ background: "rgba(220,38,38,.08)", border: "1px solid rgba(220,38,38,.28)", color: "#b91c1c" }}>
+                    <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+                    <span>{msgsErr}</span>
                   </div>
                 )}
 
-                <div className="px-3 py-3 flex items-center gap-2 flex-shrink-0"
-                     style={{ background: "var(--surface-raised)", borderTop: "1px solid var(--border-subtle)" }}>
+                <div className="px-3 py-2.5 flex items-center gap-2 flex-shrink-0 wa-composer">
+                  <button className="wa-icon-btn" title="Emoji (जल्द)" disabled><Smile size={20} /></button>
+                  <button className="wa-icon-btn" title="File (जल्द)" disabled><Paperclip size={19} /></button>
                   <input value={reply} onChange={(e) => setReply(e.target.value)}
                          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } }}
-                         placeholder="Message likho…"
-                         className="flex-1 rounded-full px-4 py-2.5 text-[13px] outline-none"
-                         style={{ background: "var(--surface-input, #fff)", border: "1px solid var(--border-subtle)", color: "var(--text)" }} />
-                  <button onClick={sendReply} disabled={!reply.trim() || sendingReply}
-                          className="w-10 h-10 rounded-full flex items-center justify-center text-white text-[15px] disabled:opacity-40 flex-shrink-0"
-                          style={{ background: "linear-gradient(135deg,#25d366,#128c7e)" }}>
-                    {sendingReply ? "⏳" : "➤"}
+                         placeholder="Message likho…" className="wa-input" />
+                  <button onClick={sendReply} disabled={!reply.trim() || sendingReply} className="wa-send" title="भेजो">
+                    {sendingReply ? <Clock size={16} /> : <Send size={16} />}
                   </button>
                 </div>
               </div>
