@@ -226,7 +226,7 @@ const AUDIT_EVENT_TYPES = [
   "signature_registered",
   // Phase B — checklists / pending items / attachments / ratings
   "checklist_template_created", "checklist_template_updated", "checklist_template_deleted",
-  "pending_item_raised", "pending_item_resolved", "pending_item_received",
+  "pending_item_raised", "pending_item_resolved", "pending_item_received", "acting_main_assigned",
   // Migration 036 — a production head releases a machine off the rack.
   "handover_released",
   "attachment_uploaded", "attachment_deleted",
@@ -280,7 +280,7 @@ const USER_FACING_STRINGS = [
   "Department Workflow Settings",
   "Acceptance timeout",
   "Per-department work time limits",
-  "Explanation required",
+  "Delay reason",
   // Phase B — Checklists / Pending items / Attachments / Ratings
   "Department Checklists",
   "Pending Handover Items",
@@ -288,6 +288,7 @@ const USER_FACING_STRINGS = [
   // 2026-10-30 — pending jobs: part received → work completed (replaces "Mark resolved")
   "Work completed", "Part received", "Pending Jobs", "Cannot be Ready",
   "Pending Acceptance",
+  "Acting Main Employee", "Delay reason (required)",
   "Customer Progress Report",
   // Machine Tracker UX pass
   "Pending Acceptance",

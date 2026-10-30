@@ -61,12 +61,12 @@ export function setAnswerRemark(answers, idx, remark) {
   return (answers || []).map((a, i) => i === idx ? { ...a, remark: String(remark || "") } : a);
 }
 
-// Validation before a handover can be submitted:
-//   · every unchecked item MUST have a non-empty remark          → `missing`
-//   · an item marked required ("Must do") MUST actually be ticked;
-//     a remark does not excuse it (2026-10-30)                   → `requiredMissing`
-// Returns { ok, missing, requiredMissing } (indexes) so the UI can highlight
-// each failed row. `ok` is false if either list is non-empty.
+// Validation before a handover can be submitted (2026-10-30, agreed rule):
+// every unticked item — "Must do" or not — needs a written reason. With the
+// reason the operator may continue; the incomplete item is then raised as a
+// pending job against the machine (see incompleteChecklistJobs), so nothing
+// is skipped silently. Returns { ok, missing, requiredMissing } (indexes);
+// `ok` depends only on `missing`. `requiredMissing` is kept for display.
 export function validateChecklistAnswers(answers) {
   const missing = [];
   const requiredMissing = [];
@@ -74,21 +74,25 @@ export function validateChecklistAnswers(answers) {
     if (!a.checked && !(a.remark && a.remark.trim())) missing.push(i);
     if (!a.checked && a.required) requiredMissing.push(i);
   });
-  return { ok: missing.length === 0 && requiredMissing.length === 0, missing, requiredMissing };
+  return { ok: missing.length === 0, missing, requiredMissing };
 }
 // One sentence for the operator, from a validate result.
 export function checklistProblemText(chk) {
   if (!chk || chk.ok) return "";
-  if (chk.requiredMissing && chk.requiredMissing.length) {
-    return `${chk.requiredMissing.length} "Must do" item${chk.requiredMissing.length === 1 ? " is" : "s are"} not ticked — these are required and cannot be skipped.`;
-  }
-  return `Add a short note for ${chk.missing.length} unticked item${chk.missing.length === 1 ? "" : "s"}.`;
+  return `Write the reason for ${chk.missing.length} unticked item${chk.missing.length === 1 ? "" : "s"} — it is saved as a pending job on this machine.`;
+}
+// Every unticked item (with its reason) as a pending job to raise against the
+// machine. `stageLabel` is "Before Transfer" / "After Acceptance".
+export function incompleteChecklistJobs(answers, stageLabel) {
+  return (answers || [])
+    .filter((a) => a && !a.checked)
+    .map((a) => ({
+      description: `Checklist not completed (${stageLabel}): ${String(a.label || "").trim() || "item"}${a.required ? " · Must do" : ""}`,
+      itemCode: "", itemName: "", qty: null,
+      reason: String(a.remark || "").trim(),
+    }));
 }
 
-// Snapshot a response row for DB insert. Includes template id + version
-// so a later template edit never retroactively mutates history. Migration
-// 028 adds `stage` + `bomKey` so Reports can filter without joining
-// machine_log; both nullable for back-compat with pre-028 responses.
 export function snapshotResponse({ machineId, handoverId, department, template, answers, submittedBy, stage, bomKey }) {
   return {
     machineId,

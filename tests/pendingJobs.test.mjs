@@ -16,7 +16,7 @@ globalThis.localStorage = {
 
 const { createPendingItem, receivePendingItem, resolvePendingItem, fetchPendingItems, pendingItemStage } =
   await import("../src/stores/pendingItemsStore.js");
-const { validateChecklistAnswers, checklistProblemText } = await import("../src/utils/checklistLogic.js");
+const { validateChecklistAnswers, checklistProblemText, incompleteChecklistJobs } = await import("../src/utils/checklistLogic.js");
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const app  = fs.readFileSync(path.join(root, "src/App.jsx"), "utf8");
@@ -58,28 +58,50 @@ test("history: reported → awaiting → received → completed", async () => {
   assert.ok(row.receivedAt, "the received step is kept after completion");
 });
 
-test("a required ('Must do') checklist item cannot be skipped with a remark", () => {
-  const chk = validateChecklistAnswers([
-    { id: "a", label: "Torque bolts", required: true,  checked: false, remark: "will do later" },
-    { id: "b", label: "Oil",          required: false, checked: false, remark: "topped up by stores" },
-  ]);
-  assert.equal(chk.ok, false);
+test("an unticked checklist item may continue with a reason, and becomes a pending job", () => {
+  const answers = [
+    { id: "a", label: "Torque bolts", required: true,  checked: false, remark: "torque wrench at calibration" },
+    { id: "b", label: "Oil",          required: false, checked: true },
+  ];
+  const chk = validateChecklistAnswers(answers);
+  assert.equal(chk.ok, true, "a reason is enough to continue");
   assert.deepEqual(chk.requiredMissing, [0]);
-  assert.deepEqual(chk.missing, []);
-  assert.match(checklistProblemText(chk), /Must do/);
-  const ok = validateChecklistAnswers([
-    { id: "a", required: true, checked: true },
-    { id: "b", required: false, checked: false, remark: "n/a" },
-  ]);
-  assert.equal(ok.ok, true);
+  const jobs = incompleteChecklistJobs(answers, "Before Transfer");
+  assert.equal(jobs.length, 1);
+  assert.match(jobs[0].description, /Checklist not completed \(Before Transfer\): Torque bolts · Must do/);
+  assert.equal(jobs[0].reason, "torque wrench at calibration");
+  const noReason = validateChecklistAnswers([{ id: "a", required: true, checked: false, remark: "" }]);
+  assert.equal(noReason.ok, false, "the reason is mandatory");
+  assert.match(checklistProblemText(noReason), /reason/);
+});
+
+test("checklist jobs are raised on both Finish & Transfer and Accept", () => {
+  assert.match(app, /incompleteChecklistJobs\(checklistAnswers, "Before Transfer"\)/);
+  assert.match(app, /incompleteChecklistJobs\(checklistAnswers, "After Acceptance"\)/);
+});
+
+test("Acting Main Employee: admin only, must be the signing Main Employee, audited", () => {
+  assert.match(app, /actingMainEmployeeId !== mainEmployeeId\) return \{ success: false/);
+  assert.match(app, /Only an admin can assign an Acting Main Employee/);
+  assert.match(app, /type: "acting_main_assigned"/);
+});
+
+test("READY is final and reached only through Trial", () => {
+  assert.match(app, /READY needs the Trial Certificate — finish Trial first/);
+  assert.match(app, /READY can only be accepted from Trial/);
+  assert.match(app, /READY is the final stage and cannot be changed/);
+  assert.match(app, /a finished machine cannot go back to the rack/);
+  assert.match(app, /MACHINE_STAGES\.filter\(\(s, i\) => i > curIdx && s !== "Ready"\)/);
 });
 
 test("every path to Ready asks the pending-jobs gate", () => {
   // Finish & Transfer (Trial → Ready), Accept into Ready, admin stage change.
   const n = (app.match(/readyBlockedError\(/g) || []).length;
-  assert.ok(n >= 3, `expected the gate to be called on 3 paths, found ${n} calls`);
-  assert.match(app, /toDepartment === "Ready"\) \{\s*const blocked = readyBlockedError\(machineId\)/);
-  assert.match(app, /handover\.toDepartment === "Ready"\) \{\s*const blocked = readyBlockedError\(handover\.machineId\)/);
+  // Finish & Transfer to Ready and Accept into Ready; the admin stage change
+  // can no longer set Ready at all (see the READY test below).
+  assert.ok(n >= 2, `expected the gate on both Ready paths, found ${n} calls`);
+  assert.match(app, /if \(toDepartment === "Ready"\) \{[\s\S]{0,400}?const blocked = readyBlockedError\(machineId\)/);
+  assert.match(app, /handover\.toDepartment === "Ready"\) \{[\s\S]{0,300}?const blocked = readyBlockedError\(handover\.machineId\)/);
 });
 
 test("racks are the fixed floor racks only — no capacity from the BOM", () => {

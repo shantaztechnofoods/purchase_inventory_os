@@ -55,7 +55,7 @@ import { fetchPendingItems, createPendingItem, resolvePendingItem, receivePendin
 import { fetchAllAttachments, fetchAttachmentsForMachine, uploadAttachment, signedUrlFor, deleteAttachment } from "./stores/attachmentsStore.js";
 import { fetchRatings, createRating, overrideRating } from "./stores/ratingsStore.js";
 import { computeDepartmentRating, formatRatingBadge, summarizeMachineRatings, buildDepartmentScoreboard } from "./utils/ratingLogic.js";
-import { startChecklistResponse, toggleAnswer, setAnswerRemark, validateChecklistAnswers, checklistProblemText, snapshotResponse, pickTemplate, duplicateTemplateItems, setAllAnswers, countChecked } from "./utils/checklistLogic.js";
+import { startChecklistResponse, toggleAnswer, setAnswerRemark, validateChecklistAnswers, checklistProblemText, incompleteChecklistJobs, snapshotResponse, pickTemplate, duplicateTemplateItems, setAllAnswers, countChecked } from "./utils/checklistLogic.js";
 import { reconcileTeam, pickRememberedMain, readTeamMemory, writeTeamMemory } from "./utils/teamMemory.js";
 import { useRealtimeTables } from "./realtime/useRealtimeTables.js";
 import { fetchRecentMovements, MOVEMENT_META } from "./stores/stockMovementsStore.js";
@@ -12927,6 +12927,12 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
       setSerialErr(`Serial "${sn}" is already active for ${key} (rack or in production).`);
       return;
     }
+    // 2026-10-30 — READY is final. Re-issuing a READY machine's serial would
+    // put that machine back on the rack, so it is refused.
+    if (machineLog.some((m) => m.bomKey === key && (m.status === "completed" || m.stage === "Ready") && (m.serialNo || "").toLowerCase() === sn.toLowerCase())) {
+      setSerialErr(`Serial "${sn}" is a READY ${key} machine — a finished machine cannot go back to the rack. Use a new serial.`);
+      return;
+    }
     setActiveSerial(sn);
     setOpenBOM(serialModal);
     setSerialModal(null);
@@ -16007,6 +16013,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   // 2026-10-30 — pending jobs: part lookup + receive/complete actions.
   const inventoryFlat = useMemo(() => Object.entries(items || {}).flatMap(([cat, list]) => (list || []).map((i) => ({ code: i.code, name: i.name, unit: i.unit, category: cat }))), [items]);
   const [jobAction, setJobAction] = useState(null); // { item, action: "receive"|"complete", notes, busy, error }
+  const [jobsView,  setJobsView]  = useState("open"); // Pending Jobs tab: open | done | all
   const [raiseText,  setRaiseText]  = useState("");
   const [raiseDept,  setRaiseDept]  = useState("");
   const [raiseErr,   setRaiseErr]   = useState("");
@@ -16245,7 +16252,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     if (!finishModal || transferBusy) return;
     const { machine, toDepartment, narration, template, answers,
             workedBy = [], mainEmployeeId = null, mainSigSvg = null,
-            owedItems = [] } = finishModal;
+            owedItems = [], actingMainId = null } = finishModal;
     const fromDepartment = machine.currentDepartment || machine.stage;
     // Migration 027 — prefer the per-machine override captured at Outward.
     // Falls back to the live workflow setting for machines created before
@@ -16293,8 +16300,19 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         return { id, type: "emp", name: m?.name || empId };
       }
       const u = (allUsers || []).find((x) => x.id === id);
-      return { id, type: "auth", fullName: u?.fullName || null, username: u?.username || null };
+      const entry = { id, type: "auth", fullName: u?.fullName || null, username: u?.username || null };
+      // 2026-10-30 — acting Main Employee, assigned by an admin.
+      if (actingMainId && id === actingMainId) {
+        entry.acting = true;
+        entry.actingAssignedBy = currentUser?.id || null;
+        entry.actingAssignedByName = currentUser?.fullName || currentUser?.username || null;
+      }
+      return entry;
     });
+    if (actingMainId && (!isAdminUser || actingMainId !== mainEmployeeId)) {
+      showToast("Acting Main Employee", "Only an admin can assign an Acting Main Employee, and they must be the Main Employee who signs.", "warning");
+      return;
+    }
     setTransferBusy(true);
     try {
       const res = await onFinishTransfer({
@@ -16313,6 +16331,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         owedItems:         cleanPendingJobs(owedItems),
         mainEmployeeId,
         mainEmployeeSignatureSvg: mainSigSvg,
+        actingMainEmployeeId: actingMainId || null,
       });
       if (res && res.success === false) {
         showToast("Transfer failed", res.error || "Unknown error", "urgent");
@@ -16321,7 +16340,10 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       // Remember this crew for the next machine through this department.
       // Only after a confirmed, successful transfer — a failed or abandoned
       // handover teaches us nothing.
-      writeTeamMemory("finish", fromDepartment, workedBy, mainEmployeeId);
+      // An acting Main Employee is a one-off; never remember them as crew.
+      writeTeamMemory("finish", fromDepartment,
+        actingMainId ? workedBy.filter((x) => x !== actingMainId) : workedBy,
+        actingMainId && mainEmployeeId === actingMainId ? null : mainEmployeeId);
       setFinishModal(null);
       showToast(`${machine.bomKey} → ${toDepartment}`,
         overrunMinutes > 0 ? `Awaiting accept · Overrun ${formatDuration(overrunMinutes)}` : "Awaiting accept");
@@ -16758,7 +16780,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             records the part as received, then the work as completed, here or on
             the machine card — the same handlers either way. */}
         {mtTab === "pending" && (() => {
-          const byMachine = openJobsScoped.reduce((acc, p) => {
+          const allJobsScoped = (pendingHandoverItems || [])
+            .filter((p) => !scopeMine || myDepartments.includes(p.assignedDepartment));
+          const viewJobs = jobsView === "open" ? openJobsScoped
+                         : jobsView === "done" ? allJobsScoped.filter((p) => p.status === "resolved")
+                         : allJobsScoped;
+          const userName = (id) => { if (!id) return ""; const u = (allUsers || []).find((x) => x.id === id); return u ? (u.fullName || u.username || "") : ""; };
+          const byMachine = viewJobs.reduce((acc, p) => {
             const k = String(p.machineId);
             (acc[k] = acc[k] || []).push(p);
             return acc;
@@ -16779,11 +16807,20 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 {partsN > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(217,119,6,0.12)", color: "#b45309" }}>{partsN} missing part{partsN === 1 ? "" : "s"}</span>}
                 {receivedN > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(37,99,235,0.1)", color: "#1d4ed8" }}>{receivedN} part{receivedN === 1 ? "" : "s"} received · work to finish</span>}
                 <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>a machine cannot be marked Ready while any job here is open</span>
+                <div className="ml-auto flex items-center gap-1 rounded-lg p-0.5" style={{ background: "rgba(17,24,39,0.05)" }} role="group" aria-label="Show jobs">
+                  {[["open", "Open"], ["done", "Completed"], ["all", "All"]].map(([k, l]) => (
+                    <button key={k} type="button" onClick={() => setJobsView(k)} aria-pressed={jobsView === k}
+                            className="text-[10.5px] font-bold px-2.5 py-1 rounded-md transition-all"
+                            style={jobsView === k ? { background: "var(--surface-card)", color: "#111827", boxShadow: "0 1px 2px rgba(17,24,39,0.12)" } : { color: "#6b7280" }}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
               </div>
               {groups.length === 0 && (
                 <div className="py-12 text-center">
                   <div className="text-3xl mb-2">✅</div>
-                  <div className="text-[12px] font-bold text-slate-700">No pending jobs</div>
+                  <div className="text-[12px] font-bold text-slate-700">{jobsView === "done" ? "No completed jobs yet" : "No pending jobs"}</div>
                   <div className="text-[10.5px] text-slate-500 mt-1">Jobs recorded at Finish &amp; Transfer, at Accept, from Report Issue, or for parts not issued at BOM Outward will appear here.</div>
                 </div>
               )}
@@ -16801,7 +16838,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                     <div className="divide-y" style={{ borderColor: "rgba(17,24,39,0.06)" }}>
                       {list.map((p) => {
                         const stage = pendingItemStage(p);
-                        const chip = stage === "received"
+                        const chip = stage === "completed"
+                          ? { label: "✓ Completed", bg: "rgba(22,163,74,0.1)", fg: "#15803d" }
+                          : stage === "received"
                           ? { label: "Part received · finish work", bg: "rgba(37,99,235,0.1)", fg: "#1d4ed8" }
                           : { label: p.itemCode ? "Awaiting part" : "Awaiting work", bg: "rgba(217,119,6,0.12)", fg: "#b45309" };
                         return (
@@ -16811,8 +16850,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                               <div className="flex items-center gap-x-3 gap-y-1 flex-wrap mt-1 text-[10.5px] text-slate-500">
                                 {p.itemCode && <span>Part <span className="font-mono font-bold text-slate-700">{p.itemCode}</span>{p.itemName ? ` · ${p.itemName}` : ""}{p.qty != null ? ` · qty ${p.qty}` : ""}</span>}
                                 {p.reason && <span>Reason: {p.reason}</span>}
-                                <span>Reported {p.raisedAt ? fmtDate(new Date(p.raisedAt)) : "—"}{p.raisedInDepartment ? ` in ${p.raisedInDepartment}` : ""}</span>
-                                {p.receivedAt && <span>Received {fmtDate(new Date(p.receivedAt))}{p.receivedNotes ? ` · ${p.receivedNotes}` : ""}</span>}
+                                <span>Reported {p.raisedAt ? fmtDate(new Date(p.raisedAt)) : "—"}{p.raisedInDepartment ? ` in ${p.raisedInDepartment}` : ""}{userName(p.raisedBy) ? ` by ${userName(p.raisedBy)}` : ""}</span>
+                                {p.receivedAt && <span>Received {fmtDate(new Date(p.receivedAt))}{userName(p.receivedBy) ? ` by ${userName(p.receivedBy)}` : ""}{p.receivedNotes ? ` · ${p.receivedNotes}` : ""}</span>}
+                                {p.status === "resolved" && <span style={{ color: "#15803d" }}>Completed {p.resolvedAt ? fmtDate(new Date(p.resolvedAt)) : ""}{p.resolvedInDepartment ? ` in ${p.resolvedInDepartment}` : ""}{userName(p.resolvedBy) ? ` by ${userName(p.resolvedBy)}` : ""}{p.resolutionNotes ? ` · ${p.resolutionNotes}` : ""}</span>}
                               </div>
                             </div>
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -16820,14 +16860,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                 {p.assignedDepartment || "Unassigned"}
                               </span>
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: chip.bg, color: chip.fg }}>{chip.label}</span>
-                              {canAct && onReceivePendingItem && !p.receivedAt && (
+                              {canAct && onReceivePendingItem && p.status === "open" && !p.receivedAt && (
                                 <button type="button" onClick={() => setJobAction({ item: p, action: "receive", notes: "", busy: false, error: "" })}
                                         className="text-[10.5px] font-bold px-2.5 py-1 rounded-lg border transition-all"
                                         style={{ background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.35)", color: "#1d4ed8" }}>
                                   Part received
                                 </button>
                               )}
-                              {canAct && onResolvePendingItem && (
+                              {canAct && onResolvePendingItem && p.status === "open" && (
                                 <button type="button" onClick={() => setJobAction({ item: p, action: "complete", notes: "", busy: false, error: "" })}
                                         className="text-[10.5px] font-bold px-2.5 py-1 rounded-lg border transition-all"
                                         style={{ background: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.35)", color: "#15803d" }}>
@@ -17552,7 +17592,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             const isComplete = machine.status === "completed";
             const isExpanded = expanded === machine.id;
             const selStage   = stageMap[machine.id] || "";
-            const futureStages = MACHINE_STAGES.filter((_, i) => i > curIdx);
+            // 2026-10-30 — READY is reached only through the Trial Certificate
+            // (Trial → Ready) and its acceptance, never by a stage jump.
+            const futureStages = MACHINE_STAGES.filter((s, i) => i > curIdx && s !== "Ready");
             const stageColor = STAGE_COLORS[machine.stage] || "#D71920";
             const pct = isComplete ? 100 : Math.round((curIdx / (MACHINE_STAGES.length - 1)) * 100);
             // Phase 1 — open pending items, split by what they block.
@@ -17900,12 +17942,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                 </div>
                               )}
                               <div className="overflow-x-auto">
-                                <table className="w-full text-[11px]" style={{ minWidth: 520 }}>
+                                <table className="w-full text-[11px]" style={{ minWidth: 680 }}>
                                   <thead>
                                     <tr className="text-left text-slate-500">
                                       <th scope="col" className="font-bold pb-1.5 pr-3">Department</th>
-                                      <th scope="col" className="font-bold pb-1.5 pr-3">Took</th>
-                                      <th scope="col" className="font-bold pb-1.5 pr-3">Allowed</th>
+                                      <th scope="col" className="font-bold pb-1.5 pr-3">Target</th>
+                                      <th scope="col" className="font-bold pb-1.5 pr-3">Actual</th>
+                                      <th scope="col" className="font-bold pb-1.5 pr-3">Delay · reason</th>
+                                      <th scope="col" className="font-bold pb-1.5 pr-3">Pending jobs</th>
                                       <th scope="col" className="font-bold pb-1.5 pr-3">Next dept waited</th>
                                       <th scope="col" className="font-bold pb-1.5">Stars</th>
                                     </tr>
@@ -17914,10 +17958,22 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                     {rows.map(({ h, expected, actual, overrun, held, rating }) => (
                                       <tr key={h.id} style={{ borderTop: "1px solid rgba(17,24,39,0.06)" }}>
                                         <td className="py-1.5 pr-3 font-bold text-slate-700">{h.fromDepartment}</td>
+                                        <td className="py-1.5 pr-3 text-slate-500">{formatDuration(expected)}</td>
                                         <td className="py-1.5 pr-3" style={{ color: overrun > 0 ? "#dc2626" : "#15803d" }}>
                                           {formatDuration(actual)}
                                         </td>
-                                        <td className="py-1.5 pr-3 text-slate-500">{formatDuration(expected)}</td>
+                                        <td className="py-1.5 pr-3" style={{ color: overrun > 0 ? "#dc2626" : "#6b7280", maxWidth: 220 }}>
+                                          {overrun > 0 ? `${formatDuration(overrun)}${h.overrunNarration ? ` — ${h.overrunNarration}` : ""}` : "—"}
+                                        </td>
+                                        <td className="py-1.5 pr-3 text-slate-600">
+                                          {(() => {
+                                            // Jobs raised at this hand-over — tracked apart from the delay.
+                                            const js = (pendingHandoverItems || []).filter((p) => String(p.raisedInHandoverId) === String(h.id));
+                                            if (!js.length) return "—";
+                                            const open = js.filter((p) => p.status === "open").length;
+                                            return `${js.length}${open ? ` (${open} open)` : " (done)"}`;
+                                          })()}
+                                        </td>
                                         <td className="py-1.5 pr-3" style={{ color: held > 0 ? "#dc2626" : "#6b7280" }}>
                                           {held > 0 ? `${formatDuration(held)} late` : "on time"}
                                         </td>
@@ -18542,22 +18598,29 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 </div>
                 <div className={`rounded-lg px-3 py-2.5 border ${isOverrun ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200"}`}>
                   <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">Time in {fromDepartment}</div>
+                  {/* 2026-10-30 — Target is the BOM duration copied onto this
+                      machine at Outward; Actual runs from when this department
+                      accepted the machine (or started it) to now. */}
                   <div className="text-[12px] text-slate-700 mt-0.5">
+                    Target <span className="font-bold text-slate-900">{formatDuration(expectedMin)}</span>
+                    <span className="text-slate-400"> · </span>
                     Actual <span className="font-bold text-slate-900">{formatDuration(actualMinutes)}</span>
-                    <span className="text-slate-400"> · expected {formatDuration(expectedMin)}</span>
-                    {isOverrun && <span className="text-red-600 font-bold ml-2">· overrun {formatDuration(overrunMinutes)}</span>}
+                    {isOverrun
+                      ? <span className="text-red-600 font-bold ml-2">· Delay {formatDuration(overrunMinutes)}</span>
+                      : <span className="text-emerald-700 font-bold ml-2">· on time</span>}
                   </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Actual = from acceptance into {fromDepartment} to Finish &amp; Transfer.</div>
                 </div>
                 {isOverrun && (
                   <div>
                     <label className="text-[11px] font-bold text-red-600 block mb-1.5">
-                      Explanation required (overrun)
+                      Delay reason (required)
                       <span className="text-red-500 ml-0.5">*</span>
                     </label>
                     <textarea
                       value={narration}
                       onChange={(e) => setFinishModal((prev) => prev ? { ...prev, narration: e.target.value } : prev)}
-                      placeholder="Why did this department take longer than configured?"
+                      placeholder="Why did this department take longer than its target time? (Pending jobs are recorded separately below.)"
                       rows={3}
                       autoFocus
                       className="w-full bg-white border border-red-300 rounded-lg px-3 py-2 text-[12px] text-slate-900 placeholder-slate-400 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 transition-colors"
@@ -18597,7 +18660,8 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                       if (!prev) return prev;
                       const nextList = prev.workedBy.filter((x) => x !== id);
                       const nextMain = prev.mainEmployeeId === id ? (nextList.find((x) => !x.startsWith("emp:")) || null) : prev.mainEmployeeId;
-                      return { ...prev, workedBy: nextList, mainEmployeeId: nextMain, mainSigSvg: null, mainSigNeeded: false };
+                      return { ...prev, workedBy: nextList, mainEmployeeId: nextMain, mainSigSvg: null, mainSigNeeded: false,
+                               actingMainId: prev.actingMainId === id ? null : prev.actingMainId };
                     });
                   };
                   const setMain = (id) => setFinishModal((prev) => prev ? { ...prev, mainEmployeeId: id, mainSigSvg: null, mainSigNeeded: false } : prev);
@@ -18611,6 +18675,44 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   };
                   // Workers eligible to be Main (auth users only — emp members can't sign)
                   const authWorkedBy = workedBy.filter((id) => !id.startsWith("emp:"));
+                  // 2026-10-30 — Acting Main Employee. When the department's
+                  // regular Main Employee is unavailable, an admin may assign
+                  // another ERP user to act for them. They are added to the
+                  // workers, become Main, and must still sign. Recorded on the
+                  // handover snapshot and in the audit trail as "acting".
+                  const actingId = finishModal.actingMainId || null;
+                  const actingChoices = isAdminUser
+                    ? (allUsers || []).filter((u) => u && u.status !== "disabled" && !workedBy.includes(u.id)
+                        && !(Array.isArray(u.departments) && u.departments.includes(fromDepartment)))
+                    : [];
+                  const assignActing = (id) => setFinishModal((prev) => {
+                    if (!prev || !id) return prev;
+                    const base = (prev.workedBy || []).filter((x) => x !== prev.actingMainId);
+                    return { ...prev, workedBy: [...base, id], mainEmployeeId: id, actingMainId: id, mainSigSvg: null, mainSigNeeded: false };
+                  });
+                  const actingBlock = isAdminUser && (actingChoices.length > 0 || actingId) ? (
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                      <div className="text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Regular Main Employee unavailable?</div>
+                      {actingId ? (
+                        <div className="rounded-lg px-3 py-2 flex items-center gap-2 flex-wrap bg-amber-50 border border-amber-200">
+                          <span className="text-[11px] font-bold text-amber-800">Acting Main Employee: {chipName(actingId)}</span>
+                          <span className="text-[10px] text-amber-700">assigned by {currentUser?.fullName || currentUser?.username || "admin"}</span>
+                          <button type="button" onClick={() => removeWorker(actingId)}
+                                  className="ml-auto text-[10px] text-slate-500 hover:text-red-500 underline">Remove</button>
+                        </div>
+                      ) : (
+                        <select value="" onChange={(e) => { if (e.target.value) assignActing(e.target.value); }}
+                                aria-label="Assign Acting Main Employee"
+                                className="w-full bg-white border border-amber-300 rounded-md px-2 py-1.5 text-[11px] text-slate-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-50 transition-colors">
+                          <option value="">Admin: assign an Acting Main Employee…</option>
+                          {actingChoices.map((u) => (
+                            <option key={u.id} value={u.id}>{u.fullName || u.username}{u.username && u.fullName ? ` (${u.username})` : ""}</option>
+                          ))}
+                        </select>
+                      )}
+                      <div className="text-[10px] text-slate-500 mt-1">The acting employee is added to the workers, becomes Main and must sign below.</div>
+                    </div>
+                  ) : null;
                   return (
                     <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
                       <div className="text-[11px] font-black text-slate-800 mb-1">
@@ -18619,7 +18721,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                       <div className="text-[10px] text-slate-500 mb-2">
                         Pick everyone who worked on this machine. The <span className="text-amber-600 font-semibold">Main / Responsible Employee</span> (must have an ERP login) signs to confirm. Factory workers without logins can be added from Settings → Employees.
                       </div>
-                      {!hasAnyWorkers ? (
+                      {!hasAnyWorkers && !actingId ? (
                         <div className="rounded-lg px-2 py-2 text-[11px] font-semibold text-red-600 bg-red-50 border border-red-200">
                           ⚠ No employees are assigned to {fromDepartment} yet. Ask an admin to assign workers in Settings → Department Workflow or add display names in Settings → Employees.
                         </div>
@@ -18637,6 +18739,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                         }`}>
                                     {isMain ? "⭐" : isEmp ? "👤" : ""}
                                     {chipName(id)}
+                                    {finishModal.actingMainId === id && <span className="text-[9px] font-black uppercase ml-0.5">acting</span>}
                                     <button onClick={() => removeWorker(id)}
                                             title="Remove worker"
                                             className="ml-0.5 text-slate-400 hover:text-red-500">×</button>
@@ -18681,6 +18784,8 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         </>
                       )}
 
+                      {actingBlock}
+
                       {/* Main Employee signature capture. Only the main
                           employee signs this department's work. If their
                           saved signature is missing, pad shows up inline. */}
@@ -18722,7 +18827,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
                     <div className="text-[11px] font-black text-slate-800 mb-2">
                       Checklist · {finishModal.template.name}
-                      <span className="text-slate-400 font-normal ml-1">(unchecked items need a remark)</span>
+                      <span className="text-slate-400 font-normal ml-1">(an unticked item needs a reason — it is saved as a pending job)</span>
                     </div>
                     <ChecklistBulkBar
                       answers={finishModal.answers}
@@ -18740,7 +18845,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           {!a.checked && (
                             <input type="text" value={a.remark || ""}
                                    onChange={(e) => setFinishModal((prev) => prev ? { ...prev, answers: setAnswerRemark(prev.answers, i, e.target.value) } : prev)}
-                                   placeholder="Remark (required for unchecked item)"
+                                   placeholder="Reason not done (required — saved as a pending job)"
                                    className="w-full mt-2 bg-white border border-slate-300 rounded px-2 py-1.5 text-[11px] text-slate-900 placeholder-slate-400 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-100 transition-colors" />
                           )}
                         </div>
@@ -18913,7 +19018,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                               {!a.checked && (
                                 <input type="text" value={a.remark || ""}
                                        onChange={(e) => setField({ checklistAnswers: setAnswerRemark(acceptModal.checklistAnswers, i, e.target.value), error: "" })}
-                                       placeholder="Why not? (short note)"
+                                       placeholder="Reason not done (required — saved as a pending job)"
                                        className="mt-1 w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-900 placeholder-slate-500 outline-none focus:border-blue-500/60" />
                               )}
                             </div>
@@ -23037,9 +23142,20 @@ export default function App() {
     const nowIso = new Date().toISOString();
     const machine = machineLog.find((m) => m.id === machineId);
     const isComplete = newStage === "Ready";
-    if (isComplete) {
-      const blocked = readyBlockedError(machineId);
-      if (blocked) { flashSaveError("Not Ready", `${machine?.bomKey || ""}${machine?.serialNo ? ` · ${machine.serialNo}` : ""}: ${blocked}`); return { success: false, error: blocked }; }
+    // 2026-10-30 — READY is final: a Ready machine never changes stage again
+    // (and so can never go back to the rack). READY itself is reached only by
+    // the Trial Certificate hand-over, not by this admin shortcut.
+    if (machine && (machine.status === "completed" || machine.stage === "Ready")) {
+      const msg = "This machine is READY — READY is the final stage and cannot be changed.";
+      flashSaveError("Stage not changed", `${machine.bomKey}${machine.serialNo ? ` · ${machine.serialNo}` : ""}: ${msg}`);
+      return { success: false, error: msg };
+    }
+    if (isComplete || newStage === "BOM Issued") {
+      const msg = isComplete
+        ? "READY is set only by completing the Trial Certificate and accepting the machine into Ready."
+        : "A machine in production cannot be sent back to the rack.";
+      flashSaveError("Stage not changed", `${machine?.bomKey || ""}${machine?.serialNo ? ` · ${machine.serialNo}` : ""}: ${msg}`);
+      return { success: false, error: msg };
     }
     logAudit({ type: isComplete ? "machine_completed" : "machine_stage", module: "Machine", action: `${machine?.bomKey || ""} [${machine?.serialNo || ""}] → ${newStage}`, ref: machine?.bomKey || "", serialNo: machine?.serialNo || "", details: { from: machine?.stage, to: newStage, bomLabel: machine?.bomLabel } });
     setMachineLog((prev) => prev.map((m) => {
@@ -23253,12 +23369,22 @@ export default function App() {
     // it over (a part on order, say). The machine moves; these follow it and
     // stop it reaching Ready until they are resolved.
     owedItems = [],
+    // 2026-10-30 — admin-assigned Acting Main Employee (regular one unavailable).
+    actingMainEmployeeId = null,
   }) => {
     if (!currentUser?.id) return { success: false, error: "Not authenticated" };
     const machine = machineLog.find((m) => m.id === machineId);
     if (!machine) return { success: false, error: "Machine not found" };
     if (machine.pendingHandoverId) return { success: false, error: "Handover already in progress for this machine." };
+    if (machine.status === "completed" || machine.stage === "Ready") {
+      return { success: false, error: "This machine is READY — READY is the final stage." };
+    }
     if (toDepartment === "Ready") {
+      // READY only after Trial completion: the Trial → Ready hop, carrying the
+      // Trial Certificate, and no mandatory pending job left open.
+      if (fromDepartment !== "Trial" || !trialCertificate) {
+        return { success: false, error: "READY needs the Trial Certificate — finish Trial first." };
+      }
       const blocked = readyBlockedError(machineId);
       if (blocked) return { success: false, error: blocked };
     }
@@ -23337,8 +23463,24 @@ export default function App() {
       (hop) => hop.from === fromDepartment && hop.to === toDepartment
     );
 
+    if (actingMainEmployeeId) {
+      const isAdmin = currentUser?.role === "super_admin" || currentUser?.role === "Admin";
+      if (!isAdmin) return { success: false, error: "Only an admin can assign an Acting Main Employee." };
+      if (actingMainEmployeeId !== mainEmployeeId) return { success: false, error: "The Acting Main Employee must be the Main Employee who signs." };
+    }
+
     const res = await handoverCreate(payload);
     if (!res.success) return res;
+
+    if (actingMainEmployeeId) {
+      const au = (allUsers || []).find((u) => u.id === actingMainEmployeeId);
+      logAudit({
+        type: "acting_main_assigned", module: "Machine",
+        action: `Acting Main Employee ${au?.fullName || au?.username || actingMainEmployeeId} for ${fromDepartment} → ${toDepartment}: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}`,
+        ref: machine.bomKey, serialNo: machine.serialNo || "",
+        details: { handoverId: res.handover.id, actingMainEmployeeId, assignedBy: currentUser?.id || null, department: fromDepartment },
+      });
+    }
 
     // Attach pending_handover_id to the machine, append a history annotation.
     const dateStr = fmtDate(new Date());
@@ -23441,7 +23583,12 @@ export default function App() {
     // Phase 1 — record the jobs this department still owes. Raised against
     // fromDepartment (the department that owes the work), kind 'owed' so the
     // machine can still move between departments but cannot reach Ready.
-    for (const job of cleanPendingJobs(owedItems)) {
+    // 2026-10-30 — an unticked Before Transfer checklist item (its reason is
+    // mandatory) is not a blocker: it follows the machine as a pending job
+    // owed by this department, with the reason the operator wrote.
+    const checklistJobs = (checklistTemplate && Array.isArray(checklistAnswers))
+      ? incompleteChecklistJobs(checklistAnswers, "Before Transfer") : [];
+    for (const job of [...cleanPendingJobs(owedItems), ...checklistJobs]) {
       const text = job.description;
       const pr = await createPendingItem({
         machineId,
@@ -23485,6 +23632,9 @@ export default function App() {
       return { success: false, error: "This machine is on the rack — a production head must release it first." };
     }
     if (handover.toDepartment === "Ready") {
+      if (handover.fromDepartment !== "Trial") {
+        return { success: false, error: "READY can only be accepted from Trial." };
+      }
       const blocked = readyBlockedError(handover.machineId);
       if (blocked) return { success: false, error: blocked };
     }
@@ -23639,6 +23789,31 @@ export default function App() {
         });
       } else {
         console.warn("[App] handleAcceptHandover: before-receive checklist save failed", cr.error);
+      }
+    }
+
+    // 2026-10-30 — unticked After Acceptance checklist items (reason
+    // mandatory) become pending jobs on the machine, owed by the sending
+    // department whose work they check. Kind 'owed': the machine keeps moving
+    // but cannot be Ready until they are completed.
+    if (checklistTemplate && Array.isArray(checklistAnswers)) {
+      for (const job of incompleteChecklistJobs(checklistAnswers, "After Acceptance")) {
+        const pi = await createPendingItem({
+          machineId: handover.machineId, raisedInHandoverId: handoverId,
+          raisedInDepartment: handover.toDepartment, assignedDepartment: handover.fromDepartment,
+          kind: "owed", raisedBy: currentUser.id, description: job.description, reason: job.reason,
+        });
+        if (pi.success) {
+          setPendingHandoverItems((prev) => [pi.item, ...prev]);
+          logAudit({
+            type: "pending_item_raised", module: "Machine",
+            action: `${job.description} — ${handover.bomKey}${handover.serialNo ? ` [${handover.serialNo}]` : ""}`,
+            ref: handover.bomKey, serialNo: handover.serialNo || "",
+            details: { handoverId, machineId: handover.machineId, kind: "owed", assignedDepartment: handover.fromDepartment, reason: job.reason, source: "checklist_after_acceptance" },
+          });
+        } else {
+          console.warn("[App] handleAcceptHandover: checklist pending job save failed", pi.error);
+        }
       }
     }
 
