@@ -6113,6 +6113,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
   const [localSettings, setLocalSettings] = useState({
     waApiKey: settings.waApiKey || "",
     waPhoneId: settings.waPhoneId || "",
+    waWabaId: settings.waWabaId || "",
     waPluginId: settings.waPluginId || "",
     waOwnerPhone: settings.waOwnerPhone || "",
     waGroupNumbers: settings.waGroupNumbers || "",
@@ -6144,6 +6145,17 @@ function WhatsAppPage({ settings = {}, onSave }) {
   const [reply,        setReply]        = useState("");
   const [sendingReply, setSendingReply] = useState(false);
   const threadEndRef = useRef(null);
+
+  // ── Message templates ──
+  // A template is what lets the ERP START a conversation. Alerts fire at times
+  // nobody is chatting, so without an approved template every outbound alert is
+  // rejected by WhatsApp. Created here and submitted to Meta for approval.
+  const [templates,    setTemplates]    = useState([]);
+  const [tplLoading,   setTplLoading]   = useState(false);
+  const [tplErr,       setTplErr]       = useState("");
+  const [tplCreating,  setTplCreating]  = useState(false);
+  const [tplMsg,       setTplMsg]       = useState("");
+  const [showNewTpl,   setShowNewTpl]   = useState(false);
 
   // ── Claude Agent State ──
   const [chatMessages, setChatMessages] = useState(() => {
@@ -6260,6 +6272,74 @@ function WhatsAppPage({ settings = {}, onSave }) {
   useEffect(() => {
     if (threadEndRef.current) threadEndRef.current.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // ── Template loaders ────────────────────────────────────────────────────
+  const loadTemplates = async () => {
+    if (!localSettings.waApiKey) { setTplErr("पहले Settings में API key डालो"); return; }
+    if (!localSettings.waWabaId) { setTplErr("पहले Settings में WABA ID डालो"); return; }
+    setTplLoading(true); setTplErr(""); setTplMsg("");
+    try {
+      const { callWhatsAppFn } = await import("./stores/adminApi.js");
+      const res = await callWhatsAppFn("whatsapp-templates", {
+        action: "list", apiKey: localSettings.waApiKey, wabaId: localSettings.waWabaId,
+      });
+      if (res?.success) setTemplates(res.templates || []);
+      else setTplErr(res?.error || "Templates नहीं आ सके");
+    } catch (e) {
+      setTplErr(e?.message || "Connection failed");
+    }
+    setTplLoading(false);
+  };
+
+  // The one template that covers every ERP alert. The {{n}} slots let a single
+  // approved template carry an issue, a transfer and a deadline alert, so we
+  // don't need Meta to approve one per alert type.
+  const ERP_ALERT_TEMPLATE = {
+    name: "shantaz_erp_alert",
+    category: "UTILITY",
+    language: "en",
+    components: [
+      {
+        type: "BODY",
+        text: "Shantaz ERP Alert\n\n{{1}}\n\nMachine: {{2}}\nDepartment: {{3}}\nDetails: {{4}}\nTime: {{5}}",
+        example: { body_text: [["Issue Raised", "KM10 (SN-1234)", "Mechanical", "Pump leak", "30 Oct, 10:54 AM"]] },
+      },
+    ],
+  };
+
+  const createAlertTemplate = async () => {
+    if (!localSettings.waApiKey || !localSettings.waWabaId) {
+      setTplErr("पहले Settings में API key और WABA ID डालो"); return;
+    }
+    setTplCreating(true); setTplErr(""); setTplMsg("");
+    try {
+      const { callWhatsAppFn } = await import("./stores/adminApi.js");
+      const res = await callWhatsAppFn("whatsapp-templates", {
+        action: "create",
+        apiKey: localSettings.waApiKey,
+        wabaId: localSettings.waWabaId,
+        template: ERP_ALERT_TEMPLATE,
+      });
+      if (res?.success) {
+        setTplMsg(`✅ Template भेज दिया — status: ${res.status || "PENDING"}. Meta approve करेगा (few min–24h).`);
+        setShowNewTpl(false);
+        loadTemplates();
+      } else {
+        setTplErr(res?.error || "Template नहीं बना");
+      }
+    } catch (e) {
+      setTplErr(e?.message || "Create failed");
+    }
+    setTplCreating(false);
+  };
+
+  useEffect(() => {
+    if (section === "templates" && localSettings.waApiKey && localSettings.waWabaId
+        && templates.length === 0 && !tplLoading && !tplErr) {
+      loadTemplates();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section, localSettings.waApiKey, localSettings.waWabaId]);
 
   const waTime = (ts) => {
     if (!ts) return "";
@@ -6547,28 +6627,103 @@ function WhatsAppPage({ settings = {}, onSave }) {
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
-              <div className="space-y-3">
-                {[
-                  { name: "issue_alert", status: "pending", desc: "🔴 Issue Raised — Machine पर fault report", vars: "machine, department, issue" },
-                  { name: "transfer_complete", status: "pending", desc: "🟢 Transfer Done — Machine handover notification", vars: "machine, from_dept, to_dept, time" },
-                  { name: "deadline_exceeded", status: "pending", desc: "🟡 Deadline Crossed — Department overtime alert", vars: "machine, department, waiting_time" },
-                  { name: "daily_summary", status: "pending", desc: "📊 Daily Report — Morning summary of factory", vars: "active_machines, pending_issues, completed" },
-                ].map((t) => (
-                  <div key={t.name} className="p-4 rounded-xl" style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-[13px] font-bold" style={{ color: "var(--text)" }}>{t.name}</div>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
-                            style={{ background: "rgba(234,179,8,0.1)", color: "#a16207", border: "1px solid rgba(234,179,8,0.3)" }}>
-                        {t.status === "pending" ? "⏳ Setup Pending" : "✅ Approved"}
-                      </span>
-                    </div>
-                    <div className="text-[12px] mb-1" style={{ color: "var(--text-dim)" }}>{t.desc}</div>
-                    <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>Variables: <span style={{ color: "#25D366" }}>{`{{${t.vars.split(", ").join("}}, {{")}}`}</span></div>
-                  </div>
-                ))}
+
+              <div className="flex items-center gap-2 mb-3">
+                <button onClick={loadTemplates} disabled={tplLoading}
+                        className="text-[11px] font-bold px-3 py-2 rounded-lg disabled:opacity-40"
+                        style={{ background: "rgba(37,211,102,0.12)", color: "#128c7e", border: "1px solid rgba(37,211,102,0.3)" }}>
+                  {tplLoading ? "⏳ आ रहे हैं…" : "⟳ Refresh"}
+                </button>
+                <button onClick={() => { setShowNewTpl(true); setTplErr(""); setTplMsg(""); }}
+                        className="text-[11px] font-bold px-3 py-2 rounded-lg text-white"
+                        style={{ background: "linear-gradient(135deg,#25d366,#128c7e)" }}>
+                  + नया Alert Template बनाओ
+                </button>
               </div>
-              <div className="mt-4 p-3 rounded-lg text-[11px]" style={{ background: "rgba(37,211,102,0.05)", color: "var(--text-dim)" }}>
-                💡 Templates Chakra HQ → Message Templates में बनाने होंगे। Meta approval के बाद यहाँ active हो जाएंगे।
+
+              {tplErr && (
+                <div className="mb-3 px-3 py-2.5 rounded-lg text-[11px]"
+                     style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.3)", color: "#b91c1c" }}>
+                  ⚠️ {tplErr}
+                </div>
+              )}
+              {tplMsg && (
+                <div className="mb-3 px-3 py-2.5 rounded-lg text-[11px]"
+                     style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.3)", color: "#047857" }}>
+                  {tplMsg}
+                </div>
+              )}
+
+              {/* Create — one template with {{n}} slots covers every ERP alert,
+                  so Meta only has to approve one thing, not one per alert type. */}
+              {showNewTpl && (
+                <div className="mb-4 p-4 rounded-xl" style={{ background: "var(--surface-raised)", border: "1px solid rgba(37,211,102,0.35)" }}>
+                  <div className="text-[13px] font-bold mb-1" style={{ color: "var(--text)" }}>ERP Alert Template</div>
+                  <div className="text-[11px] mb-3" style={{ color: "var(--text-dim)" }}>
+                    यही एक template तीनों alert (Issue / Transfer / Deadline) के लिए चलेगा — खाली जगहें ERP खुद भरेगा.
+                  </div>
+                  <pre className="text-[11px] p-3 rounded-lg whitespace-pre-wrap leading-relaxed mb-3"
+                       style={{ background: "rgba(17,24,39,0.04)", color: "var(--text)", fontFamily: "inherit" }}>
+{`Shantaz ERP Alert
+
+{{1}}            ← Issue Raised / Transfer Complete / Deadline Exceeded
+Machine: {{2}}
+Department: {{3}}
+Details: {{4}}
+Time: {{5}}`}
+                  </pre>
+                  <div className="text-[10px] mb-3" style={{ color: "var(--text-dim)" }}>
+                    Name: <b>shantaz_erp_alert</b> · Category: <b>UTILITY</b> · Language: <b>en</b>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowNewTpl(false)} disabled={tplCreating}
+                            className="text-[11px] font-bold px-3 py-2 rounded-lg disabled:opacity-40"
+                            style={{ background: "rgba(17,24,39,0.05)", color: "var(--text-dim)" }}>Cancel</button>
+                    <button onClick={createAlertTemplate} disabled={tplCreating}
+                            className="text-[11px] font-bold px-4 py-2 rounded-lg text-white disabled:opacity-40"
+                            style={{ background: "linear-gradient(135deg,#25d366,#128c7e)" }}>
+                      {tplCreating ? "⏳ भेज रहा हूँ…" : "Meta को approval के लिए भेजो"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!tplLoading && templates.length === 0 && !tplErr && (
+                <div className="text-center py-12">
+                  <div className="text-4xl mb-3">📄</div>
+                  <div className="text-[14px] font-bold mb-1" style={{ color: "var(--text)" }}>कोई template नहीं है</div>
+                  <div className="text-[12px]" style={{ color: "var(--text-dim)" }}>
+                    ऊपर "+ नया Alert Template बनाओ" दबाओ — alerts इसी के बाद चलेंगे
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                {templates.map((t) => {
+                  const st = (t.status || "").toUpperCase();
+                  const look = st === "APPROVED" ? { bg: "rgba(16,185,129,0.1)",  fg: "#047857", br: "rgba(16,185,129,0.3)", txt: "✅ Approved — चालू है" }
+                             : st === "REJECTED" ? { bg: "rgba(220,38,38,0.1)",   fg: "#b91c1c", br: "rgba(220,38,38,0.3)",  txt: "❌ Rejected" }
+                             :                     { bg: "rgba(234,179,8,0.1)",   fg: "#a16207", br: "rgba(234,179,8,0.3)",  txt: "⏳ Meta देख रहा है" };
+                  return (
+                    <div key={t.id || t.name} className="p-4 rounded-xl"
+                         style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="text-[13px] font-bold" style={{ color: "var(--text)" }}>{t.name}</div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0"
+                              style={{ background: look.bg, color: look.fg, border: `1px solid ${look.br}` }}>
+                          {look.txt}
+                        </span>
+                      </div>
+                      {t.text && (
+                        <div className="text-[11.5px] whitespace-pre-wrap leading-relaxed p-2.5 rounded-lg mb-2"
+                             style={{ background: "rgba(17,24,39,0.03)", color: "var(--text-dim)" }}>{t.text}</div>
+                      )}
+                      <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>
+                        {t.category} · {t.language}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -6675,6 +6830,7 @@ function WhatsAppPage({ settings = {}, onSave }) {
                     { key: "waApiKey",       label: "API Key (Chakra HQ)",    type: "password", ph: "Bearer token paste करो" },
                     { key: "waPluginId",     label: "Plugin ID",              type: "text",     ph: "Chakra HQ URL से copy करो" },
                     { key: "waPhoneId",      label: "Phone Number ID",        type: "text",     ph: "WhatsApp Accounts से" },
+                    { key: "waWabaId",       label: "WABA ID",                type: "text",     ph: "Templates बनाने के लिए" },
                     { key: "waOwnerPhone",   label: "Owner / Admin Phone",    type: "text",     ph: "919876543210", filter: /[^0-9]/g },
                     { key: "waGroupNumbers", label: "Dept Heads (comma-sep)", type: "text",     ph: "919876543210, 919876543211" },
                     { key: "waAnthropicKey", label: "Anthropic API Key (AI)", type: "password", ph: "console.anthropic.com से" },
@@ -6823,6 +6979,7 @@ const SETTINGS_DEFAULTS = {
   // WhatsApp Business API (Chakra HQ) integration
   waApiKey:        "",     // Chakra HQ Bearer token
   waPhoneId:       "",     // WhatsApp phone number ID
+  waWabaId:        "",     // WhatsApp Business Account ID — needed to create templates
   waOwnerPhone:    "",     // Owner's phone for admin alerts (with country code, e.g. 919876543210)
   waNotifyIssue:   true,   // Notify when issue raised on machine
   waNotifyTransfer:true,   // Notify when machine transferred to next dept
