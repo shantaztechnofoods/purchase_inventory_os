@@ -118,3 +118,34 @@ test("critical items not issued at Outward are raised as pending jobs on the mac
   assert.match(app, /Part not issued at BOM Outward/);
   assert.match(app, /assignedDepartment: "Stores"/);
 });
+
+// Migration 042 — the database guard on pending-job updates, and the app's two
+// update payloads staying inside what it allows.
+const mig042  = fs.readFileSync(path.join(root, "supabase/migrations/042_pending_item_update_guard.sql"), "utf8");
+const rb042   = fs.readFileSync(path.join(root, "supabase/migrations/042_pending_item_update_guard_rollback.sql"), "utf8");
+const storeSrc = fs.readFileSync(path.join(root, "src/stores/pendingItemsStore.js"), "utf8");
+
+test("042: guard trigger rules are in the migration, with a rollback", () => {
+  assert.match(mig042, /CREATE TRIGGER pending_handover_items_guard\s+BEFORE UPDATE OR DELETE ON public\.pending_handover_items/);
+  assert.match(mig042, /IF OLD\.received_at IS NOT NULL THEN\s+RAISE EXCEPTION/);          // receive once
+  assert.match(mig042, /receive_keys\s+text\[\] := ARRAY\['received_at','received_by','received_notes'\]/);
+  assert.match(mig042, /complete_keys text\[\] := ARRAY\['status','resolved_at','resolved_by','resolved_in_department','resolution_notes'\]/);
+  assert.match(mig042, /IF OLD\.status = 'resolved' THEN\s+RAISE EXCEPTION/);               // no reopen / edit
+  assert.match(mig042, /IF TG_OP = 'DELETE' THEN\s+RAISE EXCEPTION/);                       // no delete
+  assert.doesNotMatch(mig042, /DROP POLICY|ALTER TABLE|CREATE POLICY/, "042 must not touch policies or columns");
+  assert.match(rb042, /DROP TRIGGER IF EXISTS pending_handover_items_guard/);
+  assert.match(rb042, /DROP FUNCTION IF EXISTS public\.pending_handover_items_guard\(\)/);
+});
+
+test("042: the app only ever sends the fields the guard allows", () => {
+  const bodies = [...storeSrc.matchAll(/\.from\("pending_handover_items"\)\.update\(\{([\s\S]*?)\}\)/g)].map((m) => m[1]);
+  assert.equal(bodies.length, 2, "exactly two update paths: complete and receive");
+  const keysOf = (b) => [...b.matchAll(/^\s*([a-z_]+)\s*:/gm)].map((m) => m[1]).sort();
+  const allowedComplete = ["resolution_notes", "resolved_at", "resolved_by", "resolved_in_department", "status"];
+  const allowedReceive  = ["received_at", "received_by", "received_notes"];
+  for (const b of bodies) {
+    const k = keysOf(b);
+    const ok = JSON.stringify(k) === JSON.stringify(allowedComplete) || JSON.stringify(k) === JSON.stringify(allowedReceive);
+    assert.ok(ok, `unexpected update payload keys: ${k.join(", ")}`);
+  }
+});
