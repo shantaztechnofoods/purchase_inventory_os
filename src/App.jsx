@@ -11231,15 +11231,17 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   // The confirmation UI lives in a dedicated modal that opens when the operator
   // clicks "Issue Stock" — shown ONLY during BOM Outward, never during BOM
   // create / edit. Non-critical outward keeps its existing inline confirm flow.
+  // 2026-10-30 — each entry may also carry { remark }: why a critical item
+  // was NOT verified. An unverified critical item is allowed through only with
+  // a remark, and is then left out of the issue (see doIssue).
   const [criticalInputs,    setCriticalInputs]    = useState({});
   const [criticalErr,       setCriticalErr]       = useState("");
-  const [showCriticalModal, setShowCriticalModal] = useState(false);
-  // Migration 037 — store-floor check-point briefing. Shown once, before the
-  // critical-item confirmation, so the operator reads what to verify BEFORE
-  // they start ticking items off. `cpAcknowledged` keeps it from re-opening
-  // when they step back and forth through the confirm flow.
+  // One popup for the whole pre-issue check: the check points of every line
+  // going out AND the critical-item confirmations. Until 2026-10-30 these were
+  // two popups in a row, and the second one refused to continue until every
+  // critical item was ticked — so a BOM could not be issued at all while one
+  // part was still on order.
   const [showCPBrief,   setShowCPBrief]   = useState(false);
-  const [cpAcknowledged, setCpAcknowledged] = useState(false);
   // Which edit-mode BOM line has its per-BOM check points open.
   const [cpEditCode,    setCpEditCode]    = useState(null);
   // Feature 2 — Req 2: set of all serial numbers already issued historically.
@@ -11334,10 +11336,6 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   // checkbox-mode requires a single confirmation. Non-empty whitespace-trimmed
   // serials only. The ready flag gates the Confirm button.
   const criticalLines = checkedE.filter((i) => i.issueQty > 0 && i.inv && i.inv.isCritical);
-  // Migration 037 — lines actually being issued that carry check points. Drives
-  // the briefing popup; empty means there is nothing to brief and the operator
-  // goes straight to the existing confirm flow.
-  const cpBriefLines  = checkedE.filter((i) => i.issueQty > 0 && (i.checkPoints || []).length > 0);
   const isCriticalLineReady = (line) => {
     const type = line.inv.outwardInputType === "serial" ? "serial" : "checkbox";
     const state = criticalInputs[line.code] || {};
@@ -11349,7 +11347,21 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     if (serials.some((s) => usedSerials.has(s.toLowerCase()))) return false;
     return true;
   };
-  const allCriticalReady = criticalLines.every(isCriticalLineReady);
+  // An unverified critical line may go ahead only when the operator says why.
+  // A serial line with some serials typed is neither verified nor skipped —
+  // the half-entered list is almost certainly a mistake, so it must be
+  // finished or cleared.
+  const criticalRemark   = (line) => String((criticalInputs[line.code] || {}).remark || "").trim();
+  const hasPartialSerials = (line) => line.inv.outwardInputType === "serial"
+    && ((criticalInputs[line.code] || {}).serials || []).some((x) => String(x || "").trim());
+  const isCriticalLineSkipped = (line) => !isCriticalLineReady(line) && !hasPartialSerials(line) && !!criticalRemark(line);
+  const isCriticalLineResolved = (line) => isCriticalLineReady(line) || isCriticalLineSkipped(line);
+  const allCriticalResolved = criticalLines.every(isCriticalLineResolved);
+  const skippedCodes = new Set(criticalLines.filter(isCriticalLineSkipped).map((l) => l.code));
+  // Every line the pre-issue popup covers: anything with check points, plus
+  // every critical line (a critical item with no check points still needs its
+  // confirmation).
+  const verifyLines = checkedE.filter((i) => i.issueQty > 0 && ((i.checkPoints || []).length > 0 || (i.inv && i.inv.isCritical)));
 
   // Panel split: Electrical → right, everything else → left
   const leftCats  = categories.filter((c) => c !== "Electrical");
@@ -11488,9 +11500,17 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     // Critical-item gate (migration 026). Every critical line that is being
     // issued this round must have its confirmation ready (checkbox ticked, or
     // a unique non-empty serial per unit) before any stock is moved.
-    if (!allCriticalReady) {
-      const missing = criticalLines.filter((l) => !isCriticalLineReady(l)).map((l) => l.name).join(", ");
-      setCriticalErr(`Confirm critical items before issuing: ${missing}`);
+    if (!allCriticalResolved) {
+      const missing = criticalLines.filter((l) => !isCriticalLineResolved(l)).map((l) => l.name).join(", ");
+      setCriticalErr(`Verify these critical items, or write why they are not being issued: ${missing}`);
+      setShowCPBrief(true);
+      return;
+    }
+    // Nothing would actually leave the store — every line is a skipped critical
+    // item. Creating a machine with no material issued is never intended.
+    if (!checkedE.some((i) => i.issueQty > 0 && !skippedCodes.has(i.code))) {
+      setCriticalErr("Nothing would be issued — every item is marked as not available. Verify at least one item, or cancel.");
+      setShowCPBrief(true);
       return;
     }
     // Duration-config gate (migration 027). Appears only when this outward
@@ -11546,6 +11566,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     // Committing it as zero contradicts what they confirmed, so refuse and say
     // so rather than quietly turning it into a shortfall.
     const contradicted = criticalLines.filter((l) => {
+      if (skippedCodes.has(l.code)) return false;   // not being issued by design
       const line = checkedE.find((e) => e.code === l.code);
       return line && line.issueQty <= 0;
     });
@@ -11554,7 +11575,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
         `${contradicted.map((l) => l.name).join(", ")}: you confirmed ${contradicted.length === 1 ? "this item" : "these items"}, ` +
         `but the quantity to issue is now 0. Nothing has been issued. Check the quantity column and try again.`
       );
-      setShowCriticalModal(true);
+      setShowCPBrief(true);
       return;
     }
 
@@ -11571,6 +11592,16 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     // succeeded and abort — no machine, no phantom issue — and tell the operator.
     const moves = [];
     checkedE.forEach((item) => {
+      // A critical item left unverified (with its reason) is NOT issued: no
+      // stock moves and, for now, no Pending Stock row — tracking it is the
+      // next piece of work. It is still written to the outward record with
+      // quantity 0 and the remark, so the reason is never lost.
+      if (skippedCodes.has(item.code)) {
+        const type = item.inv?.outwardInputType === "serial" ? "serial" : "checkbox";
+        issued.push({ ...item, issueQty: 0, pendingQty: 0,
+          criticalInput: { type, confirmed: false, notIssued: true, remark: criticalRemark(item), requiredQty: item.issueQty } });
+        return;
+      }
       if (item.issueQty > 0 && item.inv) {
         moves.push({ category: item.inv.category, code: item.code, qty: item.issueQty, name: item.name });
       }
@@ -11611,7 +11642,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
       const msg = `Issue aborted — stock movement failed:\n${failures.map((f) => `${f.m.name}: ${f.err || "rejected"}`).join("\n")}`;
       onStockIssueFailed?.(bomKey, failures.map((f) => `${f.m.name}: ${f.err || "rejected"}`));
       setCriticalErr(msg);
-      setShowCriticalModal(true);
+      setShowCPBrief(true);
       return;
     }
 
@@ -12131,18 +12162,12 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
             <button onClick={onClose} className="text-xs font-bold text-slate-500 px-4 py-2.5 rounded-xl border border-slate-200 hover:text-slate-900 hover:border-white/20 transition-all">Cancel</button>
             {!confirmIssue ? (
               <button onClick={() => {
-                        // Migration 037 — check-point briefing comes FIRST, so the
-                        // operator reads what to verify before ticking anything off.
-                        if (!cpAcknowledged && cpBriefLines.length > 0) {
-                          setShowCPBrief(true);
-                          return;
-                        }
-                        // Critical items in this outward → open the dedicated
-                        // Critical Item Confirmation modal first. Non-critical
-                        // outward keeps the lightweight inline confirm.
-                        if (criticalLines.length > 0) {
+                        // Anything to check (check points or critical items) →
+                        // the single pre-issue popup. Nothing to check → the
+                        // lightweight inline confirm, as before.
+                        if (verifyLines.length > 0) {
                           setCriticalErr("");
-                          setShowCriticalModal(true);
+                          setShowCPBrief(true);
                         } else {
                           setConfirmIssue(true);
                         }
@@ -12170,16 +12195,6 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
         </div>
       )}
 
-      {/* ── Critical Item Confirmation popup (migration 026, 2026-10-20) ───
-          Shown ONLY during BOM Outward when at least one checked line is a
-          Critical Item. Lists just the critical lines, with per-line input
-          (Checkbox Confirmation or Serial Number Entry per unit). The main
-          "Confirm Outward" button stays disabled until every input is ready.
-          Non-critical items are not shown here and keep the existing flow —
-          they're issued alongside once the operator confirms this popup.
-          The modal never appears during BOM create / edit (editMode gates
-          the entire sticky summary bar + Issue button, so the trigger path
-          is unreachable in edit mode). */}
       {/* Migration 037 — per-BOM check points, opened from an edit-mode line.
           Saves onto editItems, which the Save handler already persists, so the
           points land on this BOM only and never touch Item Master. */}
@@ -12205,214 +12220,201 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
         );
       })()}
 
-      {/* Migration 037 — CHECK-POINT BRIEFING. The first thing the store
-          operator sees when issuing: every item going out, with the check
-          points that BOM carries for it. Acknowledging it hands off to the
-          existing critical-confirmation / inline-confirm flow unchanged. */}
-      {!editMode && showCPBrief && (
+      {/* ── Pre-issue check (2026-10-30) ─────────────────────────────────────
+          One popup for everything the store operator must look at before
+          stock leaves: each line's check points (migration 037) and, for
+          critical items, the physical-verification tick or serial numbers
+          (migration 026). A critical item may be left unverified — it is not
+          in the store, or not ordered yet — but only with a written reason;
+          that item is then not issued. Non-critical lines show their check
+          points for reference and are issued as usual. */}
+      {!editMode && showCPBrief && (() => {
+        const skippedN   = criticalLines.filter(isCriticalLineSkipped).length;
+        const verifiedN  = criticalLines.filter(isCriticalLineReady).length;
+        const unresolved = criticalLines.filter((l) => !isCriticalLineResolved(l));
+        const closePopup = () => { if (!issuing) { setShowCPBrief(false); setCriticalErr(""); } };
+        return (
         <div className="modal-backdrop fixed inset-0 z-[60] flex items-center justify-center p-4"
              style={{ background: "rgba(17,24,39,0.5)", backdropFilter: "blur(14px)" }}
-             onClick={(e) => e.target === e.currentTarget && setShowCPBrief(false)}>
-          <div className="w-full max-w-xl rounded-2xl overflow-hidden flex flex-col"
-               style={{ maxHeight: "88vh", background: "var(--surface-elevated)",
+             onClick={(e) => e.target === e.currentTarget && closePopup()}>
+          <div className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col"
+               style={{ maxHeight: "90vh", background: "var(--surface-elevated)",
                         border: "1px solid rgba(217,119,6,0.4)", boxShadow: "0 40px 100px rgba(17,24,39,0.25)" }}>
 
-            <div className="px-6 py-5 border-b border-slate-200 flex-shrink-0"
+            <div className="px-6 py-5 border-b border-slate-200 flex items-start justify-between gap-3 flex-shrink-0"
                  style={{ background: "linear-gradient(90deg,rgba(217,119,6,0.12),rgba(217,119,6,0.05))" }}>
-              <div className="text-[15px] font-semibold text-slate-900">📋 Check these before issuing</div>
-              <div className="text-[11px] text-slate-500 mt-0.5">
-                {bom.label || bomKey} — {cpBriefLines.length} item(s) have check points
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3">
-              {cpBriefLines.map((l) => (
-                <div key={l.code} className="rounded-xl overflow-hidden"
-                     style={{ border: "1px solid rgba(17,24,39,0.10)" }}>
-                  <div className="px-4 py-2.5 flex items-center justify-between"
-                       style={{ background: "rgba(17,24,39,0.03)" }}>
-                    <div>
-                      <div className="text-[12px] font-bold text-slate-900">
-                        {l.name}
-                        {l.inv?.isCritical && (
-                          <span className="ml-2 text-[9px] font-black px-1.5 py-0.5 rounded"
-                                style={{ background: "rgba(239,68,68,0.12)", color: "#dc2626" }}>CRITICAL</span>
-                        )}
-                      </div>
-                      <div className="text-[9px] font-mono text-slate-500">{l.code}</div>
-                    </div>
-                    <div className="text-[11px] font-bold text-slate-700" style={{ fontVariantNumeric: "tabular-nums" }}>
-                      {l.issueQty} {l.unit}
-                    </div>
-                  </div>
-                  <div className="px-4 py-3 space-y-1.5">
-                    {(l.checkPoints || []).map((cp, i) => (
-                      <div key={i} className="flex items-start gap-2">
-                        <span className="text-[11px] mt-0.5">✅</span>
-                        <span className="text-[12px] text-slate-800 leading-snug">{cp}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between gap-2 flex-shrink-0">
-              <div className="text-[10px] text-slate-500">These points are set for this BOM</div>
-              <div className="flex gap-2">
-                <Btn variant="ghost" size="sm" onClick={() => setShowCPBrief(false)}>Back</Btn>
-                <button onClick={() => {
-                          setCpAcknowledged(true);
-                          setShowCPBrief(false);
-                          // Hand off to the flow the Issue button would have run.
-                          if (criticalLines.length > 0) { setCriticalErr(""); setShowCriticalModal(true); }
-                          else setConfirmIssue(true);
-                        }}
-                        className="text-xs font-black px-5 py-2.5 rounded-xl text-white transition-all"
-                        style={{ background: "linear-gradient(135deg,#d97706,#b45309)" }}>
-                  ✓ Checked, continue
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {!editMode && showCriticalModal && (
-        <div className="modal-backdrop fixed inset-0 z-[85] flex items-center justify-center p-4"
-             style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
-             onClick={(e) => e.target === e.currentTarget && !issuing && setShowCriticalModal(false)}>
-          <div className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col"
-               style={{ maxHeight: "92vh", background: "var(--surface-elevated)",
-                        border: "1px solid rgba(217, 119, 6,0.5)",
-                        boxShadow: "0 40px 100px rgba(17,24,39,0.22), 0 0 60px rgba(217, 119, 6,0.08)" }}>
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between flex-shrink-0"
-                 style={{ background: "linear-gradient(90deg,rgba(217, 119, 6,0.14),rgba(234,88,12,0.06))" }}>
               <div>
-                <div className="text-sm font-black text-slate-900 flex items-center gap-2">
-                  🔒 Critical Item Confirmation
-                </div>
-                <div className="text-[11px] text-slate-400 mt-0.5">
-                  {bomKey}{serialNo ? ` · S/N ${serialNo}` : ""} · {criticalLines.length} critical item{criticalLines.length === 1 ? "" : "s"} in this outward
+                <div className="text-[15px] font-semibold text-slate-900">📋 Check these before issuing</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  {bom.label || bomKey}{serialNo ? ` · S/N ${serialNo}` : ""} · {verifyLines.length} item{verifyLines.length === 1 ? "" : "s"} to check
+                  {criticalLines.length > 0 && ` · ${criticalLines.length} critical`}
                 </div>
               </div>
-              <button onClick={() => !issuing && setShowCriticalModal(false)} disabled={issuing}
-                      className="w-7 h-7 rounded-lg bg-slate-50 hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-all flex items-center justify-center text-xs font-bold disabled:opacity-40">
+              <button onClick={closePopup} disabled={issuing} aria-label="Close"
+                      className="w-7 h-7 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-500 flex items-center justify-center text-xs font-bold flex-shrink-0 disabled:opacity-40">
                 ✕
               </button>
             </div>
 
-            {/* Body — per-line inputs */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
-              {criticalLines.map((line) => {
-                const type   = line.inv.outwardInputType === "serial" ? "serial" : "checkbox";
-                const state  = criticalInputs[line.code] || {};
-                const ready  = isCriticalLineReady(line);
-                const setLine = (patch) => setCriticalInputs((prev) => ({ ...prev, [line.code]: { ...(prev[line.code] || {}), ...patch } }));
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3">
+              {verifyLines.map((l) => {
+                const critical = !!(l.inv && l.inv.isCritical);
+                const type     = critical && l.inv.outwardInputType === "serial" ? "serial" : "checkbox";
+                const state    = criticalInputs[l.code] || {};
+                const verified = critical && isCriticalLineReady(l);
+                const skipped  = critical && isCriticalLineSkipped(l);
+                const needsWhy = critical && !verified && !hasPartialSerials(l);
+                const setLine  = (patch) => { setCriticalErr(""); setCriticalInputs((prev) => ({ ...prev, [l.code]: { ...(prev[l.code] || {}), ...patch } })); };
+                // Green when verified, amber when consciously skipped with a
+                // reason, neutral otherwise — the state reads at a glance.
+                const tone = !critical ? { bd: "rgba(17,24,39,0.10)", bg: "rgba(17,24,39,0.03)" }
+                           : verified  ? { bd: "rgba(34,197,94,0.40)", bg: "rgba(34,197,94,0.06)" }
+                           : skipped   ? { bd: "rgba(217,119,6,0.45)", bg: "rgba(217,119,6,0.06)" }
+                           :             { bd: "rgba(17,24,39,0.14)", bg: "rgba(17,24,39,0.03)" };
                 return (
-                  <div key={line.code}
-                       className="rounded-xl px-4 py-3"
-                       style={{ background: ready ? "rgba(34,197,94,0.06)" : "rgba(217, 119, 6,0.04)",
-                                border: `1px solid ${ready ? "rgba(34,197,94,0.35)" : "rgba(217, 119, 6,0.28)"}` }}>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[12px] font-bold text-slate-900">{line.name}</span>
-                      <span className="text-[10px] font-mono text-slate-500">{line.code}</span>
-                      <span className="text-[10px] font-bold" style={{ color: ready ? "#15803d" : "#B45309" }}>
-                        {line.issueQty} {line.unit}
-                      </span>
-                      <span className="ml-auto text-[9px] font-black uppercase tracking-wider"
-                            style={{ color: ready ? "#15803d" : "#B45309" }}>
-                        {ready ? "✓ Confirmed" : type === "serial" ? "Serial Number Entry" : "Checkbox Confirmation"}
-                      </span>
+                  <div key={l.code} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${tone.bd}` }}>
+                    <div className="px-4 py-2.5 flex items-center justify-between gap-3" style={{ background: tone.bg }}>
+                      <div className="min-w-0">
+                        <div className="text-[12px] font-bold text-slate-900">
+                          {l.name}
+                          {critical && (
+                            <span className="ml-2 text-[9px] font-black px-1.5 py-0.5 rounded"
+                                  style={{ background: "rgba(239,68,68,0.12)", color: "#dc2626" }}>CRITICAL</span>
+                          )}
+                        </div>
+                        <div className="text-[9px] font-mono text-slate-500">{l.code}</div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <div className="text-[11px] font-bold text-slate-700" style={{ fontVariantNumeric: "tabular-nums" }}>
+                          {l.issueQty} {l.unit}
+                        </div>
+                        {critical && (
+                          <div className="text-[9px] font-black uppercase tracking-wider"
+                               style={{ color: verified ? "#15803d" : skipped ? "#b45309" : "#64748b" }}>
+                            {verified ? "✓ Verified" : skipped ? "Not issued" : "To verify"}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    {type === "checkbox" ? (
-                      <label className="mt-2.5 flex items-start gap-2 cursor-pointer">
-                        <input type="checkbox"
-                               checked={!!state.confirmed}
-                               onChange={(e) => { setCriticalErr(""); setLine({ confirmed: e.target.checked }); }}
-                               className="accent-emerald-500 w-4 h-4 mt-0.5" />
-                        <span className="text-[11px] text-slate-500 leading-relaxed">
-                          I confirm this critical item has been physically verified for all {line.issueQty} unit(s).
-                        </span>
-                      </label>
-                    ) : (
-                      <>
-                        <div className="text-[10px] text-slate-500 mt-2 mb-1.5">
-                          Enter one unique serial number per unit ({line.issueQty} required):
+
+                    <div className="px-4 py-3 space-y-2">
+                      {(l.checkPoints || []).map((cp, i) => (
+                        <div key={i} className="flex items-start gap-2">
+                          <span className="text-[11px] mt-0.5">✅</span>
+                          <span className="text-[12px] text-slate-800 leading-snug">{cp}</span>
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                          {Array.from({ length: line.issueQty }).map((_, idx) => {
-                            const val = (state.serials && state.serials[idx]) || "";
-                            const alreadyUsed = val.trim() && usedSerials.has(val.toLowerCase().trim());
-                            const dupeInBatch = val.trim() && (state.serials || []).filter((s, i) => i !== idx && s && s.toLowerCase().trim() === val.toLowerCase().trim()).length > 0;
-                            return (
-                              <div key={idx} className="flex flex-col gap-0.5">
-                                <input value={val}
-                                       onChange={(e) => {
-                                         setCriticalErr("");
-                                         const next = (state.serials || []).slice();
-                                         next[idx] = e.target.value;
-                                         setLine({ serials: next });
-                                       }}
-                                       placeholder={`Serial #${idx + 1}`}
-                                       autoFocus={idx === 0}
-                                       className="bg-slate-50 rounded-md px-2 py-1.5 text-[11px] text-slate-900 outline-none modal-input"
-                                       style={{ fontFamily: "'Inter',system-ui,sans-serif",
-                                                border: (alreadyUsed || dupeInBatch) ? "1px solid rgba(239,68,68,0.7)" : "1px solid rgba(17,24,39,0.10)" }} />
-                                {alreadyUsed && <span className="text-[9px] text-red-400 font-semibold">Already issued</span>}
-                                {dupeInBatch && !alreadyUsed && <span className="text-[9px] text-amber-700 font-semibold">Duplicate in list</span>}
-                              </div>
-                            );
-                          })}
+                      ))}
+
+                      {critical && type === "checkbox" && (
+                        <label className="flex items-start gap-2 cursor-pointer pt-1">
+                          <input type="checkbox" checked={!!state.confirmed}
+                                 onChange={(e) => setLine({ confirmed: e.target.checked })}
+                                 className="accent-emerald-500 w-4 h-4 mt-0.5" />
+                          <span className="text-[11.5px] text-slate-700 leading-relaxed">
+                            Physically verified for all {l.issueQty} unit(s)
+                          </span>
+                        </label>
+                      )}
+
+                      {critical && type === "serial" && (
+                        <div className="pt-1">
+                          <div className="text-[10px] text-slate-500 mb-1.5">
+                            One unique serial number per unit ({l.issueQty}) — or leave all empty and give a reason below.
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                            {Array.from({ length: l.issueQty }).map((_, idx) => {
+                              const val = (state.serials && state.serials[idx]) || "";
+                              const alreadyUsed = val.trim() && usedSerials.has(val.toLowerCase().trim());
+                              const dupeInBatch = val.trim() && (state.serials || []).filter((x, i) => i !== idx && x && x.toLowerCase().trim() === val.toLowerCase().trim()).length > 0;
+                              return (
+                                <div key={idx} className="flex flex-col gap-0.5">
+                                  <input value={val}
+                                         onChange={(e) => { const next = (state.serials || []).slice(); next[idx] = e.target.value; setLine({ serials: next }); }}
+                                         placeholder={`Serial #${idx + 1}`}
+                                         className="bg-slate-50 rounded-md px-2 py-1.5 text-[11px] text-slate-900 outline-none modal-input"
+                                         style={{ border: (alreadyUsed || dupeInBatch) ? "1px solid rgba(239,68,68,0.7)" : "1px solid rgba(17,24,39,0.10)" }} />
+                                  {alreadyUsed && <span className="text-[9px] text-red-500 font-semibold">Already issued</span>}
+                                  {dupeInBatch && !alreadyUsed && <span className="text-[9px] text-amber-700 font-semibold">Duplicate in list</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </>
-                    )}
+                      )}
+
+                      {/* Not verified → why. Required: an unverified critical
+                          item can only be left out with a reason on record. */}
+                      {needsWhy && (
+                        <div className="pt-1">
+                          <div className="text-[10.5px] font-semibold mb-1" style={{ color: "#b45309" }}>
+                            Not verified — reason <span className="text-red-500">*</span>
+                          </div>
+                          <input value={state.remark || ""}
+                                 onChange={(e) => setLine({ remark: e.target.value })}
+                                 placeholder="e.g. Not in store — ordered, expected Monday"
+                                 className="w-full bg-white rounded-lg px-3 py-2 text-[12px] text-slate-900 outline-none modal-input"
+                                 style={{ border: `1px solid ${criticalRemark(l) ? "rgba(217,119,6,0.45)" : "rgba(239,68,68,0.45)"}` }} />
+                          <div className="text-[10px] text-slate-500 mt-1">
+                            This item will not be issued now. Its stock is not deducted.
+                          </div>
+                        </div>
+                      )}
+                      {critical && hasPartialSerials(l) && !verified && (
+                        <div className="text-[10.5px] font-semibold" style={{ color: "#dc2626" }}>
+                          Complete every serial number, or clear them all and give a reason.
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
+
               {criticalErr && (
-                <div className="text-[11px] font-bold px-3 py-2 rounded-md"
+                <div className="text-[11px] font-bold px-3 py-2 rounded-md whitespace-pre-line"
                      style={{ background: "rgba(239,68,68,0.08)", color: "#dc2626", border: "1px solid rgba(239,68,68,0.3)" }}>
                   ⚠ {criticalErr}
                 </div>
               )}
             </div>
 
-            {/* Footer */}
-            <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between flex-shrink-0"
+            <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between gap-3 flex-shrink-0 flex-wrap"
                  style={{ background: "#f8f9fb" }}>
-              <div className="text-[10px] text-slate-500">
-                Non-critical items in this outward are issued automatically on confirm.
+              <div className="text-[10.5px] text-slate-500">
+                {criticalLines.length === 0
+                  ? "These points are set for this BOM."
+                  : unresolved.length > 0
+                    ? `${unresolved.length} critical item${unresolved.length === 1 ? "" : "s"} still to verify or explain`
+                    : `${verifiedN} verified${skippedN ? ` · ${skippedN} not issued` : ""} · other items are issued as usual`}
               </div>
               <div className="flex gap-2">
-                <button onClick={() => !issuing && setShowCriticalModal(false)} disabled={issuing}
-                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 transition-all disabled:opacity-50">
-                  Cancel
-                </button>
+                <Btn variant="ghost" size="sm" onClick={closePopup} disabled={issuing}>Back</Btn>
                 <button onClick={() => {
-                          if (!allCriticalReady) {
-                            const missing = criticalLines.filter((l) => !isCriticalLineReady(l)).map((l) => l.name).join(", ");
-                            setCriticalErr(`Confirm each critical item: ${missing}`);
+                          if (!allCriticalResolved) {
+                            setCriticalErr(`Verify these critical items, or write why they are not being issued: ${unresolved.map((x) => x.name).join(", ")}`);
                             return;
                           }
-                          // Hand off to the existing issue engine. doIssue()
-                          // will fire the destination popup when needed and
-                          // finally commits the outward.
-                          setShowCriticalModal(false);
-                          doIssue();
+                          setShowCPBrief(false);
+                          // Critical items present → straight on to the issue
+                          // engine (durations, destination, commit). Otherwise
+                          // the lightweight inline confirm, as before.
+                          if (criticalLines.length > 0) doIssue();
+                          else setConfirmIssue(true);
                         }}
-                        disabled={issuing || !allCriticalReady}
-                        className="text-xs font-black text-slate-900 px-4 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{ background: !allCriticalReady ? "#1f2937" : "linear-gradient(135deg,#16a34a,#15803d)",
-                                 boxShadow: !allCriticalReady ? "none" : "0 0 14px rgba(34,197,94,0.3)" }}>
-                  {issuing ? "⏳ Issuing…" : !allCriticalReady ? "🔒 Complete Confirmations" : "✓ Confirm Outward"}
+                        disabled={issuing || !allCriticalResolved}
+                        className="text-xs font-black px-5 py-2.5 rounded-xl text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        style={{ background: !allCriticalResolved ? "#94a3b8" : skippedN ? "linear-gradient(135deg,#d97706,#b45309)" : "linear-gradient(135deg,#16a34a,#15803d)" }}>
+                  {issuing ? "⏳ Issuing…"
+                    : !allCriticalResolved ? "🔒 Verify or explain each critical item"
+                    : criticalLines.length === 0 ? "✓ Checked, continue"
+                    : skippedN ? `✓ Continue — ${skippedN} not issued`
+                    : "✓ Confirm Outward"}
                 </button>
               </div>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* ── Destination popup (2026-06-02c) ─────────────────────────────────
           Surfaces the rack-vs-direct choice as an unmistakable two-button
@@ -13625,6 +13627,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                           const crit = (entry.items || []).filter((i) => i && i.criticalInput);
                           if (!crit.length) return null;
                           const title = crit.map((i) => {
+                            if (i.criticalInput.notIssued) return `${i.name}: not issued — ${i.criticalInput.remark || "no reason"}`;
                             if (i.criticalInput.type === "serial") return `${i.name}: ${(i.criticalInput.serials || []).join(", ")}`;
                             return `${i.name}: confirmed`;
                           }).join(" | ");
@@ -13879,7 +13882,11 @@ function AtoZMachineReport({
                 </div>
                 <div className="col-span-1 text-right font-mono text-slate-700">{r.qty}</div>
                 <div className="col-span-5 text-[10px]">
-                  {serials.length > 0 ? (
+                  {ci && ci.notIssued ? (
+                    <span className="font-bold" style={{ color: "#b45309" }}>
+                      ✗ Not issued — {ci.remark || "no reason recorded"}
+                    </span>
+                  ) : serials.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
                       {serials.map((s) => (
                         <span key={s} className="font-mono px-1.5 py-0.5 rounded"
@@ -22384,8 +22391,11 @@ export default function App() {
         ref: entry.ref, serialNo: entry.serialNo || "", qty: entry.units,
         details: {
           label: entry.label,
-          issued: (entry.items || []).length,
+          issued: (entry.items || []).filter((it) => Number(it.issueQty) > 0).length,
           pending: (pending || []).length,
+          // Critical items deliberately left out at issue, with the reason.
+          notIssued: (entry.items || []).filter((it) => it?.criticalInput?.notIssued)
+            .map((it) => ({ code: it.code, name: it.name, qty: it.criticalInput.requiredQty, remark: it.criticalInput.remark })),
           criticalConfirmations: criticalConfirmations.length ? criticalConfirmations : undefined,
         },
       });
