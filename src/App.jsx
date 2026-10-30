@@ -480,6 +480,42 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 const MACHINE_STAGES = ["BOM Issued", "Assembly", "Mechanical", "Electrical", "Trial", "Ready"];
 
+// ── Physical rack layout (2026-10-30) ────────────────────────────────────────
+// The Production Rack View mirrors the racks on the shop floor. Each family is
+// laid out as `columns` vertical pairs: an M rack with its R rack directly
+// below it, every rack holding `setsPerRack` machine sets. A family's sets
+// come from the BOMs listed in `boms` (matched ignoring case, spaces and
+// dashes, so "KM10" and "KM-10" are the same model) and fill the racks oldest
+// first, column by column: M (1), R (1), M (2), R (2).
+//
+// To add a rack, raise `columns`; to add a model, add a family. Nothing else
+// in the ERP needs to change.
+const PHYSICAL_RACK_LAYOUT = {
+  setsPerRack: 2,
+  tiers: ["M", "R"],            // top → bottom within each vertical pair
+  families: [
+    { id: "10", label: "10", columns: 2, color: "#1d4ed8", boms: ["KM10"] },
+    { id: "15", label: "15", columns: 2, color: "#15803d", boms: ["KM15"] },
+    { id: "20", label: "20", columns: 2, color: "#ea580c", boms: ["KM20"] },
+  ],
+};
+const rackKeyNorm = (k) => String(k || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+function physicalRackFamily(bomKey) {
+  const k = rackKeyNorm(bomKey);
+  return PHYSICAL_RACK_LAYOUT.families.find((f) => f.boms.some((b) => rackKeyNorm(b) === k)) || null;
+}
+// Set slots a BOM has on the physical racks, or null when it has none — in
+// which case the BOM's own rackCapacity still applies, exactly as before.
+function physicalRackSlots(bomKey) {
+  const f = physicalRackFamily(bomKey);
+  return f ? f.columns * PHYSICAL_RACK_LAYOUT.tiers.length * PHYSICAL_RACK_LAYOUT.setsPerRack : null;
+}
+// The capacity every rack check should use for a BOM.
+function rackCapacityFor(bomKey, def) {
+  const slots = physicalRackSlots(bomKey);
+  return slots != null ? slots : (Number(def?.rackCapacity) || 0);
+}
+
 // Navigation icons.
 //
 // These were emoji. Emoji render in whatever font the device ships — the
@@ -11470,7 +11506,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   //                                       fallback.
   // Single additional bypass: no serial (manual outward path) — there is no
   // machine to route.
-  const rackTracked = Number(bom?.rackCapacity) > 0;
+  const rackTracked = rackCapacityFor(bomKey, bom) > 0;
   // Validate the duration-form state (migration 027). Each department must have
   // non-negative integer days + hours (0 ≤ hours < 24). A fully-zero row is
   // allowed — the operator may legitimately not track that department.
@@ -11539,7 +11575,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     // intentionally NOT subject to this check — the rack being full is the
     // exact case where operators need Direct Production as the escape hatch.
     if (finalDest === "rack") {
-      const cap = Number(bom?.rackCapacity) || 0;
+      const cap = rackCapacityFor(bomKey, bom);
       if (cap > 0 && rackReady >= cap) {
         setDestError(`Rack is full (${rackReady} / ${cap}). Pick Direct Production, or start production / increase capacity to free a slot.`);
         setShowDestChoice(true);
@@ -12921,7 +12957,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                   <div className="text-sm font-bold text-slate-900">{serialModal} — {bomDefs[serialModal].label}</div>
                   <div className="text-[11px] text-slate-500 mt-0.5">
                     {(() => {
-                      const cap = Number(bomDefs[serialModal].rackCapacity) || 0;
+                      const cap = rackCapacityFor(serialModal, bomDefs[serialModal]);
                       const ready = rackReadyCount(serialModal);
                       // Capacity > 0 → rack-tracked, the destination popup at
                       //   commit lets the operator pick Save To Rack vs Direct
@@ -13372,7 +13408,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
               const units     = bomUnits[bomKey] || 1;
               const feasibleN = bom.items.filter(({ code, qty }) => { const inv = findItem(code); return inv && inv.stock >= qty * units; }).length;
               const allFeas   = feasibleN === bom.items.length;
-              const noRackTracking = !(Number(bom.rackCapacity) > 0);
+              const noRackTracking = !(rackCapacityFor(bomKey, bom) > 0);
               const openBomFlow = () => { setSerialModal(bomKey); setPendingSerial(""); setSerialErr(""); };
               return (
                 // 2026-06-05h — overflow-hidden REMOVED. The actions menu
@@ -13786,7 +13822,7 @@ function AtoZMachineReport({
         </div>
         <div>
           <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Rack Capacity</div>
-          <div className="text-slate-700 mt-0.5">{Number(bom.rackCapacity) > 0 ? `${bom.rackCapacity} slots` : "No rack"}</div>
+          <div className="text-slate-700 mt-0.5">{rackCapacityFor(machine.bomKey, bom) > 0 ? `${rackCapacityFor(machine.bomKey, bom)} slots` : "No rack"}</div>
         </div>
         <div>
           <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Issue ID</div>
@@ -16253,7 +16289,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       .map((key) => {
         const def      = bomDefs[key] || {};
         const ready    = machineLog.filter((m) => m.bomKey === key && m.stage === "BOM Issued").length;
-        const capacity = Number(def.rackCapacity) || 0;
+        const capacity = rackCapacityFor(key, def);
         const empty    = Math.max(0, capacity - ready);
         let state;
         if (capacity > 0 && ready >= capacity)        state = "full";
@@ -16297,6 +16333,36 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     setStartSel(new Set());
     setStartErr("");
   };
+
+  // ── Physical rack layout (see PHYSICAL_RACK_LAYOUT) ──
+  // Splits each family's waiting sets across its real racks, oldest first,
+  // two per rack. Purely a view over rackMachinesFor(): nothing about how a
+  // set gets onto or off the rack changes.
+  const physicalFamilies = PHYSICAL_RACK_LAYOUT.families.map((f) => {
+    const keys = rackData.filter((r) => physicalRackFamily(r.key)?.id === f.id).map((r) => r.key);
+    const sets = keys.flatMap((k) => rackMachinesFor(k))
+      .sort((a, b) => (a.createdDate || "").localeCompare(b.createdDate || "") || (Number(a.id) || 0) - (Number(b.id) || 0));
+    const per = PHYSICAL_RACK_LAYOUT.setsPerRack;
+    const tiers = PHYSICAL_RACK_LAYOUT.tiers;
+    const columns = Array.from({ length: f.columns }, (_, c) => tiers.map((tier, t) => {
+      const slot = c * tiers.length + t;
+      const machines = sets.slice(slot * per, slot * per + per);
+      const ready = machines.length;
+      return {
+        id: `${tier}-${f.label}-${c + 1}`,
+        name: `${tier}-${f.label} (${c + 1})`,
+        machines, ready, capacity: per, empty: per - ready,
+        state: ready >= per ? "full" : ready > 0 ? "partial" : "empty",
+        // Start Production opens on the model of the sets this rack holds.
+        bomRack: ready ? rackData.find((r) => r.key === machines[0].bomKey) : null,
+      };
+    }));
+    const slots = f.columns * tiers.length * per;
+    return { ...f, columns, overflow: Math.max(0, sets.length - slots) };
+  });
+  // Models with no place in the physical layout keep their old card, but only
+  // while a set is actually waiting — so it can still be started.
+  const otherRacks = rackData.filter((r) => !physicalRackFamily(r.key) && r.ready > 0);
   const toggleStartSel = (id) => setStartSel((prev) => {
     const next = new Set(prev);
     next.has(id) ? next.delete(id) : next.add(id);
@@ -16804,7 +16870,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               </div>
               <div>
                 <div className="text-[13px] font-bold" style={{ color: "var(--text-strong)" }}>Production Rack View</div>
-                <div className="text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>Ready-to-start machines waiting on the rack for each model</div>
+                <div className="text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>Machine sets waiting on the rack for each model</div>
               </div>
             </div>
             <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>
@@ -16819,15 +16885,96 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               the separate banner was duplicate noise that pushed the cards
               below the fold. Feature 2 of 2026-06-01h. */}
 
-          {rackData.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-xl py-10 text-center">
-              <div className="text-3xl mb-2">📦</div>
-              <div className="text-xs font-bold text-slate-900 mb-1">No Machine Models Defined</div>
-              <div className="text-[10px] text-slate-500">Create a BOM definition from <button onClick={() => onNavigate("outward")} className="text-blue-400 underline hover:text-blue-300">Outward</button> to start tracking racks.</div>
+          {/* Physical layout: one vertical pair per column — the M rack with
+              its R rack directly below, as they stand on the floor. Two pairs
+              per row on a phone, three on a tablet, all six on a desktop. */}
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+            {physicalFamilies.flatMap((f) => f.columns.map((pair, ci) => (
+              <div key={`${f.id}-${ci}`} className="flex flex-col">
+                {pair.map((rack, ti) => {
+                  const S = {
+                    full:    { color: "#15803d", bg: "rgba(34,197,94,0.06)",  label: "Full",    icon: "✓" },
+                    partial: { color: "#b45309", bg: "rgba(245,158,11,0.06)", label: "Partial", icon: "◐" },
+                    empty:   { color: "#b91c1c", bg: "rgba(239,68,68,0.04)",  label: "Empty",   icon: "○" },
+                  }[rack.state];
+                  const pct = Math.round((rack.ready / rack.capacity) * 100);
+                  const shortN = rack.machines.filter((m) => pendingForMachine(m).length > 0).length;
+                  const go = () => { if (rack.bomRack) openStartProd(rack.bomRack); };
+                  return (
+                    <React.Fragment key={rack.id}>
+                      {ti > 0 && (
+                        // The pair belongs together physically; a short dotted
+                        // link keeps it reading as one unit rather than two
+                        // unrelated cards.
+                        <div className="flex flex-col items-center py-1" aria-hidden="true">
+                          <span className="h-3 border-l-2 border-dotted" style={{ borderColor: f.color + "80" }} />
+                          <span className="w-2 h-2 rounded-full border-2 bg-white" style={{ borderColor: f.color }} />
+                        </div>
+                      )}
+                      <div role="button" tabIndex={rack.ready > 0 ? 0 : -1}
+                           aria-label={`${rack.name}: ${rack.ready} of ${rack.capacity} sets ready`}
+                           onClick={go}
+                           onKeyDown={(e) => { if (rack.ready > 0 && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); go(); } }}
+                           className="rounded-xl overflow-hidden bg-white outline-none transition-all focus-visible:ring-2"
+                           style={{ border: `1px solid ${f.color}40`, cursor: rack.ready > 0 ? "pointer" : "default",
+                                    boxShadow: "0 1px 2px rgba(17,24,39,0.05)" }}
+                           onMouseEnter={(e) => { if (rack.ready > 0) e.currentTarget.style.transform = "translateY(-1px)"; }}
+                           onMouseLeave={(e) => { e.currentTarget.style.transform = ""; }}>
+                        <div className="px-3 py-2 flex items-center justify-between gap-2" style={{ background: f.color }}>
+                          <div className="text-[13px] font-black text-white truncate">{rack.name}</div>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
+                                style={{ background: "rgba(0,0,0,0.22)" }}>{rack.capacity} Sets</span>
+                        </div>
+                        <div className="px-3 pt-2.5 pb-3" style={{ background: S.bg }}>
+                          <div className="flex items-center justify-center gap-1 flex-wrap mb-2">
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
+                                  style={{ background: S.color + "1f", color: S.color, border: `1px solid ${S.color}40` }}>
+                              {S.icon} {S.label}
+                            </span>
+                            {shortN > 0 && (
+                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full"
+                                    title={`${shortN} set(s) on this rack are still waiting for components`}
+                                    style={{ background: "rgba(217,119,6,0.16)", color: "#b45309", border: "1px solid rgba(217,119,6,0.35)" }}>
+                                ⚠ {shortN} incomplete
+                              </span>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-3 gap-1 text-center mb-2">
+                            {[["Ready", rack.ready, S.color], ["Capacity", rack.capacity, "#64748b"], ["Empty", rack.empty, "#94a3b8"]].map(([lbl, val, col]) => (
+                              <div key={lbl}>
+                                <div className="text-[8.5px] text-slate-500 uppercase tracking-wide">{lbl}</div>
+                                <div className="text-lg font-black leading-tight" style={{ color: col, fontVariantNumeric: "tabular-nums" }}>{val}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(17,24,39,0.07)" }}>
+                            <div className="h-full transition-all" style={{ width: `${pct}%`, background: S.color }} />
+                          </div>
+                          {/* Space always reserved, so every card in a row is the
+                              same height and the R racks line up across columns. */}
+                          <div className="mt-1.5 text-[9.5px] font-bold text-center text-blue-500"
+                               style={{ visibility: rack.ready > 0 ? "visible" : "hidden" }}>▶ Start production</div>
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            )))}
+          </div>
+          {/* More sets on the rack than the layout has slots for — said out
+              loud rather than silently dropped from view. */}
+          {physicalFamilies.filter((f) => f.overflow > 0).map((f) => (
+            <div key={f.id} className="mt-2 text-[10.5px] font-semibold" style={{ color: "#b45309" }}>
+              ⚠ {f.overflow} more {f.label} set{f.overflow === 1 ? "" : "s"} waiting than the M-{f.label} / R-{f.label} racks hold
             </div>
-          ) : (
+          ))}
+
+          {otherRacks.length > 0 && (
+            <div className="mt-4">
+              <div className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "var(--text-dim)" }}>Other racks</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {rackData.map((r) => {
+              {otherRacks.map((r) => {
                 const STATE = {
                   full:    { color: "#15803d", bg: "rgba(34,197,94,0.08)",  border: "rgba(34,197,94,0.3)",  label: "Full",    icon: "✓" },
                   partial: { color: "#b45309", bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.3)", label: "Partial", icon: "◐" },
@@ -16944,6 +17091,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   </div>
                 );
               })}
+            </div>
             </div>
           )}
         </div>
