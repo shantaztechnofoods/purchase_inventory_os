@@ -71,7 +71,7 @@ import { mapRow as vendorMapRow, parseRows as vendorParseRows } from "./utils/ve
 import { parseRows as itemParseRows, generateItemCode, buildRowsFromSheet as itemBuildRowsFromSheet } from "./utils/itemImport.js";
 import { parseBomPaste } from "./utils/bomPaste.js";
 import { receivedPoRates, bomCostLines, bomCostSummary, validateBomLines, formatINR, RATE_SOURCE_LABEL } from "./utils/bomCost.js";
-import { PHYSICAL_RACK_LAYOUT, physicalRackFamily, rackCapacityFor, buildFamilyRacks, firstFreeSlot, canAssignSlot, slotLabel, rackKeyNorm } from "./utils/rackSlots.js";
+import { PHYSICAL_RACK_LAYOUT, physicalRackFamily, rackCapacityFor, buildFamilyRacks, firstFreeSlot, canAssignSlot, slotLabel, rackKeyNorm, rackViewLog } from "./utils/rackSlots.js";
 import { getActiveCompany, normalizePOSettings, openPOPdf, PO_TEMPLATE_OPTIONS } from "./utils/poTemplate.js";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -82,7 +82,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-rack-slots";
+const APP_BUILD = "2026-10-31-rack-slots-2";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -17102,8 +17102,26 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   const awaitingReleaseIds = new Set((handovers || [])
     .filter((h) => h && h.status === "pending" && h.releaseRequired && !h.releasedAt)
     .map((h) => String(h.machineId)));
+  // A machine whose rack hand-over has been released has left the rack, even
+  // if clearing machine_log.rack_slot was refused (RLS: only updateStage may
+  // write machine_log; a Production Head releases without it). The released
+  // hand-over is the source of truth, so the slot reads Empty either way.
+  const rackView = rackViewLog(machineLog, handovers);
+  // Rack → model → BOM mapping. More than one BOM can normalise to the same
+  // model ("KM10" and "KM-10"). A BOM whose components are all in the Item
+  // Master is the usable one; any other is shown with a warning and is never
+  // offered as the default. Nothing is renamed or deleted here.
+  const itemCodeSet = new Set(Object.values(items || {}).flatMap((l) => Array.isArray(l) ? l.map((i) => i && i.code) : []));
+  const rackBomsFor = (f) => Object.keys(bomDefs || {})
+    .filter((k) => physicalRackFamily(k)?.id === f.id)
+    .map((k) => {
+      const lines = (bomDefs[k]?.items || []);
+      const missing = lines.filter((l) => !itemCodeSet.has(l && l.code)).length;
+      return { key: k, label: bomDefs[k]?.label || k, components: lines.length, missing, valid: lines.length > 0 && missing === 0 };
+    })
+    .sort((a, b) => (b.valid - a.valid) || a.key.localeCompare(b.key));
   const physicalFamilies = PHYSICAL_RACK_LAYOUT.families.map((f) => {
-    const built = buildFamilyRacks(f, machineLog, awaitingReleaseIds);
+    const built = buildFamilyRacks(f, rackView, awaitingReleaseIds);
     const columns = built.columns.map((pair) => pair.map((rack) => ({
       ...rack,
       machines: rack.slots.filter((sl) => sl.machine).map((sl) => sl.machine),
@@ -17887,11 +17905,18 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           <div className="min-w-0">
                             <div className="text-[13px] font-black text-white truncate">{rack.name}</div>
                             {/* Rack → model → BOM mapping, so the slot's BOM is never a guess. */}
-                            {(() => { const mk = Object.keys(bomDefs || {}).filter((k) => physicalRackFamily(k)?.id === f.id); return mk.length ? (
-                              <div className="text-[9px] font-semibold text-white truncate" style={{ opacity: 0.85 }} title={mk.map((k) => `${k} — ${bomDefs[k]?.label || k} · ${(bomDefs[k]?.items || []).length} components`).join(" · ")}>
-                                BOM {mk.join(" / ")}{mk.length === 1 && bomDefs[mk[0]]?.label ? ` — ${bomDefs[mk[0]].label}` : ""}
-                              </div>
-                            ) : <div className="text-[9px] font-semibold text-white" style={{ opacity: 0.85 }}>No BOM mapped</div>; })()}
+                            {(() => {
+                              const rb = rackBomsFor(f);
+                              const ok = rb.filter((b) => b.valid);
+                              if (!rb.length) return <div className="text-[9px] font-semibold text-white" style={{ opacity: 0.85 }}>No BOM mapped</div>;
+                              return (
+                                <div className="text-[9px] font-semibold text-white truncate" style={{ opacity: 0.9 }}
+                                     title={rb.map((b) => `${b.key} — ${b.label} · ${b.components} components${b.missing ? ` · ${b.missing} not in Item Master` : ""}`).join("\n")}>
+                                  {ok.length ? `BOM ${ok.map((b) => b.key).join(" / ")}${ok.length === 1 ? ` — ${ok[0].label}` : ""}` : "⚠ No valid BOM"}
+                                  {rb.length > ok.length ? ` · ⚠ ${rb.length - ok.length} other` : ""}
+                                </div>
+                              );
+                            })()}
                           </div>
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
                                 style={{ background: "rgba(0,0,0,0.22)" }}>{rack.occupied}/{rack.capacity} · {S.label}</span>
@@ -19029,9 +19054,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       {/* ── Start Production Modal ── */}
       {fillSlot && (() => {
         const f = fillSlot.family;
-        const famKeys = Object.keys(bomDefs || {}).filter((k) => physicalRackFamily(k)?.id === f.id);
-        const candidates = machineLog
+        const famBoms = rackBomsFor(f);
+        const famValid = famBoms.filter((b) => b.valid);
+        const famKeys = famValid.map((b) => b.key);
+        const candidates = rackView
           .filter((m) => m.status !== "completed" && m.stage === "BOM Issued" && physicalRackFamily(m.bomKey)?.id === f.id && m.rackSlot !== fillSlot.slotId)
+          // Only sets of a valid mapped BOM may be placed (brief: no incompatible BOMs).
+          .filter((m) => famKeys.includes(m.bomKey))
           .sort((a, b) => (a.createdDate || "").localeCompare(b.createdDate || ""));
         return (
         <div className="modal-backdrop fixed inset-0 z-[70] flex items-center justify-center p-4"
@@ -19044,16 +19073,23 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-black" style={{ color: "var(--text-strong)" }}>Fill {slotLabel(fillSlot.slotId)}</div>
                 <div className="text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>
-                  {famKeys.length
-                    ? `Mapped BOM: ${famKeys.map((k) => `${k} — ${bomDefs[k]?.label || k} (${(bomDefs[k]?.items || []).length} components)`).join(" / ")} · one machine per slot`
-                    : `No BOM is mapped to the ${f.label} racks — create a ${f.boms.join(" / ")} BOM first`}
+                  {famValid.length
+                    ? `Mapped BOM: ${famValid.map((b) => `${b.key} — ${b.label} (${b.components} components)`).join(" / ")} · one machine per slot`
+                    : `No valid BOM is mapped to the ${f.label} racks — create a ${f.boms.join(" / ")} BOM with Item Master components first`}
                 </div>
+                {famBoms.filter((b) => !b.valid).map((b) => (
+                  <div key={b.key} className="text-[10px] mt-0.5 font-semibold" style={{ color: "#b45309" }}>
+                    ⚠ {b.key} also maps to these racks but {b.components === 0 ? "has no components" : `${b.missing} of ${b.components} components are not in the Item Master`} — do not use it for rack builds.
+                  </div>
+                ))}
               </div>
               <button onClick={() => setFillSlot(null)} className="text-slate-500 hover:text-slate-900 transition-colors text-lg leading-none">✕</button>
             </div>
             <div>
               <div className="text-[10px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--text-dim)" }}>Machines on the rack without this slot</div>
-              {candidates.length === 0 ? (
+              {!canDo("machines", "updateStage") ? (
+                <div className="text-[11px] rounded-lg px-3 py-2.5" style={{ background: "rgba(17,24,39,0.03)", color: "var(--text-muted)" }}>Moving a set between slots needs the Machines → Update Stage permission. You can still reserve this slot for the next BOM set below.</div>
+              ) : candidates.length === 0 ? (
                 <div className="text-[11px] rounded-lg px-3 py-2.5" style={{ background: "rgba(17,24,39,0.03)", color: "var(--text-muted)" }}>No {f.label} set is waiting to be placed.</div>
               ) : (
                 <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
@@ -19083,7 +19119,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                 <div className="text-[10px] mt-0.5 mb-2" style={{ color: "var(--text-muted)" }}>Open the {famKeys[0] || f.label} BOM above and Save To Rack — the new set is placed in {slotLabel(fillSlot.slotId)}.</div>
                 <button type="button"
                         onClick={() => {
-                          if (onReserveRackSlot) onReserveRackSlot(fillSlot.slotId, famKeys[0] || null);
+                          if (onReserveRackSlot) onReserveRackSlot(fillSlot.slotId, famKeys.length === 1 ? famKeys[0] : null);
                           if (!bomOpen) toggleBom();
                           setFillSlot(null);
                           showToast(`${slotLabel(fillSlot.slotId)} reserved`, `Issue the ${famKeys[0] || f.label} BOM and choose Save To Rack`);
@@ -23768,7 +23804,7 @@ export default function App() {
       const awaiting = new Set((handovers || []).filter((h) => h && h.status === "pending" && h.releaseRequired && !h.releasedAt).map((h) => String(h.machineId)));
       const reserved = rackSlotReservationRef.current;
       const preferred = reserved && (!reserved.bomKey || rackKeyNorm(reserved.bomKey) === rackKeyNorm(bomKey)) ? reserved.slotId : null;
-      rackSlot = firstFreeSlot(bomKey, machineLog, awaiting, preferred);
+      rackSlot = firstFreeSlot(bomKey, rackViewLog(machineLog, handovers), awaiting, preferred);
       if (rackSlot) rackSlotReservationRef.current = null;
     }
     const newMachine = {
@@ -24000,7 +24036,7 @@ export default function App() {
   const handleAssignRackSlot = async (machineId, slotId) => {
     const machine = machineLog.find((m) => String(m.id) === String(machineId));
     const awaiting = new Set((handovers || []).filter((h) => h && h.status === "pending" && h.releaseRequired && !h.releasedAt).map((h) => String(h.machineId)));
-    const chk = canAssignSlot(machine, slotId, machineLog, awaiting);
+    const chk = canAssignSlot(machine, slotId, rackViewLog(machineLog, handovers), awaiting);
     if (!chk.ok) return { success: false, error: chk.error };
     const prevSlot = machine.rackSlot || null;
     setMachineLog((prev) => prev.map((m) => (String(m.id) === String(machineId) ? { ...m, rackSlot: slotId } : m)));

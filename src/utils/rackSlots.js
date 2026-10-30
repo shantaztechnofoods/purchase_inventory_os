@@ -158,3 +158,16 @@ export function canAssignSlot(machine, slotId, machineLog = [], awaitingReleaseI
   if (already) return { ok: false, error: `${slotLabel(slotId)} already holds ${already.serialNo || already.bomKey}` };
   return { ok: true };
 }
+
+// The machine log as the rack sees it: a machine whose rack hand-over has
+// been released (release_required + released_at) has left its slot, whatever
+// machine_log.rack_slot still says. Clearing rack_slot can be refused by RLS
+// for a releaser without machines.updateStage, so the released hand-over is
+// the source of truth.
+export function rackViewLog(machineLog = [], handovers = []) {
+  const released = new Set((handovers || [])
+    .filter((h) => h && h.releaseRequired && h.releasedAt && h.status !== "cancelled")
+    .map((h) => String(h.machineId)));
+  if (released.size === 0) return machineLog || [];
+  return (machineLog || []).map((m) => (m && m.rackSlot && released.has(String(m.id)) && m.stage === "Assembly" ? { ...m, rackSlot: null } : m));
+}

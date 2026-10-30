@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PHYSICAL_RACK_LAYOUT, physicalRackFamily, rackCapacityFor, familySlotIds, buildFamilyRacks, firstFreeSlot, canAssignSlot, slotLabel, slotStatusOf } from "../src/utils/rackSlots.js";
+import { rackViewLog, PHYSICAL_RACK_LAYOUT, physicalRackFamily, rackCapacityFor, familySlotIds, buildFamilyRacks, firstFreeSlot, canAssignSlot, slotLabel, slotStatusOf } from "../src/utils/rackSlots.js";
 
 const fam10 = PHYSICAL_RACK_LAYOUT.families[0];
 const m = (id, over = {}) => ({ id, bomKey: "KM10", serialNo: `S${id}`, stage: "BOM Issued", status: "active", createdDate: `2026-10-${String(10 + id).padStart(2, "0")}`, ...over });
@@ -55,4 +55,17 @@ test("canAssignSlot: no double assignment, model must match rack, only rack mach
   // The auto-filled machine 2 sits in M-10-1#2 visually but is not pinned, so
   // pinning a different machine there is allowed (machine 2 re-flows).
   assert.equal(canAssignSlot(m(9), "M-10-1#2", log).ok, true);
+});
+
+test("rackViewLog: a released machine leaves its slot even if rack_slot was not cleared", () => {
+  const log = [m(1, { stage: "Assembly", rackSlot: "M-10-1#1" }), m(2, { stage: "Assembly", rackSlot: "M-10-1#2" })];
+  const hos = [{ machineId: 1, releaseRequired: true, releasedAt: "2026-10-31T01:00:00Z", status: "pending" },
+               { machineId: 2, releaseRequired: true, releasedAt: null, status: "pending" }];
+  const v = rackViewLog(log, hos);
+  assert.equal(v[0].rackSlot, null);
+  assert.equal(v[1].rackSlot, "M-10-1#2");
+  const { placed } = buildFamilyRacks(fam10, v, new Set(["2"]));
+  assert.equal(placed["M-10-1#1"], undefined);
+  assert.equal(placed["M-10-1#2"].machine.id, 2);
+  assert.equal(firstFreeSlot("KM10", v, new Set(["2"])), "M-10-1#1");
 });
