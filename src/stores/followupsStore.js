@@ -1,6 +1,7 @@
 // Follow-ups store — public.follow_ups
 import { isSupabaseEnabled } from "../config/env.js";
 import { getSupabase } from "../supabase/client.js";
+import { localIsoDate } from "./localDate.js";
 
 const LOCAL_KEY = "erp_followups";
 
@@ -33,7 +34,7 @@ function toIsoDate(s) {
   if (!s) return null;
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
   const d = new Date(s); if (isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
+  return localIsoDate(d);
 }
 
 function getLocal() { try { const s = localStorage.getItem(LOCAL_KEY); if (s) return JSON.parse(s); } catch {} return []; }

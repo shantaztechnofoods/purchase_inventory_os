@@ -1,6 +1,7 @@
 // Machine Log store — public.machine_log
 import { isSupabaseEnabled } from "../config/env.js";
 import { getSupabase } from "../supabase/client.js";
+import { localIsoDate } from "./localDate.js";
 
 const LOCAL_KEY = "erp_machines";
 
@@ -12,7 +13,7 @@ function toRow(m) {
     serial_no:       m.serialNo || null,
     stage:           m.stage || "BOM Issued",
     status:          m.status || "active",
-    created_date:    m.createdDate   ? toIsoDate(m.createdDate)   : new Date().toISOString().slice(0, 10),
+    created_date:    m.createdDate   ? toIsoDate(m.createdDate)   : localIsoDate(),
     completed_date:  m.completedDate ? toIsoDate(m.completedDate) : null,
     history:         m.history || [],
   };
@@ -68,7 +69,7 @@ function toIsoDate(s) {
   if (!s) return null;
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
   const d = new Date(s); if (isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
+  return localIsoDate(d);
 }
 
 function getLocal() { try { const s = localStorage.getItem(LOCAL_KEY); if (s) return JSON.parse(s); } catch {} return []; }

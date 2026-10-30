@@ -5,6 +5,7 @@
 import { isSupabaseEnabled, IS_PROD } from "../config/env.js";
 import { getSupabase } from "../supabase/client.js";
 import { recordMovement, inferMovementType } from "./stockMovementsStore.js";
+import { localIsoDate } from "./localDate.js";
 
 const LOCAL_KEY = "erp_items";
 
@@ -21,7 +22,7 @@ function fmtDate(d) {
 }
 
 function isoDate(d) {
-  return d.toISOString().slice(0, 10);
+  return localIsoDate(d);
 }
 
 // ─── snake_case ↔ camelCase mappers ────────────────────────────────────────
@@ -577,7 +578,7 @@ export async function addItemHistory(itemId, payload) {
     const legacyRow = {
       item_id:    itemId || null,
       item_code:  payload.item_code || null,
-      event_date: payload.event_date || new Date().toISOString().slice(0, 10),
+      event_date: payload.event_date || localIsoDate(),
       event:      eventType,
       change:     qtyChange,
       qty_after:  stockAfter,

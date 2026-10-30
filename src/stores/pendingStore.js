@@ -1,6 +1,7 @@
 // Pending Log store — public.pending_log
 import { isSupabaseEnabled } from "../config/env.js";
 import { getSupabase } from "../supabase/client.js";
+import { localIsoDate } from "./localDate.js";
 
 const LOCAL_KEY = "erp_pending";
 
@@ -16,7 +17,7 @@ function toRow(p) {
     pending_qty: Number(p.pendingQty) || 0,
     issue_qty:   Number(p.issueQty)   || 0,
     serial_no:   p.serialNo || null,
-    event_date:  p.date ? toIsoDate(p.date) : new Date().toISOString().slice(0, 10),
+    event_date:  p.date ? toIsoDate(p.date) : localIsoDate(),
   };
 }
 function fromRow(r) {
@@ -39,7 +40,7 @@ function toIsoDate(s) {
   if (!s) return null;
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
   const d = new Date(s); if (isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
+  return localIsoDate(d);
 }
 
 function getLocal() { try { const s = localStorage.getItem(LOCAL_KEY); if (s) return JSON.parse(s); } catch {} return []; }
