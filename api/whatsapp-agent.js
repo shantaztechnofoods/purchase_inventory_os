@@ -56,6 +56,34 @@ export default async function handler(req, res) {
 
     if (!geminiKey) { res.status(400).json({ error: "Gemini API key chahiye — WhatsApp Settings mein daalo" }); return; }
 
+    // Smallest possible generateContent call, time-bound, reporting the raw
+    // status. listModels (a GET) succeeds while generateContent (a POST) hangs,
+    // so this isolates whether the POST itself is refused, slow, or blocked —
+    // something the normal path can only report as "timed out".
+    if (body.pingModel) {
+      const t0 = Date.now();
+      try {
+        const pr = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${body.pingModel}:generateContent`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
+            body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "say ok" }] }] }),
+            signal: AbortSignal.timeout(12000),
+          },
+        );
+        const pj = await pr.json().catch(() => ({}));
+        res.status(200).json({
+          success: true, ms: Date.now() - t0, status: pr.status,
+          text: pj?.candidates?.[0]?.content?.parts?.[0]?.text || null,
+          error: pj?.error?.message || null,
+        });
+      } catch (e) {
+        res.status(200).json({ success: false, ms: Date.now() - t0, threw: String(e?.message || e) });
+      }
+      return;
+    }
+
     // Model names get retired (gemini-2.0-flash already was), and the error
     // only shows up at the moment someone is waiting for a reply. This asks
     // Google which models the key can actually use.
