@@ -41,11 +41,11 @@ import { fetchOutward, createOutward, updateOutwardRef, deleteOutwardByIssueId }
 import { fetchPending, bulkCreatePending, updatePending as pendingUpdate, deletePending as pendingDelete, clearAllPending, updatePendingBomKey } from "./stores/pendingStore.js";
 import { fetchFollowUps, createFollowUp as followupCreate, updateFollowUp as followupUpdate, deleteFollowUpsByPO } from "./stores/followupsStore.js";
 import { fetchMachines, createMachine as machineCreate, updateMachine as machineUpdate, updateMachineBomKey, deleteMachine as machineDelete, fetchMachineLockState } from "./stores/machinesStore.js";
-import { fetchHandovers, createHandover as handoverCreate, acceptHandover as handoverAccept, releaseHandover } from "./stores/handoverStore.js";
+import { fetchHandovers, createHandover as handoverCreate, acceptHandover as handoverAccept, releaseHandover, adminCancelHandover } from "./stores/handoverStore.js";
 import { getMySignature, saveMySignature, reauthenticateByPassword } from "./stores/signaturesStore.js";
 import {
   DEPARTMENT_SEQUENCE, DEFAULT_DEPT_DURATIONS, DEFAULT_ACCEPT_TIMEOUT_MINUTES,
-  readDeptWorkflowSettings, writeDeptWorkflowSettings,
+  readDeptWorkflowSettings, writeDeptWorkflowSettings, setWorkCalendar, isClosedDay, localDateKey,
   nextDepartment, computeElapsedMinutes, computeOverrun, isHoldOverdue, heldMinutes, RACK_RELEASE_HOPS,
   formatDuration, canAcceptHandover, canFinishTransfer, canConfigureDept, workerIdsOf,
 } from "./utils/handoverLogic.js";
@@ -8171,7 +8171,55 @@ const SETTINGS_DEFAULTS = {
   waGroupNumbers:  "",     // Comma-separated dept head phone numbers
   po:              null,   // Purchase Order settings (company profiles, templates) — see utils/poTemplate
   employeeMembers: [],     // [{ id, name, active, departments: string[] }] — display names for factory workers without ERP logins
+  // 2026-10-30 — Report Settings (admin only): what every printed / PDF report carries.
+  report: { language: "en", showLogo: true, companyLine: "", footerNote: "", includeTestRecords: false },
 };
+
+// ── Report language (2026-10-30) ─────────────────────────────────────────────
+// PDF / print headings in English, Hinglish (Hindi in Latin letters) or
+// Gujlish (Gujarati in Latin letters), so the shop floor and the owner read
+// the same report in the words they use. Column names are translated the
+// same way; anything not in the table stays in English.
+const REPORT_LANGS = [["en", "English"], ["hinglish", "Hinglish"], ["gujlish", "Gujlish"]];
+const REPORT_T = {
+  hinglish: {
+    "Report": "Report", "Date": "Tarikh", "Machine": "Machine", "Serial": "Serial No.", "Model": "Model",
+    "Department": "Vibhag", "From": "Kahan se", "To": "Kahan tak", "Status": "Sthiti", "Completed": "Poora hua",
+    "Active": "Chalu", "Pending": "Baaki", "Total machines": "Kul machine", "Avg rating": "Ausat rating",
+    "Delayed handovers": "Der se transfer", "Held handovers": "Hold par transfer", "Open pending items": "Baaki kaam (khule)",
+    "Resolved pending items": "Baaki kaam (poore)", "Took longer than allowed": "Tay samay se zyada laga",
+    "Accepted late — the next department left it waiting": "Der se sweekar — agla vibhag intezaar karata raha",
+    "Issues raised and still open": "Uthaye gaye masle jo abhi khule hain", "Department ratings": "Vibhag rating",
+    "Customer Progress Report": "Grahak Pragati Report", "Every handover, in full": "Har transfer, poora vivaran",
+    "Target": "Lakshya samay", "Actual": "Vastavik samay", "Delay": "Deri", "Reason": "Kaaran", "Part": "Part", "Qty": "Matra",
+    "Reported": "Darj kiya", "Part received": "Part mila", "Work completed": "Kaam poora", "Printed on": "Print tarikh",
+    "Prepared by": "Taiyar kiya", "CurrentStage": "Abhi ka charan", "CompletedOn": "Poora hone ki tarikh", "StagesCompleted": "Poore charan",
+    "Description": "Vivaran", "ReportedReason": "Darj kaaran", "ReceiveRemark": "Milne par tippani", "ResolutionNotes": "Poora hone ki tippani",
+    "ResponsibleDepartment": "Zimmedar vibhag", "RaisedInDepartment": "Kis vibhag me uthaya", "RaisedAt": "Kab uthaya",
+    "HeldMin": "Hold minute", "OverrunMin": "Deri minute", "ExpectedMin": "Lakshya minute", "ActualMin": "Vastavik minute",
+  },
+  gujlish: {
+    "Report": "Report", "Date": "Tarikh", "Machine": "Machine", "Serial": "Serial No.", "Model": "Model",
+    "Department": "Vibhag", "From": "Kyanthi", "To": "Kya sudhi", "Status": "Sthiti", "Completed": "Puru thayu",
+    "Active": "Chalu", "Pending": "Baki", "Total machines": "Kul machine", "Avg rating": "Sarerash rating",
+    "Delayed handovers": "Modu transfer", "Held handovers": "Hold par transfer", "Open pending items": "Baki kaam (khulla)",
+    "Resolved pending items": "Baki kaam (pura)", "Took longer than allowed": "Nakki samay karta vadhu lagyo",
+    "Accepted late — the next department left it waiting": "Modu swikaryu — pachhina vibhage rah jovdavi",
+    "Issues raised and still open": "Uthavela prashno je haju khulla chhe", "Department ratings": "Vibhag rating",
+    "Customer Progress Report": "Grahak Pragati Report", "Every handover, in full": "Dar transfer, puri vigat",
+    "Target": "Lakshya samay", "Actual": "Kharekhar samay", "Delay": "Modu", "Reason": "Karan", "Part": "Part", "Qty": "Jaththo",
+    "Reported": "Nondhyu", "Part received": "Part malyo", "Work completed": "Kaam puru", "Printed on": "Print tarikh",
+    "Prepared by": "Taiyar karnar", "CurrentStage": "Atyarno tabakko", "CompletedOn": "Pura thavani tarikh", "StagesCompleted": "Pura thayela tabakka",
+    "Description": "Vigat", "ReportedReason": "Nondhelu karan", "ReceiveRemark": "Malya parni nondh", "ResolutionNotes": "Pura thaya parni nondh",
+    "ResponsibleDepartment": "Javabdar vibhag", "RaisedInDepartment": "Kya vibhag ma uthavyu", "RaisedAt": "Kyare uthavyu",
+    "HeldMin": "Hold minute", "OverrunMin": "Modu minute", "ExpectedMin": "Lakshya minute", "ActualMin": "Kharekhar minute",
+  },
+};
+const rt = (lang, key) => (REPORT_T[lang] && REPORT_T[lang][key]) || key;
+// Pilot / test records are kept out of customer and management reports unless
+// the admin switches them on. A record is a test record when its serial or
+// BOM key starts with TEST or PILOT.
+const isTestRecord = (m) => /^(TEST|PILOT)[-_ ]/i.test(String(m?.serialNo || "")) || /^(TEST|PILOT)[-_ ]/i.test(String(m?.bomKey || ""));
 
 // ── Phase B — Checklist admin panel (Settings tab) ───────────────────────
 function ChecklistAdminPanel({ templates = [], canConfig = false, onCreate, onUpdate, onDelete }) {
@@ -8760,6 +8808,7 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
     { id: "department",    label: "🔧 Department Workflow Settings", desc: "Per-dept time limits + accept timeout" },
     { id: "checklists",    label: "📋 Department Checklists", desc: "Admin-managed per-department checklists" },
     { id: "employees",     label: "👥 Employees",            desc: "Manage display names for factory workers" },
+    { id: "reports",       label: "📄 Report Settings",      desc: "Logo, company line, PDF language" },
     { id: "notifications", label: "🔔 Notifications",  desc: "WhatsApp / email alerts" },
     { id: "data",          label: "💾 Data & Backup",  desc: "Export + backup" },
   ];
@@ -8841,6 +8890,64 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
           />
         )}
 
+        {/* ── Report Settings (2026-10-30, admin only) ─────────────────────── */}
+        {tab === "reports" && (() => {
+          const rc = { ...SETTINGS_DEFAULTS.report, ...(settings.report || {}) };
+          const setRc = (patch) => upd("report", { ...rc, ...patch });
+          const canEdit = isSuperAdmin || canDo("machines", "configDept");
+          return (
+            <Section icon="📄" title="Report Settings">
+              {!canEdit && (
+                <div className="mb-4 px-3 py-2 rounded-lg text-[11px]" style={{ background: "rgba(217, 119, 6,0.08)", color: "#B45309", border: "1px solid rgba(217, 119, 6,0.3)" }}>
+                  You can view these settings but not change them. Admin role required.
+                </div>
+              )}
+              <div className="space-y-5">
+                <div>
+                  <SLabel text="PDF / print language" hint="Headings and column names on every printed or PDF report. Hinglish and Gujlish use Latin letters so they print on any device." />
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {REPORT_LANGS.map(([code, label]) => (
+                      <button key={code} type="button" disabled={!canEdit} onClick={() => setRc({ language: code })} aria-pressed={rc.language === code}
+                              className="text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all disabled:opacity-60"
+                              style={rc.language === code ? { background: "#D71920", color: "#fff", borderColor: "#D71920" } : { background: "#fff", color: "#475569", borderColor: "rgba(17,24,39,0.15)" }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <SLabel text="Report header" hint="Printed at the top of every report. The logo and company name, GST, address and phone come from the Company tab." />
+                  <label className="flex items-center gap-2 text-[12px] text-slate-700 mb-2">
+                    <input type="checkbox" checked={!!rc.showLogo} disabled={!canEdit} onChange={(e) => setRc({ showLogo: e.target.checked })} className="accent-red-600 w-4 h-4" />
+                    Show the company logo
+                  </label>
+                  <input value={rc.companyLine} disabled={!canEdit} onChange={(e) => setRc({ companyLine: e.target.value })}
+                         placeholder="Extra line under the company name (e.g. Mfg. of food processing machinery)"
+                         className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none disabled:opacity-60" />
+                </div>
+                <div>
+                  <SLabel text="Report footer" hint="A note printed at the bottom of every report (e.g. 'Computer-generated report', a signature line, or a contact)." />
+                  <input value={rc.footerNote} disabled={!canEdit} onChange={(e) => setRc({ footerNote: e.target.value })}
+                         placeholder="e.g. This is a computer-generated report. For queries call +91 …"
+                         className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none disabled:opacity-60" />
+                </div>
+                <div>
+                  <SLabel text="Test / pilot records" hint="Machines whose serial or BOM starts with TEST or PILOT are kept out of reports unless this is on." />
+                  <label className="flex items-center gap-2 text-[12px] text-slate-700">
+                    <input type="checkbox" checked={!!rc.includeTestRecords} disabled={!canEdit} onChange={(e) => setRc({ includeTestRecords: e.target.checked })} className="accent-red-600 w-4 h-4" />
+                    Include test / pilot records in reports
+                  </label>
+                </div>
+                {canEdit && isDirty && !saved && (
+                  <div className="px-3 py-2 rounded-lg text-[11px] font-semibold" style={{ background: "rgba(217, 119, 6,0.10)", color: "#B45309", border: "1px solid rgba(217, 119, 6,0.4)" }}>
+                    ● Unsaved changes — click <strong>💾 Save Changes</strong> at the top to apply.
+                  </div>
+                )}
+              </div>
+            </Section>
+          );
+        })()}
+
         {/* ── Inventory tab ─────────────────────────────────────────────────── */}
         {tab === "inventory" && (
           <Section icon="📦" title="Inventory">
@@ -8913,6 +9020,55 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                     <span className="text-[11px] text-slate-500 ml-2">= {current.accept_timeout_minutes} min total · default 2 hours</span>
                   </div>
                 </div>
+
+                {/* ── Working calendar (2026-10-30): weekly off + holidays ── */}
+                {(() => {
+                  const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+                  const off = current.weekly_off_days || [];
+                  const hol = current.holidays || [];
+                  const toggleDay = (i) => commitWorkflow({ weekly_off_days: off.includes(i) ? off.filter((d) => d !== i) : [...off, i].sort() });
+                  const addHoliday = () => {
+                    const date = (settings.__newHolidayDate || "").trim(); const name = (settings.__newHolidayName || "").trim();
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+                    commitWorkflow({ holidays: [...hol.filter((h) => h.date !== date), { date, name }] });
+                    setSettings((prev) => ({ ...prev, __newHolidayDate: "", __newHolidayName: "" }));
+                  };
+                  return (
+                    <div className="rounded-lg p-3" style={{ background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.25)" }}>
+                      <SLabel text="Working calendar — weekly off & holidays" hint="On a closed day every department timer and the acceptance timer pause, and all deadlines move out by the closed time. Default weekly off: Tuesday." />
+                      <div className="flex items-center gap-1.5 flex-wrap mb-3">
+                        <span className="text-[11px] text-slate-500 mr-1">Weekly off:</span>
+                        {DAYS.map((d, i) => (
+                          <button key={d} type="button" disabled={!canConfig} onClick={() => toggleDay(i)} aria-pressed={off.includes(i)}
+                                  className="text-[11px] font-bold px-2.5 py-1 rounded-md border transition-all disabled:opacity-60"
+                                  style={off.includes(i) ? { background: "#4338ca", color: "#fff", borderColor: "#4338ca" } : { background: "#fff", color: "#475569", borderColor: "rgba(17,24,39,0.15)" }}>
+                            {d}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="text-[11px] text-slate-500 mb-1.5">Holidays ({hol.length})</div>
+                      {hol.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {hol.map((h) => (
+                            <span key={h.date} className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border bg-white" style={{ borderColor: "rgba(99,102,241,0.35)", color: "#3730a3" }}>
+                              {h.date}{h.name ? ` · ${h.name}` : ""}
+                              {canConfig && <button type="button" onClick={() => commitWorkflow({ holidays: hol.filter((x) => x.date !== h.date) })} className="text-slate-400 hover:text-red-500" aria-label={`Remove holiday ${h.date}`}>×</button>}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {canConfig && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <input type="date" value={settings.__newHolidayDate || ""} onChange={(e) => setSettings((prev) => ({ ...prev, __newHolidayDate: e.target.value }))}
+                                 aria-label="Holiday date" className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none" />
+                          <input value={settings.__newHolidayName || ""} onChange={(e) => setSettings((prev) => ({ ...prev, __newHolidayName: e.target.value }))}
+                                 placeholder="Name (e.g. Diwali)" aria-label="Holiday name" className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none min-w-[160px]" />
+                          <button type="button" onClick={addHoliday} className="text-[11px] font-bold px-3 py-2 rounded-lg text-white" style={{ background: "#4338ca" }}>+ Add holiday</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* ── Per-department work-duration limits (hours/days entry) ── */}
                 <div>
@@ -14458,14 +14614,25 @@ function ReportCenterPage({
   };
   const deptMatches = (d) => !deptFilter || d === deptFilter;
 
-  const filteredMachines = (machineLog || []).filter(machineMatches).filter((m) =>
+  // 2026-10-30 — report settings (language, header, footer, pilot records).
+  const rc = { ...SETTINGS_DEFAULTS.report, ...((settings && settings.report) || {}) };
+  const [reportLang, setReportLang] = useState(rc.language || "en");
+  const T = (k) => rt(reportLang, k);
+  // Pilot / test machines stay out of every report unless the admin turned
+  // them on in Report Settings; the "One machine" picker may still show them.
+  const scopedMachineLog = (machineLog || []).filter((m) => rc.includeTestRecords || !isTestRecord(m));
+  const testMachineIds = new Set((machineLog || []).filter(isTestRecord).map((m) => String(m.id)));
+  const notTest = (machineId) => rc.includeTestRecords || !testMachineIds.has(String(machineId));
+  const filteredMachines = scopedMachineLog.filter(machineMatches).filter((m) =>
     inRange(m.createdDate) || inRange(m.completedDate)
   );
   const filteredHandovers = (handovers || [])
+    .filter((h) => notTest(h.machineId))
     .filter((h) => deptMatches(h.fromDepartment) || deptMatches(h.toDepartment))
     .filter((h) => inRange(h.sentAt))
     .filter((h) => !machineFilter || machineMatches({ bomKey: h.bomKey, serialNo: h.serialNo, bomLabel: "" }));
   const filteredPending = (pendingHandoverItems || [])
+    .filter((p) => notTest(p.machineId))
     .filter((p) => inRange(p.raisedAt))
     .filter((p) => deptMatches(p.raisedInDepartment) || deptMatches(p.resolvedInDepartment))
     .filter((p) => !machineFilter || machineMatches((machineLog || []).find((m) => m.id === p.machineId) || {}));
@@ -14685,6 +14852,23 @@ function ReportCenterPage({
       <Topbar title="Report Center" subtitle={`Operational + customer reports · ${filteredMachines.length} machine${filteredMachines.length === 1 ? "" : "s"} in scope`} />
 
       <div className="p-6 space-y-5 report-area">
+        {/* Print header (2026-10-30): logo + company details from Settings → Company,
+            the extra line and language from Settings → Report Settings. */}
+        <div className="hidden print:flex items-start gap-4 pb-3 mb-2" style={{ borderBottom: "2px solid #111827" }}>
+          {rc.showLogo && settings.logo && <img src={settings.logo} alt="" style={{ height: 56, width: "auto", border: "none" }} />}
+          <div className="flex-1">
+            <div className="text-[18px] font-black text-slate-900 leading-tight">{settings.companyName || "Shantaz Technofoods"}</div>
+            {rc.companyLine && <div className="text-[11px] text-slate-600">{rc.companyLine}</div>}
+            <div className="text-[10px] text-slate-600 mt-0.5">
+              {[settings.address, settings.gst ? `GST ${settings.gst}` : "", settings.phone, settings.email].filter(Boolean).join(" · ")}
+            </div>
+          </div>
+          <div className="text-right text-[10px] text-slate-600">
+            <div className="text-[12px] font-bold text-slate-900">{(tabs.find((t) => t.id === tab) || {}).label || ""} {T("Report")}</div>
+            <div>{T("Printed on")}: {fmtDate(new Date())}</div>
+            {(dateFrom || dateTo) && <div>{T("Date")}: {dateFrom || "…"} → {dateTo || "…"}</div>}
+          </div>
+        </div>
         {/* Filters */}
         <div className="rounded-xl p-4 no-print" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.10)" }}>
           <div className="flex items-end gap-3 flex-wrap">
@@ -14736,6 +14920,15 @@ function ReportCenterPage({
             </button>
           ))}
           <div className="flex-1" />
+          <div className="flex items-center gap-1 rounded-lg p-0.5" style={{ background: "rgba(17,24,39,0.05)" }} role="group" aria-label="PDF language">
+            {REPORT_LANGS.map(([code, label]) => (
+              <button key={code} type="button" onClick={() => setReportLang(code)} aria-pressed={reportLang === code}
+                      className="text-[10.5px] font-bold px-2.5 py-1 rounded-md transition-all"
+                      style={reportLang === code ? { background: "var(--surface-card)", color: "#111827", boxShadow: "0 1px 2px rgba(17,24,39,0.12)" } : { color: "#6b7280" }}>
+                {label}
+              </button>
+            ))}
+          </div>
           <button onClick={() => exportCSV(activeExport.rows, activeExport.file)}
                   className="text-[11px] font-bold text-emerald-300 px-3 py-1.5 rounded border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20">
             ⬇ CSV
@@ -14754,14 +14947,14 @@ function ReportCenterPage({
         {tab === "factory" && (
           <div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <ReportKPI label="Total machines" value={summary.total} color="#D71920" />
-              <ReportKPI label="Active" value={summary.active} color="#D97706" />
-              <ReportKPI label="Completed" value={summary.completed} color="#22c55e" />
-              <ReportKPI label="Avg rating" value={summary.avgRating ?? "—"} color="#eab308" suffix={summary.avgRating ? "★" : ""} />
-              <ReportKPI label="Delayed handovers" value={summary.delayedHandovers} color="#ef4444" />
-              <ReportKPI label="Held handovers" value={summary.heldHandovers} color="#ef4444" />
-              <ReportKPI label="Open pending items" value={summary.openPending} color="#D97706" />
-              <ReportKPI label="Resolved pending items" value={summary.resolvedPending} color="#22c55e" />
+              <ReportKPI label={T("Total machines")} value={summary.total} color="#D71920" />
+              <ReportKPI label={T("Active")} value={summary.active} color="#D97706" />
+              <ReportKPI label={T("Completed")} value={summary.completed} color="#22c55e" />
+              <ReportKPI label={T("Avg rating")} value={summary.avgRating ?? "—"} color="#eab308" suffix={summary.avgRating ? "★" : ""} />
+              <ReportKPI label={T("Delayed handovers")} value={summary.delayedHandovers} color="#ef4444" />
+              <ReportKPI label={T("Held handovers")} value={summary.heldHandovers} color="#ef4444" />
+              <ReportKPI label={T("Open pending items")} value={summary.openPending} color="#D97706" />
+              <ReportKPI label={T("Resolved pending items")} value={summary.resolvedPending} color="#22c55e" />
             </div>
           </div>
         )}
@@ -14775,10 +14968,10 @@ function ReportCenterPage({
               openIssues={filteredPending.filter((p) => p.status === "open")}
               waitingNow={filteredHandovers.filter((h) => h.status === "pending")}
             />
-            <ReportTable title="Took longer than allowed" rows={delayRows} />
-            <ReportTable title="Accepted late — the next department left it waiting" rows={holdRows} />
-            <ReportTable title="Issues raised and still open" rows={pendingRows} />
-            <ReportTable title="Department ratings" rows={ratingRows} />
+            <ReportTable title={T("Took longer than allowed")} rows={delayRows} t={T} />
+            <ReportTable title={T("Accepted late — the next department left it waiting")} rows={holdRows} t={T} />
+            <ReportTable title={T("Issues raised and still open")} rows={pendingRows} t={T} />
+            <ReportTable title={T("Department ratings")} rows={ratingRows} t={T} />
           </div>
         )}
 
@@ -14835,15 +15028,16 @@ function ReportCenterPage({
           );
         })()}
 
-        {tab === "factory" && <ReportTable title="Every handover, in full" rows={factoryRows} />}
+        {tab === "factory" && <ReportTable title={T("Every handover, in full")} rows={factoryRows} t={T} />}
         {tab === "customer" && (
           <>
             <div className="rounded-lg px-3 py-2 text-[11px] no-print" style={{ background: "rgba(34,197,94,0.06)", color: "#15803d", border: "1px solid rgba(34,197,94,0.25)" }}>
               Customer-safe output. HOLD reasons, employee names, ratings, narration, and internal remarks are intentionally not shown.
             </div>
-            <ReportTable title="Customer Progress Report" rows={customerRows} />
+            <ReportTable title={T("Customer Progress Report")} rows={customerRows} t={T} />
           </>
         )}
+        {rc.footerNote && <div className="hidden print:block text-[10px] text-slate-500 pt-3 mt-4" style={{ borderTop: "1px solid #cbd5e1" }}>{rc.footerNote}</div>}
       </div>
     </div>
   );
@@ -14944,7 +15138,7 @@ function ReportKPI({ label, value, color = "#D71920", suffix = "" }) {
   );
 }
 
-function ReportTable({ title, rows }) {
+function ReportTable({ title, rows, t = (k) => k }) {
   if (!rows || rows.length === 0) {
     return (
       <div className="rounded-xl py-14 text-center" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.10)" }}>
@@ -14962,7 +15156,7 @@ function ReportTable({ title, rows }) {
           <thead>
             <tr>
               {columns.map((c) => (
-                <th key={c} className="text-left px-3 py-2 font-bold text-slate-500 bg-slate-50 whitespace-nowrap">{c}</th>
+                <th key={c} className="text-left px-3 py-2 font-bold text-slate-500 bg-slate-50 whitespace-nowrap">{t(c)}</th>
               ))}
             </tr>
           </thead>
@@ -16042,7 +16236,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   checklistTemplates = [], pendingHandoverItems = [], attachments = [], deptRatings = [],
   // 2026-10-30 — Item Master, so a pending job can name the missing part by code.
   items = {},
-  onUploadAttachment, onDeleteAttachment, onResolvePendingItem, onReceivePendingItem,
+  onUploadAttachment, onDeleteAttachment, onResolvePendingItem, onReceivePendingItem, onPullBackHandover,
   // Migration 028 — During-Work checklist handler. Optional; button hides when
   // no template is configured for the machine's current department.
   onSubmitDuringWorkChecklist,
@@ -16088,6 +16282,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   const inventoryFlat = useMemo(() => Object.entries(items || {}).flatMap(([cat, list]) => (list || []).map((i) => ({ code: i.code, name: i.name, unit: i.unit, category: cat }))), [items]);
   const [jobAction, setJobAction] = useState(null); // { item, action: "receive"|"complete", notes, busy, error }
   const [jobsView,  setJobsView]  = useState("open"); // Pending Jobs tab: open | done | all
+  const [pullBack,  setPullBack]  = useState(null);   // { handover, reason, busy, error } — admin pull back
   const [raiseText,  setRaiseText]  = useState("");
   const [raiseDept,  setRaiseDept]  = useState("");
   const [raiseErr,   setRaiseErr]   = useState("");
@@ -16097,6 +16292,12 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   const voiceRecRef = React.useRef(null);
 
   // Voice input helper — Web Speech API (Hindi + English fallback)
+  // 2026-10-30 — voice-to-text language: Gujarati, Hindi or English (Indian).
+  // Remembered on this device; the mic button uses whichever is selected.
+  const VOICE_LANGS = [["gu-IN", "ગુજરાતી"], ["hi-IN", "हिंदी"], ["en-IN", "English"]];
+  const [voiceLang, setVoiceLang] = useState(() => { try { return localStorage.getItem("erp_voice_lang") || "hi-IN"; } catch { return "hi-IN"; } });
+  const pickVoiceLang = (l) => { setVoiceLang(l); try { localStorage.setItem("erp_voice_lang", l); } catch {} };
+  const voiceLangRef = React.useRef(voiceLang); voiceLangRef.current = voiceLang;
   const toggleVoice = React.useCallback((targetSetter) => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { setRaiseErr("Voice input is not supported in this browser."); return; }
@@ -16107,7 +16308,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       return;
     }
     const rec = new SR();
-    rec.lang = "hi-IN";
+    rec.lang = voiceLangRef.current || "hi-IN";
     rec.continuous = true;
     rec.interimResults = false;
     rec.onresult = (e) => {
@@ -16447,7 +16648,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
         .map((m) => m.name),
     );
     setAcceptModal({ handover, password: "", needSig: false, sigSvg: null, busy: false, error: "",
-                     pendingItemsToRaise: [], newPendingText: "",
+                     pendingItemsToRaise: [], newPendingText: "", holdReason: "",
                      checklistTemplate, checklistAnswers, acceptTeamMembers });
     // Pre-check: does the current user have a stored signature? If not, we
     // show the pad before password re-auth. The actual signature creation
@@ -16463,7 +16664,15 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   const submitAcceptHandover = async () => {
     if (!acceptModal || acceptModal.busy) return;
     const { handover, password, needSig, sigSvg, checklistTemplate, checklistAnswers,
-            acceptTeamMembers = [] } = acceptModal;
+            acceptTeamMembers = [], holdReason = "" } = acceptModal;
+    // 2026-10-30 — a machine accepted after its acceptance window (ON HOLD)
+    // needs the reason for the late acceptance; it goes into the machine's
+    // permanent history and the audit trail.
+    const acceptingLate = isHoldOverdue(handover.sentAt, handover.acceptTimeoutMinutes, nowTick);
+    if (acceptingLate && !holdReason.trim()) {
+      setAcceptModal((prev) => prev ? { ...prev, error: "This machine is ON HOLD — write why it is being accepted late." } : prev);
+      return;
+    }
     if (needSig && !sigSvg) {
       setAcceptModal((prev) => prev ? { ...prev, error: "Please register your signature first." } : prev);
       return;
@@ -16500,7 +16709,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       }
     }
     const pendingItemsToRaise = cleanPendingJobs(acceptModal.pendingItemsToRaise);
-    const res = await onAcceptHandover({ handoverId: handover.id, password, pendingItemsToRaise,
+    const res = await onAcceptHandover({ handoverId: handover.id, password, pendingItemsToRaise, holdReason: holdReason.trim(),
                                          // Pass through so the handler can snapshot the Before-Receive response.
                                          checklistTemplate, checklistAnswers,
                                          stage: "before_receive", department: handover.toDepartment,
@@ -16995,7 +17204,8 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             </div>
             <div className="space-y-2.5">
               {askableHandovers.map((h) => {
-                const sentMin   = Math.max(0, Math.floor((nowTick - Date.parse(h.sentAt)) / 60000));
+                // Working minutes only (Tuesdays / holidays pause the clock).
+                const sentMin   = computeElapsedMinutes(h.sentAt, nowTick);
                 const overdue   = isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
                 const heldMin   = heldMinutes(h.sentAt, h.acceptTimeoutMinutes, nowTick);
                 const minsLeft  = (h.acceptTimeoutMinutes || 0) - sentMin;
@@ -17030,6 +17240,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         <div className="text-[11px] text-slate-500 mt-1.5 italic">"{h.overrunNarration}"</div>
                       )}
                     </div>
+                    {isAdminUser && onPullBackHandover && (
+                      <button type="button" onClick={() => setPullBack({ handover: h, reason: "", busy: false, error: "" })}
+                              title="Admin: cancel this hand-over and return the machine to the sending department"
+                              className="text-[11px] font-bold px-3 py-2 rounded-lg border transition-all"
+                              style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.35)", color: "#b91c1c" }}>
+                        ↩ Pull back
+                      </button>
+                    )}
                     {canAccept && onAcceptHandover ? (
                       <button onClick={() => openAcceptModal(h)}
                               className="text-[12px] font-black text-slate-900 px-5 py-2.5 rounded-xl transition-all hover:scale-105"
@@ -17737,6 +17955,29 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                           )}
                         </div>
                         <div className="text-[10px] text-slate-600 mt-0.5">Started {machine.createdDate}{machine.completedDate ? ` · Completed ${machine.completedDate}` : ""}</div>
+                        {/* 2026-10-30 — live department timer: working time only
+                            (Tuesdays and holidays pause it), the BOM target, the
+                            deadline, and a delay alert once the target is passed. */}
+                        {!isComplete && machine.stage !== "BOM Issued" && machine.departmentEnteredAt && (() => {
+                          const dept = machine.currentDepartment || machine.stage;
+                          const cfg = (machine.deptDurations && machine.deptDurations[dept]) || workflow.dept_durations[dept];
+                          const target = (cfg && cfg.minutes) || 0;
+                          const t = computeOverrun(machine.departmentEnteredAt, target, nowTick);
+                          const closedToday = isClosedDay(nowTick);
+                          const due = t.deadlineMs ? new Date(t.deadlineMs) : null;
+                          const dueTxt = due ? `${fmtDate(due)} ${due.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "";
+                          return (
+                            <div className="flex items-center gap-1.5 flex-wrap mt-1 text-[10px]">
+                              <span className="font-bold px-2 py-0.5 rounded-full" title={`Working time in ${dept} · target ${formatDuration(target)}`}
+                                    style={t.isOverrun ? { background: "rgba(239,68,68,0.1)", color: "#b91c1c", border: "1px solid rgba(239,68,68,0.35)" } : { background: "rgba(21,128,61,0.08)", color: "#15803d", border: "1px solid rgba(21,128,61,0.3)" }}>
+                                ⏱ {formatDuration(t.actualMinutes)} / {formatDuration(target)}
+                                {t.isOverrun ? ` · DELAYED ${formatDuration(t.overrunMinutes)}` : ""}
+                              </span>
+                              {due && !t.isOverrun && <span className="text-slate-500">due {dueTxt}</span>}
+                              {closedToday && <span className="font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.1)", color: "#4338ca" }}>⏸ paused — closed day</span>}
+                            </div>
+                          );
+                        })()}
                         <div className="flex items-center gap-2 mt-1.5">
                           <div className="w-28 h-1 rounded-full overflow-hidden" style={{ background: "rgba(17,24,39,0.06)" }}>
                             <div className="h-full rounded-full transition-all duration-500"
@@ -17912,6 +18153,14 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                               )}
                               {!canDo("machines", "release") && (
                                 <span className="text-[10px] text-slate-500">waiting for the production head</span>
+                              )}
+                              {isAdminUser && onPullBackHandover && (
+                                <button type="button" onClick={() => setPullBack({ handover: h, reason: "", busy: false, error: "" })}
+                                        title="Admin: cancel this hand-over and return the machine to Assembly"
+                                        className="text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all"
+                                        style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.35)", color: "#b91c1c" }}>
+                                  ↩ Pull back
+                                </button>
                               )}
                             </div>
                           );
@@ -18307,6 +18556,44 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
 
       </div>
 
+      {/* ── Admin Pull Back (2026-10-30) ── */}
+      {pullBack && (() => {
+        const h = pullBack.handover;
+        const submit = async () => {
+          if (pullBack.busy) return;
+          if (!pullBack.reason.trim()) { setPullBack((prev) => prev ? { ...prev, error: "Write the reason for pulling this machine back." } : prev); return; }
+          setPullBack((prev) => prev ? { ...prev, busy: true, error: "" } : prev);
+          const r = await onPullBackHandover({ handoverId: h.id, reason: pullBack.reason.trim() });
+          if (r && r.success === false) { setPullBack((prev) => prev ? { ...prev, busy: false, error: r.error || "Could not pull back." } : prev); return; }
+          setPullBack(null);
+          showToast(`${h.bomKey}${h.serialNo ? ` · S/N ${h.serialNo}` : ""} pulled back`, `Stays in ${h.fromDepartment} · hand-over to ${h.toDepartment} cancelled`);
+        };
+        return (
+          <div className="modal-backdrop fixed inset-0 z-[72] flex items-center justify-center p-4"
+               style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
+               onClick={(e) => e.target === e.currentTarget && !pullBack.busy && setPullBack(null)}>
+            <div className="w-full max-w-md rounded-2xl p-5" style={{ background: "var(--surface-raised)", border: "1px solid rgba(239,68,68,0.35)", boxShadow: "0 24px 70px rgba(17,24,39,0.2)" }}>
+              <h3 className="text-base font-black text-slate-800 mb-1">Pull back from {h.toDepartment}</h3>
+              <p className="text-[11px] text-slate-500 mb-3">{h.bomKey}{h.serialNo ? ` · S/N ${h.serialNo}` : ""} · sent by {h.fromDepartment}</p>
+              <p className="text-[11px] text-slate-600 mb-3">The hand-over to {h.toDepartment} is cancelled and the machine stays with {h.fromDepartment}, which can finish and transfer it again. The cancelled hand-over and your reason stay in the history.</p>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1">Reason <span className="text-red-500">*</span></label>
+              <textarea rows={2} value={pullBack.reason} disabled={pullBack.busy} autoFocus
+                        onChange={(e) => setPullBack((prev) => prev ? { ...prev, reason: e.target.value, error: "" } : prev)}
+                        placeholder="e.g. sent to the wrong department; work not finished"
+                        className="w-full rounded-lg px-3 py-2.5 text-[13px] text-slate-800 outline-none"
+                        style={{ background: "var(--surface-elevated)", border: "1px solid rgba(17,24,39,0.12)" }} />
+              {pullBack.error && <div className="mt-3 text-[11px] font-bold px-3 py-2 rounded-lg" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", color: "#dc2626" }}>{pullBack.error}</div>}
+              <div className="flex gap-2 mt-4">
+                <button type="button" onClick={() => setPullBack(null)} disabled={pullBack.busy} className="flex-1 h-11 rounded-lg text-[13px] font-bold text-slate-600 border transition-all disabled:opacity-40" style={{ borderColor: "rgba(17,24,39,0.12)" }}>Cancel</button>
+                <button type="button" onClick={submit} disabled={pullBack.busy} className="flex-[2] h-11 rounded-lg text-[13px] font-black text-white transition-all disabled:opacity-50" style={{ background: "linear-gradient(135deg,#ef4444,#dc2626)" }}>
+                  {pullBack.busy ? "Pulling back…" : "↩ Pull back machine"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Pending job action (2026-10-30): part received / work completed ── */}
       {jobAction && (() => {
         const p = jobAction.item;
@@ -18417,7 +18704,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
             <div className="relative">
               <textarea id="raise-desc" rows={3} value={raiseText} disabled={raiseBusy}
                         onChange={(e) => setRaiseText(e.target.value)}
-                        placeholder={voiceActive ? "🎙 Listening…" : "e.g. noise coming from the gearbox · or speak in Hindi 🎤"}
+                        placeholder={voiceActive ? "🎙 Listening…" : "e.g. noise coming from the gearbox · or tap 🎤 and speak"}
                         className="w-full rounded-lg px-3 py-2.5 pr-12 text-[13px] text-slate-800 outline-none resize-y"
                         style={{ background: "var(--surface-elevated)", border: voiceActive ? "2px solid #ef4444" : "1px solid rgba(17,24,39,0.12)" }} />
               {(window.SpeechRecognition || window.webkitSpeechRecognition) && (
@@ -18425,11 +18712,23 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         onClick={() => toggleVoice(setRaiseText)}
                         className="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center transition-all"
                         style={{ background: voiceActive ? "#ef4444" : "rgba(239,68,68,0.1)", color: voiceActive ? "#fff" : "#ef4444" }}
-                        title={voiceActive ? "Stop voice" : "Voice input (Hindi)"}>
+                        title={voiceActive ? "Stop voice" : `Voice input (${(VOICE_LANGS.find((x) => x[0] === voiceLang) || [])[1] || voiceLang})`}>
                   {voiceActive ? "⏹" : "🎤"}
                 </button>
               )}
             </div>
+            {(window.SpeechRecognition || window.webkitSpeechRecognition) && (
+              <div className="flex items-center gap-1.5 mt-1.5" role="group" aria-label="Voice language">
+                <span className="text-[10px] text-slate-500">Speak in:</span>
+                {VOICE_LANGS.map(([code, label]) => (
+                  <button key={code} type="button" disabled={raiseBusy || voiceActive} onClick={() => pickVoiceLang(code)} aria-pressed={voiceLang === code}
+                          className="text-[10.5px] font-bold px-2 py-0.5 rounded-md border transition-all disabled:opacity-60"
+                          style={voiceLang === code ? { background: "#ef4444", color: "#fff", borderColor: "#ef4444" } : { background: "#fff", color: "#475569", borderColor: "rgba(17,24,39,0.15)" }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* 2026-10-30 — optional missing part, so the job is traceable. */}
             <div className="block text-[11px] font-bold text-slate-600 mt-4 mb-1.5">Missing part (optional)</div>
@@ -19028,6 +19327,19 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                   <div className="rounded-lg px-3 py-2" style={{ background: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.3)" }}>
                     <div className="text-[10px] font-bold text-yellow-300 uppercase tracking-wide mb-0.5">Sender's note on overrun</div>
                     <div className="text-[11px] text-yellow-100 italic">"{handover.overrunNarration}"</div>
+                  </div>
+                )}
+                {isHoldOverdue(handover.sentAt, handover.acceptTimeoutMinutes, nowTick) && (
+                  <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.35)" }}>
+                    <div className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "#b91c1c" }}>
+                      🚦 On hold · {formatDuration(heldMinutes(handover.sentAt, handover.acceptTimeoutMinutes, nowTick))} past the acceptance window
+                    </div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Reason for late acceptance <span className="text-red-500">*</span></label>
+                    <textarea rows={2} value={acceptModal.holdReason || ""} disabled={acceptModal.busy}
+                              onChange={(e) => setField({ holdReason: e.target.value, error: "" })}
+                              placeholder="e.g. machine was on the rack behind two others; operator on leave"
+                              className="w-full bg-white border border-red-200 rounded-lg px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-red-400" />
+                    <div className="text-[10px] text-slate-500 mt-1">Saved permanently in the machine's history and the audit trail.</div>
                   </div>
                 )}
                 {needSig && (
@@ -21572,6 +21884,10 @@ export default function App() {
   const [deptRatings, setDeptRatings] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_dept_ratings"); if (s) return JSON.parse(s); } catch {} return []; });
   const [auditLog,   setAuditLog]   = useState(() => getAuditLog());
   const [settings,   setSettings]   = useState(() => { try { const s = localStorage.getItem("erp_settings"); if (s) return { ...SETTINGS_DEFAULTS, ...JSON.parse(s) }; } catch {} return { ...SETTINGS_DEFAULTS }; });
+  // 2026-10-30 — working calendar (Tuesday + admin holidays) drives every
+  // department / acceptance timer. Kept in sync with settings here so the pure
+  // helpers in handoverLogic never need React.
+  useEffect(() => { setWorkCalendar(readDeptWorkflowSettings(settings)); }, [settings]);
   // Migration 029 — list of all users (for the Settings dept-employee picker +
   // the Finish & Transfer worker/main-employee picker). Fetched once on mount
   // when Supabase is enabled; falls back silently to [] if the schema isn't
@@ -21626,8 +21942,10 @@ export default function App() {
   // Returns the save result so the UI can SURFACE failures (the previous console.warn
   // was invisible — operators saw "✅ Saved!" while Supabase silently rejected the row,
   // and the next hydration overrode the local copy with the stale remote value).
-  const handleSaveSettings = async (newSettings) => {
+  const handleSaveSettings = async (newSettingsIn) => {
     console.info("[App] handleSaveSettings called");
+    // Form-only scratch fields (holiday entry boxes) never persist.
+    const { __newHolidayDate: _hd, __newHolidayName: _hn, ...newSettings } = newSettingsIn || {};
     // Snapshot before so the audit record can show what actually changed. Keep
     // the detail payload shallow (no logo blob) so audit rows stay small.
     const before = settings || {};
@@ -23713,7 +24031,7 @@ export default function App() {
   // main session), attach the operator's signature, flip status to accepted,
   // promote the machine to the new department. Password re-auth is required
   // by design — a saved signature alone is not proof of authorization.
-  const handleAcceptHandover = async ({ handoverId, password, pendingItemsToRaise = [], checklistTemplate = null, checklistAnswers = null, stage = null, department = null, acceptTeamMembers = [] }) => {
+  const handleAcceptHandover = async ({ handoverId, password, pendingItemsToRaise = [], checklistTemplate = null, checklistAnswers = null, stage = null, department = null, acceptTeamMembers = [], holdReason = "" }) => {
     if (!currentUser?.id) return { success: false, error: "Not authenticated" };
     const handover = handovers.find((h) => h.id === handoverId);
     if (!handover) return { success: false, error: "Handover not found" };
@@ -23775,7 +24093,9 @@ export default function App() {
     const nowIso  = new Date().toISOString();
     const newStage = handover.toDepartment;
     const isComplete = newStage === "Ready";
-    const historyEntry = { stage: newStage, date: dateStr, note: `Accepted into ${newStage}` };
+    const lateNow = isHoldOverdue(handover.sentAt, handover.acceptTimeoutMinutes, Date.now());
+    const historyEntry = { stage: newStage, date: dateStr,
+      note: `Accepted into ${newStage}${lateNow ? ` (ON HOLD — accepted late${holdReason ? `: ${holdReason}` : ""})` : ""}` };
 
     setMachineLog((prev) => prev.map((m) =>
       m.id === handover.machineId
@@ -23827,6 +24147,7 @@ export default function App() {
         handoverId, machineId: handover.machineId,
         from: handover.fromDepartment, to: newStage,
         timeToAcceptMin, wasOverdue, acceptTimeoutMinutes: accRes.handover.acceptTimeoutMinutes,
+        holdReason: holdReason || undefined,
       },
     });
 
@@ -24101,6 +24422,41 @@ export default function App() {
   // the waiting department to pick it up. Does not touch the machine's stage:
   // the department still accepts it properly, with its checklist and
   // signature, exactly as on any other hop.
+  // 2026-10-30 — Admin Pull Back: cancel a pending hand-over and return the
+  // machine to the sending department. The hand-over row stays (status
+  // cancelled, with the reason), the machine keeps its department clock,
+  // and both the history and the audit trail record it.
+  const handlePullBackHandover = async ({ handoverId, reason }) => {
+    if (!currentUser?.id) return { success: false, error: "Not authenticated" };
+    const isAdmin = currentUser?.role === "super_admin" || currentUser?.role === "Admin";
+    if (!isAdmin) return { success: false, error: "Only an admin can pull a hand-over back." };
+    const why = String(reason || "").trim();
+    if (!why) return { success: false, error: "Write the reason for pulling this machine back." };
+    const h = (handovers || []).find((x) => x.id === handoverId);
+    if (!h) return { success: false, error: "Hand-over not found" };
+    if (h.status !== "pending") return { success: false, error: "This hand-over is no longer pending." };
+    const machine = machineLog.find((m) => String(m.id) === String(h.machineId));
+    const res = await adminCancelHandover(handoverId, why);
+    if (!res.success) return res;
+    const dateStr = fmtDate(new Date());
+    const note = `Pulled back by admin — ${h.fromDepartment} → ${h.toDepartment} cancelled: ${why}`;
+    setHandovers((prev) => prev.map((x) => x.id === handoverId ? { ...x, status: "cancelled", cancelledAt: new Date().toISOString(), cancellationReason: why } : x));
+    setMachineLog((prev) => prev.map((m) => String(m.id) === String(h.machineId)
+      ? { ...m, pendingHandoverId: null, history: [...(m.history || []), { stage: m.stage, date: dateStr, note }] }
+      : m));
+    if (isSupabaseEnabled() && machine) {
+      machineUpdate(machine.id, { pendingHandoverId: null, history: [...(machine.history || []), { stage: machine.stage, date: dateStr, note }] })
+        .then((r) => { if (!r.success) flashSaveError("Pull back", `${machine.bomKey}${machine.serialNo ? ` · ${machine.serialNo}` : ""}: ${r.error || "machine not updated"}`); });
+    }
+    logAudit({
+      type: "handover_pulled_back", module: "Machine",
+      action: `Pulled back by admin: ${machine?.bomKey || h.bomKey || ""}${(machine?.serialNo || h.serialNo) ? ` [${machine?.serialNo || h.serialNo}]` : ""} — ${h.fromDepartment} → ${h.toDepartment} cancelled`,
+      ref: machine?.bomKey || h.bomKey || "", serialNo: machine?.serialNo || h.serialNo || "",
+      details: { handoverId, machineId: h.machineId, from: h.fromDepartment, to: h.toDepartment, reason: why, wasOnHold: isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, Date.now()) },
+    });
+    return res;
+  };
+
   const handleReleaseHandover = async (handoverId) => {
     if (!currentUser?.id) return { success: false, error: "Not authenticated" };
     const h = (handovers || []).find((x) => x.id === handoverId);
@@ -24419,6 +24775,7 @@ export default function App() {
                               onDeleteAttachment={handleDeleteAttachment}
                               onResolvePendingItem={handleResolvePendingItem}
                               onReceivePendingItem={handleReceivePendingItem}
+                              onPullBackHandover={handlePullBackHandover}
                               /* Phase 1 — raise a fault mid-work */
                               onRaisePendingItem={handleRaisePendingItem}
                               /* Migration 036 — release a machine off the rack */

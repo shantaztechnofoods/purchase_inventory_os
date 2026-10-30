@@ -250,6 +250,30 @@ export async function acceptHandover(id, { acceptedBy, acceptedBySignatureId, ac
 
 // Phase A does not expose Cancel in the UI, but the store supports it so
 // Phase B can wire the button without needing a schema change.
+// Migration 044 — an admin pulls a pending hand-over back (any sender). The
+// RLS policy handover_events_admin_cancel decides who may; this only asks
+// for status 'pending' so a race with an accept is refused, not overwritten.
+export async function adminCancelHandover(id, reason) {
+  if (!isSupabaseEnabled()) {
+    const all = getLocal();
+    const i = all.findIndex((h) => h.id === id);
+    if (i < 0) return { success: false, error: "handover not found" };
+    if (all[i].status !== "pending") return { success: false, error: "already finalised" };
+    all[i] = { ...all[i], status: "cancelled", cancelledAt: new Date().toISOString(), cancellationReason: reason || "" };
+    setLocal(all);
+    return { success: true, handover: all[i] };
+  }
+  const c = getSupabase(); if (!c) return { success: false, error: "no client" };
+  const { data, error } = await c
+    .from("handover_events")
+    .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancellation_reason: reason || null })
+    .eq("id", id).eq("status", "pending")
+    .select().maybeSingle();
+  if (error) { console.error("[handover:adminCancel] failed", error); return { success: false, error: error.message }; }
+  if (!data)  return { success: false, error: "This hand-over is no longer pending, or you are not allowed to pull it back." };
+  return { success: true, handover: fromRow(data) };
+}
+
 export async function cancelHandover(id, reason, cancelledBy) {
   if (!isSupabaseEnabled()) {
     const all = getLocal();

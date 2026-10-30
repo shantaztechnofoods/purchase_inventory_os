@@ -38,6 +38,70 @@ export function isRackReleaseHop(fromDepartment, toDepartment) {
 }
 
 export const DEFAULT_ACCEPT_TIMEOUT_MINUTES = 120; // 2 hours
+
+// ── Working calendar (2026-10-30) ──────────────────────────────────────────
+// The factory is closed every Tuesday and on admin-configured holidays. Time
+// on a closed day does not count: department work timers and the acceptance
+// timer pause, so every deadline moves out by the closed time. Days are local
+// calendar days (the ERP runs in IST). weekly_off_days uses JS getDay()
+// numbering: 0 = Sunday … 2 = Tuesday … 6 = Saturday.
+export const DEFAULT_WEEKLY_OFF_DAYS = Object.freeze([2]); // Tuesday
+const pad2 = (n) => String(n).padStart(2, "0");
+export function localDateKey(ms) {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+export function normalizeCalendar(raw) {
+  const off = Array.isArray(raw?.weekly_off_days) ? raw.weekly_off_days : DEFAULT_WEEKLY_OFF_DAYS;
+  const weekly_off_days = [...new Set(off.map((n) => Math.floor(Number(n))).filter((n) => n >= 0 && n <= 6))].sort();
+  const holidays = (Array.isArray(raw?.holidays) ? raw.holidays : [])
+    .map((h) => (typeof h === "string" ? { date: h, name: "" } : { date: String(h?.date || ""), name: String(h?.name || "") }))
+    .filter((h) => /^\d{4}-\d{2}-\d{2}$/.test(h.date))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  return { weekly_off_days, holidays };
+}
+// Module-level calendar used by every timer below. App sets it from settings
+// on load and whenever settings change; tests may pass a calendar directly.
+let ACTIVE_CALENDAR = normalizeCalendar(null);
+export function setWorkCalendar(raw) { ACTIVE_CALENDAR = normalizeCalendar(raw); return ACTIVE_CALENDAR; }
+export function getWorkCalendar() { return ACTIVE_CALENDAR; }
+export function isClosedDay(ms, calendar = ACTIVE_CALENDAR) {
+  const d = new Date(ms);
+  if (calendar.weekly_off_days.includes(d.getDay())) return true;
+  const key = localDateKey(ms);
+  return calendar.holidays.some((h) => h.date === key);
+}
+// Minutes between two instants that fall on open (working) days.
+export function workingMinutesBetween(startMs, endMs, calendar = ACTIVE_CALENDAR) {
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return 0;
+  let total = 0;
+  let cur = startMs;
+  let guard = 0;
+  while (cur < endMs && guard++ < 4000) {            // ~11 years of days; plenty
+    const d = new Date(cur);
+    const nextMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime();
+    const segEnd = Math.min(endMs, nextMidnight);
+    if (!isClosedDay(cur, calendar)) total += segEnd - cur;
+    cur = segEnd;
+  }
+  return Math.floor(total / 60000);
+}
+// The instant at which `minutes` of working time have passed after start —
+// i.e. a deadline extended over every closed day it crosses.
+export function addWorkingMinutes(startMs, minutes, calendar = ACTIVE_CALENDAR) {
+  let left = Math.max(0, Number(minutes) || 0) * 60000;
+  let cur = startMs;
+  let guard = 0;
+  while (guard++ < 4000) {
+    const d = new Date(cur);
+    const nextMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime();
+    if (isClosedDay(cur, calendar)) { cur = nextMidnight; continue; }
+    const room = nextMidnight - cur;
+    if (left <= room) return cur + left;
+    left -= room; cur = nextMidnight;
+  }
+  return cur;
+}
 // Password re-auth at Accept is OFF by default per 2026-10-19 UX pass:
 // routine machine acceptance should be a single-click confirmation for
 // non-technical operators. Authenticated session + role check + saved
@@ -56,10 +120,13 @@ export function readDeptWorkflowSettings(settings) {
   const requirePwd = typeof raw.require_password_at_accept === "boolean"
     ? raw.require_password_at_accept
     : DEFAULT_REQUIRE_PASSWORD_AT_ACCEPT;
+  const cal = normalizeCalendar(raw);
   return {
     dept_durations: durations,
     accept_timeout_minutes: timeout,
     require_password_at_accept: requirePwd,
+    weekly_off_days: cal.weekly_off_days,
+    holidays: cal.holidays,
   };
 }
 
@@ -72,12 +139,20 @@ export function writeDeptWorkflowSettings(prev, next) {
   }
   const accept_timeout_minutes = Math.max(0, Math.floor(Number(next.accept_timeout_minutes) || 0));
   const require_password_at_accept = next.require_password_at_accept === true;
+  // Keep the working calendar (2026-10-30); fall back to what was saved.
+  const prevWf = (prev && prev.department_workflow) || {};
+  const cal = normalizeCalendar({
+    weekly_off_days: next.weekly_off_days ?? prevWf.weekly_off_days,
+    holidays: next.holidays ?? prevWf.holidays,
+  });
   return {
     ...(prev || {}),
     department_workflow: {
       dept_durations,
       accept_timeout_minutes,
       require_password_at_accept,
+      weekly_off_days: cal.weekly_off_days,
+      holidays: cal.holidays,
     },
   };
 }
@@ -97,42 +172,45 @@ export function nextDepartment(current) {
 
 // Elapsed-time in current department, in minutes. Treats missing enteredAt
 // as 0 so partially-backfilled rows don't crash the UI.
-export function computeElapsedMinutes(enteredAtIso, nowMs = Date.now()) {
+// 2026-10-30 — working minutes only: Tuesdays and holidays pause the timer.
+export function computeElapsedMinutes(enteredAtIso, nowMs = Date.now(), calendar = ACTIVE_CALENDAR) {
   if (!enteredAtIso) return 0;
   const t = typeof enteredAtIso === "number" ? enteredAtIso : Date.parse(enteredAtIso);
   if (!Number.isFinite(t)) return 0;
-  const diffMs = nowMs - t;
-  if (diffMs <= 0) return 0;
-  return Math.floor(diffMs / 60000);
+  if (nowMs - t <= 0) return 0;
+  return workingMinutesBetween(t, nowMs, calendar);
 }
 
 // Overrun = max(0, elapsed - expected). isOverrun true means the Finish &
 // Transfer modal MUST require a non-empty narration before commit.
-export function computeOverrun(enteredAtIso, expectedMinutes, nowMs = Date.now()) {
-  const actualMinutes = computeElapsedMinutes(enteredAtIso, nowMs);
+export function computeOverrun(enteredAtIso, expectedMinutes, nowMs = Date.now(), calendar = ACTIVE_CALENDAR) {
+  const actualMinutes = computeElapsedMinutes(enteredAtIso, nowMs, calendar);
   const expected = Math.max(0, Math.floor(Number(expectedMinutes) || 0));
   const overrunMinutes = Math.max(0, actualMinutes - expected);
-  return { actualMinutes, expectedMinutes: expected, overrunMinutes, isOverrun: overrunMinutes > 0 };
+  // Target deadline, extended over every closed day it crosses.
+  const t = enteredAtIso ? (typeof enteredAtIso === "number" ? enteredAtIso : Date.parse(enteredAtIso)) : NaN;
+  const deadlineMs = Number.isFinite(t) ? addWorkingMinutes(t, expected, calendar) : null;
+  return { actualMinutes, expectedMinutes: expected, overrunMinutes, isOverrun: overrunMinutes > 0, deadlineMs };
 }
 
 // HOLD detection: a handover is "overdue" when it has been pending for longer
 // than the (snapshot) accept-timeout. Phase A never writes status='held' —
 // this returns a boolean the UI consumes on every render.
-export function isHoldOverdue(sentAtIso, acceptTimeoutMinutes, nowMs = Date.now()) {
+// 2026-10-30 — the acceptance timer also pauses on Tuesdays and holidays.
+export function isHoldOverdue(sentAtIso, acceptTimeoutMinutes, nowMs = Date.now(), calendar = ACTIVE_CALENDAR) {
   if (!sentAtIso) return false;
   const t = typeof sentAtIso === "number" ? sentAtIso : Date.parse(sentAtIso);
   if (!Number.isFinite(t)) return false;
   const timeout = Math.max(0, Math.floor(Number(acceptTimeoutMinutes) || 0));
-  const diffMinutes = (nowMs - t) / 60000;
-  return diffMinutes > timeout;
+  return workingMinutesBetween(t, nowMs, calendar) > timeout;
 }
 
 // How much the handover has exceeded the accept-timeout (minutes). Zero when
 // not overdue. Used in reports to show "held for 1h 14m".
-export function heldMinutes(sentAtIso, acceptTimeoutMinutes, nowMs = Date.now()) {
-  if (!isHoldOverdue(sentAtIso, acceptTimeoutMinutes, nowMs)) return 0;
+export function heldMinutes(sentAtIso, acceptTimeoutMinutes, nowMs = Date.now(), calendar = ACTIVE_CALENDAR) {
+  if (!isHoldOverdue(sentAtIso, acceptTimeoutMinutes, nowMs, calendar)) return 0;
   const t = typeof sentAtIso === "number" ? sentAtIso : Date.parse(sentAtIso);
-  const diffMinutes = Math.floor((nowMs - t) / 60000);
+  const diffMinutes = workingMinutesBetween(t, nowMs, calendar);
   const timeout = Math.max(0, Math.floor(Number(acceptTimeoutMinutes) || 0));
   return Math.max(0, diffMinutes - timeout);
 }
