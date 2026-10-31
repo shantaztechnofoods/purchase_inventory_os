@@ -83,7 +83,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-critical-compact";
+const APP_BUILD = "2026-10-31-rack-not-issued";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -11968,10 +11968,12 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     return out;
   };
 
-  // A rack (Rack View Fill, BOM Outward → Empty Rack, or an R crate) is filled
-  // only with its OWN BOM complete: every line ticked, in the Item Master and
-  // issued in full; a critical item marked "not issued" also blocks it.
-  const rackIncomplete = () => enriched.filter((i) => !isItemChecked(i.code) || !i.inv || i.pendingQty > 0 || i.issueQty < i.required || skippedCodes.has(i.code));
+  // A rack (Rack View Fill, BOM Outward → Empty Rack, or an R crate) takes
+  // its OWN BOM with every line ticked, in the Item Master and issued in full
+  // — EXCEPT a critical item marked Not verified with a reason (2026-10-31):
+  // that line is Not Issued (no stock moves) and becomes a pending job on the
+  // machine, and the machine still goes on the rack ("BOM Ready · X Pending").
+  const rackIncomplete = () => enriched.filter((i) => !skippedCodes.has(i.code) && (!isItemChecked(i.code) || !i.inv || i.pendingQty > 0 || i.issueQty < i.required));
   const doIssue = async (chosenDest, { durationConfirmed = false } = {}) => {
     if (issuing) return;                    // duplicate production-issue guard
     // 2026-10-31 M/R sets — a rack is filled only with its OWN BOM complete:
@@ -11981,7 +11983,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     if (rackSet) {
       const bad = rackIncomplete();
       if (bad.length > 0) {
-        setDestError(`Cannot fill ${rackSet.unit} — every ${bomKey} component must be issued in full: ${bad.map((i) => `${i.name} (${!i.inv ? "not in Item Master" : skippedCodes.has(i.code) ? "marked not issued" : !isItemChecked(i.code) ? "unticked" : `need ${i.required}, issuing ${i.issueQty}`})`).join(", ")}. Nothing has been issued.`);
+        setDestError(`Cannot fill ${rackSet.unit} — every ${bomKey} component must be issued in full: ${bad.map((i) => `${i.name} (${!i.inv ? "not in Item Master" : !isItemChecked(i.code) ? "unticked" : `need ${i.required}, issuing ${i.issueQty}`})`).join(", ")}. Nothing has been issued.`);
         setShowDestChoice(false); setShowCPBrief(false); setMaterialBlock(true);
         return;
       }
@@ -12065,7 +12067,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
       }
       const bad = rackTracked && !rackSet ? rackIncomplete() : [];
       if (bad.length > 0) {
-        setDestError(`Cannot put ${bomKey} on a rack — every component must be issued in full: ${bad.map((i) => `${i.name} (${!i.inv ? "not in Item Master" : skippedCodes.has(i.code) ? "marked not issued" : !isItemChecked(i.code) ? "unticked" : `need ${i.required}, issuing ${i.issueQty}`})`).join(", ")}. Nothing has been issued.`);
+        setDestError(`Cannot put ${bomKey} on a rack — every component must be issued in full: ${bad.map((i) => `${i.name} (${!i.inv ? "not in Item Master" : !isItemChecked(i.code) ? "unticked" : `need ${i.required}, issuing ${i.issueQty}`})`).join(", ")}. Nothing has been issued.`);
         setShowDestChoice(false); setMaterialBlock(true);
         return;
       }
@@ -13281,7 +13283,7 @@ function BomLineCheckPointsModal({ code, itemName = "", bomLabel = "", current =
 // Last "Fill Rack" request the embedded Outward section has acted on.
 let __lastFillRequestN = 0;
 
-function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateBOM, onRenameBOM, outwardLog, onAddOutward, pendingLog, onClearPending, onCreateMachine, machineLog = [], canDo = () => true, onRemoveRackMachine, onDuplicateBOM, onDeleteBOM, computeBOMDeletionInfo, settings = {},
+function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateBOM, onRenameBOM, outwardLog, onAddOutward, pendingLog, onClearPending, onCreateMachine, onRaiseNotIssued = null, machineLog = [], canDo = () => true, onRemoveRackMachine, onDuplicateBOM, onDeleteBOM, computeBOMDeletionInfo, settings = {},
   // 2026-10-30 — embedded: render only the BOM Outward section (with every
   // modal it opens) so Machine Tracker can issue a BOM through this exact
   // component — same BOM data, serial check, popups and issue logic. The
@@ -13427,6 +13429,11 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
       ...(data.rackSet && data.rackSet.mode === "crate" ? { rackCrate: { slotId: data.rackSet.slotId, setId: data.rackSet.setId, machineId: data.rackSet.machineId } } : {}),
     };
     onAddOutward(entry, data.pending);
+    if (data.rackSet && data.rackSet.mode === "crate" && onRaiseNotIssued) {
+      const notIssuedCrate = (data.issued || []).filter((it) => it && it.criticalInput && it.criticalInput.notIssued)
+        .map((it) => ({ code: it.code, name: it.name, unit: it.unit, qty: Number(it.criticalInput.requiredQty) || Number(it.required) || 0, remark: it.criticalInput.remark || "" }));
+      if (notIssuedCrate.length) onRaiseNotIssued({ machineId: data.rackSet.machineId, notIssued: notIssuedCrate, bomKey: data.bomKey, serialNo: data.serialNo, issueId: id, rackSlot: data.rackSet.slotId || null });
+    }
     if (data.serialNo && onCreateMachine && !(data.rackSet && data.rackSet.mode === "crate")) {
       // Feature 1: forward the destination so the machine can skip the rack
       // stage when the operator picked Direct Production (R&D / one-off builds).
@@ -17334,6 +17341,9 @@ function MachinePage({ machineLog, outwardLog = [], onUpdateStage, onNavigate = 
   //   filled   an R BOM outward exists for this machine's serial
   const invByCode = {};
   Object.values(items || {}).forEach((l) => (Array.isArray(l) ? l : []).forEach((i) => { if (i && i.code) invByCode[i.code] = i; }));
+  // Parts not issued at BOM Outward (Not verified + reason) that are still
+  // open on a machine — shown on its rack as "BOM Ready · X Pending".
+  const notIssuedOpenFor = (m) => (m ? (pendingHandoverItems || []).filter((p) => p && String(p.machineId) === String(m.id) && p.status !== "resolved" && /^Part not issued at BOM Outward/.test(p.description || "")) : []);
   const rCrateStateOf = (familyId, m) => {
     const fam = PHYSICAL_RACK_LAYOUT.families.find((x) => x.id === familyId);
     const rKey = fam ? rackBoms(fam, "R").primary : null;
@@ -18131,9 +18141,10 @@ function MachinePage({ machineLog, outwardLog = [], onUpdateStage, onNavigate = 
                       const st = RACK_UNIT_STATUS[sl.status] || RACK_UNIT_STATUS.empty;
                       const short = m ? pendingForMachine(m).length : 0;
                       const crateSt = rack.tier === "R" && m ? rCrateStateOf(f.id, m).state : null;
+                      const niN = notIssuedOpenFor(m).length;
                       return (
                         <button key={sl.id} type="button" data-slot={sl.id} data-serial={m ? (m.serialNo || "") : ""}
-                                aria-label={`${slotLabel(sl.id)}: ${st.label}${m ? ` · ${m.serialNo || m.bomKey}` : ""}`}
+                                aria-label={`${slotLabel(sl.id)}: ${niN && sl.status === "set" ? `BOM Ready · ${niN} Pending` : st.label}${m ? ` · ${m.serialNo || m.bomKey}` : ""}`}
                                 onClick={() => setRackPanel(sl.id)}
                                 className="rack-crate text-left rounded-xl p-2 pt-3.5 relative focus-visible:ring-2"
                                 style={{ "--crate": color, outline: rackPanel === sl.id ? `3px solid ${color}` : "none", outlineOffset: 2 }}>
@@ -18142,9 +18153,12 @@ function MachinePage({ machineLog, outwardLog = [], onUpdateStage, onNavigate = 
                             <div className="text-[17px] sm:text-[19px] font-black leading-none" style={{ color }}>{rack.tier}-{f.label}</div>
                             <div className="text-[9.5px] font-semibold mt-1" style={{ color: "var(--text-muted)" }}>BOM: {rack.bom.primary}</div>
                             <div className="mt-1.5 inline-flex items-center gap-1 text-[9.5px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: st.bg, color: st.fg }}>
-                              <span className="w-1.5 h-1.5 rounded-full" style={{ background: st.dot }} />{short > 0 && sl.status === "set" ? "Waiting for material" : st.label}
+                              <span className="w-1.5 h-1.5 rounded-full" style={{ background: st.dot }} />{short > 0 && sl.status === "set" ? "Waiting for material" : niN > 0 && sl.status === "set" ? `BOM Ready · ${niN} Pending` : st.label}
                             </div>
                             <div className="text-[10px] font-mono font-bold mt-1 truncate" style={{ color: m ? "var(--text-strong)" : "var(--text-faint, #94a3b8)" }}>{m ? (m.serialNo || "(no serial)") : "—"}</div>
+                            {niN > 0 && sl.status !== "set" && (
+                              <div data-not-issued={niN} className="text-[9px] font-bold mt-0.5" style={{ color: "#b45309" }}>{niN} pending</div>
+                            )}
                             {crateSt && (
                               <div data-crate-state={crateSt} className="text-[9px] font-bold mt-0.5" style={{ color: crateSt === "filled" ? "#15803d" : crateSt === "pending" ? "#b45309" : "var(--text-dim)" }}>
                                 {crateSt === "filled" ? "✓ R crate filled" : crateSt === "pending" ? "R crate to fill" : "No R components yet"}
@@ -18181,6 +18195,7 @@ function MachinePage({ machineLog, outwardLog = [], onUpdateStage, onNavigate = 
               return { n: i + 1, code: l.code, name: inv ? inv.name : l.code, unit: inv ? (inv.unit || "") : "", need, have, ok: !!inv && have >= need, unknown: !inv };
             }) : [];
             const pend = m ? pendingForMachine(m) : [];
+            const notIssued = notIssuedOpenFor(m);
             const ho = sl.status === "assembled" ? (handovers || []).find((h) => h && h.status === "pending" && String(h.machineId) === String(m.id)) : null;
             // 2026-10-31 M/R sets — one machine, one serial, two racks, each
             // with its OWN BOM. M unit: Fill places the machine (M BOM, new
@@ -18261,8 +18276,25 @@ function MachinePage({ machineLog, outwardLog = [], onUpdateStage, onNavigate = 
                         <Row k="Current machine" v={m ? `${m.bomLabel || m.bomKey}${m.bomKey !== rack.bom.primary ? ` (${m.bomKey})` : ""}` : "—"} />
                         <Row k="Serial no." v={m ? (m.serialNo || "—") : "—"} />
                         {m && <Row k="Stage" v={`${m.stage}${m.createdDate ? ` · since ${m.createdDate}` : ""}`} />}
+                        {notIssued.length > 0 && <Row k="BOM" v={`BOM Ready · ${notIssued.length} Pending`} />}
                       </div>
                     </div>
+                    {notIssued.length > 0 && (
+                      <div data-not-issued-list className="mx-4 sm:mx-5 mt-3 rounded-lg px-3 py-2.5" style={{ background: "rgba(217,119,6,0.07)", border: "1px solid rgba(217,119,6,0.3)" }}>
+                        <div className="text-[12px] font-black mb-1.5" style={{ color: "#b45309" }}>⏳ {notIssued.length} part{notIssued.length === 1 ? "" : "s"} not issued — pending for {m.serialNo || m.bomKey}</div>
+                        <ul className="space-y-1">
+                          {notIssued.map((p2) => (
+                            <li key={p2.id} className="text-[11.5px] leading-snug">
+                              <span className="font-bold" style={{ color: "var(--text-strong)" }}>{p2.itemName || p2.itemCode || "Part"}</span>
+                              {p2.qty != null && <span className="tabular-nums"> × {p2.qty}</span>}
+                              {p2.itemCode && p2.itemName && <span className="font-mono text-[10px]" style={{ color: "var(--text-dim)" }}> {p2.itemCode}</span>}
+                              <span style={{ color: "var(--text-muted)" }}> — {p2.reason || "no reason recorded"}</span>
+                              {p2.receivedAt && <span className="ml-1 text-[10px] font-bold" style={{ color: "#15803d" }}>· received</span>}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                     <div className="px-4 sm:px-5 pt-3">
                       <div role="tablist" className="flex gap-1 border-b" style={{ borderColor: "var(--border-subtle)" }}>
                         {[["bom", `BOM Items (${lines.length})`], ["stock", "Stock Status"], ["history", `History (${history.length})`]].map(([k, l]) => (
@@ -24170,6 +24202,37 @@ export default function App() {
   };
 
   // ── Machine Tracker handlers ──
+  // 2026-10-30 / 2026-10-31 — every critical item not issued at BOM Outward
+  // (Not verified + reason) becomes an open pending job on its machine: item,
+  // quantity still owed, reason, the machine (serial) and — for a rack
+  // machine — the rack it sits on. No stock moves for it. Used by a new
+  // machine (M BOM / direct) and by an R crate filled for an existing one.
+  const raiseNotIssuedJobs = ({ machineId, notIssued = [], bomKey, serialNo, issueId = null, rackSlot = null }) => {
+    for (const it of (Array.isArray(notIssued) ? notIssued : [])) {
+      if (!it || !it.code) continue;
+      const qtyTxt = it.qty ? ` × ${it.qty}${it.unit ? ` ${it.unit}` : ""}` : "";
+      const rackTxt = rackSlot ? ` · rack ${slotLabel(rackSlot)}` : "";
+      createPendingItem({
+        machineId,
+        raisedInHandoverId: null,
+        raisedInDepartment: "Stores",
+        assignedDepartment: "Stores",
+        raisedBy: currentUser?.id || null,
+        description: `Part not issued at BOM Outward: ${it.name || it.code}${qtyTxt} (${bomKey}${serialNo ? ` · S/N ${serialNo}` : ""}${rackTxt})`,
+        kind: "owed",
+        itemCode: it.code, itemName: it.name || "", qty: it.qty || null, reason: it.remark || "",
+      }).then((pr) => {
+        if (!pr.success) { console.warn("[App] not-issued pending job save failed", pr.error); return; }
+        setPendingHandoverItems((prev) => [pr.item, ...prev]);
+        logAudit({
+          type: "pending_item_raised", module: "Machine",
+          action: `Part not issued at Outward: ${it.name || it.code}${qtyTxt} — ${bomKey}${serialNo ? ` [${serialNo}]` : ""}${rackTxt}`,
+          ref: bomKey, serialNo: serialNo || "",
+          details: { machineId, itemId: pr.item?.id, kind: "owed", assignedDepartment: "Stores", itemCode: it.code, itemName: it.name || "", qty: it.qty || null, reason: it.remark || "", issueId, slotId: rackSlot || null },
+        });
+      });
+    }
+  };
   const handleCreateMachine = (bomKey, bomLabel, serialNo, date, issueId, destination = "rack", deptDurations = null, notIssued = []) => {
     const dateStr = date || fmtDate(new Date());
     // Feature 1: direct production lands the machine in Assembly immediately,
@@ -24237,31 +24300,7 @@ export default function App() {
     // store operator wrote. Kind 'owed': the machine may move through the
     // departments but cannot be marked Ready until the part is received and
     // the work completed. Raised once the machine's real id is known.
-    const raiseNotIssued = (machineId) => {
-      for (const it of (Array.isArray(notIssued) ? notIssued : [])) {
-        if (!it || !it.code) continue;
-        const qtyTxt = it.qty ? ` × ${it.qty}${it.unit ? ` ${it.unit}` : ""}` : "";
-        createPendingItem({
-          machineId,
-          raisedInHandoverId: null,
-          raisedInDepartment: "Stores",
-          assignedDepartment: "Stores",
-          raisedBy: currentUser?.id || null,
-          description: `Part not issued at BOM Outward: ${it.name || it.code}${qtyTxt}`,
-          kind: "owed",
-          itemCode: it.code, itemName: it.name || "", qty: it.qty || null, reason: it.remark || "",
-        }).then((pr) => {
-          if (!pr.success) { console.warn("[App] not-issued pending job save failed", pr.error); return; }
-          setPendingHandoverItems((prev) => [pr.item, ...prev]);
-          logAudit({
-            type: "pending_item_raised", module: "Machine",
-            action: `Part not issued at Outward: ${it.name || it.code}${qtyTxt} — ${bomKey}${serialNo ? ` [${serialNo}]` : ""}`,
-            ref: bomKey, serialNo: serialNo || "",
-            details: { machineId, itemId: pr.item?.id, kind: "owed", assignedDepartment: "Stores", itemCode: it.code, qty: it.qty || null, reason: it.remark || "", issueId },
-          });
-        });
-      }
-    };
+    const raiseNotIssued = (machineId) => raiseNotIssuedJobs({ machineId, notIssued, bomKey, serialNo, issueId, rackSlot });
     if (!isSupabaseEnabled()) raiseNotIssued(newMachine.id);
     // Adopt the id Postgres assigned.
     //
@@ -25579,7 +25618,7 @@ export default function App() {
     bomOpenRequest,
     bomDefs, onUpdateBOM: handleUpdateBOM,
     onCreateBOM: handleCreateBOM, onRenameBOM: handleRenameBOM,
-    outwardLog, onAddOutward: handleAddOutward,
+    outwardLog, onAddOutward: handleAddOutward, onRaiseNotIssued: raiseNotIssuedJobs,
     pendingLog, onClearPending: handleClearPending,
     onCreateMachine: handleCreateMachine, machineLog, canDo,
     onRemoveRackMachine: handleRemoveRackMachine,
