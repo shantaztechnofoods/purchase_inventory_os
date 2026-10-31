@@ -33,6 +33,9 @@ function toRow(h) {
   if (h.workedBy                  !== undefined) row.worked_by                   = Array.isArray(h.workedBy) ? h.workedBy : null;
   if (h.workedBySnapshot          !== undefined) row.worked_by_snapshot          = h.workedBySnapshot || null;
   if (h.mainEmployeeId            !== undefined) row.main_employee_id            = h.mainEmployeeId || null;
+  // Migration 050 — Main Employee without an ERP login.
+  if (h.mainEmployeeRef           !== undefined) row.main_employee_ref           = h.mainEmployeeRef || null;
+  if (h.mainEmployeeName          !== undefined) row.main_employee_name          = h.mainEmployeeName || null;
   if (h.mainEmployeeSignatureId   !== undefined) row.main_employee_signature_id  = h.mainEmployeeSignatureId || null;
   if (h.mainEmployeeSignatureSvg  !== undefined) row.main_employee_signature_svg = h.mainEmployeeSignatureSvg || null;
   // Migration 036 — a handover parked on the rack until a production head
@@ -72,6 +75,8 @@ function fromRow(r) {
     workedBy:                  Array.isArray(r.worked_by) ? r.worked_by : null,
     workedBySnapshot:          Array.isArray(r.worked_by_snapshot) ? r.worked_by_snapshot : null,
     mainEmployeeId:            r.main_employee_id || null,
+    mainEmployeeRef:           r.main_employee_ref || null,
+    mainEmployeeName:          r.main_employee_name || null,
     mainEmployeeSignatureId:   r.main_employee_signature_id || null,
     mainEmployeeSignatureSvg:  r.main_employee_signature_svg || null,
     // Migration 031 — accept-side team snapshot (nullable for legacy rows).
@@ -172,6 +177,8 @@ export async function createHandover(h) {
     delete slim.worked_by;
     delete slim.worked_by_snapshot;
     delete slim.main_employee_id;
+    delete slim.main_employee_ref;
+    delete slim.main_employee_name;
     delete slim.main_employee_signature_id;
     delete slim.main_employee_signature_svg;
     // Migration 036. Dropping it means the handover becomes a straight push:

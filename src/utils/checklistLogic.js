@@ -133,6 +133,15 @@ export function pickTemplate(templates, bomKey, department, stage) {
     const scoped = active.filter((t) => t.bomKey === bomKey && t.stage === stage);
     if (scoped.length) return sorted(scoped)[0];
   }
+  // 2026-10-31 — a DEPARTMENT-WIDE template for this stage (bom_key null,
+  // stage set: "Mechanical · Before Dispatch") applies to every BOM that has
+  // no template of its own. These are what Settings → Department Checklists
+  // creates, and they were never picked up for a BOM-scoped lookup, so the
+  // transfer form showed "no checklist configured".
+  if (stage) {
+    const deptWide = active.filter((t) => !t.bomKey && t.stage === stage);
+    if (deptWide.length) return sorted(deptWide)[0];
+  }
   // Legacy fallback: dept-only templates (bom_key=null AND stage=null) still
   // drive the before_dispatch slot for any BOM that hasn't configured its own
   // slot. This is the back-compat guarantee from the audit (§9 decision 2).
