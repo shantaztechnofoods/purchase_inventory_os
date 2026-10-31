@@ -83,7 +83,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-direct-accept";
+const APP_BUILD = "2026-10-31-card-pending-jobs";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -16698,6 +16698,8 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
   // 2026-10-30 — pending jobs: part lookup + receive/complete actions.
   const inventoryFlat = useMemo(() => Object.entries(items || {}).flatMap(([cat, list]) => (list || []).map((i) => ({ code: i.code, name: i.name, unit: i.unit, category: cat }))), [items]);
   const [jobAction, setJobAction] = useState(null); // { item, action: "receive"|"complete", notes, busy, error }
+  // 2026-10-31 — machine whose pending jobs are open in the card drawer.
+  const [jobsDrawer, setJobsDrawer] = useState(null); // machine id
   const [jobsView,  setJobsView]  = useState("open"); // Pending Jobs tab: open | done | all
   const [pullBack,  setPullBack]  = useState(null);   // { handover, reason, busy, error } — admin pull back
   const [raiseText,  setRaiseText]  = useState("");
@@ -17241,6 +17243,68 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
   // Transfer & Accept lists every machine still moving through the line —
   // the ones to finish & transfer, release, or accept — whatever summary
   // tile was last clicked on the Production tab.
+  // 2026-10-30 / 2026-10-31 — one machine's jobs with their actions. Used by
+  // the Pending Jobs tab and by the "Pending Jobs" drawer opened from a
+  // machine card (same rows, same Part received / Work completed actions).
+  const renderJobGroup = (m, list, key) => {
+    const canAct = canFinishTransfer(canDo);
+    return (
+                  <div key={key} className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(17,24,39,0.10)" }}>
+                    <div className="px-3 py-2 flex items-center gap-2 flex-wrap" style={{ background: "rgba(17,24,39,0.03)" }}>
+                      <span className="text-[12px] font-black text-slate-900">{m?.bomKey || "Machine"}</span>
+                      {m?.serialNo && <span className="text-[11px] font-mono font-bold text-slate-700">S/N {m.serialNo}</span>}
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.1)", color: "#4338ca" }}>
+                        now in {m?.status === "completed" ? "Ready" : (m?.currentDepartment || m?.stage || "—")}
+                      </span>
+                      <span className="text-[10px] text-slate-500 ml-auto">{list.length} job{list.length === 1 ? "" : "s"}</span>
+                    </div>
+                    <div className="divide-y" style={{ borderColor: "rgba(17,24,39,0.06)" }}>
+                      {list.map((p) => {
+                        const stage = pendingItemStage(p);
+                        const chip = stage === "completed"
+                          ? { label: "✓ Completed", bg: "rgba(22,163,74,0.1)", fg: "#15803d" }
+                          : stage === "received"
+                          ? { label: "Part received · finish work", bg: "rgba(37,99,235,0.1)", fg: "#1d4ed8" }
+                          : { label: p.itemCode ? "Awaiting part" : "Awaiting work", bg: "rgba(217,119,6,0.12)", fg: "#b45309" };
+                        return (
+                          <div key={p.id} className="px-3 py-2.5 flex items-start gap-3 flex-wrap">
+                            <div className="flex-1 min-w-[200px]">
+                              <div className="text-[12px] text-slate-800 font-semibold">{p.description}</div>
+                              {p.itemCode && (
+                                <div className="mt-1 text-[10.5px] text-slate-500">
+                                  Part <span className="font-mono font-bold text-slate-700">{p.itemCode}</span>{p.itemName ? ` · ${p.itemName}` : ""}{p.qty != null ? ` · qty ${p.qty}` : ""}
+                                </div>
+                              )}
+                              {/* Permanent history: original reason, receive remark, completion. */}
+                              <JobHistory item={p} users={allUsers} />
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(239,68,68,0.1)", color: "#b91c1c" }}>
+                                {p.assignedDepartment || "Unassigned"}
+                              </span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: chip.bg, color: chip.fg }}>{chip.label}</span>
+                              {canAct && onReceivePendingItem && p.status === "open" && !p.receivedAt && (
+                                <button type="button" onClick={() => setJobAction({ item: p, action: "receive", notes: "", busy: false, error: "" })}
+                                        className="text-[10.5px] font-bold px-2.5 py-1 rounded-lg border transition-all"
+                                        style={{ background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.35)", color: "#1d4ed8" }}>
+                                  Part received
+                                </button>
+                              )}
+                              {canAct && onResolvePendingItem && p.status === "open" && (
+                                <button type="button" onClick={() => setJobAction({ item: p, action: "complete", notes: "", busy: false, error: "" })}
+                                        className="text-[10.5px] font-bold px-2.5 py-1 rounded-lg border transition-all"
+                                        style={{ background: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.35)", color: "#15803d" }}>
+                                  Work completed
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+    );
+  };
   const listForTab = () => (mtTab === "pending" ? [] : mtTab === "transfer" ? active : filtered);
   // 2026-10-30 — Pending Jobs: every open job in the factory (a floor login
   // sees only what is assigned to its own departments), grouped by machine.
@@ -17588,62 +17652,7 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                 </div>
               )}
               <div className="space-y-3">
-                {groups.map(({ id, m, list }) => (
-                  <div key={id} className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(17,24,39,0.10)" }}>
-                    <div className="px-3 py-2 flex items-center gap-2 flex-wrap" style={{ background: "rgba(17,24,39,0.03)" }}>
-                      <span className="text-[12px] font-black text-slate-900">{m?.bomKey || "Machine"}</span>
-                      {m?.serialNo && <span className="text-[11px] font-mono font-bold text-slate-700">S/N {m.serialNo}</span>}
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.1)", color: "#4338ca" }}>
-                        now in {m?.status === "completed" ? "Ready" : (m?.currentDepartment || m?.stage || "—")}
-                      </span>
-                      <span className="text-[10px] text-slate-500 ml-auto">{list.length} job{list.length === 1 ? "" : "s"}</span>
-                    </div>
-                    <div className="divide-y" style={{ borderColor: "rgba(17,24,39,0.06)" }}>
-                      {list.map((p) => {
-                        const stage = pendingItemStage(p);
-                        const chip = stage === "completed"
-                          ? { label: "✓ Completed", bg: "rgba(22,163,74,0.1)", fg: "#15803d" }
-                          : stage === "received"
-                          ? { label: "Part received · finish work", bg: "rgba(37,99,235,0.1)", fg: "#1d4ed8" }
-                          : { label: p.itemCode ? "Awaiting part" : "Awaiting work", bg: "rgba(217,119,6,0.12)", fg: "#b45309" };
-                        return (
-                          <div key={p.id} className="px-3 py-2.5 flex items-start gap-3 flex-wrap">
-                            <div className="flex-1 min-w-[200px]">
-                              <div className="text-[12px] text-slate-800 font-semibold">{p.description}</div>
-                              {p.itemCode && (
-                                <div className="mt-1 text-[10.5px] text-slate-500">
-                                  Part <span className="font-mono font-bold text-slate-700">{p.itemCode}</span>{p.itemName ? ` · ${p.itemName}` : ""}{p.qty != null ? ` · qty ${p.qty}` : ""}
-                                </div>
-                              )}
-                              {/* Permanent history: original reason, receive remark, completion. */}
-                              <JobHistory item={p} users={allUsers} />
-                            </div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(239,68,68,0.1)", color: "#b91c1c" }}>
-                                {p.assignedDepartment || "Unassigned"}
-                              </span>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: chip.bg, color: chip.fg }}>{chip.label}</span>
-                              {canAct && onReceivePendingItem && p.status === "open" && !p.receivedAt && (
-                                <button type="button" onClick={() => setJobAction({ item: p, action: "receive", notes: "", busy: false, error: "" })}
-                                        className="text-[10.5px] font-bold px-2.5 py-1 rounded-lg border transition-all"
-                                        style={{ background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.35)", color: "#1d4ed8" }}>
-                                  Part received
-                                </button>
-                              )}
-                              {canAct && onResolvePendingItem && p.status === "open" && (
-                                <button type="button" onClick={() => setJobAction({ item: p, action: "complete", notes: "", busy: false, error: "" })}
-                                        className="text-[10.5px] font-bold px-2.5 py-1 rounded-lg border transition-all"
-                                        style={{ background: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.35)", color: "#15803d" }}>
-                                  Work completed
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
+                {groups.map(({ id, m, list }) => renderJobGroup(m, list, id))}
               </div>
             </div>
           );
@@ -18918,6 +18927,15 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                           </div>
                         );
                       })()}
+                      {/* 2026-10-31 — direct pending-job tracking from the card */}
+                      {machineOpenAll.length > 0 && (
+                        <button type="button" data-card-jobs={machine.id} onClick={() => setJobsDrawer(machine.id)}
+                                className="text-[10px] font-black px-2.5 py-1.5 rounded-lg border transition-all"
+                                style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.35)", color: "#b91c1c" }}
+                                title={`${machineOpenAll.length} pending job${machineOpenAll.length === 1 ? "" : "s"} on ${machine.serialNo || machine.bomKey} — open to record Part received / Work completed`}>
+                          ⏳ Pending Jobs · {machineOpenAll.length}
+                        </button>
+                      )}
                       {/* Migration 032 — Certificate view button for Trial-completed machines */}
                       {isComplete && machine.trialCertificate && (
                         <button onClick={() => setTrialCertViewModal(machine)}
@@ -19335,6 +19353,42 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
       })()}
 
       {/* ── Pending job action (2026-10-30): part received / work completed ── */}
+      {/* 2026-10-31 — Pending Jobs drawer for one machine (opened from its
+          card). Same rows and actions as the Pending Jobs tab; closes itself
+          when the machine has no job left. */}
+      {jobsDrawer != null && (() => {
+        const m = machineLog.find((x) => String(x.id) === String(jobsDrawer)) || null;
+        const all = (pendingHandoverItems || []).filter((p) => String(p.machineId) === String(jobsDrawer));
+        const open = all.filter((p) => p.status !== "resolved");
+        const done = all.filter((p) => p.status === "resolved");
+        return (
+          <div className="rack-panel-backdrop fixed inset-0 z-[66] flex justify-end" style={{ background: "rgba(17,24,39,0.35)", pointerEvents: jobAction ? "none" : "auto" }}
+               onClick={(e) => e.target === e.currentTarget && !jobAction && setJobsDrawer(null)}>
+            <div role="dialog" aria-label={`Pending jobs for ${m?.serialNo || m?.bomKey || "machine"}`} data-jobs-drawer className="rack-panel h-full w-full max-w-[640px] flex flex-col" style={{ background: "var(--surface-card)", boxShadow: "-20px 0 60px rgba(17,24,39,0.25)" }}>
+              <div className="px-4 sm:px-5 py-4 flex items-center justify-between gap-3" style={{ background: "#b91c1c", color: "#fff" }}>
+                <div>
+                  <div className="text-[17px] font-black">⏳ Pending Jobs · {m?.bomKey || "Machine"}{m?.serialNo ? ` · S/N ${m.serialNo}` : ""}</div>
+                  <div className="text-[11px] opacity-90">{open.length} open · {done.length} completed · now in {m?.status === "completed" ? "Ready" : (m?.currentDepartment || m?.stage || "—")}</div>
+                </div>
+                <button type="button" aria-label="Close" onClick={() => setJobsDrawer(null)} className="w-9 h-9 rounded-lg text-[18px] font-black" style={{ background: "rgba(255,255,255,0.18)", color: "#fff" }}>✕</button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3">
+                {open.length === 0 && (
+                  <div className="rounded-xl px-4 py-6 text-center text-[12px] font-semibold" style={{ background: "rgba(22,163,74,0.08)", color: "#15803d" }}>✓ No pending job is open on this machine.</div>
+                )}
+                {open.length > 0 && renderJobGroup(m, open, "open")}
+                {done.length > 0 && (
+                  <details className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                    <summary className="cursor-pointer font-bold py-1">Completed jobs ({done.length})</summary>
+                    <div className="mt-2">{renderJobGroup(m, done, "done")}</div>
+                  </details>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {jobAction && (() => {
         const p = jobAction.item;
         const m = machineLog.find((x) => String(x.id) === String(p.machineId)) || null;
@@ -19351,7 +19405,7 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                     `${m?.bomKey || ""}${m?.serialNo ? ` · S/N ${m.serialNo}` : ""}${p.itemCode ? ` · ${p.itemCode}` : ""}`);
         };
         return (
-          <div className="modal-backdrop fixed inset-0 z-[72] flex items-center justify-center p-4"
+          <div className="modal-backdrop fixed inset-0 z-[96] flex items-center justify-center p-4"
                style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
                onClick={(e) => e.target === e.currentTarget && !jobAction.busy && setJobAction(null)}>
             <div className="w-full max-w-md rounded-2xl p-5"

@@ -303,3 +303,20 @@ test("App: Accept Machine on the card reuses the accept modal and refuses duplic
   // the Transfer & Accept section still offers its own button
   assert.match(app, /<button onClick=\{\(\) => openAcceptModal\(h\)\}/);
 });
+
+// 2026-10-31 — direct pending-job tracking from the machine card (same rows
+// and actions as the Pending Jobs tab; the action modal keeps its busy guard
+// and explicit confirmation).
+test("App: Pending Jobs button on the card opens the shared job rows with existing actions", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+  const app = fs.readFileSync(path.join(root, "src/App.jsx"), "utf8");
+  assert.match(app, /const renderJobGroup = \(m, list, key\) => \{/);
+  assert.match(app, /\{groups\.map\(\(\{ id, m, list \}\) => renderJobGroup\(m, list, id\)\)\}/, "the Pending Jobs tab uses the shared renderer");
+  assert.match(app, /data-card-jobs=\{machine\.id\} onClick=\{\(\) => setJobsDrawer\(machine\.id\)\}/);
+  assert.match(app, /\{open\.length > 0 && renderJobGroup\(m, open, "open"\)\}/, "the drawer uses the shared renderer");
+  assert.match(app, /onClick=\{\(\) => setJobAction\(\{ item: p, action: "receive"/);
+  assert.match(app, /onClick=\{\(\) => setJobAction\(\{ item: p, action: "complete"/);
+  assert.match(app, /if \(jobAction\.busy\) return;/, "double submit guard kept");
+});
