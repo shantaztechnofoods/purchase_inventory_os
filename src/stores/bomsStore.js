@@ -36,6 +36,10 @@ function fromRow(r) {
     rackCapacity: Number(r.rack_capacity) || 0,
     items:        Array.isArray(r.items) ? r.items : [],
     deptDurations: r.dept_durations && typeof r.dept_durations === "object" ? r.dept_durations : null,
+    // Migration 046 — a retired BOM (KM10/KM15/KM20 → M-10/M-15/M-20) stays
+    // for history and labels but is hidden from issuing.
+    retiredAt:    r.retired_at || null,
+    replacedBy:   r.replaced_by || null,
   };
 }
 

@@ -1,17 +1,21 @@
-// Rack slots — pure helpers (2026-10-31, brief §14).
+// Rack slots — pure helpers (2026-10-31, brief §14; fixed BOMs 2026-10-31).
 //
-// The fixed racks on the floor (PHYSICAL_RACK_LAYOUT, unchanged): per model
-// family, `columns` vertical pairs of an M rack over an R rack, each rack
-// holding `setsPerRack` machine sets. Every set position is a SLOT with a
-// stable id, e.g. "M-10-1#2" = M-10 rack, column 1, position 2.
+// SIX fixed racks on the floor — M-10, R-10, M-15, R-15, M-20, R-20 — each
+// with exactly two slots, one machine per slot. Every rack takes ONE BOM:
+// the M-10 rack takes the M-10 BOM, the R-10 rack the R-10 BOM, and so on.
+// A BOM that is not listed here (AM900, ARM1800, TM600, VK, PILOT-KM10,
+// TRIAL-01, KM-10 and every future R&D BOM) has no rack and goes to Direct
+// Production only.
 //
-// A machine remembers its slot (machine.rackSlot, migration 045) from the
-// moment its BOM set is put on the rack until the production head releases
-// the assembled machine to Mechanical. Legacy rows with no slot are placed
-// into free slots oldest-first, exactly as the rack view always did.
+// `legacy` keys: KM10 / KM15 / KM20 were replaced by M-10 / M-15 / M-20 on
+// 2026-10-31. Machines already issued under the old keys keep their history
+// and keep the slot they hold; no new set can be issued under a retired BOM.
+//
+// Slot ids keep the format used since migration 045, "M-10-1#2" (rack M-10,
+// column 1, position 2), so slots saved before this change stay valid.
 //
 // Slot status:
-//   empty       nothing in it                         → Fill
+//   empty       nothing in it                         → Fill Rack
 //   set         BOM set waiting (stage BOM Issued)    → Start assembly
 //   assembling  taken off for assembly (stage Assembly, slot kept)
 //   assembled   assembled, back on the rack, awaiting release → Release
@@ -20,23 +24,45 @@ export const PHYSICAL_RACK_LAYOUT = {
   setsPerRack: 2,
   tiers: ["M", "R"],            // top → bottom within each vertical pair
   families: [
-    { id: "10", label: "10", columns: 2, color: "#1d4ed8", boms: ["KM10"] },
-    { id: "15", label: "15", columns: 2, color: "#15803d", boms: ["KM15"] },
-    { id: "20", label: "20", columns: 2, color: "#ea580c", boms: ["KM20"] },
+    { id: "10", label: "10", columns: 1, color: "#1d4ed8", tiers: { M: { boms: ["M-10"], legacy: ["KM10"] }, R: { boms: ["R-10"], legacy: [] } } },
+    { id: "15", label: "15", columns: 1, color: "#15803d", tiers: { M: { boms: ["M-15"], legacy: ["KM15"] }, R: { boms: ["R-15"], legacy: [] } } },
+    { id: "20", label: "20", columns: 1, color: "#ea580c", tiers: { M: { boms: ["M-20"], legacy: ["KM20"] }, R: { boms: ["R-20"], legacy: [] } } },
   ],
 };
 
-export const rackKeyNorm = (k) => String(k || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+// Exact key match (case and surrounding spaces ignored). Deliberately NOT
+// punctuation-insensitive: "KM-10" (an R&D/test BOM) must not land on a rack.
+export const rackKeyNorm = (k) => String(k || "").trim().toUpperCase();
 
-export function physicalRackFamily(bomKey, layout = PHYSICAL_RACK_LAYOUT) {
+// { family, tier, legacy } for a BOM key, or null when it has no fixed rack.
+export function rackOfBom(bomKey, layout = PHYSICAL_RACK_LAYOUT) {
   const k = rackKeyNorm(bomKey);
-  return layout.families.find((f) => f.boms.some((b) => rackKeyNorm(b) === k)) || null;
+  if (!k) return null;
+  for (const f of layout.families) {
+    for (const tier of layout.tiers) {
+      const t = (f.tiers && f.tiers[tier]) || { boms: [], legacy: [] };
+      if ((t.boms || []).some((b) => rackKeyNorm(b) === k)) return { family: f, tier, legacy: false };
+      if ((t.legacy || []).some((b) => rackKeyNorm(b) === k)) return { family: f, tier, legacy: true };
+    }
+  }
+  return null;
 }
 
-// Set slots a BOM has on the physical racks, or null when it has none.
+// The BOM keys a rack accepts: { primary, keys } (primary = the one Fill opens).
+export function rackBoms(family, tier) {
+  const t = (family && family.tiers && family.tiers[tier]) || { boms: [], legacy: [] };
+  return { primary: (t.boms || [])[0] || null, keys: [...(t.boms || []), ...(t.legacy || [])] };
+}
+
+export function physicalRackFamily(bomKey, layout = PHYSICAL_RACK_LAYOUT) {
+  const r = rackOfBom(bomKey, layout);
+  return r ? r.family : null;
+}
+
+// Slots a BOM has on the physical racks (its own rack only), or null.
 export function physicalRackSlots(bomKey, layout = PHYSICAL_RACK_LAYOUT) {
-  const f = physicalRackFamily(bomKey, layout);
-  return f ? f.columns * layout.tiers.length * layout.setsPerRack : null;
+  const r = rackOfBom(bomKey, layout);
+  return r ? r.family.columns * layout.setsPerRack : null;
 }
 
 export function rackCapacityFor(bomKey, _def, layout = PHYSICAL_RACK_LAYOUT) {
@@ -45,19 +71,23 @@ export function rackCapacityFor(bomKey, _def, layout = PHYSICAL_RACK_LAYOUT) {
 }
 
 export const rackIdOf = (tier, familyLabel, column) => `${tier}-${familyLabel}-${column}`;
-export const rackNameOf = (tier, familyLabel, column) => `${tier}-${familyLabel} (${column})`;
+export const rackNameOf = (tier, familyLabel, column, columns = 1) => (columns > 1 ? `${tier}-${familyLabel} (${column})` : `${tier}-${familyLabel}`);
 export const slotIdOf = (rackId, position) => `${rackId}#${position}`;
 export function slotLabel(slotId) {
   const m = /^([A-Z])-([^-]+)-(\d+)#(\d+)$/.exec(String(slotId || ""));
-  return m ? `${m[1]}-${m[2]} (${m[3]}) · slot ${m[4]}` : String(slotId || "");
+  if (!m) return String(slotId || "");
+  return m[3] === "1" ? `${m[1]}-${m[2]} · slot ${m[4]}` : `${m[1]}-${m[2]} (${m[3]}) · slot ${m[4]}`;
 }
+export const tierOfSlot = (slotId) => (/^([A-Z])-/.exec(String(slotId || "")) || [])[1] || null;
 
-// Every slot id of a family, rack by rack, in floor order.
-export function familySlotIds(family, layout = PHYSICAL_RACK_LAYOUT) {
+// Slot ids of a family (optionally one tier only), rack by rack, in floor order.
+export function familySlotIds(family, layout = PHYSICAL_RACK_LAYOUT, tier = null) {
   const out = [];
   for (let c = 1; c <= family.columns; c++)
-    for (const tier of layout.tiers)
-      for (let n = 1; n <= layout.setsPerRack; n++) out.push(slotIdOf(rackIdOf(tier, family.label, c), n));
+    for (const t of layout.tiers) {
+      if (tier && t !== tier) continue;
+      for (let n = 1; n <= layout.setsPerRack; n++) out.push(slotIdOf(rackIdOf(t, family.label, c), n));
+    }
   return out;
 }
 
@@ -70,7 +100,7 @@ const createdOrder = (a, b) =>
 export function rackMachinesOfFamily(family, machineLog = [], awaitingReleaseIds = new Set(), layout = PHYSICAL_RACK_LAYOUT) {
   return (machineLog || []).filter((m) => {
     if (!m || m.status === "completed") return false;
-    if (physicalRackFamily(m.bomKey, layout)?.id !== family.id) return false;
+    if (rackOfBom(m.bomKey, layout)?.family.id !== family.id) return false;
     if (m.stage === "BOM Issued") return true;
     if (awaitingReleaseIds.has(String(m.id))) return true;
     // Taken off for assembly: only while it still holds a slot.
@@ -92,19 +122,21 @@ export function slotStatusOf(machine, awaitingReleaseIds = new Set()) {
 // oldest-first. Returns { columns: [[rack, rack], …], overflow, placed }.
 export function buildFamilyRacks(family, machineLog = [], awaitingReleaseIds = new Set(), layout = PHYSICAL_RACK_LAYOUT) {
   const ids = familySlotIds(family, layout);
-  const valid = new Set(ids);
   const machines = rackMachinesOfFamily(family, machineLog, awaitingReleaseIds, layout);
   const bySlot = {};
   const unplaced = [];
   for (const m of machines) {
-    if (m.rackSlot && valid.has(m.rackSlot) && !bySlot[m.rackSlot]) bySlot[m.rackSlot] = { machine: m, pinned: true };
+    // A pinned slot counts only on the machine's own rack (M BOM → M rack).
+    const tier = rackOfBom(m.bomKey, layout)?.tier;
+    if (m.rackSlot && ids.includes(m.rackSlot) && tierOfSlot(m.rackSlot) === tier && !bySlot[m.rackSlot]) bySlot[m.rackSlot] = { machine: m, pinned: true };
     else unplaced.push(m);
   }
   const overflow = [];
   for (const m of unplaced) {
-    // Only material sets flow into free slots automatically; an assembling or
-    // assembled machine with no (or a clashing) slot is listed as overflow.
-    const free = m.stage === "BOM Issued" ? ids.find((id) => !bySlot[id]) : null;
+    // Only material sets flow into free slots automatically, and only into a
+    // slot of their own rack; anything else is listed as overflow.
+    const tier = rackOfBom(m.bomKey, layout)?.tier;
+    const free = m.stage === "BOM Issued" ? familySlotIds(family, layout, tier).find((id) => !bySlot[id]) : null;
     if (free) bySlot[free] = { machine: m, pinned: false };
     else overflow.push(m);
   }
@@ -121,7 +153,8 @@ export function buildFamilyRacks(family, machineLog = [], awaitingReleaseIds = n
       const occupied = slots.filter((s) => s.machine).length;
       const sets = slots.filter((s) => s.status === "set").length;
       return {
-        id: rackId, name: rackNameOf(tier, family.label, c), tier, column: c, slots,
+        id: rackId, name: rackNameOf(tier, family.label, c, family.columns), tier, column: c, slots,
+        bom: rackBoms(family, tier),
         capacity: layout.setsPerRack, occupied, ready: sets, empty: layout.setsPerRack - occupied,
         state: occupied >= layout.setsPerRack ? "full" : occupied > 0 ? "partial" : "empty",
       };
@@ -131,14 +164,14 @@ export function buildFamilyRacks(family, machineLog = [], awaitingReleaseIds = n
   return { columns, overflow, placed: bySlot };
 }
 
-// First free slot for a BOM, honouring a preferred slot (from a Fill action)
-// when it belongs to the same family and is still empty. Null when the model
-// has no fixed rack or every slot is taken.
+// First free slot on a BOM's own rack, honouring a preferred slot (from a
+// Fill action) when it is on that rack and still empty. Null when the BOM has
+// no fixed rack or both slots are taken.
 export function firstFreeSlot(bomKey, machineLog = [], awaitingReleaseIds = new Set(), preferred = null, layout = PHYSICAL_RACK_LAYOUT) {
-  const f = physicalRackFamily(bomKey, layout);
-  if (!f) return null;
-  const { placed } = buildFamilyRacks(f, machineLog, awaitingReleaseIds, layout);
-  const ids = familySlotIds(f, layout);
+  const r = rackOfBom(bomKey, layout);
+  if (!r) return null;
+  const { placed } = buildFamilyRacks(r.family, machineLog, awaitingReleaseIds, layout);
+  const ids = familySlotIds(r.family, layout, r.tier);
   if (preferred && ids.includes(preferred) && !placed[preferred]) return preferred;
   return ids.find((id) => !placed[id]) || null;
 }
@@ -146,12 +179,12 @@ export function firstFreeSlot(bomKey, machineLog = [], awaitingReleaseIds = new 
 // Can `machine` be put into `slotId`? Returns { ok, error }.
 export function canAssignSlot(machine, slotId, machineLog = [], awaitingReleaseIds = new Set(), layout = PHYSICAL_RACK_LAYOUT) {
   if (!machine) return { ok: false, error: "Machine not found" };
-  const f = physicalRackFamily(machine.bomKey, layout);
-  if (!f) return { ok: false, error: `${machine.bomKey} has no fixed rack` };
-  if (!familySlotIds(f, layout).includes(slotId)) return { ok: false, error: `${slotLabel(slotId)} is not a ${f.label} rack slot — model and rack must match` };
+  const r = rackOfBom(machine.bomKey, layout);
+  if (!r) return { ok: false, error: `${machine.bomKey} has no fixed rack — Direct Production only` };
+  if (!familySlotIds(r.family, layout, r.tier).includes(slotId)) return { ok: false, error: `${slotLabel(slotId)} is not on the ${r.tier}-${r.family.label} rack — a ${machine.bomKey} machine can only go on its own rack` };
   if (machine.stage !== "BOM Issued" && !awaitingReleaseIds.has(String(machine.id)) && !(machine.stage === "Assembly" && machine.rackSlot))
     return { ok: false, error: "Only a machine on the rack can be assigned a slot" };
-  const { placed } = buildFamilyRacks(f, machineLog, awaitingReleaseIds, layout);
+  const { placed } = buildFamilyRacks(r.family, machineLog, awaitingReleaseIds, layout);
   const e = placed[slotId];
   if (e && e.pinned && String(e.machine.id) !== String(machine.id)) return { ok: false, error: `${slotLabel(slotId)} already holds ${e.machine.serialNo || e.machine.bomKey}` };
   const already = (machineLog || []).find((m) => m.rackSlot === slotId && String(m.id) !== String(machine.id) && m.status !== "completed");

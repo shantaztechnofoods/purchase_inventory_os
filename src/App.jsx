@@ -72,7 +72,7 @@ import { mapRow as vendorMapRow, parseRows as vendorParseRows } from "./utils/ve
 import { parseRows as itemParseRows, generateItemCode, buildRowsFromSheet as itemBuildRowsFromSheet } from "./utils/itemImport.js";
 import { parseBomPaste } from "./utils/bomPaste.js";
 import { receivedPoRates, bomCostLines, bomCostSummary, validateBomLines, formatINR, RATE_SOURCE_LABEL } from "./utils/bomCost.js";
-import { PHYSICAL_RACK_LAYOUT, physicalRackFamily, physicalRackSlots, rackCapacityFor, buildFamilyRacks, firstFreeSlot, canAssignSlot, slotLabel, rackKeyNorm, rackViewLog } from "./utils/rackSlots.js";
+import { PHYSICAL_RACK_LAYOUT, rackOfBom, physicalRackFamily, physicalRackSlots, rackCapacityFor, buildFamilyRacks, firstFreeSlot, canAssignSlot, slotLabel, rackKeyNorm, rackViewLog } from "./utils/rackSlots.js";
 import { getActiveCompany, normalizePOSettings, openPOPdf, PO_TEMPLATE_OPTIONS } from "./utils/poTemplate.js";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -11078,12 +11078,12 @@ function RackStatusNote({ bomKey }) {
       <span className="text-base">📦</span>
       <div className="min-w-0">
         <div className="text-[11px] font-bold text-slate-900">
-          {fam ? `Fixed rack ${fam.label} · ${slots} machine sets` : "No fixed rack for this model"}
+          {fam ? `Fixed rack ${rackOfBom(bomKey)?.tier}-${fam.label} · ${slots} slots` : "No fixed rack — Direct Production only"}
         </div>
         <div className="text-[10px] text-slate-500 mt-0.5">
           {fam
-            ? `M-${fam.label} / R-${fam.label} racks, ${PHYSICAL_RACK_LAYOUT.setsPerRack} sets each. At Outward the operator chooses Save To Rack or Direct Production; a full rack refuses the save.`
-            : "Builds go straight to Direct Production at Outward. Racks are the fixed floor racks only — none is created per BOM."}
+            ? `This BOM fills only the ${rackOfBom(bomKey)?.tier}-${fam.label} rack (${PHYSICAL_RACK_LAYOUT.setsPerRack} slots). Fill Rack on an empty slot opens this BOM; a full rack refuses the save.`
+            : "R&D / other BOMs never use the fixed racks. Builds go straight to Direct Production at Outward."}
         </div>
       </div>
     </div>
@@ -11654,8 +11654,12 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   // outlives it — the persistent save-error banner on the app shell.
   onStockIssueFailed = () => {},
   // 2026-10-31 — cost & rates panel (brief §12).
-  pos = [], canSetRate = false, onSetItemRate }) {
+  pos = [], canSetRate = false, onSetItemRate,
+  // 2026-10-31 fixed racks — the free slot on this BOM's own rack (null when
+  // the rack is full or the BOM has no rack), and the slot a Fill reserved.
+  rackFreeSlot = null, reservedSlot = null }) {
   const [showCostPanel, setShowCostPanel] = useState(false);
+  const [materialBlock, setMaterialBlock] = useState(false);
   const [editValidationErr, setEditValidationErr] = useState("");
   const [search,       setSearch]       = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -11993,13 +11997,23 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
       return;
     }
     const finalDest = chosenDest || destination || (rackTracked ? "rack" : "direct");
-    // Rack-capacity gate, scoped to the rack branch. Direct Production is
-    // intentionally NOT subject to this check — the rack being full is the
-    // exact case where operators need Direct Production as the escape hatch.
+    // 2026-10-31 — material gate: a build may not go straight into production
+    // with components still short. A fixed-rack BOM can still be saved to its
+    // rack (the shortfall goes to Pending Stock and Start assembly stays
+    // blocked until it arrives); Direct Production needs every line in full.
+    // Critical items deliberately not issued keep their existing pending-job
+    // rule and are not counted here.
+    const shortLines = checkedE.filter((i) => i.pendingQty > 0 && !skippedCodes.has(i.code));
+    if (serialNo && finalDest === "direct" && shortLines.length > 0) {
+      setDestError(`Materials short for Direct Production: ${shortLines.map((i) => `${i.name} (need ${i.required}, have ${i.available})`).join(", ")}.${rackTracked ? " Save To Rack and start assembly when stock arrives." : " Receive the stock first — R&D builds go to Direct Production only."}`);
+      if (rackTracked) { setShowDestChoice(true); } else { setCriticalErr(""); setShowDestChoice(false); setMaterialBlock(true); }
+      return;
+    }
+    // Rack-capacity gate, scoped to the rack branch: the BOM's own fixed rack
+    // has two slots; both taken → no rack save.
     if (finalDest === "rack") {
-      const cap = rackCapacityFor(bomKey, bom);
-      if (cap > 0 && rackReady >= cap) {
-        setDestError(`Rack is full (${rackReady} / ${cap}). Pick Direct Production, or start production / increase capacity to free a slot.`);
+      if (rackTracked && !rackFreeSlot && !reservedSlot) {
+        setDestError(`Rack is full — the ${bomKey} rack has both slots taken. Start assembly or release a machine to free a slot.`);
         setShowDestChoice(true);
         return;
       }
@@ -12904,6 +12918,23 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
         );
       })()}
 
+      {/* 2026-10-31 — material gate for R&D / Direct Production BOMs: shown
+          instead of committing when components are short. */}
+      {materialBlock && (
+        <div className="modal-backdrop fixed inset-0 z-[90] flex items-center justify-center p-4"
+             style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
+             onClick={(e) => e.target === e.currentTarget && setMaterialBlock(false)}>
+          <div role="alertdialog" aria-label="Materials short" className="w-full max-w-md rounded-2xl p-6 space-y-3"
+               style={{ background: "var(--surface-elevated)", border: "1px solid rgba(185,28,28,0.4)", boxShadow: "0 40px 80px rgba(17,24,39,0.22)" }}>
+            <div className="text-sm font-black" style={{ color: "#b91c1c" }}>⚠ Cannot start production — materials short</div>
+            <div className="text-[12px] leading-relaxed" style={{ color: "var(--text-muted)" }}>{destError}</div>
+            <div className="flex justify-end">
+              <button onClick={() => setMaterialBlock(false)} className="text-xs font-bold px-4 py-2 rounded-lg border border-slate-200">OK</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Destination popup (2026-06-02c) ─────────────────────────────────
           Surfaces the rack-vs-direct choice as an unmistakable two-button
           modal. Triggered by doIssue() when there's a serial number and no
@@ -12935,11 +12966,12 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 <div className="text-2xl mb-1.5">📦</div>
                 <div className="text-sm font-black text-emerald-300 mb-1">Save To Rack</div>
                 <div className="text-[10px] text-slate-400 leading-relaxed">
-                  Default flow. Sits on the rack until an operator starts production from the rack view.
+                  {reservedSlot || rackFreeSlot ? `Goes into ${slotLabel(reservedSlot || rackFreeSlot)}. ` : ""}Sits on the rack until an operator starts assembly from that slot.
                 </div>
               </button>
-              <button onClick={() => doIssue("direct", { durationConfirmed: true })} disabled={issuing}
-                      className="text-left rounded-xl p-4 transition-all border disabled:opacity-50"
+              <button onClick={() => doIssue("direct", { durationConfirmed: true })} disabled={issuing || checkedE.some((i) => i.pendingQty > 0 && !skippedCodes.has(i.code))}
+                      title={checkedE.some((i) => i.pendingQty > 0 && !skippedCodes.has(i.code)) ? "Components are short — Direct Production needs every component issued in full" : undefined}
+                      className="text-left rounded-xl p-4 transition-all border disabled:opacity-50 disabled:cursor-not-allowed"
                       style={{ background: "rgba(139,92,246,0.08)", borderColor: "rgba(139,92,246,0.4)" }}>
                 <div className="text-2xl mb-1.5">▶</div>
                 <div className="text-sm font-black text-purple-300 mb-1">Direct Production</div>
@@ -13175,6 +13207,9 @@ function BomLineCheckPointsModal({ code, itemName = "", bomLabel = "", current =
   );
 }
 
+// Last "Fill Rack" request the embedded Outward section has acted on.
+let __lastFillRequestN = 0;
+
 function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateBOM, onRenameBOM, outwardLog, onAddOutward, pendingLog, onClearPending, onCreateMachine, machineLog = [], canDo = () => true, onRemoveRackMachine, onDuplicateBOM, onDeleteBOM, computeBOMDeletionInfo, settings = {},
   // 2026-10-30 — embedded: render only the BOM Outward section (with every
   // modal it opens) so Machine Tracker can issue a BOM through this exact
@@ -13188,7 +13223,9 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
   // Surfaces a rejected stock movement after the issue drawer has closed.
   onStockIssueFailed = () => {},
   // 2026-10-31 — BOM cost & rates (brief §12).
-  pos = [], canSetRate = false, onSetItemRate }) {
+  pos = [], canSetRate = false, onSetItemRate,
+  // 2026-10-31 fixed racks: free slot on a BOM's own rack, and Fill requests.
+  rackFreeSlotFor = null, bomOpenRequest = null }) {
   // Feature 3: confirm + remove rack machine. The button only appears when a
   // remover prop is provided AND the operator has the permission. Stays in
   // local state so the confirmation persists across re-renders of the modal.
@@ -13336,7 +13373,25 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
     }
   };
 
-  const boms = Object.entries(bomDefs || {});
+  // Retired BOMs (KM10 / KM15 / KM20, replaced 2026-10-31) stay in bomDefs for
+  // history and labels but can no longer be issued.
+  const boms = Object.entries(bomDefs || {}).filter(([, b]) => !(b && b.retiredAt));
+
+  // 2026-10-31 fixed racks — "Fill Rack" on a Machine Tracker slot opens that
+  // rack's own BOM (serial first), with the slot reserved for the new set.
+  const [fillTarget, setFillTarget] = useState(null); // { key, slotId }
+  useEffect(() => {
+    if (!embedded || !bomOpenRequest || !bomOpenRequest.key) return;
+    // Each Fill click is consumed once — a remount (page switch, Hide/Show)
+    // must not reopen the BOM by itself.
+    if (bomOpenRequest.n <= __lastFillRequestN) return;
+    __lastFillRequestN = bomOpenRequest.n;
+    const b = bomDefs?.[bomOpenRequest.key];
+    if (!b || b.retiredAt) return;
+    setFillTarget({ key: bomOpenRequest.key, slotId: bomOpenRequest.slotId || null });
+    setOpenBOM(null);
+    setSerialModal(bomOpenRequest.key); setPendingSerial(""); setSerialErr("");
+  }, [bomOpenRequest && bomOpenRequest.n]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Create BOM helpers ──
   const openCreateBOM = () => {
@@ -13444,6 +13499,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                       // Capacity = 0 / blank → no rack tracking for this BOM,
                       //   the issue routes straight to Active Builds (Direct
                       //   Production) without prompting.
+                      if (fillTarget && fillTarget.key === serialModal && fillTarget.slotId) return `Fill ${slotLabel(fillTarget.slotId)} · enter the machine serial number`;
                       return cap > 0
                         ? `Enter serial · Rack ${ready} / ${cap} ready · choose destination on commit`
                         : "Enter serial · No rack tracking — goes straight to Active Builds (Direct Production)";
@@ -13664,6 +13720,8 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
           onAfterRename={(newKey) => setOpenBOM(newKey)}
           serialNo={activeSerial}
           rackReady={rackReadyCount(openBOM)}
+          rackFreeSlot={rackFreeSlotFor ? rackFreeSlotFor(openBOM) : null}
+          reservedSlot={fillTarget && fillTarget.key === openBOM ? fillTarget.slotId : null}
           settings={settings}
           checklistTemplates={checklistTemplates}
           onCreateChecklistTemplate={onCreateChecklistTemplate}
@@ -16457,7 +16515,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   onReleaseHandover,
   // 2026-10-31 — rack slots (brief §14): pin a rack machine to one slot, or
   // reserve an empty slot for the next BOM set issued for that model.
-  onAssignRackSlot, onReserveRackSlot,
+  onAssignRackSlot, onReserveRackSlot, onFillRack,
   // Material-arrived badge. A critical part issued later from Pending Stock is
   // already recorded as a `pending_fulfilled` audit row, but nothing told the
   // department waiting on it that it had arrived — they found out by asking.
@@ -17136,6 +17194,19 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
       return { key: k, label: bomDefs[k]?.label || k, components: lines.length, missing, valid: lines.length > 0 && missing === 0 };
     })
     .sort((a, b) => (b.valid - a.valid) || a.key.localeCompare(b.key));
+  // 2026-10-31 fixed racks — the one BOM a rack takes, and whether the store
+  // can build a set of it right now (BOM-wise stock vs required).
+  const stockByCode = {};
+  Object.values(items || {}).forEach((l) => (Array.isArray(l) ? l : []).forEach((i) => { if (i && i.code) stockByCode[i.code] = Number(i.stock) || 0; }));
+  const rackBomInfo = (rack) => {
+    const key = rack.bom && rack.bom.primary;
+    const def = key ? bomDefs[key] : null;
+    if (!key || !def || def.retiredAt) return { key, def: null, exists: false };
+    const lines = (def.items || []).filter((l) => l && l.code);
+    const short = lines.filter((l) => (stockByCode[l.code] ?? 0) < (Number(l.qty) || 0)).map((l) => ({ code: l.code, need: Number(l.qty) || 0, have: stockByCode[l.code] ?? 0, unknown: !itemCodeSet.has(l.code) }));
+    const sets = lines.length ? Math.min(...lines.map((l) => Math.floor((stockByCode[l.code] ?? 0) / Math.max(1, Number(l.qty) || 1)))) : 0;
+    return { key, def, exists: true, components: lines.length, short, sets };
+  };
   const physicalFamilies = PHYSICAL_RACK_LAYOUT.families.map((f) => {
     const built = buildFamilyRacks(f, rackView, awaitingReleaseIds);
     const columns = built.columns.map((pair) => pair.map((rack) => ({
@@ -17158,6 +17229,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
     if (!startProd || !onStartProduction) return;
     const ids = [...startSel];
     if (ids.length === 0) { setStartErr("Select at least one machine (serial) to start."); return; }
+    // 2026-10-31 — no assembly while BOM components are still pending.
+    const shortSel = machineLog.filter((m) => ids.includes(m.id) && pendingForMachine(m).length > 0);
+    if (shortSel.length) { setStartErr(`Cannot start — still waiting for components: ${shortSel.map((m) => m.serialNo || m.bomKey).join(", ")}. Receive the pending stock first.`); return; }
     const res = onStartProduction(ids);
     if (res?.success === false) { setStartErr(res.error || "Failed to start production"); return; }
     showToast(`${startProd.key} — ${res.count} machine(s) into production`, (res.serials || []).join(", ") || "Assembly stage active");
@@ -17891,7 +17965,7 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
           {/* Physical layout: one vertical pair per column — the M rack with
               its R rack directly below, as they stand on the floor. Two pairs
               per row on a phone, three on a tablet, all six on a desktop. */}
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             {physicalFamilies.flatMap((f) => f.columns.map((pair, ci) => (
               <div key={`${f.id}-${ci}`} className="flex flex-col">
                 {pair.map((rack, ti) => {
@@ -17920,16 +17994,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         <div className="px-3 py-2 flex items-center justify-between gap-2" style={{ background: f.color }}>
                           <div className="min-w-0">
                             <div className="text-[13px] font-black text-white truncate">{rack.name}</div>
-                            {/* Rack → model → BOM mapping, so the slot's BOM is never a guess. */}
+                            {/* Rack → BOM: each rack takes exactly one BOM. */}
                             {(() => {
-                              const rb = rackBomsFor(f);
-                              const ok = rb.filter((b) => b.valid);
-                              if (!rb.length) return <div className="text-[9px] font-semibold text-white" style={{ opacity: 0.85 }}>No BOM mapped</div>;
+                              const bi = rackBomInfo(rack);
                               return (
                                 <div className="text-[9px] font-semibold text-white truncate" style={{ opacity: 0.9 }}
-                                     title={rb.map((b) => `${b.key} — ${b.label} · ${b.components} components${b.missing ? ` · ${b.missing} not in Item Master` : ""}`).join("\n")}>
-                                  {ok.length ? `BOM ${ok.map((b) => b.key).join(" / ")}${ok.length === 1 ? ` — ${ok[0].label}` : ""}` : "⚠ No valid BOM"}
-                                  {rb.length > ok.length ? ` · ⚠ ${rb.length - ok.length} other` : ""}
+                                     title={bi.exists ? `${bi.key} — ${bi.def.label || bi.key} · ${bi.components} components` : `No ${rack.bom.primary || ""} BOM yet`}>
+                                  {bi.exists ? `BOM ${bi.key}${bi.def.label && bi.def.label !== bi.key ? ` — ${bi.def.label}` : ""}` : `⚠ ${rack.bom.primary || "BOM"} not created`}
                                 </div>
                               );
                             })()}
@@ -17939,6 +18010,31 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                         </div>
                         {/* One row per slot — its own status and its own action. */}
                         <div className="p-2 space-y-1.5" style={{ background: S.bg }}>
+                          {/* BOM-wise material check for the next set on this rack. */}
+                          {(() => {
+                            const bi = rackBomInfo(rack);
+                            if (!bi.exists) return (
+                              <div className="text-[9.5px] font-semibold rounded-md px-2 py-1" style={{ background: "rgba(180,83,9,0.10)", color: "#b45309" }}>
+                                Create the {rack.bom.primary} BOM to fill this rack
+                              </div>
+                            );
+                            if (!bi.components) return (
+                              <div className="text-[9.5px] font-semibold rounded-md px-2 py-1" style={{ background: "rgba(180,83,9,0.10)", color: "#b45309" }}>
+                                {bi.key} BOM has no components yet — add them in Edit BOM
+                              </div>
+                            );
+                            return bi.short.length === 0 ? (
+                              <div className="text-[9.5px] font-semibold rounded-md px-2 py-1" style={{ background: "rgba(21,128,61,0.08)", color: "#15803d" }}
+                                   title={`${bi.key}: every component in stock`}>
+                                ✓ Material for {bi.sets} set{bi.sets === 1 ? "" : "s"}
+                              </div>
+                            ) : (
+                              <div className="text-[9.5px] font-semibold rounded-md px-2 py-1" style={{ background: "rgba(185,28,28,0.08)", color: "#b91c1c" }}
+                                   title={bi.short.map((x) => `${x.code}: need ${x.need}, have ${x.have}${x.unknown ? " (not in Item Master)" : ""}`).join("\n")}>
+                                ⚠ Short: {bi.short.slice(0, 2).map((x) => `${x.code} ${x.have}/${x.need}`).join(", ")}{bi.short.length > 2 ? ` +${bi.short.length - 2}` : ""}
+                              </div>
+                            );
+                          })()}
                           {rack.slots.map((sl) => {
                             const m = sl.machine;
                             const short = m ? pendingForMachine(m).length : 0;
@@ -17963,8 +18059,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                     {short > 0 && <div className="text-[9px] font-semibold" style={{ color: "#b45309" }} title={pendingForMachine(m).map((p) => `${p.item || p.name || p.code} ${p.pendingQty} ${p.unit || ""}`).join(", ")}>⚠ {short} component{short === 1 ? "" : "s"} still to collect</div>}
                                     <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
                                       {sl.status === "set" && rack.bomRack && (
-                                        <button type="button" onClick={() => openStartProd(rack.bomRack, m.id)}
-                                                className="text-[10px] font-bold px-2 py-1 rounded-md text-white" style={{ background: "#15803d" }}>▶ Start assembly</button>
+                                        short > 0 ? (
+                                          <button type="button" disabled title="Components are still pending — receive them before assembly"
+                                                  className="text-[10px] font-bold px-2 py-1 rounded-md cursor-not-allowed" style={{ background: "rgba(185,28,28,0.08)", color: "#b91c1c", border: "1px solid rgba(185,28,28,0.3)" }}>⏸ Waiting for material</button>
+                                        ) : (
+                                          <button type="button" onClick={() => openStartProd(rack.bomRack, m.id)}
+                                                  className="text-[10px] font-bold px-2 py-1 rounded-md text-white" style={{ background: "#15803d" }}>▶ Start assembly</button>
+                                        )
                                       )}
                                       {sl.status === "assembled" && ho && canDo("machines", "release") && onReleaseHandover && (
                                         <button type="button"
@@ -17986,9 +18087,17 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
                                 ) : (
                                   <div className="mt-1.5">
                                     {canDo("outward", "bom") ? (
-                                      <button type="button" onClick={() => { setFillErr(""); setFillSlot({ slotId: sl.id, family: f, rack }); }}
+                                      <button type="button"
+                                              onClick={() => {
+                                                // Fill Rack: open THIS rack's BOM (serial first), slot reserved.
+                                                const r = onFillRack ? onFillRack(sl.id, rack.bom.primary) : { success: false, error: "Not available" };
+                                                if (!r || r.success === false) { showToast("Cannot fill this rack", (r && r.error) || "", "urgent"); return; }
+                                                if (!bomOpen) toggleBom();
+                                                setTimeout(() => { try { document.getElementById("mt-bom-section")?.scrollIntoView({ behavior: "smooth", block: "start" }); } catch {} }, 60);
+                                              }}
+                                              aria-label={`Fill Rack ${slotLabel(sl.id)} with the ${rack.bom.primary} BOM`}
                                               className="text-[10px] font-bold px-2 py-1 rounded-md w-full"
-                                              style={{ background: "var(--surface-card)", color: f.color, border: `1px solid ${f.color}55` }}>＋ Fill / assign machine</button>
+                                              style={{ background: "var(--surface-card)", color: f.color, border: `1px solid ${f.color}55` }}>＋ Fill Rack</button>
                                     ) : (
                                       <span className="text-[9px]" style={{ color: "var(--text-dim)" }}>empty</span>
                                     )}
@@ -22234,6 +22343,8 @@ export default function App() {
   const [handovers,  setHandovers]  = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_handovers"); if (s) return JSON.parse(s); } catch {} return []; });
   // 2026-10-31 — rack slot reserved by a Fill action: { slotId, bomKey }.
   const rackSlotReservationRef = useRef(null);
+  // "Fill Rack" → open that rack's own BOM in the embedded Outward section.
+  const [bomOpenRequest, setBomOpenRequest] = useState(null); // { key, slotId, n }
   // Phase B — department workflow depth. Each falls back silently if its
   // migration hasn't been applied yet (the stores swallow errors to [] / {}).
   const [checklistTemplates, setChecklistTemplates] = useState(() => { if (SUPA) return []; try { const s = localStorage.getItem("erp_checklist_templates"); if (s) return JSON.parse(s); } catch {} return []; });
@@ -24054,6 +24165,16 @@ export default function App() {
   // (rackSlotReservationRef is declared with the other hooks near the top of
   // App — hooks must run before the login early-return.)
   const handleReserveRackSlot = (slotId, bomKey) => { rackSlotReservationRef.current = slotId ? { slotId, bomKey: bomKey || null } : null; };
+  // Fill Rack: reserve the exact slot for that rack's BOM and open the BOM
+  // (serial number first). Only the rack's own BOM is ever opened.
+  const handleFillRack = (slotId, bomKey) => {
+    if (!slotId || !bomKey) return { success: false, error: "No BOM is mapped to this rack" };
+    const def = bomDefs[bomKey];
+    if (!def || def.retiredAt) return { success: false, error: `The ${bomKey} BOM does not exist yet — create it first` };
+    rackSlotReservationRef.current = { slotId, bomKey };
+    setBomOpenRequest({ key: bomKey, slotId, n: Date.now() });
+    return { success: true };
+  };
   // Pin one rack machine to one exact slot. Refuses a taken slot, a slot of
   // another model's rack, or a machine that is not on the rack.
   const handleAssignRackSlot = async (machineId, slotId) => {
@@ -25138,6 +25259,9 @@ export default function App() {
     items, handleUpdateStock,
     // 2026-10-31 — BOM cost panel: received-PO rates + authorized rate entry.
     pos, canSetRate: canDo("inventory", "edit"), onSetItemRate: handleSetItemDefaultRate,
+    // 2026-10-31 fixed racks — free slot on a BOM's own rack; Fill requests.
+    rackFreeSlotFor: (k) => firstFreeSlot(k, rackViewLog(machineLog, handovers), new Set((handovers || []).filter((h) => h && h.status === "pending" && h.releaseRequired && !h.releasedAt).map((h) => String(h.machineId))), rackSlotReservationRef.current && rackSlotReservationRef.current.bomKey === k ? rackSlotReservationRef.current.slotId : null),
+    bomOpenRequest,
     bomDefs, onUpdateBOM: handleUpdateBOM,
     onCreateBOM: handleCreateBOM, onRenameBOM: handleRenameBOM,
     outwardLog, onAddOutward: handleAddOutward,
@@ -25219,6 +25343,7 @@ export default function App() {
                               onReleaseHandover={handleReleaseHandover}
                               onAssignRackSlot={handleAssignRackSlot}
                               onReserveRackSlot={handleReserveRackSlot}
+                              onFillRack={handleFillRack}
                               /* Migration 028 */
                               onSubmitDuringWorkChecklist={handleSubmitDuringWorkChecklist}
                               /* Migration 029 */

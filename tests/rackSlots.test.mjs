@@ -1,60 +1,85 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { rackViewLog, PHYSICAL_RACK_LAYOUT, physicalRackFamily, rackCapacityFor, familySlotIds, buildFamilyRacks, firstFreeSlot, canAssignSlot, slotLabel, slotStatusOf } from "../src/utils/rackSlots.js";
+import { rackViewLog, PHYSICAL_RACK_LAYOUT, rackOfBom, rackBoms, rackCapacityFor, familySlotIds, buildFamilyRacks, firstFreeSlot, canAssignSlot, slotLabel, slotStatusOf } from "../src/utils/rackSlots.js";
 
 const fam10 = PHYSICAL_RACK_LAYOUT.families[0];
 const m = (id, over = {}) => ({ id, bomKey: "KM10", serialNo: `S${id}`, stage: "BOM Issued", status: "active", createdDate: `2026-10-${String(10 + id).padStart(2, "0")}`, ...over });
 
-test("layout unchanged: 2 columns × M/R × 2 sets = 8 slots per family", () => {
-  assert.equal(rackCapacityFor("KM10"), 8);
-  assert.equal(rackCapacityFor("KM-10"), 8);
-  assert.equal(rackCapacityFor("AM900"), 0);
-  assert.equal(physicalRackFamily("TM600"), null);
-  assert.deepEqual(familySlotIds(fam10).slice(0, 4), ["M-10-1#1", "M-10-1#2", "R-10-1#1", "R-10-1#2"]);
-  assert.equal(slotLabel("M-10-1#2"), "M-10 (1) · slot 2");
+test("six fixed racks, two slots each, one BOM per rack", () => {
+  const racks = PHYSICAL_RACK_LAYOUT.families.flatMap((f) => PHYSICAL_RACK_LAYOUT.tiers.map((t) => `${t}-${f.label}`));
+  assert.deepEqual(racks, ["M-10", "R-10", "M-15", "R-15", "M-20", "R-20"]);
+  for (const k of ["M-10", "R-10", "M-15", "R-15", "M-20", "R-20"]) assert.equal(rackCapacityFor(k), 2, k);
+  assert.deepEqual(familySlotIds(fam10), ["M-10-1#1", "M-10-1#2", "R-10-1#1", "R-10-1#2"]);
+  assert.equal(slotLabel("M-10-1#2"), "M-10 · slot 2");
 });
 
-test("legacy machines without a slot fill oldest-first; pinned slots are exact", () => {
-  const log = [m(3), m(1), m(2, { rackSlot: "R-10-2#1" })];
-  const { columns, overflow, placed } = buildFamilyRacks(fam10, log);
-  assert.equal(placed["R-10-2#1"].machine.id, 2);
+test("rack ↔ BOM mapping is exact; every other BOM is Direct Production only", () => {
+  const exp = { "M-10": ["10", "M"], "R-10": ["10", "R"], "M-15": ["15", "M"], "R-15": ["15", "R"], "M-20": ["20", "M"], "R-20": ["20", "R"] };
+  for (const [k, [fam, tier]] of Object.entries(exp)) { const r = rackOfBom(k); assert.equal(r.family.label, fam, k); assert.equal(r.tier, tier, k); assert.equal(r.legacy, false); }
+  for (const k of ["AM900", "ARM1800", "TM600", "VK", "PILOT-KM10", "TRIAL-01", "KM-10", "M10", "R 10", "NEW-RND-1"]) {
+    assert.equal(rackOfBom(k), null, k); assert.equal(rackCapacityFor(k), 0, k);
+  }
+  // Retired keys keep their machines on the M rack (history), never the R rack.
+  for (const [k, fam] of [["KM10", "10"], ["KM15", "15"], ["KM20", "20"]]) { const r = rackOfBom(k); assert.equal(r.tier, "M"); assert.equal(r.family.label, fam); assert.equal(r.legacy, true); }
+  assert.deepEqual(rackBoms(fam10, "M"), { primary: "M-10", keys: ["M-10", "KM10"] });
+  assert.deepEqual(rackBoms(fam10, "R"), { primary: "R-10", keys: ["R-10"] });
+});
+
+const mm = (id, bomKey, over = {}) => m(id, { bomKey, ...over });
+
+test("a machine only ever lands on its own rack", () => {
+  const log = [mm(1, "M-10"), mm(2, "R-10"), mm(3, "M-10"), mm(4, "M-10")];
+  const { placed, overflow } = buildFamilyRacks(fam10, log);
   assert.equal(placed["M-10-1#1"].machine.id, 1);
   assert.equal(placed["M-10-1#2"].machine.id, 3);
-  assert.equal(overflow.length, 0);
-  assert.equal(columns[0][0].state, "full");
-  assert.equal(columns[1][1].state, "partial");
-  assert.equal(columns[0][1].state, "empty");
+  assert.equal(placed["R-10-1#1"].machine.id, 2);
+  assert.equal(placed["R-10-1#2"], undefined, "an M-10 set never spills onto the R-10 rack");
+  assert.deepEqual(overflow.map((x) => x.id), [4]);
+  // A wrong-rack pin is ignored and the set re-flows onto its own rack.
+  const p2 = buildFamilyRacks(fam10, [mm(5, "R-10", { rackSlot: "M-10-1#1" })]).placed;
+  assert.equal(p2["M-10-1#1"], undefined); assert.equal(p2["R-10-1#1"].machine.id, 5);
 });
 
-test("slot status: set / assembling / assembled / empty; released machine leaves the slot", () => {
+test("legacy KM10 machine keeps its saved slot (live fcbf: M-10-1#2)", () => {
+  const log = [mm(64, "KM10", { serialNo: "fcbf", rackSlot: "M-10-1#2" })];
+  const { placed } = buildFamilyRacks(fam10, log);
+  assert.equal(placed["M-10-1#2"].machine.serialNo, "fcbf");
+  assert.equal(placed["M-10-1#2"].pinned, true);
+  assert.equal(firstFreeSlot("M-10", log), "M-10-1#1");
+});
+
+test("slot status: set / assembling / assembled / empty; machine past Assembly is off the rack", () => {
   const awaiting = new Set(["5"]);
-  const log = [m(4, { rackSlot: "M-10-1#1", stage: "Assembly" }), m(5, { rackSlot: "M-10-1#2", stage: "Assembly" }), m(6, { stage: "Mechanical", rackSlot: "R-10-1#1" })];
+  const log = [mm(4, "M-10", { rackSlot: "M-10-1#1", stage: "Assembly" }), mm(5, "M-10", { rackSlot: "M-10-1#2", stage: "Assembly" }), mm(6, "R-10", { stage: "Mechanical", rackSlot: "R-10-1#1" })];
   const { columns, placed } = buildFamilyRacks(fam10, log, awaiting);
   assert.equal(columns[0][0].slots[0].status, "assembling");
   assert.equal(columns[0][0].slots[1].status, "assembled");
-  assert.equal(placed["R-10-1#1"], undefined, "a machine past Assembly is not on the rack even if the column is stale");
+  assert.equal(columns[0][0].name, "M-10");
+  assert.equal(columns[0][1].name, "R-10");
+  assert.equal(placed["R-10-1#1"], undefined);
   assert.equal(slotStatusOf(null), "empty");
 });
 
-test("firstFreeSlot honours a preferred empty slot and refuses a full rack", () => {
-  const log = [m(1, { rackSlot: "M-10-1#1" })];
-  assert.equal(firstFreeSlot("KM10", log), "M-10-1#2");
-  assert.equal(firstFreeSlot("KM10", log, new Set(), "R-10-2#2"), "R-10-2#2");
-  assert.equal(firstFreeSlot("KM10", log, new Set(), "M-10-1#1"), "M-10-1#2");
+test("firstFreeSlot: preferred slot on own rack only; full rack → null; no rack → null", () => {
+  const log = [mm(1, "M-10", { rackSlot: "M-10-1#1" })];
+  assert.equal(firstFreeSlot("M-10", log), "M-10-1#2");
+  assert.equal(firstFreeSlot("M-10", log, new Set(), "R-10-1#2"), "M-10-1#2", "an R slot is never preferred for an M BOM");
+  assert.equal(firstFreeSlot("R-10", log, new Set(), "R-10-1#2"), "R-10-1#2");
   assert.equal(firstFreeSlot("AM900", log), null);
-  const full = familySlotIds(fam10).map((s, i) => m(i + 1, { rackSlot: s }));
-  assert.equal(firstFreeSlot("KM10", full), null);
+  const full = [mm(1, "M-10", { rackSlot: "M-10-1#1" }), mm(2, "M-10", { rackSlot: "M-10-1#2" })];
+  assert.equal(firstFreeSlot("M-10", full), null);
+  assert.equal(firstFreeSlot("R-10", full), "R-10-1#1");
 });
 
-test("canAssignSlot: no double assignment, model must match rack, only rack machines", () => {
-  const log = [m(1, { rackSlot: "M-10-1#1" }), m(2), { ...m(3), bomKey: "KM15" }];
+test("canAssignSlot: no double assignment, rack must match BOM, only rack machines", () => {
+  const log = [mm(1, "M-10", { rackSlot: "M-10-1#1" }), mm(2, "M-10"), mm(3, "M-15"), mm(7, "R-10")];
   assert.equal(canAssignSlot(log[1], "M-10-1#1", log).ok, false);
   assert.equal(canAssignSlot(log[1], "M-10-1#2", log).ok, true);
-  assert.equal(canAssignSlot(log[2], "M-10-1#2", log).ok, false);
+  assert.equal(canAssignSlot(log[1], "R-10-1#1", log).ok, false, "M-10 set cannot go on the R-10 rack");
+  assert.equal(canAssignSlot(log[2], "M-10-1#2", log).ok, false, "M-15 set cannot go on the M-10 rack");
+  assert.equal(canAssignSlot(log[3], "R-10-1#1", log).ok, true);
   assert.equal(canAssignSlot({ ...log[1], stage: "Mechanical" }, "M-10-1#2", log).ok, false);
-  // The auto-filled machine 2 sits in M-10-1#2 visually but is not pinned, so
-  // pinning a different machine there is allowed (machine 2 re-flows).
-  assert.equal(canAssignSlot(m(9), "M-10-1#2", log).ok, true);
+  assert.equal(canAssignSlot(mm(9, "AM900"), "M-10-1#2", log).ok, false);
 });
 
 test("rackViewLog: a released machine leaves its slot even if rack_slot was not cleared", () => {
@@ -88,4 +113,18 @@ test("App.jsx imports every rackSlots helper it uses", async () => {
     const locallyDefined = new RegExp(`(function|const|let) ${name}\\b`).test(app);
     if (used && !locallyDefined) assert.ok(imported.has(name), `App.jsx uses ${name} but does not import it`);
   }
+});
+
+// 2026-10-31 fixed racks — App wiring guards.
+test("App: retired BOMs are not issuable; Fill opens only the rack's own BOM; material gates", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+  const app = fs.readFileSync(path.join(root, "src/App.jsx"), "utf8");
+  assert.match(app, /const boms = Object\.entries\(bomDefs \|\| \{\}\)\.filter\(\(\[, b\]\) => !\(b && b\.retiredAt\)\)/);
+  assert.match(app, /onFillRack\(sl\.id, rack\.bom\.primary\)/, "Fill passes the rack's own primary BOM");
+  assert.match(app, /if \(!def \|\| def\.retiredAt\) return \{ success: false/, "Fill refuses a missing or retired BOM");
+  assert.match(app, /serialNo && finalDest === "direct" && shortLines\.length > 0/, "Direct Production blocked while short");
+  assert.match(app, /no assembly while BOM components are still pending/);
+  assert.match(app, /if \(bomOpenRequest\.n <= __lastFillRequestN\) return;/, "a Fill request opens the BOM once");
 });
