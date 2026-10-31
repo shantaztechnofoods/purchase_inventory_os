@@ -83,7 +83,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-fixed-racks";
+const APP_BUILD = "2026-10-31-rack-units";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -11985,6 +11985,10 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
       setShowDurationModal(true);
       return;
     }
+    if (serialNo && !chosenDest && checkedE.some((i) => i.pendingQty > 0 && !skippedCodes.has(i.code))) {
+      // Short → same gate as below, before any destination is offered.
+      return doIssue(rackTracked ? "rack" : "direct", { durationConfirmed: true });
+    }
     if (serialNo && !chosenDest) {
       if (!rackTracked) {
         // Capacity blank → auto-route. Skip the popup entirely and commit
@@ -12004,9 +12008,13 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     // Critical items deliberately not issued keep their existing pending-job
     // rule and are not counted here.
     const shortLines = checkedE.filter((i) => i.pendingQty > 0 && !skippedCodes.has(i.code));
-    if (serialNo && finalDest === "direct" && shortLines.length > 0) {
-      setDestError(`Materials short for Direct Production: ${shortLines.map((i) => `${i.name} (need ${i.required}, have ${i.available})`).join(", ")}.${rackTracked ? " Save To Rack and start assembly when stock arrives." : " Receive the stock first — R&D builds go to Direct Production only."}`);
-      if (rackTracked) { setShowDestChoice(true); } else { setCriticalErr(""); setShowDestChoice(false); setMaterialBlock(true); }
+    // 2026-10-31 rack units: a rack is filled only with the machine's COMPLETE
+    // BOM stock, and Direct Production needs it too — so no machine is created
+    // while any component is short (rack or direct). Critical items
+    // deliberately not issued keep their existing pending-job rule.
+    if (serialNo && shortLines.length > 0) {
+      setDestError(`Materials short: ${shortLines.map((i) => `${i.name} (need ${i.required}, have ${i.available})`).join(", ")}. ${rackTracked ? "A rack is filled only with the complete BOM stock." : "R&D builds go to Direct Production only, with every component."} Receive the stock first.`);
+      setShowDestChoice(false); setMaterialBlock(true);
       return;
     }
     // Rack-capacity gate, scoped to the rack branch: the BOM's own fixed rack
@@ -12926,7 +12934,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
              onClick={(e) => e.target === e.currentTarget && setMaterialBlock(false)}>
           <div role="alertdialog" aria-label="Materials short" className="w-full max-w-md rounded-2xl p-6 space-y-3"
                style={{ background: "var(--surface-elevated)", border: "1px solid rgba(185,28,28,0.4)", boxShadow: "0 40px 80px rgba(17,24,39,0.22)" }}>
-            <div className="text-sm font-black" style={{ color: "#b91c1c" }}>⚠ Cannot start production — materials short</div>
+            <div className="text-sm font-black" style={{ color: "#b91c1c" }}>⚠ Cannot issue — materials short</div>
             <div className="text-[12px] leading-relaxed" style={{ color: "var(--text-muted)" }}>{destError}</div>
             <div className="flex justify-end">
               <button onClick={() => setMaterialBlock(false)} className="text-xs font-bold px-4 py-2 rounded-lg border border-slate-200">OK</button>
@@ -15434,6 +15442,15 @@ function ReportTable({ title, rows, t = (k) => k }) {
 // Display-only production stepper (brief 2026-10-31): Assembly is a status,
 // not a stage. MACHINE_STAGES (the workflow) is unchanged.
 const DISPLAY_STAGES = ["Mechanical", "Electrical", "Trial", "Ready", "Completed"];
+// Rack units (2026-10-31): model colours as on the shop floor, and statuses.
+const RACK_UNIT_COLORS = { "M-10": "#1d4ed8", "R-10": "#dc2626", "M-15": "#16a34a", "R-15": "#7c3aed", "M-20": "#ea580c", "R-20": "#0891b2" };
+const RACK_UNIT_STATUS = {
+  empty:      { label: "Empty",                         short: "Empty",       bg: "rgba(100,116,139,0.12)", fg: "#475569", dot: "#94a3b8" },
+  set:        { label: "Filled · waiting for assembly", short: "Filled",      bg: "rgba(29,78,216,0.10)",   fg: "#1d4ed8", dot: "#2563eb" },
+  assembling: { label: "In assembly",                   short: "In assembly", bg: "rgba(217,119,6,0.12)",   fg: "#b45309", dot: "#d97706" },
+  assembled:  { label: "Assembled · ready",             short: "Assembled",   bg: "rgba(21,128,61,0.12)",   fg: "#15803d", dot: "#16a34a" },
+};
+const RACK_UNIT_STATUS_ORDER = ["empty", "set", "assembling", "assembled"];
 const DISPLAY_STAGE_COLORS = {
   "Mechanical": "#D97706",
   "Electrical": "#eab308",
@@ -17165,6 +17182,9 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
   };
   // 2026-10-31 — Fill / Assign Machine for one empty slot (brief §14).
   const [fillSlot, setFillSlot] = useState(null); // { slotId, family, rack }
+  // 2026-10-31 rack units — the unit whose details panel is open, and its tab.
+  const [rackPanel, setRackPanel] = useState(null);
+  const [rackPanelTab, setRackPanelTab] = useState("bom");
   const [fillErr,  setFillErr]  = useState("");
 
   // ── Physical rack layout (see PHYSICAL_RACK_LAYOUT) ──
@@ -17947,13 +17967,13 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               </div>
               <div>
                 <div className="text-[13px] font-bold" style={{ color: "var(--text-strong)" }}>Production Rack View</div>
-                <div className="text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>Machine sets waiting on the rack for each model</div>
+                <div className="text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>Tap a rack to see its BOM and stock, fill it, assemble and send to Mechanical</div>
               </div>
             </div>
-            <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>
-              <span className="text-emerald-400">●</span> Full &nbsp;
-              <span className="text-amber-400">●</span> Partial &nbsp;
-              <span className="text-red-400">●</span> Empty
+            <div className="flex items-center gap-2.5 flex-wrap text-[10px] font-semibold" style={{ color: "var(--text-dim)" }}>
+              {RACK_UNIT_STATUS_ORDER.map((k) => (
+                <span key={k} className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: RACK_UNIT_STATUS[k].dot }} />{RACK_UNIT_STATUS[k].short}</span>
+              ))}
             </div>
           </div>
 
@@ -17962,158 +17982,214 @@ function MachinePage({ machineLog, onUpdateStage, onNavigate = () => {}, canDo =
               the separate banner was duplicate noise that pushed the cards
               below the fold. Feature 2 of 2026-06-01h. */}
 
-          {/* Physical layout: one vertical pair per column — the M rack with
-              its R rack directly below, as they stand on the floor. Two pairs
-              per row on a phone, three on a tablet, all six on a desktop. */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            {physicalFamilies.flatMap((f) => f.columns.map((pair, ci) => (
-              <div key={`${f.id}-${ci}`} className="flex flex-col">
-                {pair.map((rack, ti) => {
-                  const S = {
-                    full:    { color: "#15803d", bg: "rgba(34,197,94,0.06)",  label: "Full",    icon: "✓" },
-                    partial: { color: "#b45309", bg: "rgba(245,158,11,0.06)", label: "Partial", icon: "◐" },
-                    empty:   { color: "#b91c1c", bg: "rgba(239,68,68,0.04)",  label: "Empty",   icon: "○" },
-                  }[rack.state];
-                  const pct = Math.round((rack.ready / rack.capacity) * 100);
-                  const shortN = rack.machines.filter((m) => pendingForMachine(m).length > 0).length;
-                  const go = () => { if (rack.bomRack) openStartProd(rack.bomRack); };
-                  return (
-                    <React.Fragment key={rack.id}>
-                      {ti > 0 && (
-                        // The pair belongs together physically; a short dotted
-                        // link keeps it reading as one unit rather than two
-                        // unrelated cards.
-                        <div className="flex flex-col items-center py-1" aria-hidden="true">
-                          <span className="h-3 border-l-2 border-dotted" style={{ borderColor: f.color + "80" }} />
-                          <span className="w-2 h-2 rounded-full border-2 bg-white" style={{ borderColor: f.color }} />
+          {/* 2026-10-31 — twelve independent rack units, laid out as on the
+              floor: each column is an M unit above its R unit; units (1) and
+              (2) of a model stand side by side. One unit = one machine. */}
+          {(() => {
+            const unitCols = physicalFamilies.flatMap((f) => [0, 1].map((i) => ({ f, units: f.columns[0].map((rack) => ({ rack, sl: rack.slots[i] })) })));
+            return (
+              <div className="rack-shelf grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-2.5 gap-y-3 p-2.5 sm:p-3 rounded-2xl">
+                {unitCols.map(({ f, units }, ci) => (
+                  <div key={`${f.id}-${ci}`} className="flex flex-col gap-2.5">
+                    {units.map(({ rack, sl }) => {
+                      const m = sl.machine;
+                      const color = RACK_UNIT_COLORS[`${rack.tier}-${f.label}`] || f.color;
+                      const st = RACK_UNIT_STATUS[sl.status] || RACK_UNIT_STATUS.empty;
+                      const short = m ? pendingForMachine(m).length : 0;
+                      return (
+                        <button key={sl.id} type="button" data-slot={sl.id}
+                                aria-label={`${slotLabel(sl.id)}: ${st.label}${m ? ` · ${m.serialNo || m.bomKey}` : ""}`}
+                                onClick={() => setRackPanel(sl.id)}
+                                className="rack-crate text-left rounded-xl p-2 pt-3.5 relative focus-visible:ring-2"
+                                style={{ "--crate": color, outline: rackPanel === sl.id ? `3px solid ${color}` : "none", outlineOffset: 2 }}>
+                          <span className="rack-crate-handle" aria-hidden="true" />
+                          <div className="rounded-lg bg-white px-2 py-2 text-center shadow-sm">
+                            <div className="text-[17px] sm:text-[19px] font-black leading-none" style={{ color }}>{rack.tier}-{f.label}</div>
+                            <div className="text-[9.5px] font-semibold mt-1" style={{ color: "var(--text-muted)" }}>BOM: {rack.bom.primary}</div>
+                            <div className="mt-1.5 inline-flex items-center gap-1 text-[9.5px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: st.bg, color: st.fg }}>
+                              <span className="w-1.5 h-1.5 rounded-full" style={{ background: st.dot }} />{short > 0 && sl.status === "set" ? "Waiting for material" : st.label}
+                            </div>
+                            <div className="text-[10px] font-mono font-bold mt-1 truncate" style={{ color: m ? "var(--text-strong)" : "var(--text-faint, #94a3b8)" }}>{m ? (m.serialNo || "(no serial)") : "—"}</div>
+                          </div>
+                          <div className="mt-1.5 mx-auto w-fit text-[10px] font-black px-2 py-0.5 rounded bg-white/90" style={{ color: "#111827" }}>{rack.tier}-{f.label} ({sl.position})</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* Rack details panel — the selected unit's own BOM, stock, machine,
+              history and its three actions. Right-hand drawer on desktop,
+              bottom sheet on a phone. */}
+          {rackPanel && (() => {
+            const f = physicalFamilies.find((x) => x.columns[0].some((r) => r.slots.some((s2) => s2.id === rackPanel)));
+            if (!f) return null;
+            const rack = f.columns[0].find((r) => r.slots.some((s2) => s2.id === rackPanel));
+            const sl = rack.slots.find((s2) => s2.id === rackPanel);
+            const m = sl.machine;
+            const color = RACK_UNIT_COLORS[`${rack.tier}-${f.label}`] || f.color;
+            const st = RACK_UNIT_STATUS[sl.status] || RACK_UNIT_STATUS.empty;
+            const bi = rackBomInfo(rack);
+            const itemByCode = {};
+            Object.values(items || {}).forEach((l) => (Array.isArray(l) ? l : []).forEach((i) => { if (i && i.code) itemByCode[i.code] = i; }));
+            const lines = bi.exists ? (bi.def.items || []).filter((l) => l && l.code).map((l, i) => {
+              const inv = itemByCode[l.code]; const need = Number(l.qty) || 0; const have = inv ? (Number(inv.stock) || 0) : 0;
+              return { n: i + 1, code: l.code, name: inv ? inv.name : l.code, unit: inv ? (inv.unit || "") : "", need, have, ok: !!inv && have >= need, unknown: !inv };
+            }) : [];
+            const pend = m ? pendingForMachine(m) : [];
+            const ho = sl.status === "assembled" ? (handovers || []).find((h) => h && h.status === "pending" && String(h.machineId) === String(m.id)) : null;
+            const canFill = sl.status === "empty" && bi.exists && lines.length > 0 && lines.every((l) => l.ok) && canDo("outward", "bom") && !!onFillRack;
+            const fillWhy = sl.status !== "empty" ? "This rack already holds a machine" : !bi.exists ? `Create the ${rack.bom.primary} BOM first` : !lines.length ? `${bi.key} BOM has no components yet` : !lines.every((l) => l.ok) ? "Some components are short" : !canDo("outward", "bom") ? "You do not have permission to issue a BOM" : "";
+            const history = (auditLog || []).filter((a) => a && ((a.details && a.details.slotId === sl.id) || (m && m.serialNo && a.serialNo === m.serialNo) || (/rack_slot/.test(a.type || "") && String(a.action || "").includes(slotLabel(sl.id)))))
+              .sort((x, y) => String(y.ts || y.timestamp || "").localeCompare(String(x.ts || x.timestamp || ""))).slice(0, 40);
+            const doFill = () => {
+              const r = onFillRack(sl.id, rack.bom.primary);
+              if (!r || r.success === false) { showToast("Cannot fill this rack", (r && r.error) || "", "urgent"); return; }
+              setRackPanel(null);
+              if (!bomOpen) toggleBom();
+              setTimeout(() => { try { document.getElementById("mt-bom-section")?.scrollIntoView({ behavior: "smooth", block: "start" }); } catch {} }, 60);
+            };
+            const doAssemble = () => {
+              if (sl.status === "set") {
+                if (pend.length) { showToast("Waiting for material", `${pend.length} component(s) still to collect`, "urgent"); return; }
+                const res = onStartProduction ? onStartProduction([m.id]) : { success: false };
+                if (res && res.success === false) { showToast("Could not start assembly", res.error || "", "urgent"); return; }
+                showToast(`${slotLabel(sl.id)} — ${m.serialNo || m.bomKey}`, "Assembly started. The machine keeps this rack until it is sent to Mechanical.");
+              } else if (sl.status === "assembling") {
+                setRackPanel(null);
+                openFinishModal(m);
+              }
+            };
+            const doSend = async () => {
+              if (!ho) return;
+              const r = await onReleaseHandover(ho.id);
+              if (r && r.success === false) { showToast("Could not send", r.error || "", "urgent"); return; }
+              showToast(`${m.bomKey}${m.serialNo ? ` — ${m.serialNo}` : ""}`, `Sent to ${ho.toDepartment}. ${slotLabel(sl.id)} is empty again.`);
+              setRackPanel(null);
+            };
+            const assembleLabel = sl.status === "assembling" ? "Mark Assembled" : "Assemble";
+            const assembleOk = (sl.status === "set" && pend.length === 0) || sl.status === "assembling";
+            const sendOk = sl.status === "assembled" && !!ho && canDo("machines", "release") && !!onReleaseHandover;
+            const Row = ({ k, v }) => (<div className="flex gap-2 text-[12px] py-0.5"><span className="w-32 flex-shrink-0" style={{ color: "var(--text-muted)" }}>{k}</span><span className="font-bold min-w-0 break-words" style={{ color: "var(--text-strong)" }}>{v}</span></div>);
+            return (
+              <div className="rack-panel-backdrop fixed inset-0 z-[65] flex justify-end" style={{ background: "rgba(17,24,39,0.35)" }}
+                   onClick={(e) => e.target === e.currentTarget && setRackPanel(null)}>
+                <div role="dialog" aria-label={`${slotLabel(sl.id)} rack details`} className="rack-panel h-full w-full max-w-[560px] flex flex-col" style={{ background: "var(--surface-card)", boxShadow: "-20px 0 60px rgba(17,24,39,0.25)" }}>
+                  <div className="flex items-center justify-between px-5 py-3.5 text-white" style={{ background: color }}>
+                    <div className="text-[18px] font-black">{slotLabel(sl.id)} Rack Details</div>
+                    <button type="button" aria-label="Close" onClick={() => setRackPanel(null)} className="w-9 h-9 rounded-lg flex items-center justify-center text-[18px] font-bold" style={{ background: "rgba(255,255,255,0.15)" }}>✕</button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto">
+                    <div className="flex gap-4 p-4 sm:p-5" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                      <div className="rack-crate rounded-xl p-2 pt-3.5 relative w-28 flex-shrink-0 hidden sm:block" style={{ "--crate": color }}>
+                        <span className="rack-crate-handle" aria-hidden="true" />
+                        <div className="rounded-lg bg-white px-2 py-2.5 text-center"><div className="text-[18px] font-black" style={{ color }}>{rack.tier}-{f.label}</div><div className="text-[9.5px] font-semibold mt-1" style={{ color: "var(--text-muted)" }}>BOM: {rack.bom.primary}</div></div>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <Row k="Machine model" v={bi.exists ? `${bi.key}${bi.def.label && bi.def.label !== bi.key ? ` — ${bi.def.label}` : ""}` : `${rack.bom.primary} (BOM not created)`} />
+                        <Row k="Rack position" v={`${rack.tier === "M" ? "Top" : "Bottom"} (${slotLabel(sl.id)})`} />
+                        <Row k="BOM" v={rack.bom.primary} />
+                        <div className="flex gap-2 text-[12px] py-0.5 items-center"><span className="w-32 flex-shrink-0" style={{ color: "var(--text-muted)" }}>Status</span>
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: st.bg, color: st.fg }}><span className="w-1.5 h-1.5 rounded-full" style={{ background: st.dot }} />{pend.length && sl.status === "set" ? "Filled · waiting for material" : st.label}</span></div>
+                        <Row k="Current machine" v={m ? `${m.bomLabel || m.bomKey}${m.bomKey !== rack.bom.primary ? ` (${m.bomKey})` : ""}` : "—"} />
+                        <Row k="Serial no." v={m ? (m.serialNo || "—") : "—"} />
+                        {m && <Row k="Stage" v={`${m.stage}${m.createdDate ? ` · since ${m.createdDate}` : ""}`} />}
+                      </div>
+                    </div>
+                    <div className="px-4 sm:px-5 pt-3">
+                      <div role="tablist" className="flex gap-1 border-b" style={{ borderColor: "var(--border-subtle)" }}>
+                        {[["bom", `BOM Items (${lines.length})`], ["stock", "Stock Status"], ["history", `History (${history.length})`]].map(([k, l]) => (
+                          <button key={k} role="tab" aria-selected={rackPanelTab === k} type="button" onClick={() => setRackPanelTab(k)}
+                                  className="px-3 py-2 text-[12.5px] font-bold -mb-px"
+                                  style={{ color: rackPanelTab === k ? color : "var(--text-muted)", borderBottom: `2px solid ${rackPanelTab === k ? color : "transparent"}` }}>{l}</button>
+                        ))}
+                      </div>
+                      {rackPanelTab === "bom" && (
+                        !bi.exists ? <div className="py-6 text-center text-[12px]" style={{ color: "#b45309" }}>The {rack.bom.primary} BOM has not been created.</div>
+                        : !lines.length ? <div className="py-6 text-center text-[12px]" style={{ color: "#b45309" }}>The {bi.key} BOM has no components yet. Add them in Edit BOM — nothing can be issued to this rack until then.</div>
+                        : (
+                          <div className="overflow-x-auto mt-2">
+                            <table className="w-full text-[12px]" style={{ minWidth: 440 }}>
+                              <thead><tr style={{ color: "var(--text-muted)" }}>{["#", "Item", "Required", "Available", "Status"].map((h) => <th key={h} className={`px-2 py-2 font-semibold ${h === "Item" || h === "#" ? "text-left" : "text-right"}`}>{h}</th>)}</tr></thead>
+                              <tbody>
+                                {lines.map((l) => (
+                                  <tr key={l.code} style={{ borderTop: "1px solid var(--border-subtle)" }}>
+                                    <td className="px-2 py-1.5" style={{ color: "var(--text-muted)" }}>{l.n}</td>
+                                    <td className="px-2 py-1.5"><div className="font-semibold" style={{ color: "var(--text-strong)" }}>{l.name}</div><div className="font-mono text-[10px]" style={{ color: "var(--text-dim)" }}>{l.code}</div></td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums">{l.need} {l.unit}</td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums">{l.unknown ? "—" : `${l.have} ${l.unit}`}</td>
+                                    <td className="px-2 py-1.5 text-right"><span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full" style={l.ok ? { background: "rgba(21,128,61,0.10)", color: "#15803d" } : { background: "rgba(185,28,28,0.10)", color: "#b91c1c" }}>{l.unknown ? "Not in Item Master" : l.ok ? "Full" : `Short ${l.need - l.have}`}</span></td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot><tr style={{ borderTop: "1px solid var(--border-subtle)" }}><td colSpan={5} className="px-2 py-2 text-[11.5px] font-bold" style={{ color: "var(--text-muted)" }}>Total ({lines.length} items)</td></tr></tfoot>
+                            </table>
+                          </div>
+                        )
+                      )}
+                      {rackPanelTab === "stock" && (
+                        <div className="py-3 space-y-2 text-[12px]">
+                          {m ? (
+                            pend.length ? (
+                              <div className="rounded-lg px-3 py-2" style={{ background: "rgba(185,28,28,0.07)", color: "#b91c1c" }}>
+                                <div className="font-bold mb-1">Still to collect for {m.serialNo || m.bomKey}</div>
+                                {pend.map((p2, i) => <div key={i}>{p2.item || p2.name || p2.code}: {p2.pendingQty} {p2.unit || ""}</div>)}
+                              </div>
+                            ) : <div className="rounded-lg px-3 py-2 font-semibold" style={{ background: "rgba(21,128,61,0.08)", color: "#15803d" }}>Complete BOM stock is on this rack for {m.serialNo || m.bomKey}.</div>
+                          ) : <div style={{ color: "var(--text-muted)" }}>This rack is empty. Store stock for the next {rack.bom.primary} set:</div>}
+                          {lines.length > 0 && (
+                            <div className="rounded-lg px-3 py-2" style={{ background: "rgba(17,24,39,0.03)" }}>
+                              <div className="font-bold" style={{ color: "var(--text-strong)" }}>Store can make {bi.sets} more {rack.bom.primary} set{bi.sets === 1 ? "" : "s"}</div>
+                              {bi.short.length > 0 && <div className="mt-1" style={{ color: "#b91c1c" }}>Short: {bi.short.map((x) => `${x.code} (need ${x.need}, have ${x.have})`).join(", ")}</div>}
+                            </div>
+                          )}
                         </div>
                       )}
-                      <div className="rounded-xl overflow-hidden bg-white"
-                           aria-label={`${rack.name}: ${rack.ready} of ${rack.capacity} sets ready`}
-                           style={{ border: `1px solid ${f.color}40`, boxShadow: "0 1px 2px rgba(17,24,39,0.05)" }}>
-                        <div className="px-3 py-2 flex items-center justify-between gap-2" style={{ background: f.color }}>
-                          <div className="min-w-0">
-                            <div className="text-[13px] font-black text-white truncate">{rack.name}</div>
-                            {/* Rack → BOM: each rack takes exactly one BOM. */}
-                            {(() => {
-                              const bi = rackBomInfo(rack);
-                              return (
-                                <div className="text-[9px] font-semibold text-white truncate" style={{ opacity: 0.9 }}
-                                     title={bi.exists ? `${bi.key} — ${bi.def.label || bi.key} · ${bi.components} components` : `No ${rack.bom.primary || ""} BOM yet`}>
-                                  {bi.exists ? `BOM ${bi.key}${bi.def.label && bi.def.label !== bi.key ? ` — ${bi.def.label}` : ""}` : `⚠ ${rack.bom.primary || "BOM"} not created`}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
-                                style={{ background: "rgba(0,0,0,0.22)" }}>{rack.occupied}/{rack.capacity} · {S.label}</span>
+                      {rackPanelTab === "history" && (
+                        <div className="py-2">
+                          {history.length === 0 ? <div className="py-6 text-center text-[12px]" style={{ color: "var(--text-muted)" }}>No history for this rack yet.</div> : (
+                            <ol className="space-y-1.5">
+                              {history.map((a, i) => (
+                                <li key={i} className="text-[11.5px] rounded-lg px-3 py-2" style={{ background: "rgba(17,24,39,0.03)" }}>
+                                  <div className="font-semibold" style={{ color: "var(--text-strong)" }}>{a.action}</div>
+                                  <div className="text-[10.5px]" style={{ color: "var(--text-dim)" }}>{a.ts || a.timestamp ? new Date(a.ts || a.timestamp).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}{a.user ? ` · ${a.user}` : ""}</div>
+                                </li>
+                              ))}
+                            </ol>
+                          )}
                         </div>
-                        {/* One row per slot — its own status and its own action. */}
-                        <div className="p-2 space-y-1.5" style={{ background: S.bg }}>
-                          {/* BOM-wise material check for the next set on this rack. */}
-                          {(() => {
-                            const bi = rackBomInfo(rack);
-                            if (!bi.exists) return (
-                              <div className="text-[9.5px] font-semibold rounded-md px-2 py-1" style={{ background: "rgba(180,83,9,0.10)", color: "#b45309" }}>
-                                Create the {rack.bom.primary} BOM to fill this rack
-                              </div>
-                            );
-                            if (!bi.components) return (
-                              <div className="text-[9.5px] font-semibold rounded-md px-2 py-1" style={{ background: "rgba(180,83,9,0.10)", color: "#b45309" }}>
-                                {bi.key} BOM has no components yet — add them in Edit BOM
-                              </div>
-                            );
-                            return bi.short.length === 0 ? (
-                              <div className="text-[9.5px] font-semibold rounded-md px-2 py-1" style={{ background: "rgba(21,128,61,0.08)", color: "#15803d" }}
-                                   title={`${bi.key}: every component in stock`}>
-                                ✓ Material for {bi.sets} set{bi.sets === 1 ? "" : "s"}
-                              </div>
-                            ) : (
-                              <div className="text-[9.5px] font-semibold rounded-md px-2 py-1" style={{ background: "rgba(185,28,28,0.08)", color: "#b91c1c" }}
-                                   title={bi.short.map((x) => `${x.code}: need ${x.need}, have ${x.have}${x.unknown ? " (not in Item Master)" : ""}`).join("\n")}>
-                                ⚠ Short: {bi.short.slice(0, 2).map((x) => `${x.code} ${x.have}/${x.need}`).join(", ")}{bi.short.length > 2 ? ` +${bi.short.length - 2}` : ""}
-                              </div>
-                            );
-                          })()}
-                          {rack.slots.map((sl) => {
-                            const m = sl.machine;
-                            const short = m ? pendingForMachine(m).length : 0;
-                            const SL = {
-                              empty:      { label: "Empty",      color: "#64748b", bg: "rgba(17,24,39,0.03)",   border: "1px dashed rgba(17,24,39,0.18)" },
-                              set:        { label: short ? "Set · incomplete" : "Set ready", color: short ? "#b45309" : "#15803d", bg: short ? "rgba(217,119,6,0.08)" : "rgba(21,128,61,0.08)", border: `1px solid ${short ? "rgba(217,119,6,0.35)" : "rgba(21,128,61,0.3)"}` },
-                              assembling: { label: "In assembly", color: "#6d28d9", bg: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.3)" },
-                              assembled:  { label: "Assembled · awaiting release", color: "#4338ca", bg: "rgba(99,102,241,0.10)", border: "1px solid rgba(99,102,241,0.35)" },
-                            }[sl.status];
-                            const ho = sl.status === "assembled" ? (handovers || []).find((h) => h && h.status === "pending" && String(h.machineId) === String(m.id)) : null;
-                            return (
-                              <div key={sl.id} className="rounded-lg px-2.5 py-2" style={{ background: SL.bg, border: SL.border }}
-                                   data-slot={sl.id} aria-label={`${slotLabel(sl.id)}: ${SL.label}${m ? ` · ${m.serialNo || m.bomKey}` : ""}`}>
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-[9px] font-bold" style={{ color: "var(--text-dim)" }}>Slot {sl.position}</span>
-                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: SL.color + "1f", color: SL.color }}>{SL.label}</span>
-                                </div>
-                                {m ? (
-                                  <div className="mt-1">
-                                    <div className="text-[11px] font-bold truncate" style={{ color: "var(--text-strong)" }}>{m.bomLabel || m.bomKey}</div>
-                                    <div className="text-[10px] font-mono truncate" style={{ color: "var(--text-muted)" }}>{m.serialNo || "(no serial)"}{sl.pinned ? "" : " · auto-placed"}</div>
-                                    {short > 0 && <div className="text-[9px] font-semibold" style={{ color: "#b45309" }} title={pendingForMachine(m).map((p) => `${p.item || p.name || p.code} ${p.pendingQty} ${p.unit || ""}`).join(", ")}>⚠ {short} component{short === 1 ? "" : "s"} still to collect</div>}
-                                    <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-                                      {sl.status === "set" && rack.bomRack && (
-                                        short > 0 ? (
-                                          <button type="button" disabled title="Components are still pending — receive them before assembly"
-                                                  className="text-[10px] font-bold px-2 py-1 rounded-md cursor-not-allowed" style={{ background: "rgba(185,28,28,0.08)", color: "#b91c1c", border: "1px solid rgba(185,28,28,0.3)" }}>⏸ Waiting for material</button>
-                                        ) : (
-                                          <button type="button" onClick={() => openStartProd(rack.bomRack, m.id)}
-                                                  className="text-[10px] font-bold px-2 py-1 rounded-md text-white" style={{ background: "#15803d" }}>▶ Start assembly</button>
-                                        )
-                                      )}
-                                      {sl.status === "assembled" && ho && canDo("machines", "release") && onReleaseHandover && (
-                                        <button type="button"
-                                                onClick={async () => {
-                                                  const r = await onReleaseHandover(ho.id);
-                                                  if (r && r.success === false) showToast("Could not release", r.error || "", "urgent");
-                                                  else showToast(`${m.bomKey}${m.serialNo ? ` — ${m.serialNo}` : ""}`, `Released from ${slotLabel(sl.id)} → ${ho.toDepartment}`);
-                                                }}
-                                                className="text-[10px] font-bold px-2 py-1 rounded-md text-white" style={{ background: "#4f46e5" }}>Release to {ho.toDepartment} →</button>
-                                      )}
-                                      {sl.status === "assembled" && !canDo("machines", "release") && (
-                                        <span className="text-[9px]" style={{ color: "var(--text-dim)" }}>waiting for the production head</span>
-                                      )}
-                                      {sl.status === "assembling" && (
-                                        <span className="text-[9px]" style={{ color: "var(--text-dim)" }}>slot kept until released</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="mt-1.5">
-                                    {canDo("outward", "bom") ? (
-                                      <button type="button"
-                                              onClick={() => {
-                                                // Fill Rack: open THIS rack's BOM (serial first), slot reserved.
-                                                const r = onFillRack ? onFillRack(sl.id, rack.bom.primary) : { success: false, error: "Not available" };
-                                                if (!r || r.success === false) { showToast("Cannot fill this rack", (r && r.error) || "", "urgent"); return; }
-                                                if (!bomOpen) toggleBom();
-                                                setTimeout(() => { try { document.getElementById("mt-bom-section")?.scrollIntoView({ behavior: "smooth", block: "start" }); } catch {} }, 60);
-                                              }}
-                                              aria-label={`Fill Rack ${slotLabel(sl.id)} with the ${rack.bom.primary} BOM`}
-                                              className="text-[10px] font-bold px-2 py-1 rounded-md w-full"
-                                              style={{ background: "var(--surface-card)", color: f.color, border: `1px solid ${f.color}55` }}>＋ Fill Rack</button>
-                                    ) : (
-                                      <span className="text-[9px]" style={{ color: "var(--text-dim)" }}>empty</span>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="p-4 sm:p-5 space-y-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+                    {sl.status === "empty" && (
+                      <div className="rounded-lg px-3 py-2 text-[12px] font-semibold" style={canFill ? { background: "rgba(21,128,61,0.08)", color: "#15803d" } : { background: "rgba(185,28,28,0.07)", color: "#b91c1c" }}>
+                        {canFill ? "✓ All BOM items are available. You can fill this rack." : `⚠ ${fillWhy}${bi.short && bi.short.length ? `: ${bi.short.map((x) => x.code).join(", ")}` : ""}.`}
                       </div>
-                    </React.Fragment>
-                  );
-                })}
+                    )}
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { key: "fill", label: "＋ Fill Rack", sub: "Issue this rack's BOM", ok: canFill, bg: "#1d4ed8", fn: doFill, why: fillWhy },
+                        { key: "assemble", label: `🔧 ${assembleLabel}`, sub: sl.status === "assembling" ? "Back on this rack" : "Start assembly work", ok: assembleOk, bg: "#d97706", fn: doAssemble, why: sl.status === "set" && pend.length ? "Waiting for material" : "Fill the rack first" },
+                        { key: "send", label: "→ Send to Mechanical", sub: "Rack becomes empty", ok: sendOk, bg: "#15803d", fn: doSend, why: sl.status !== "assembled" ? "Assemble first" : !canDo("machines", "release") ? "Production head only" : "" },
+                      ].map((b) => (
+                        <div key={b.key} className="flex flex-col items-center gap-1">
+                          <button type="button" data-action={b.key} disabled={!b.ok} onClick={b.fn} title={b.ok ? "" : b.why}
+                                  className="w-full rounded-xl px-2 py-3 text-[12.5px] font-black text-white disabled:opacity-35 disabled:cursor-not-allowed"
+                                  style={{ background: b.bg, minHeight: 48 }}>{b.label}</button>
+                          <span className="text-[10px] text-center leading-tight" style={{ color: "var(--text-dim)" }}>{b.sub}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
-            )))}
-          </div>
+            );
+          })()}
+
           {/* More sets on the rack than the layout has slots for — said out
               loud rather than silently dropped from view. */}
           {physicalFamilies.filter((f) => f.overflow > 0).map((f) => (

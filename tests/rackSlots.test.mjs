@@ -10,7 +10,8 @@ test("six fixed racks, two slots each, one BOM per rack", () => {
   assert.deepEqual(racks, ["M-10", "R-10", "M-15", "R-15", "M-20", "R-20"]);
   for (const k of ["M-10", "R-10", "M-15", "R-15", "M-20", "R-20"]) assert.equal(rackCapacityFor(k), 2, k);
   assert.deepEqual(familySlotIds(fam10), ["M-10-1#1", "M-10-1#2", "R-10-1#1", "R-10-1#2"]);
-  assert.equal(slotLabel("M-10-1#2"), "M-10 · slot 2");
+  assert.equal(slotLabel("M-10-1#2"), "M-10 (2)");
+  assert.equal(slotLabel("R-20-1#1"), "R-20 (1)");
 });
 
 test("rack ↔ BOM mapping is exact; every other BOM is Direct Production only", () => {
@@ -124,7 +125,7 @@ test("App: retired BOMs are not issuable; Fill opens only the rack's own BOM; ma
   assert.match(app, /const boms = Object\.entries\(bomDefs \|\| \{\}\)\.filter\(\(\[, b\]\) => !\(b && b\.retiredAt\)\)/);
   assert.match(app, /onFillRack\(sl\.id, rack\.bom\.primary\)/, "Fill passes the rack's own primary BOM");
   assert.match(app, /if \(!def \|\| def\.retiredAt\) return \{ success: false/, "Fill refuses a missing or retired BOM");
-  assert.match(app, /serialNo && finalDest === "direct" && shortLines\.length > 0/, "Direct Production blocked while short");
+  assert.match(app, /if \(serialNo && shortLines\.length > 0\)/, "no machine (rack or direct) while any component is short");
   assert.match(app, /no assembly while BOM components are still pending/);
   assert.match(app, /if \(bomOpenRequest\.n <= __lastFillRequestN\) return;/, "a Fill request opens the BOM once");
 });

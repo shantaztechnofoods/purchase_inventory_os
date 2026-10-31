@@ -2619,3 +2619,28 @@ body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-for
 body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-yellow-400,
 body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-amber-400 { color: #b45309; }
 body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-form *)).text-pink-300 { color: #be185d; }
+
+/* ── Rack units (2026-10-31) — crate on a shelf, after the floor reference ── */
+.rack-shelf {
+  background: linear-gradient(180deg, #e9edf3 0%, #dfe5ec 100%);
+  border: 1px solid #cfd6df;
+  box-shadow: inset 0 -6px 0 #c7a77c, inset 0 1px 0 #fff;
+}
+.rack-crate {
+  background: var(--crate);
+  background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.10) 0 6px, transparent 6px 14px);
+  border: 2px solid color-mix(in srgb, var(--crate) 70%, #000);
+  box-shadow: 0 2px 0 rgba(0,0,0,0.12), 0 6px 14px rgba(17,24,39,0.12);
+  transition: transform .12s ease, box-shadow .12s ease;
+  min-height: 132px;
+}
+.rack-crate:hover { transform: translateY(-1px); box-shadow: 0 2px 0 rgba(0,0,0,0.12), 0 10px 20px rgba(17,24,39,0.16); }
+.rack-crate-handle {
+  position: absolute; top: 5px; left: 50%; transform: translateX(-50%);
+  width: 34%; height: 6px; border-radius: 4px; background: rgba(15,23,42,0.55);
+}
+@media (max-width: 767.98px) {
+  .rack-panel-backdrop { align-items: flex-end; }
+  .rack-panel { max-width: none !important; height: 92dvh !important; border-radius: 16px 16px 0 0; overflow: hidden; }
+}
+@media (prefers-reduced-motion: reduce) { .rack-crate { transition: none; } }

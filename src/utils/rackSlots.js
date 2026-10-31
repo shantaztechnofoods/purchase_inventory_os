@@ -1,7 +1,9 @@
 // Rack slots — pure helpers (2026-10-31, brief §14; fixed BOMs 2026-10-31).
 //
-// SIX fixed racks on the floor — M-10, R-10, M-15, R-15, M-20, R-20 — each
-// with exactly two slots, one machine per slot. Every rack takes ONE BOM:
+// TWELVE independent rack units on the floor — M-10 (1), M-10 (2), R-10 (1),
+// R-10 (2), … R-20 (2). One unit holds ONE machine's complete BOM stock (its
+// two crates are storage for that one machine, not two capacities). Units are
+// stored as the two slots of each model rack: "M-10 (2)" = slot "M-10-1#2". Every rack takes ONE BOM:
 // the M-10 rack takes the M-10 BOM, the R-10 rack the R-10 BOM, and so on.
 // A BOM that is not listed here (AM900, ARM1800, TM600, VK, PILOT-KM10,
 // TRIAL-01, KM-10 and every future R&D BOM) has no rack and goes to Direct
@@ -76,7 +78,8 @@ export const slotIdOf = (rackId, position) => `${rackId}#${position}`;
 export function slotLabel(slotId) {
   const m = /^([A-Z])-([^-]+)-(\d+)#(\d+)$/.exec(String(slotId || ""));
   if (!m) return String(slotId || "");
-  return m[3] === "1" ? `${m[1]}-${m[2]} · slot ${m[4]}` : `${m[1]}-${m[2]} (${m[3]}) · slot ${m[4]}`;
+  // Each slot is one independent rack unit on the floor: "M-10 (2)".
+  return m[3] === "1" ? `${m[1]}-${m[2]} (${m[4]})` : `${m[1]}-${m[2]} (${m[3]}.${m[4]})`;
 }
 export const tierOfSlot = (slotId) => (/^([A-Z])-/.exec(String(slotId || "")) || [])[1] || null;
 
