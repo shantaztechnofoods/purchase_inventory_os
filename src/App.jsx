@@ -83,7 +83,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-ui-responsive";
+const APP_BUILD = "2026-10-31-login-fix";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -22583,6 +22583,12 @@ export default function App() {
   //      on every module" state. (8a2669b — eliminate silent-lockout paths.)
   //   2. `authLoading` → we haven't decided yet. Show a loading placeholder.
   //   3. `!currentUser` → definitely signed out. Show LoginPage.
+  // 2026-10-31 — signed out with an error (restore timed out, profile missing,
+  // account disabled, roles failed): show it on the ONE login screen rather
+  // than a separate "Sign in again" page that looked like a second login.
+  if (authLoadError && !currentUser && !authLoading) {
+    return <LoginPage notice={authLoadError} onRetry={retryAuthLoad} />;
+  }
   if (authLoadError) {
     return (
       <div className="min-h-screen flex items-center justify-center px-6" style={{ background: "var(--surface-base)", color: "var(--text)", fontFamily: "Inter, system-ui, sans-serif" }}>
