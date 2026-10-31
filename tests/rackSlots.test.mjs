@@ -234,3 +234,19 @@ test("migration 047 guards one machine per set and M-slot pairing in the databas
   assert.doesNotMatch(up, /\b(DROP TABLE|TRUNCATE|DELETE FROM|ALTER POLICY|CREATE POLICY|DROP POLICY)\b/i, "additive only, no RLS change");
   assert.match(down, /DROP TRIGGER IF EXISTS machine_log_rack_set_guard/);
 });
+
+// 2026-10-31 live bug (M-10, S/N asdf123): a critical item unticked in the list
+// and marked Not verified with a reason was rejected as "unticked".
+test("App: unticked critical item on a rack BOM is Not Issued once it has a reason", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+  const app = fs.readFileSync(path.join(root, "src/App.jsx"), "utf8");
+  assert.match(app, /const untickedCritical = rackBomForCheck\n    \? enriched\.filter\(\(i\) => !isItemChecked\(i\.code\) && i\.inv && i\.inv\.isCritical/);
+  assert.match(app, /const criticalLines = \[\.\.\.checkedE\.filter\(\(i\) => i\.issueQty > 0 && i\.inv && i\.inv\.isCritical\), \.\.\.untickedCritical\];/);
+  assert.match(app, /if \(!isItemChecked\(line\.code\)\) return false;   \/\/ unticked → never "verified"/);
+  // only the explained unticked lines are recorded (as Not Issued); others are never issued
+  assert.match(app, /\[\.\.\.checkedE, \.\.\.untickedCritical\.filter\(\(l\) => skippedCodes\.has\(l\.code\)\)\]\.forEach\(\(item\) => \{/);
+  // rack check still blocks unticked / short / unknown lines that are not explained
+  assert.match(app, /const rackIncomplete = \(\) => enriched\.filter\(\(i\) => !skippedCodes\.has\(i\.code\) && \(!isItemChecked\(i\.code\) \|\| !i\.inv \|\| i\.pendingQty > 0 \|\| i\.issueQty < i\.required\)\);/);
+});
