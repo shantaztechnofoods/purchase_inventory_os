@@ -289,3 +289,17 @@ test("App: release is pending-only, guarded against duplicates, and clears the r
   // the rack panel only ever offers Transfer for a PENDING hand-over
   assert.match(app, /const ho = sl\.status === "assembled" \? \(handovers \|\| \[\]\)\.find\(\(h\) => h && h\.status === "pending" && String\(h\.machineId\) === String\(m\.id\)\) : null;/);
 });
+
+// 2026-10-31 — direct hand-over acceptance from the machine card (same modal
+// and handler as Transfer & Accept; duplicate acceptance refused).
+test("App: Accept Machine on the card reuses the accept modal and refuses duplicates", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+  const app = fs.readFileSync(path.join(root, "src/App.jsx"), "utf8");
+  assert.match(app, /const cardCanAccept = !!h && h\.status === "pending" && canAcceptHandover\(canDo, h\.toDepartment\) && !!onAcceptHandover;/);
+  assert.match(app, /data-card-accept=\{h\.id\}\n\s+onClick=\{\(\) => \{ if \(!acceptModal\) openAcceptModal\(h\); \}\}/);
+  assert.match(app, /if \(!live \|\| live\.status !== "pending"\) \{ setAcceptModal\(null\); showToast\("Already accepted"/);
+  // the Transfer & Accept section still offers its own button
+  assert.match(app, /<button onClick=\{\(\) => openAcceptModal\(h\)\}/);
+});
