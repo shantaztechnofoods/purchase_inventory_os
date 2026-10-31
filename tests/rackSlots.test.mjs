@@ -338,4 +338,6 @@ test("App: Part received asks for the item's configured verification and gates t
   // popup above the Pending Jobs drawer (z-66) and the rack panel (z-65)
   const i = app.indexOf("{jobAction && (() => {");
   assert.ok(/className="modal-backdrop fixed inset-0 z-\[96\]/.test(app.slice(i, i + 9000)), "job action modal is top-most");
+  // the stylesheet's .modal-backdrop { z-index: 50 } outranks the utility, so the value must be inline
+  assert.ok(/backdropFilter: "blur\(12px\)", zIndex: 96 \}/.test(app.slice(i, i + 9000)), "job action modal z-index is inline (beats .modal-backdrop z-index:50)");
 });

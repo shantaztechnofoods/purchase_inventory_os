@@ -83,7 +83,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-part-received-verify";
+const APP_BUILD = "2026-10-31-job-modal-front";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -19432,7 +19432,11 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
         };
         return (
           <div className="modal-backdrop fixed inset-0 z-[96] flex items-center justify-center p-4"
-               style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)" }}
+               /* .modal-backdrop in index.css sets z-index: 50 and wins over
+                  the z-[96] utility by source order, so the popup could sit
+                  under the Pending Jobs drawer (66) / rack panel (65). The
+                  inline value beats both stylesheets. */
+               style={{ background: "rgba(17,24,39,0.45)", backdropFilter: "blur(12px)", zIndex: 96 }}
                onClick={(e) => e.target === e.currentTarget && !jobAction.busy && setJobAction(null)}>
             <div className="w-full max-w-md rounded-2xl p-5"
                  style={{ background: "var(--surface-raised)", border: `1px solid ${isReceive ? "rgba(37,99,235,0.35)" : "rgba(22,163,74,0.35)"}`, boxShadow: "0 24px 70px rgba(17,24,39,0.2)" }}>
