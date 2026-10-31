@@ -2727,3 +2727,26 @@ body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-for
   .mt-premium .mt-card { border-radius: 14px; }
   .mt-premium .page-header-actions { width: 100%; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Light-gold page background (2026-10-31)
+
+   Page surfaces only. Every card, button, rack, control, icon, border and
+   text colour is left exactly as it was — this block changes nothing but the
+   paper the ERP is printed on, from cool grey (#f6f7f9) to a soft champagne.
+   Declared last so it wins over the earlier :root blocks.
+   ───────────────────────────────────────────────────────────────────────── */
+:root {
+  --surface-page: #F8F1DE;
+  --surface-base: #F8F1DE;
+  /* Very subtle two-tone wash: lighter at the top-left, warmer at the
+     bottom-right. Fixed attachment so it does not slide as a page scrolls. */
+  --gold-wash: linear-gradient(160deg, #FCF8EC 0%, #F8F1DE 50%, #F3E9D1 100%);
+}
+html, body, #root { background: var(--gold-wash); }
+/* The app shell paints `background: var(--surface-base)` inline, which resets
+   background-image; this restores the wash without touching the component. */
+.app-shell { background-image: var(--gold-wash) !important; background-attachment: fixed; }
+/* The Machine Tracker keeps its own cream cards and gold hairlines, but its
+   page surface uses the same wash as every other module. */
+.mt-premium { --surface-page: #F8F1DE; --surface-base: #F8F1DE; background: var(--gold-wash); }
