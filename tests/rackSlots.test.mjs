@@ -236,3 +236,23 @@ test("App: unticked critical item on a rack BOM is Not Issued once it has a reas
   // rack check still blocks unticked / short / unknown lines that are not explained
   assert.match(app, /const rackIncomplete = \(\) => enriched\.filter\(\(i\) => !skippedCodes\.has\(i\.code\) && \(!isItemChecked\(i\.code\) \|\| !i\.inv \|\| i\.pendingQty > 0 \|\| i\.issueQty < i\.required\)\);/);
 });
+
+// 2026-10-31 — Assembly returns the machine to its rack; an Admin transfers it
+// to Mechanical from the Rack View (no Production Manager login yet).
+test("App: finish Assembly returns a rack machine to its rack; admin transfers from Rack View", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+  const app = fs.readFileSync(path.join(root, "src/App.jsx"), "utf8");
+  assert.match(app, /const rackReturn = !!machine\.rackSlot && fromDepartment === "Assembly" && isRackReleaseHop\(fromDepartment, toDepartment\);/);
+  assert.match(app, /rackReturn \? `✓ Assembled · Return to \$\{slotLabel\(machine\.rackSlot\)\}` : `Finish & Transfer → \$\{toDepartment\}`/);
+  assert.match(app, /const canSendFromRack = canDo\("machines", "release"\) \|\| isAdminUser;/);
+  assert.match(app, /label: "→ Transfer to Mechanical"/);
+  assert.match(app, /if \(!authCanDo\("machines", "release"\) && !isAdmin\) return \{ success: false/);
+  assert.match(app, /if \(!h\.releaseRequired \|\| h\.releasedAt\) return \{ success: false/);
+  // the machine card no longer offers the direct release button
+  assert.match(app, /\{false && canDo\("machines", "release"\) && onReleaseHandover && \(/);
+  // workers, signature, checklist and pending-work sections stay in the popup
+  assert.match(app, /Anything still pending from \{fromDepartment\}\?/);
+  assert.match(app, /The Main Employee must sign to confirm this department's work\./);
+});

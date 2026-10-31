@@ -47,7 +47,7 @@ import { getMySignature, saveMySignature, reauthenticateByPassword } from "./sto
 import {
   DEPARTMENT_SEQUENCE, DEFAULT_DEPT_DURATIONS, DEFAULT_ACCEPT_TIMEOUT_MINUTES,
   readDeptWorkflowSettings, writeDeptWorkflowSettings, setWorkCalendar, isClosedDay, localDateKey,
-  nextDepartment, computeElapsedMinutes, computeOverrun, isHoldOverdue, heldMinutes, RACK_RELEASE_HOPS,
+  nextDepartment, computeElapsedMinutes, computeOverrun, isHoldOverdue, heldMinutes, RACK_RELEASE_HOPS, isRackReleaseHop,
   formatDuration, canAcceptHandover, canFinishTransfer, canConfigureDept, workerIdsOf,
 } from "./utils/handoverLogic.js";
 // Phase B
@@ -83,7 +83,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-rack-independent";
+const APP_BUILD = "2026-10-31-assembly-return";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -17037,8 +17037,9 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
         actingMainId ? workedBy.filter((x) => x !== actingMainId) : workedBy,
         actingMainId && mainEmployeeId === actingMainId ? null : mainEmployeeId);
       setFinishModal(null);
-      showToast(`${machine.bomKey} → ${toDepartment}`,
-        overrunMinutes > 0 ? `Awaiting accept · Overrun ${formatDuration(overrunMinutes)}` : "Awaiting accept");
+      const backToRack = !!machine.rackSlot && fromDepartment === "Assembly" && isRackReleaseHop(fromDepartment, toDepartment);
+      showToast(backToRack ? `${machine.bomKey}${machine.serialNo ? ` — ${machine.serialNo}` : ""} · Assembled · Ready` : `${machine.bomKey} → ${toDepartment}`,
+        backToRack ? `Back on ${slotLabel(machine.rackSlot)} — an admin sends it to ${toDepartment} from the Rack View` : (overrunMinutes > 0 ? `Awaiting accept · Overrun ${formatDuration(overrunMinutes)}` : "Awaiting accept"));
     } finally {
       setTransferBusy(false);
     }
@@ -18252,13 +18253,16 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
               if (!ho) return;
               const r = await onReleaseHandover(ho.id);
               if (r && r.success === false) { showToast("Could not send", r.error || "", "urgent"); return; }
-              showToast(`${m.bomKey}${m.serialNo ? ` — ${m.serialNo}` : ""}`, `Sent to ${ho.toDepartment}. ${slotLabel(sl.id)} is empty again.`);
+              showToast(`${m.bomKey}${m.serialNo ? ` — ${m.serialNo}` : ""}`, `Transferred to ${ho.toDepartment}. ${slotLabel(sl.id)} is empty again.`);
               setRackPanel(null);
             };
             const assembleLabel = sl.status === "assembling" ? "Mark Assembled" : "Assemble";
             const assembleOk = (sl.status === "set" && pend.length === 0 && crate.state !== "pending" && canDo("machines", "updateStage")) || (sl.status === "assembling" && !!m && !m.pendingHandoverId && canFinishTransfer(canDo));
             const assembleWhy = sl.status === "set" ? (pend.length ? "Waiting for material" : crate.state === "pending" ? `Fill the ${rKey} crate first` : !canDo("machines", "updateStage") ? "Needs Machines → Update Stage permission" : "") : sl.status === "assembling" ? (!canFinishTransfer(canDo) ? "Needs Machines → Finish & Transfer permission" : "A transfer is already in progress") : sl.status === "assembled" ? "Already assembled" : "Fill the rack first";
-            const sendOk = sl.status === "assembled" && !!ho && canDo("machines", "release") && !!onReleaseHandover;
+            // 2026-10-31 — no separate Production Manager login yet: an Admin
+            // sends the assembled machine to Mechanical from the rack.
+            const canSendFromRack = canDo("machines", "release") || isAdminUser;
+            const sendOk = sl.status === "assembled" && !!ho && canSendFromRack && !!onReleaseHandover;
             const Row = ({ k, v }) => (<div className="flex gap-2 text-[12px] py-0.5"><span className="w-32 flex-shrink-0" style={{ color: "var(--text-muted)" }}>{k}</span><span className="font-bold min-w-0 break-words" style={{ color: "var(--text-strong)" }}>{v}</span></div>);
             return (
               <div className="rack-panel-backdrop fixed inset-0 z-[65] flex justify-end" style={{ background: "rgba(17,24,39,0.35)" }}
@@ -18417,7 +18421,7 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                       {[
                         { key: "fill", label: "＋ Fill Rack", sub: `Issues ${rack.bom.primary} · own serial`, ok: canFill, bg: "#1d4ed8", fn: doFill, why: fillWhy },
                         { key: "assemble", label: `🔧 ${assembleLabel}`, sub: sl.status === "assembling" ? "Back on this rack" : "Start assembly work", ok: assembleOk, bg: "#d97706", fn: doAssemble, why: assembleWhy },
-                        { key: "send", label: "→ Send to Mechanical", sub: "Both units become empty", ok: sendOk, bg: "#15803d", fn: doSend, why: sl.status !== "assembled" ? "Assemble first" : !canDo("machines", "release") ? "Production head only" : "" },
+                        { key: "send", label: "→ Transfer to Mechanical", sub: "Rack becomes empty", ok: sendOk, bg: "#15803d", fn: doSend, why: sl.status !== "assembled" ? "Assemble first" : !canSendFromRack ? "Admin / production head only" : "" },
                       ].map((b) => (
                         <div key={b.key} className="flex flex-col items-center gap-1">
                           <button type="button" data-action={b.key} disabled={!b.ok} onClick={b.fn} title={b.ok ? "" : b.why}
@@ -18850,7 +18854,7 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                                     style={{ background: "rgba(99,102,241,0.12)", color: "#4f46e5", border: "1px solid rgba(99,102,241,0.4)" }}>
                                 On rack · assembled
                               </span>
-                              {canDo("machines", "release") && onReleaseHandover && (
+                              {false && canDo("machines", "release") && onReleaseHandover && (
                                 <button onClick={async () => {
                                           const r = await onReleaseHandover(h.id);
                                           if (r && r.success === false) showToast("Could not release", r.error || "", "urgent");
@@ -18862,9 +18866,7 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                                   Send to {h.toDepartment} →
                                 </button>
                               )}
-                              {!canDo("machines", "release") && (
-                                <span className="text-[10px] text-slate-500">waiting for the production head</span>
-                              )}
+                              <span className="text-[10px] text-slate-500">Assembled · Ready on {machine.rackSlot ? slotLabel(machine.rackSlot) : "the rack"} — {canDo("machines", "release") || isAdminUser ? "transfer it from the Rack View" : "an admin transfers it from the Rack View"}</span>
                               {isAdminUser && onPullBackHandover && (
                                 <button type="button" onClick={() => setPullBack({ handover: h, reason: "", busy: false, error: "" })}
                                         title="Admin: cancel this hand-over and return the machine to Assembly"
@@ -19755,6 +19757,11 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
       {finishModal && (() => {
         const { machine, toDepartment, narration } = finishModal;
         const fromDepartment = machine.currentDepartment || machine.stage;
+        // 2026-10-31 — a rack machine finishing Assembly goes BACK TO ITS RACK
+        // as "Assembled · Ready"; an admin then sends it to Mechanical from
+        // the Rack View. The popup keeps workers, signature, checklist and
+        // pending work, but offers no direct transfer.
+        const rackReturn = !!machine.rackSlot && fromDepartment === "Assembly" && isRackReleaseHop(fromDepartment, toDepartment);
         // Migration 027 — per-machine override wins over global workflow setting.
         const expectedCfg = (machine.deptDurations && machine.deptDurations[fromDepartment])
           || workflow.dept_durations[fromDepartment];
@@ -19767,8 +19774,8 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
             <div className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col bg-white"
                  style={{ border: "1px solid #e2e8f0", boxShadow: "0 25px 60px rgba(0,0,0,0.18)", maxHeight: "90vh" }}>
               <div className="px-6 py-5 border-b border-slate-100 flex-shrink-0 bg-white">
-                <div className="text-sm font-black text-slate-900">Finish & Transfer</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">{machine.bomKey}{machine.serialNo ? ` · S/N ${machine.serialNo}` : ""}</div>
+                <div className="text-sm font-black text-slate-900">{rackReturn ? "Finish Assembly · Return to Rack" : "Finish & Transfer"}</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">{machine.bomKey}{machine.serialNo ? ` · S/N ${machine.serialNo}` : ""}{rackReturn ? ` · back to ${slotLabel(machine.rackSlot)}` : ""}</div>
               </div>
               <div className="p-5 space-y-4 flex-1 overflow-y-auto">
                 <div className="grid grid-cols-2 gap-3">
@@ -19777,8 +19784,9 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                     <div className="text-[13px] font-black text-slate-900 mt-0.5">{fromDepartment}</div>
                   </div>
                   <div className="rounded-lg px-3 py-2.5 bg-emerald-50 border border-emerald-200">
-                    <div className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide">To (next)</div>
-                    <div className="text-[13px] font-black text-emerald-700 mt-0.5">{toDepartment}</div>
+                    <div className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide">{rackReturn ? "Returns to" : "To (next)"}</div>
+                    <div className="text-[13px] font-black text-emerald-700 mt-0.5">{rackReturn ? `Rack ${slotLabel(machine.rackSlot)}` : toDepartment}</div>
+                    {rackReturn && <div className="text-[9.5px] text-emerald-700 mt-0.5">Assembled · Ready — an admin sends it to {toDepartment} from the Rack View.</div>}
                   </div>
                 </div>
                 <div className={`rounded-lg px-3 py-2.5 border ${isOverrun ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200"}`}>
@@ -20064,7 +20072,7 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                 </button>
                 <button onClick={submitFinishTransfer} disabled={transferBusy || (isOverrun && !narration.trim())}
                         className="text-[12px] font-bold text-slate-900 bg-amber-600 hover:bg-amber-700 px-5 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" style={{ color: "#fff" }}>
-                  {transferBusy ? "⏳ Sending…" : `Finish & Transfer → ${toDepartment}`}
+                  {transferBusy ? "⏳ Saving…" : rackReturn ? `✓ Assembled · Return to ${slotLabel(machine.rackSlot)}` : `Finish & Transfer → ${toDepartment}`}
                 </button>
               </div>
             </div>
@@ -25399,7 +25407,12 @@ export default function App() {
 
   const handleReleaseHandover = async (handoverId) => {
     if (!currentUser?.id) return { success: false, error: "Not authenticated" };
+    // 2026-10-31 — no Production Manager login yet: an Admin may release.
+    const isAdmin = currentUser?.role === "super_admin" || currentUser?.role === "Admin";
+    if (!authCanDo("machines", "release") && !isAdmin) return { success: false, error: "Only an admin or a production head can transfer a machine off the rack." };
     const h = (handovers || []).find((x) => x.id === handoverId);
+    if (!h) return { success: false, error: "Handover not found" };
+    if (!h.releaseRequired || h.releasedAt) return { success: false, error: "This machine is not waiting on the rack." };
     const res = await releaseHandover(handoverId, { releasedBy: currentUser.id });
     if (!res.success) return res;
     setHandovers((prev) => prev.map((x) => x.id === handoverId
