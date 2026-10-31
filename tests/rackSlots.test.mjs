@@ -320,3 +320,22 @@ test("App: Pending Jobs button on the card opens the shared job rows with existi
   assert.match(app, /onClick=\{\(\) => setJobAction\(\{ item: p, action: "complete"/);
   assert.match(app, /if \(jobAction\.busy\) return;/, "double submit guard kept");
 });
+
+// 2026-10-31 — Part received collects the Item Master verification for the
+// item (critical serial per unit / critical checkbox / normal physical-receipt
+// tick) before anything is recorded; the popup sits above the jobs drawer.
+test("App: Part received asks for the item's configured verification and gates the save", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+  const app = fs.readFileSync(path.join(root, "src/App.jsx"), "utf8");
+  assert.match(app, /const inputType = critical && inv\.outwardInputType === "serial" \? "serial" : "checkbox";/);
+  assert.match(app, /const receiveReady = !isReceive \|\| p\.receivedAt \|\| \(critical && inputType === "serial" \? !serialProblem : !!jobAction\.verified\);/);
+  assert.match(app, /if \(isReceive && !receiveReady\) \{ setJobAction\(\(prev\) => prev \? \{ \.\.\.prev, error: receiveWhy \} : prev\); return; \}/);
+  assert.match(app, /data-job-submit onClick=\{submit\} disabled=\{jobAction\.busy \|\| \(isReceive && !receiveReady\)\}/);
+  assert.match(app, /await onReceivePendingItem\(p\.id, \{ notes: jobAction\.notes\.trim\(\), verification \}\)/);
+  assert.match(app, /const handleReceivePendingItem = async \(id, \{ notes, verification = null \}\) => \{/);
+  // popup above the Pending Jobs drawer (z-66) and the rack panel (z-65)
+  const i = app.indexOf("{jobAction && (() => {");
+  assert.ok(/className="modal-backdrop fixed inset-0 z-\[96\]/.test(app.slice(i, i + 9000)), "job action modal is top-most");
+});

@@ -83,7 +83,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-card-pending-jobs";
+const APP_BUILD = "2026-10-31-part-received-verify";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -19393,11 +19393,37 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
         const p = jobAction.item;
         const m = machineLog.find((x) => String(x.id) === String(p.machineId)) || null;
         const isReceive = jobAction.action === "receive";
+        // 2026-10-31 — Part received asks for what the Item Master configures
+        // for THIS item: a critical "serial" item needs one unique serial per
+        // unit, a critical "checkbox" item its physical verification tick (plus
+        // its check points for reference), a normal item the department's
+        // physically-received tick. Nothing is recorded until that is given.
+        const inv = p.itemCode ? Object.values(items || {}).flatMap((l) => Array.isArray(l) ? l : []).find((i) => i && i.code === p.itemCode) || null : null;
+        const qty = Math.max(1, Number(p.qty) || 1);
+        const critical = !!(inv && inv.isCritical);
+        const inputType = critical && inv.outwardInputType === "serial" ? "serial" : "checkbox";
+        const checkPoints = inv && Array.isArray(inv.checkPoints) ? inv.checkPoints : [];
+        const serials = (jobAction.serials || []).map((x) => String(x || "").trim());
+        const serialProblem = critical && inputType === "serial" ? (() => {
+          const filled = serials.filter(Boolean);
+          if (filled.length < qty) return `Enter all ${qty} serial number${qty === 1 ? "" : "s"} for ${inv.name || p.itemCode}.`;
+          const lower = filled.map((x) => x.toLowerCase());
+          if (new Set(lower).size !== lower.length) return "Each unit needs a different serial number.";
+          const used = lower.find((x) => (outwardLog || []).some((e) => (e.items || []).some((it) => (it.criticalInput?.serials || []).some((sv) => String(sv || "").trim().toLowerCase() === x))));
+          if (used) return `Serial "${used}" was already issued to another machine.`;
+          return "";
+        })() : "";
+        const receiveReady = !isReceive || p.receivedAt || (critical && inputType === "serial" ? !serialProblem : !!jobAction.verified);
+        const receiveWhy = !isReceive || receiveReady ? "" : (critical && inputType === "serial" ? serialProblem : critical ? "Tick the physical verification for this critical item." : "Tick that the part was physically received and checked.");
         const submit = async () => {
           if (jobAction.busy) return;
+          if (isReceive && !receiveReady) { setJobAction((prev) => prev ? { ...prev, error: receiveWhy } : prev); return; }
           setJobAction((prev) => prev ? { ...prev, busy: true, error: "" } : prev);
+          const verification = isReceive && !p.receivedAt
+            ? (critical && inputType === "serial" ? { kind: "serial", serials: serials.filter(Boolean) } : { kind: "checkbox", critical, verified: true, checkPoints })
+            : null;
           const r = isReceive
-            ? await onReceivePendingItem(p.id, { notes: jobAction.notes.trim() })
+            ? await onReceivePendingItem(p.id, { notes: jobAction.notes.trim(), verification })
             : await onResolvePendingItem(p.id, { notes: jobAction.notes.trim() });
           if (r && r.success === false) { setJobAction((prev) => prev ? { ...prev, busy: false, error: r.error || "Could not save." } : prev); return; }
           setJobAction(null);
@@ -19422,6 +19448,40 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
               {isReceive && !p.receivedAt && (
                 <p className="text-[11px] text-slate-600 mb-2">Confirms the part has arrived for this machine. The job stays open until the work is marked completed.</p>
               )}
+              {isReceive && !p.receivedAt && p.itemCode && (
+                <div data-receive-verify={critical ? inputType : "normal"} className="rounded-lg px-3 py-2.5 mb-3 space-y-2" style={{ background: critical ? "rgba(239,68,68,0.05)" : "rgba(21,128,61,0.05)", border: `1px solid ${critical ? "rgba(239,68,68,0.3)" : "rgba(21,128,61,0.3)"}` }}>
+                  <div className="text-[11px] font-black" style={{ color: critical ? "#b91c1c" : "#15803d" }}>
+                    {critical ? `CRITICAL ITEM · ${inputType === "serial" ? "serial number per unit" : "physical verification"}` : "Physical receipt check"}
+                    {!inv && <span className="ml-1 font-semibold text-slate-500">(not in Item Master — treated as a normal item)</span>}
+                  </div>
+                  {checkPoints.length > 0 && (
+                    <ul className="text-[11px] text-slate-700 space-y-0.5">
+                      {checkPoints.map((cp, i) => <li key={i} className="flex gap-1.5"><span className="text-slate-400">•</span>{cp}</li>)}
+                    </ul>
+                  )}
+                  {critical && inputType === "serial" ? (
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {Array.from({ length: qty }).map((_, idx) => (
+                        <input key={idx} value={serials[idx] || ""} disabled={jobAction.busy} data-receive-serial={idx}
+                               onChange={(e) => setJobAction((prev) => { if (!prev) return prev; const next = (prev.serials || []).slice(); next[idx] = e.target.value; return { ...prev, serials: next, error: "" }; })}
+                               placeholder={`${inv.name || p.itemCode} serial #${idx + 1}`}
+                               className="rounded-md px-2 py-1.5 text-[12px] text-slate-900 outline-none"
+                               style={{ background: "var(--surface-elevated)", border: "1px solid rgba(17,24,39,0.15)" }} />
+                      ))}
+                    </div>
+                  ) : (
+                    <label className="flex items-start gap-2 cursor-pointer text-[11.5px] text-slate-800">
+                      <input type="checkbox" data-receive-check checked={!!jobAction.verified} disabled={jobAction.busy}
+                             onChange={(e) => setJobAction((prev) => prev ? { ...prev, verified: e.target.checked, error: "" } : prev)}
+                             className="w-4 h-4 mt-0.5 accent-emerald-600" />
+                      <span>{critical
+                        ? `I have physically verified ${qty > 1 ? `all ${qty} units of ` : ""}${inv.name || p.itemCode} for this machine.`
+                        : `${p.assignedDepartment || "The department"} has physically received and checked ${inv ? inv.name : p.itemName || p.itemCode}${qty > 1 ? ` (${qty})` : ""}.`}</span>
+                    </label>
+                  )}
+                  {receiveWhy && <div className="text-[10.5px] font-semibold" style={{ color: "#b45309" }}>{receiveWhy}</div>}
+                </div>
+              )}
               {!isReceive && p.itemCode && !p.receivedAt && (
                 <p className="text-[11px] font-bold mb-2" style={{ color: "#b45309" }}>This part has not been recorded as received. Mark it completed only if the work is actually done.</p>
               )}
@@ -19441,8 +19501,9 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                         className="flex-1 h-11 rounded-lg text-[13px] font-bold text-slate-600 border transition-all disabled:opacity-40" style={{ borderColor: "rgba(17,24,39,0.12)" }}>
                   Cancel
                 </button>
-                <button type="button" onClick={submit} disabled={jobAction.busy}
-                        className="flex-[2] h-11 rounded-lg text-[13px] font-black text-white transition-all disabled:opacity-50"
+                <button type="button" data-job-submit onClick={submit} disabled={jobAction.busy || (isReceive && !receiveReady)}
+                        title={isReceive && !receiveReady ? receiveWhy : ""}
+                        className="flex-[2] h-11 rounded-lg text-[13px] font-black text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{ background: isReceive ? "#1d4ed8" : "linear-gradient(135deg,#16a34a,#15803d)", color: "#ffffff" }}>
                   {jobAction.busy ? "Saving…" : isReceive ? "✓ Part received" : "✓ Work completed"}
                 </button>
@@ -25553,8 +25614,14 @@ export default function App() {
 
   // 2026-10-30 — the responsible department records that the missing part has
   // arrived. The job stays open until "Work completed" (resolve) closes it.
-  const handleReceivePendingItem = async (id, { notes }) => {
+  const handleReceivePendingItem = async (id, { notes, verification = null }) => {
     const p = pendingHandoverItems.find((x) => x.id === id);
+    // 2026-10-31 — the verification collected in the popup (critical serials
+    // or the physical-receipt tick) is part of the permanent receive note.
+    const vTxt = verification
+      ? (verification.kind === "serial" ? `Serial${verification.serials.length === 1 ? "" : "s"}: ${verification.serials.join(", ")}` : (verification.critical ? "Critical item physically verified" : "Physically received & checked"))
+      : "";
+    notes = [vTxt, String(notes || "").trim()].filter(Boolean).join(" · ");
     const machine = p ? machineLog.find((m) => String(m.id) === String(p.machineId)) || null : null;
     // The receipt is recorded by the department responsible for the job;
     // falls back to where the machine is now. History entry 2 of 3.
@@ -25570,7 +25637,7 @@ export default function App() {
       type: "pending_item_received", module: "Machine",
       action: `Part received${p?.itemCode ? ` (${p.itemCode}${p.qty ? ` × ${p.qty}` : ""})` : ""}${machine ? ` for ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}` : ""}`,
       ref: machine?.bomKey || "", serialNo: machine?.serialNo || "",
-      details: { itemId: id, itemCode: p?.itemCode || undefined, qty: p?.qty ?? undefined, assignedDepartment: p?.assignedDepartment || undefined, receivedInDepartment, notes: notes || "", originalReason: p?.reason || undefined },
+      details: { itemId: id, itemCode: p?.itemCode || undefined, qty: p?.qty ?? undefined, assignedDepartment: p?.assignedDepartment || undefined, receivedInDepartment, notes: notes || "", originalReason: p?.reason || undefined, verification: verification || undefined },
     });
     return res;
   };
