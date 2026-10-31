@@ -2644,3 +2644,7 @@ body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-for
   .rack-panel { max-width: none !important; height: 92dvh !important; border-radius: 16px 16px 0 0; overflow: hidden; }
 }
 @media (prefers-reduced-motion: reduce) { .rack-crate { transition: none; } }
+
+/* 2026-10-31 M/R machine sets — the M crate and the R crate of one machine
+   share a frame, so the pair reads as one set on the floor. */
+.rack-set { background: rgba(255,255,255,0.55); border: 1px dashed rgba(17,24,39,0.18); }
