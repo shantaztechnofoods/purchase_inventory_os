@@ -83,7 +83,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-rack-pending-issue";
+const APP_BUILD = "2026-10-31-rack-unticked-fix";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -11808,8 +11808,19 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   // Non-critical lines are untouched. Serial-mode requires one serial per unit;
   // checkbox-mode requires a single confirmation. Non-empty whitespace-trimmed
   // serials only. The ready flag gates the Confirm button.
-  const criticalLines = checkedE.filter((i) => i.issueQty > 0 && i.inv && i.inv.isCritical);
+  //
+  // 2026-10-31 — on a rack BOM (M / R) a critical item the operator UNTICKED
+  // in the list is still part of the critical check: it must be explained
+  // ("Not verified" + reason) and is then Not Issued (no stock, pending job),
+  // exactly like a ticked line marked Not verified. Without a reason it stays
+  // blocked as unticked. Non-rack BOMs keep the old behaviour.
+  const rackBomForCheck = rackCapacityFor(bomKey, bom) > 0;
+  const untickedCritical = rackBomForCheck
+    ? enriched.filter((i) => !isItemChecked(i.code) && i.inv && i.inv.isCritical && (Number(i.required) || 0) > 0)
+    : [];
+  const criticalLines = [...checkedE.filter((i) => i.issueQty > 0 && i.inv && i.inv.isCritical), ...untickedCritical];
   const isCriticalLineReady = (line) => {
+    if (!isItemChecked(line.code)) return false;   // unticked → never "verified"
     const type = line.inv.outwardInputType === "serial" ? "serial" : "checkbox";
     const state = criticalInputs[line.code] || {};
     if (type === "checkbox") return !!state.confirmed;
@@ -11834,7 +11845,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   // Every line the pre-issue popup covers: anything with check points, plus
   // every critical line (a critical item with no check points still needs its
   // confirmation).
-  const verifyLines = checkedE.filter((i) => i.issueQty > 0 && ((i.checkPoints || []).length > 0 || (i.inv && i.inv.isCritical)));
+  const verifyLines = [...checkedE.filter((i) => i.issueQty > 0 && ((i.checkPoints || []).length > 0 || (i.inv && i.inv.isCritical))), ...untickedCritical];
 
   // Panel split: Electrical → right, everything else → left
   const leftCats  = categories.filter((c) => c !== "Electrical");
@@ -12067,7 +12078,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
       }
       const bad = rackTracked && !rackSet ? rackIncomplete() : [];
       if (bad.length > 0) {
-        setDestError(`Cannot put ${bomKey} on a rack — every component must be issued in full: ${bad.map((i) => `${i.name} (${!i.inv ? "not in Item Master" : !isItemChecked(i.code) ? "unticked" : `need ${i.required}, issuing ${i.issueQty}`})`).join(", ")}. Nothing has been issued.`);
+        setDestError(`Cannot put ${bomKey} on a rack — every component must be issued in full: ${bad.map((i) => `${i.name} (${!i.inv ? "not in Item Master" : !isItemChecked(i.code) ? (i.inv.isCritical ? "unticked — tick it, or mark it Not verified with a reason" : "unticked") : `need ${i.required}, issuing ${i.issueQty}`})`).join(", ")}. Nothing has been issued.`);
         setShowDestChoice(false); setMaterialBlock(true);
         return;
       }
@@ -12117,7 +12128,10 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     // it had not. Now we AWAIT all moves: if any fail we roll back the ones that
     // succeeded and abort — no machine, no phantom issue — and tell the operator.
     const moves = [];
-    checkedE.forEach((item) => {
+    // Unticked critical lines with a reason are recorded as Not Issued (no
+    // stock moves, pending job raised); unticked lines without one never get
+    // here (the critical check blocks them).
+    [...checkedE, ...untickedCritical.filter((l) => skippedCodes.has(l.code))].forEach((item) => {
       // A critical item left unverified (with its reason) is NOT issued: no
       // stock moves. It is written to the outward record with quantity 0 and
       // the remark, and (2026-10-30) raised as a pending job against the new
@@ -12851,6 +12865,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                 // Verified: the checkbox item is confirmed; a serial item opens
                 // its serial boxes (verified once every unit has a serial).
                 const markVerified = () => {
+                  if (!isItemChecked(l.code)) setChecked((prev) => ({ ...prev, [l.code]: true }));
                   if (type === "checkbox") setLine({ choice: "verified", confirmed: true, remark: "" });
                   else { setLine({ choice: "verified", remark: "" }); setCpOpen((prev) => ({ ...prev, [l.code]: true })); }
                 };
@@ -12871,7 +12886,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
                           {l.name}
                           {critical && <span className="ml-1.5 text-[8.5px] font-black px-1 py-0.5 rounded align-middle" style={{ background: "rgba(239,68,68,0.12)", color: "#dc2626" }}>CRITICAL</span>}
                         </div>
-                        <div className="text-[9.5px] text-slate-500"><span className="font-mono">{l.code}</span> · {l.issueQty} {l.unit}{points.length ? ` · ${points.length} check point${points.length === 1 ? "" : "s"}` : ""}</div>
+                        <div className="text-[9.5px] text-slate-500"><span className="font-mono">{l.code}</span> · {isItemChecked(l.code) ? `${l.issueQty} ${l.unit}` : `${l.required} ${l.unit} · unticked in list`}{points.length ? ` · ${points.length} check point${points.length === 1 ? "" : "s"}` : ""}</div>
                       </div>
                       {critical ? (
                         <div className="flex items-center gap-1.5 flex-shrink-0 ml-7 sm:ml-0">
