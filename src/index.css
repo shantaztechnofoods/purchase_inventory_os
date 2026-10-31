@@ -2648,3 +2648,82 @@ body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-for
 /* 2026-10-31 M/R machine sets — the M crate and the R crate of one machine
    share a frame, so the pair reads as one set on the floor. */
 .rack-set { background: rgba(255,255,255,0.55); border: 1px dashed rgba(17,24,39,0.18); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Machine Tracker — premium cream/ivory surface (2026-10-31)
+
+   Scoped to .mt-premium (the Machine Tracker page root) so every other page
+   keeps the standard white surfaces. Harsh white gives way to warm ivory
+   paper, slate hairlines to soft gold, and flat borders to a low, wide
+   shadow — the same information, a calmer sheet to read it on.
+   ───────────────────────────────────────────────────────────────────────── */
+.mt-premium {
+  --surface-page:      #FAF7F0;
+  --surface-base:      #FAF7F0;
+  --surface-card:      #FFFDF8;
+  --surface-raised:    #FFFDF8;
+  --surface-elevated:  #FFFDF8;
+  --surface-highlight: #F4EFE3;
+  --surface-input:     #FFFDF8;
+  --border-subtle:     rgba(146, 118, 46, 0.18);
+  --border-rim:        rgba(146, 118, 46, 0.26);
+  --mt-gold:           #A8842C;
+  --mt-gold-soft:      rgba(168, 132, 44, 0.10);
+  background: var(--surface-page);
+}
+/* Tailwind utilities used across the page, re-pointed at the warm palette. */
+.mt-premium .bg-white      { background-color: var(--surface-card); }
+.mt-premium .bg-slate-50   { background-color: #F7F2E6; }
+.mt-premium .border-slate-200 { border-color: rgba(146, 118, 46, 0.20); }
+.mt-premium .page-header {
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.mt-premium .section-card,
+.mt-premium .kpi-tile {
+  border-color: var(--border-subtle);
+  box-shadow: 0 1px 2px rgba(92, 72, 24, 0.05), 0 10px 26px -20px rgba(92, 72, 24, 0.45);
+}
+
+/* One machine, one card. */
+.mt-premium .mt-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(92, 72, 24, 0.05), 0 14px 30px -24px rgba(92, 72, 24, 0.5);
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.mt-premium .mt-card:hover {
+  border-color: rgba(146, 118, 46, 0.32);
+  box-shadow: 0 2px 6px rgba(92, 72, 24, 0.07), 0 20px 38px -26px rgba(92, 72, 24, 0.55);
+}
+.mt-premium .mt-card-ready { border-color: rgba(21, 128, 61, 0.30); }
+
+/* Filter chips (All Machines / the active summary-card filter). */
+.mt-premium .mt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+.mt-premium .mt-chip:hover { color: var(--text-strong); border-color: var(--border-rim); }
+.mt-premium .mt-chip[data-on="1"],
+.mt-premium .mt-chip-active {
+  color: #7d6118;
+  background: var(--mt-gold-soft);
+  border-color: rgba(168, 132, 44, 0.45);
+}
+
+@media (max-width: 640px) {
+  /* A phone on the shop floor: full-width actions, nothing clipped. */
+  .mt-premium .mt-card { border-radius: 14px; }
+  .mt-premium .page-header-actions { width: 100%; }
+}
