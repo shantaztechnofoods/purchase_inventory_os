@@ -83,7 +83,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-transfer-form";
+const APP_BUILD = "2026-10-31-trial-onhold";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -16083,8 +16083,11 @@ function printTrialCertificate(machine, cert, remarks = "") {
   w.document.close();
 }
 
-function TrialCertificateModal({ machine, nowTick, workflow, busy, onClose, onSubmit }) {
-  const [cert, setCert] = useState(() => mkTrialCert());
+function TrialCertificateModal({ machine, nowTick, workflow, busy, onClose, onSubmit, initialCert = null, editOnly = false }) {
+  // 2026-10-31 — editOnly: complete / correct a certificate already saved
+  // with the Trial → Ready transfer, from the Machine Tracker. Same form,
+  // same preview and print; onSubmit then only saves, no transfer.
+  const [cert, setCert] = useState(() => ({ ...mkTrialCert(), ...(initialCert || {}) }));
   const [narration, setNarration] = useState("");
   const [trialSigOpen, setTrialSigOpen] = useState(false);
   const [checkSigOpen, setCheckSigOpen] = useState(false);
@@ -16115,10 +16118,15 @@ function TrialCertificateModal({ machine, nowTick, workflow, busy, onClose, onSu
     machine.departmentEnteredAt, expectedDurationMinutes, nowTick
   );
 
+  // 2026-10-31 — nothing on the certificate is mandatory any more: an
+  // incomplete certificate is saved with the transfer and can be completed
+  // later from the Machine Tracker. "I have checked this certificate" is the
+  // only required confirmation. (The list is kept for the advisory note.)
+  const incomplete = [];
+  if (!String(cert.trialByName || "").trim()) incomplete.push("Trial By name");
+  if (!cert.trialBySignature) incomplete.push("Trial By signature");
+  if (isOverrun && !narration.trim()) incomplete.push("overrun explanation");
   const missing = [];
-  if (!String(cert.trialByName || "").trim()) missing.push("Trial By name");
-  if (!cert.trialBySignature) missing.push("Trial By signature");
-  if (isOverrun && !narration.trim()) missing.push("overrun explanation");
 
   const showStage = (next) => {
     setFormError("");
@@ -16430,16 +16438,19 @@ function TrialCertificateModal({ machine, nowTick, workflow, busy, onClose, onSu
               🖨 Print / Save as PDF
             </button>
             <div className="ml-auto flex flex-wrap items-center gap-3">
+              {incomplete.length > 0 && (
+                <span data-cert-incomplete className="text-[11px] text-amber-700">Incomplete: {incomplete.join(", ")} — can be completed later from the Machine Tracker.</span>
+              )}
               <label className="inline-flex items-center gap-2 text-[12px] text-slate-700 cursor-pointer select-none">
-                <input type="checkbox" checked={confirmed} disabled={busy}
+                <input type="checkbox" checked={confirmed} disabled={busy} data-cert-confirm
                        onChange={(e) => setConfirmed(e.target.checked)}
                        className="h-4 w-4 accent-slate-900" />
                 I have checked this certificate
               </label>
-              <button type="button" onClick={handleConfirm}
-                      disabled={busy || !confirmed || missing.length > 0}
+              <button type="button" onClick={handleConfirm} data-cert-submit
+                      disabled={busy || !confirmed}
                       className={TC_BTN_PRIMARY} style={{ color: "#fff" }}>
-                {busy ? "Saving…" : "Confirm & Transfer to Ready"}
+                {busy ? "Saving…" : editOnly ? "Save certificate" : "Confirm & Transfer to Ready"}
               </button>
             </div>
           </footer>
@@ -16635,7 +16646,7 @@ function PendingJobRows({ rows, onChange, inventory = [], accent = "#b45309", ad
   );
 }
 
-function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, onUpdateStage, onNavigate = () => {}, canDo = () => true, bomDefs = {}, onStartProduction, onRemoveRackMachine, onUpdateBOM,
+function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, onUpdateTrialCertificate = null, onUpdateStage, onNavigate = () => {}, canDo = () => true, bomDefs = {}, onStartProduction, onRemoveRackMachine, onUpdateBOM,
   // 2026-10-30 — the BOM Outward section (an embedded OutwardPage), or null
   // when this role may not issue a BOM.
   bomSection = null,
@@ -16773,7 +16784,7 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
   }, []);
   const [finishModal, setFinishModal] = useState(null); // { machine, toDepartment, narration }
   // Migration 032 — Trial Certificate modal state.
-  const [trialCertModal,     setTrialCertModal]     = useState(null); // { machine }
+  const [trialCertModal,     setTrialCertModal]     = useState(null); // { machine, editOnly? }
   const [trialCertViewModal, setTrialCertViewModal] = useState(null); // machine object
   // Migration 028 — During-Work checklist runtime modal.
   const [duringWorkModal, setDuringWorkModal] = useState(null); // { machine, template, answers, busy, error }
@@ -16910,6 +16921,20 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
     showToast("During-Work checks saved", `${machine.bomKey}${machine.serialNo ? ` · S/N ${machine.serialNo}` : ""} · ${machine.currentDepartment || machine.stage}`);
   };
 
+  // 2026-10-31 — complete / correct an already-saved certificate (no transfer).
+  const saveTrialCertificate = async ({ cert }) => {
+    if (!trialCertModal || transferBusy) return;
+    const { machine } = trialCertModal;
+    setTransferBusy(true);
+    try {
+      const res = onUpdateTrialCertificate ? await onUpdateTrialCertificate(machine.id, cert) : { success: false, error: "Not available" };
+      if (res && res.success === false) { showToast("Could not save", res.error || "Unknown error", "urgent"); return; }
+      setTrialCertModal(null);
+      showToast(`${machine.bomKey}${machine.serialNo ? ` · S/N ${machine.serialNo}` : ""}`, "Trial Certificate updated.");
+    } finally {
+      setTransferBusy(false);
+    }
+  };
   // Migration 032 — Trial Certificate submit handler. Called by TrialCertificateModal.
   const submitTrialCertificate = async ({ cert, narration, actualDurationMinutes, expectedDurationMinutes }) => {
     if (!trialCertModal || transferBusy) return;
@@ -17229,7 +17254,11 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
   //                        future handover.status='held' value — not
   //                        silently derived from Overdue)
   // All computed from live state; recompute on every minute tick (nowTick).
-  const machineHandover = (m) => (handovers || []).find((h) => h.id === m.pendingHandoverId && h.status === "pending");
+  // 2026-10-31 — match by machine id too: machine_log.pending_handover_id can
+  // be null while a pending hand-over for the machine exists (legacy rows,
+  // a pull-back followed by a resend), which made the On Hold card count a
+  // machine the On Hold filter then did not list.
+  const machineHandover = (m) => (handovers || []).find((h) => h.status === "pending" && (h.id === m.pendingHandoverId || String(h.machineId) === String(m.id)));
   // Migration 036 — a handover waiting on the rack has been sent but not yet
   // released by a production head. Nobody has been asked to accept it, so its
   // acceptance clock must not run: for Shantaz a machine can sit on the rack
@@ -18100,7 +18129,7 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
           // code showed this under "Overdue" and left a separate HOLD card
           // hard-coded to 0, which meant the floor saw an alarm it could not
           // act on and a card that never moved.
-          const holdCount = askedFor.filter((h) => isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick)).length;
+          const holdCount = onHold.length;
           const cards = [
             { key: "pendingAccept", label: "Pending Acceptance",  value: pendingNotOverdue, sub: "waiting for next dept",  color: "#b45309", bg: "rgba(217, 119, 6,0.08)" },
             { key: "hold",          label: "On HOLD",            value: holdCount,         sub: "accept deadline passed", color: "#dc2626", bg: "rgba(239,68,68,0.1)"  },
@@ -18116,7 +18145,7 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                 const active = filter === c.key;
                 const stripCls = c.key === "active" ? "status-strip-blue" : c.key === "completed" ? "status-strip-green" : c.key === "hold" || c.key === "jobs" ? "status-strip-red" : c.key === "pendingAccept" ? "status-strip-yellow" : "status-strip-purple";
                 return (
-                  <button key={c.key} onClick={() => (c.tab ? setMtTab(c.tab) : setFilter(c.key))}
+                  <button key={c.key} data-summary-card={c.key} onClick={() => { if (c.tab) { setMtTab(c.tab); return; } setMtTab("production"); setFilter(filter === c.key ? "all" : c.key); }}
                           className={`kpi-tile status-strip ${stripCls} text-left`}
                           style={active ? { borderColor: c.color, boxShadow: `0 0 0 1px ${c.color}, 0 4px 16px -4px ${c.color}55` } : {}}>
                     <div className="flex items-center justify-between mb-2">
@@ -18943,6 +18972,14 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                         </button>
                       )}
                       {/* Migration 032 — Certificate view button for Trial-completed machines */}
+                      {machine.trialCertificate && canFinishTransfer(canDo) && onUpdateTrialCertificate && (
+                        <button type="button" data-cert-edit onClick={() => setTrialCertModal({ machine, editOnly: true })}
+                                className="text-[10px] font-bold px-2 py-1.5 rounded-lg border transition-all"
+                                style={{ background: "rgba(217,119,6,0.10)", border: "1px solid rgba(217,119,6,0.35)", color: "#b45309" }}
+                                title="Complete or correct the Trial Certificate">
+                          ✎ Certificate
+                        </button>
+                      )}
                       {isComplete && machine.trialCertificate && (
                         <button onClick={() => setTrialCertViewModal(machine)}
                                 className="text-[10px] font-bold text-slate-900 px-2 py-1.5 rounded-lg border transition-all"
@@ -20217,8 +20254,10 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
           nowTick={nowTick}
           workflow={workflow}
           busy={transferBusy}
+          initialCert={trialCertModal.editOnly ? (trialCertModal.machine.trialCertificate || null) : null}
+          editOnly={!!trialCertModal.editOnly}
           onClose={() => !transferBusy && setTrialCertModal(null)}
-          onSubmit={submitTrialCertificate}
+          onSubmit={trialCertModal.editOnly ? saveTrialCertificate : submitTrialCertificate}
         />
       )}
       {trialCertViewModal && (
@@ -25692,6 +25731,28 @@ export default function App() {
     }
   };
 
+  // 2026-10-31 — complete / correct a saved Trial Certificate from the
+  // Machine Tracker. Finish & Transfer permission; the machine's record is
+  // updated and the change audited; no stage change.
+  const handleUpdateTrialCertificate = async (machineId, cert) => {
+    if (!currentUser?.id) return { success: false, error: "Not authenticated" };
+    if (!canFinishTransfer(authCanDo)) return { success: false, error: "You do not have permission to edit the certificate (Machines → Finish & Transfer)." };
+    const machine = machineLog.find((m) => String(m.id) === String(machineId));
+    if (!machine) return { success: false, error: "Machine not found" };
+    if (!cert || typeof cert !== "object") return { success: false, error: "No certificate data" };
+    const next = { ...cert, updatedAt: new Date().toISOString(), updatedBy: currentUser.id };
+    setMachineLog((prev) => prev.map((m) => (String(m.id) === String(machineId) ? { ...m, trialCertificate: next } : m)));
+    const r = await machineUpdate(machineId, { trialCertificate: next });
+    if (!r.success) return r;
+    logAudit({
+      type: "trial_certificate_updated", module: "Machine",
+      action: `Trial Certificate updated: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}`,
+      ref: machine.bomKey, serialNo: machine.serialNo || "",
+      details: { machineId, trialBy: next.trialByName || "", signed: !!next.trialBySignature },
+    });
+    return { success: true };
+  };
+
   // ── Phase B — Attachments ─────────────────────────────────────────────────
   const handleUploadAttachment = async ({ machineId, department, stage, file, caption, isCustomerVisible }) => {
     if (!currentUser?.id) return { success: false, error: "Not authenticated" };
@@ -25926,7 +25987,7 @@ export default function App() {
                               isSuperAdmin={currentUser?.role === "super_admin"}
                               onReverseReceive={handleReverseReceive}
                               onSetItemDefaultRate={handleSetItemDefaultRate} />,
-    machines:  <MachinePage   machineLog={machineLog} outwardLog={outwardLog} onUpdateStage={handleUpdateMachineStage} onNavigate={setActivePage} canDo={canDo}
+    machines:  <MachinePage   machineLog={machineLog} outwardLog={outwardLog} onUpdateTrialCertificate={handleUpdateTrialCertificate} onUpdateStage={handleUpdateMachineStage} onNavigate={setActivePage} canDo={canDo}
                               items={items}
                               /* 2026-10-30 — BOM Outward, embedded at the top. Shown
                                  only to roles that may issue a BOM, same as Outward. */

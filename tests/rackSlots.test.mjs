@@ -359,3 +359,24 @@ test("App: compact team picker, non-login Main Employee, migration 050", async (
   assert.match(up, /ADD COLUMN IF NOT EXISTS main_employee_ref\s+text/);
   assert.doesNotMatch(up, /\b(DROP TABLE|TRUNCATE|DELETE FROM|ALTER POLICY|CREATE POLICY|DROP POLICY)\b/i);
 });
+
+// 2026-10-31 — Trial → Ready: only "I have checked this certificate" is
+// required; incomplete certificates save and can be completed later. On Hold
+// card and filter use the same machine list.
+test("App: trial certificate confirmation-only gate, edit-later path, On Hold filter consistency", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+  const app = fs.readFileSync(path.join(root, "src/App.jsx"), "utf8");
+  assert.match(app, /const incomplete = \[\];\n  if \(!String\(cert\.trialByName/);
+  assert.match(app, /const missing = \[\];\n/, "nothing is mandatory on the certificate");
+  assert.match(app, /data-cert-submit\n\s+disabled=\{busy \|\| !confirmed\}/);
+  assert.match(app, /function TrialCertificateModal\(\{ machine, nowTick, workflow, busy, onClose, onSubmit, initialCert = null, editOnly = false \}\)/);
+  assert.match(app, /onSubmit=\{trialCertModal\.editOnly \? saveTrialCertificate : submitTrialCertificate\}/);
+  assert.match(app, /const handleUpdateTrialCertificate = async \(machineId, cert\) => \{/);
+  assert.match(app, /data-cert-edit onClick=\{\(\) => setTrialCertModal\(\{ machine, editOnly: true \}\)\}/);
+  // On Hold: card count == filter list; card click switches to the production tab
+  assert.match(app, /const holdCount = onHold\.length;/);
+  assert.match(app, /setMtTab\("production"\); setFilter\(filter === c\.key \? "all" : c\.key\);/);
+  assert.match(app, /h\.status === "pending" && \(h\.id === m\.pendingHandoverId \|\| String\(h\.machineId\) === String\(m\.id\)\)/);
+});
