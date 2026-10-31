@@ -83,7 +83,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-rack-release-sync";
+const APP_BUILD = "2026-10-31-direct-accept";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -17084,6 +17084,10 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
 
   const submitAcceptHandover = async () => {
     if (!acceptModal || acceptModal.busy) return;
+    // A hand-over accepted meanwhile (other device, double click) is refused
+    // before any write.
+    const live = (handovers || []).find((x) => x.id === acceptModal.handover.id);
+    if (!live || live.status !== "pending") { setAcceptModal(null); showToast("Already accepted", "This machine was accepted already — the list has been refreshed.", "warning"); return; }
     const { handover, password, needSig, sigSvg, checklistTemplate, checklistAnswers,
             acceptTeamMembers = [], holdReason = "" } = acceptModal;
     // 2026-10-30 — a machine accepted after its acceptance window (ON HOLD)
@@ -18882,16 +18886,36 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                           );
                         }
                         const machineOverdue = h && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick);
-                        return machineOverdue ? (
-                          <span className="text-[10px] font-black px-2 py-1 rounded-lg"
-                                style={{ background: "rgba(239,68,68,0.15)", color: "#dc2626", border: "1px solid rgba(239,68,68,0.45)" }}>
-                            🚦 ON HOLD
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-black px-2 py-1 rounded-lg"
-                                style={{ background: "rgba(217, 119, 6,0.12)", color: "#B45309", border: "1px solid rgba(217, 119, 6,0.35)" }}>
-                            ⏳ Awaiting accept
-                          </span>
+                        // 2026-10-31 — direct acceptance: the receiving
+                        // department accepts from the machine card itself.
+                        // Same modal, same checks (checklist, team, password,
+                        // hold reason) as Transfer & Accept; the modal and
+                        // the accept handler refuse a second acceptance.
+                        const cardCanAccept = !!h && h.status === "pending" && canAcceptHandover(canDo, h.toDepartment) && !!onAcceptHandover;
+                        return (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {machineOverdue ? (
+                              <span className="text-[10px] font-black px-2 py-1 rounded-lg"
+                                    style={{ background: "rgba(239,68,68,0.15)", color: "#dc2626", border: "1px solid rgba(239,68,68,0.45)" }}>
+                                🚦 ON HOLD
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-black px-2 py-1 rounded-lg"
+                                    style={{ background: "rgba(217, 119, 6,0.12)", color: "#B45309", border: "1px solid rgba(217, 119, 6,0.35)" }}>
+                                ⏳ Awaiting accept{h ? ` · ${h.toDepartment}` : ""}
+                              </span>
+                            )}
+                            {cardCanAccept && (
+                              <button type="button" data-card-accept={h.id}
+                                      onClick={() => { if (!acceptModal) openAcceptModal(h); }}
+                                      disabled={!!acceptModal}
+                                      className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all disabled:opacity-50"
+                                      style={{ background: "#15803d", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}
+                                      title={`Accept this machine into ${h.toDepartment}`}>
+                                ✓ Accept Machine
+                              </button>
+                            )}
+                          </div>
                         );
                       })()}
                       {/* Migration 032 — Certificate view button for Trial-completed machines */}
