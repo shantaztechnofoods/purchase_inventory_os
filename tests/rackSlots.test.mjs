@@ -190,7 +190,12 @@ test("App: separate M/R BOM fills under one serial, remove, release scope and pe
   assert.match(app, /if \(serialNo && !chosenDest && rackSet\) \{\n      \/\/ A set fill has one destination: the selected set\. No popup\.\n      return doIssue\("rack"/);
   // 4 — any unticked / short / skipped / unknown line blocks a rack fill
   assert.match(app, /!isItemChecked\(i\.code\) \|\| !i\.inv \|\| i\.pendingQty > 0 \|\| i\.issueQty < i\.required \|\| skippedCodes\.has\(i\.code\)/);
-  assert.match(app, /\} else if \(serialNo && rackTracked\) \{/, "a rack BOM is never issued as a machine outside the Rack View");
+  // BOM Outward: an M BOM offers Empty Rack or Direct Production; an R BOM
+  // links by serial to the M machine as its crate; a rack is filled complete.
+  assert.match(app, /<div className="text-sm font-black text-emerald-300 mb-1">Empty Rack<\/div>/);
+  assert.match(app, /if \(rk && rk\.tier === "R"\) \{\n      const holder = machineLog\.find/);
+  assert.match(app, /setFillTarget\(\{ key, mode: "crate", slotId: holder\.rackSlot \? pairSlotOf\(setSlotOf\(holder\.rackSlot\)\) : null/);
+  assert.match(app, /const bad = rackTracked && !rackSet \? rackIncomplete\(\) : \[\];/);
   // assemble waits for a defined R crate
   assert.match(app, /sl\.status === "set" && pend\.length === 0 && crate\.state !== "pending" && canDo\("machines", "updateStage"\)/);
   // 5 — remove from rack reverses the M issue and the R crate
