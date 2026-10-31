@@ -83,7 +83,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-trial-onhold";
+const APP_BUILD = "2026-10-31-report-center";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -509,7 +509,6 @@ const navItems = [
   { id: "ai",         Icon: Bot,             label: "AI Assistant",     section: null },
   { id: "whatsapp",   Icon: MessageCircle,   label: "WhatsApp",         section: null },
   { id: "history",    Icon: ScrollText,      label: "History & Reports",section: "REPORTS" },
-  { id: "reports",    Icon: TrendingUp,      label: "Report Center",    section: null },
   { id: "audit",      Icon: ShieldCheck,     label: "Audit Trail",      section: null },
   { id: "settings",   Icon: Settings,        label: "Settings",         section: "SYSTEM" },
   { id: "users",      Icon: User,            label: "User Management",  section: null },
@@ -8227,7 +8226,10 @@ const SETTINGS_DEFAULTS = {
   po:              null,   // Purchase Order settings (company profiles, templates) — see utils/poTemplate
   employeeMembers: [],     // [{ id, name, active, departments: string[] }] — display names for factory workers without ERP logins
   // 2026-10-30 — Report Settings (admin only): what every printed / PDF report carries.
-  report: { language: "en", showLogo: true, companyLine: "", footerNote: "", includeTestRecords: false },
+  report: { language: "en", showLogo: true, companyLine: "", footerNote: "", includeTestRecords: false,
+            // 2026-10-31 — signature / stamp image (data URL), page layout, displayed fields.
+            signatureImage: "", signatureLabel: "Authorised Signatory", pageSize: "A4", orientation: "portrait",
+            showEmployees: true, showChecklists: true, showRatings: true, showPendingJobs: true },
 };
 
 // ── Report language (2026-10-30) ─────────────────────────────────────────────
@@ -8985,6 +8987,44 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                   <input value={rc.footerNote} disabled={!canEdit} onChange={(e) => setRc({ footerNote: e.target.value })}
                          placeholder="e.g. This is a computer-generated report. For queries call +91 …"
                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none disabled:opacity-60" />
+                </div>
+                <div>
+                  <SLabel text="Signature / stamp" hint="Printed at the bottom right of every report. Upload a PNG/JPG of the signature or company stamp." />
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {rc.signatureImage ? <img src={rc.signatureImage} alt="Signature" style={{ height: 48, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff" }} /> : <span className="text-[11px] text-slate-500">No signature / stamp uploaded</span>}
+                    <label className="text-[11px] font-bold px-3 py-1.5 rounded-lg border cursor-pointer" style={{ borderColor: "rgba(17,24,39,0.15)", opacity: canEdit ? 1 : 0.6 }}>
+                      Upload image
+                      <input type="file" accept="image/*" disabled={!canEdit} className="hidden"
+                             onChange={(e) => { const f = e.target.files && e.target.files[0]; if (!f) return; if (f.size > 300 * 1024) { alert("Please use an image under 300 KB."); return; } const r = new FileReader(); r.onload = () => setRc({ signatureImage: String(r.result || "") }); r.readAsDataURL(f); e.target.value = ""; }} />
+                    </label>
+                    {rc.signatureImage && canEdit && <button type="button" onClick={() => setRc({ signatureImage: "" })} className="text-[11px] font-bold text-red-600 underline">Remove</button>}
+                    <input value={rc.signatureLabel || ""} disabled={!canEdit} onChange={(e) => setRc({ signatureLabel: e.target.value })} placeholder="Label under the signature (e.g. Authorised Signatory)"
+                           className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none disabled:opacity-60 min-w-[240px]" />
+                  </div>
+                </div>
+                <div>
+                  <SLabel text="Page layout" hint="Paper size and orientation for PDF / print." />
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {[["A4", "A4"], ["Letter", "Letter"], ["A3", "A3"]].map(([v, l]) => (
+                      <button key={v} type="button" disabled={!canEdit} onClick={() => setRc({ pageSize: v })} aria-pressed={(rc.pageSize || "A4") === v}
+                              className="text-[11px] font-bold px-3 py-1.5 rounded-lg border disabled:opacity-60"
+                              style={(rc.pageSize || "A4") === v ? { background: "#D71920", color: "#fff", borderColor: "#D71920" } : { background: "#fff", color: "#475569", borderColor: "rgba(17,24,39,0.15)" }}>{l}</button>
+                    ))}
+                    <span className="w-2" />
+                    {[["portrait", "Portrait"], ["landscape", "Landscape"]].map(([v, l]) => (
+                      <button key={v} type="button" disabled={!canEdit} onClick={() => setRc({ orientation: v })} aria-pressed={(rc.orientation || "portrait") === v}
+                              className="text-[11px] font-bold px-3 py-1.5 rounded-lg border disabled:opacity-60"
+                              style={(rc.orientation || "portrait") === v ? { background: "#D71920", color: "#fff", borderColor: "#D71920" } : { background: "#fff", color: "#475569", borderColor: "rgba(17,24,39,0.15)" }}>{l}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <SLabel text="Displayed fields" hint="Sections included in the machine journey and production reports." />
+                  <div className="flex items-center gap-4 flex-wrap text-[12px] text-slate-700">
+                    {[["showEmployees", "Employees / team"], ["showChecklists", "Checklists"], ["showRatings", "Ratings"], ["showPendingJobs", "Pending jobs"]].map(([k, l]) => (
+                      <label key={k} className="flex items-center gap-2"><input type="checkbox" checked={rc[k] !== false} disabled={!canEdit} onChange={(e) => setRc({ [k]: e.target.checked })} className="accent-red-600 w-4 h-4" />{l}</label>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <SLabel text="Test / pilot records" hint="Machines whose serial or BOM starts with TEST or PILOT are kept out of reports unless this is on." />
@@ -14452,6 +14492,8 @@ function AtoZMachineReport({
   // 2026-10-30 — names for the pending-job history (who reported / received / completed).
   allUsers = [],
 }) {
+  // 2026-10-31 — displayed-field toggles from Settings → Report Settings.
+  const show = { ...SETTINGS_DEFAULTS.report, ...((settings && settings.report) || {}) };
   const machine = (machineLog || []).find((m) => String(m.id) === String(machineId)) || null;
   if (!machine) {
     return (
@@ -14714,7 +14756,7 @@ function AtoZMachineReport({
                       ⏰ Overrun {formatDuration(h.overrunMinutes || 0)}
                     </span>
                   )}
-                  {rating && (
+                  {show.showRatings !== false && rating && (
                     <span className="text-[10px] font-bold text-yellow-300 ml-1" style={{ letterSpacing: "0.08em" }}>{formatRatingBadge(rating.rating)}</span>
                   )}
                 </div>
@@ -14740,7 +14782,7 @@ function AtoZMachineReport({
                   </div>
                 </div>
 
-                {workers.length > 0 && (
+                {show.showEmployees !== false && workers.length > 0 && (
                   <div className="mb-2">
                     <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">Workers · {workers.length}</div>
                     <div className="flex flex-wrap gap-1.5">
@@ -14774,7 +14816,7 @@ function AtoZMachineReport({
                   </div>
                 )}
 
-                {bdDispatch && (
+                {show.showChecklists !== false && bdDispatch && (
                   <div className="mb-2">
                     <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">
                       Before-Dispatch checklist · {bdDispatch.templateName || "—"} (v{bdDispatch.templateVersion || 1})
@@ -14795,7 +14837,7 @@ function AtoZMachineReport({
                   </div>
                 )}
 
-                {brReceive && (
+                {show.showChecklists !== false && brReceive && (
                   <div className="mb-2">
                     <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">
                       Before-Receive checklist · {brReceive.templateName || "—"} (v{brReceive.templateVersion || 1})
@@ -14850,7 +14892,7 @@ function AtoZMachineReport({
   // a checklist, or for a part not issued at Outward — with its three
   // permanent entries: original reason, receive remark, completion.
   const PendingJobsHistory = () => {
-    if (!machinePending.length) return null;
+    if (show.showPendingJobs === false || !machinePending.length) return null;
     const jobs = machinePending.slice().sort((a, b) => String(a.raisedAt || "").localeCompare(String(b.raisedAt || "")));
     return (
       <div className="rounded-xl p-4 mb-5" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.08)" }}>
@@ -14981,16 +15023,19 @@ function ReportCenterPage({
 
   const workflow = readDeptWorkflowSettings(settings);
 
+  // 2026-10-31 — the seven agreed reports. "factory" is the Admin / Company
+  // production report, "stuck" is Where It Sticks, "machine" the A-to-Z
+  // journey, "customer" the customer progress report.
   const tabs = [
-    // Four tabs, not nine. Delay / HOLD / Pending / Rating were four views of
-    // one question — where is production losing time — so they are one tab
-    // with the tables stacked under it, and nothing was dropped. Machine Full
-    // History was a thinner version of the A-to-Z report, so it goes.
-    { id: "machine",   label: "One machine",     hint: "full report, printable" },
-    { id: "stuck",     label: "Where it sticks", hint: "delays, holds, ratings" },
-    { id: "factory",   label: "Factory",         hint: "overall + per handover" },
-    { id: "customer",  label: "For the customer", hint: "progress to share" },
+    { id: "factory",    label: "Production",      hint: "admin / company report" },
+    { id: "owner",      label: "Owner summary",   hint: "performance at a glance" },
+    { id: "department", label: "Department-wise", hint: "per department" },
+    { id: "stuck",      label: "Where it sticks", hint: "delays, holds, pending" },
+    { id: "machine",    label: "Machine journey", hint: "BOM to Ready, one machine" },
+    { id: "monthly",    label: "Monthly",         hint: "month by month" },
+    { id: "customer",   label: "Customer",        hint: "progress PDF to send" },
   ];
+  const [serialFilter, setSerialFilter] = useState("");
 
   // ── Filters ──
   const inRange = (iso) => {
@@ -15000,13 +15045,9 @@ function ReportCenterPage({
     if (dateTo   && t > Date.parse(dateTo   + "T23:59:59")) return false;
     return true;
   };
-  const machineMatches = (m) => {
-    if (!machineFilter) return true;
-    const q = machineFilter.toLowerCase();
-    return (m.bomKey || "").toLowerCase().includes(q)
-        || (m.serialNo || "").toLowerCase().includes(q)
-        || (m.bomLabel || "").toLowerCase().includes(q);
-  };
+  const serialMatches = (m) => !serialFilter || String(m.serialNo || "").toLowerCase().includes(serialFilter.trim().toLowerCase());
+  // Machine model filter is an exact BOM key (select); serial is its own filter.
+  const machineMatches = (m) => !machineFilter || rackKeyNorm(m.bomKey) === rackKeyNorm(machineFilter);
   const deptMatches = (d) => !deptFilter || d === deptFilter;
 
   // 2026-10-30 — report settings (language, header, footer, pilot records).
@@ -15018,7 +15059,7 @@ function ReportCenterPage({
   const scopedMachineLog = (machineLog || []).filter((m) => rc.includeTestRecords || !isTestRecord(m));
   const testMachineIds = new Set((machineLog || []).filter(isTestRecord).map((m) => String(m.id)));
   const notTest = (machineId) => rc.includeTestRecords || !testMachineIds.has(String(machineId));
-  const filteredMachines = scopedMachineLog.filter(machineMatches).filter((m) =>
+  const filteredMachines = scopedMachineLog.filter(machineMatches).filter(serialMatches).filter((m) =>
     inRange(m.createdDate) || inRange(m.completedDate)
   );
   const filteredHandovers = (handovers || [])
@@ -15204,7 +15245,66 @@ function ReportCenterPage({
   });
 
   // Mapping of tabId → export dataset + filename
+  // ── 2026-10-31 — Department-wise, Owner summary and Monthly, computed from
+  // the same filtered hand-overs / jobs / ratings as the other reports. ──
+  const minutesBetween = (a, b) => (a && b ? Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / 60000)) : 0);
+  const departmentRows = DEPARTMENT_SEQUENCE.filter((d) => d !== "BOM Issued" && d !== "Ready").filter(deptMatches).map((d) => {
+    const sent = filteredHandovers.filter((h) => h.fromDepartment === d);
+    const received = filteredHandovers.filter((h) => h.toDepartment === d && h.status === "accepted");
+    const overrun = sent.filter((h) => (h.overrunMinutes || 0) > 0);
+    const late = received.filter((h) => h.sentAt && h.acceptedAt && minutesBetween(h.sentAt, h.acceptedAt) > (h.acceptTimeoutMinutes || 0));
+    const jobs = filteredPending.filter((p) => p.assignedDepartment === d);
+    const openJobs = jobs.filter((p) => p.status === "open");
+    const rated = filteredRatings.filter((r) => r.department === d && Number.isFinite(Number(r.stars ?? r.rating)));
+    const avgStars = rated.length ? Math.round((rated.reduce((a, r) => a + Number(r.stars ?? r.rating), 0) / rated.length) * 10) / 10 : "";
+    const avgWork = sent.length ? Math.round(sent.reduce((a, h) => a + (Number(h.actualDurationMinutes) || 0), 0) / sent.length) : 0;
+    const machinesNow = filteredMachines.filter((m) => m.status !== "completed" && (m.currentDepartment || m.stage) === d).length;
+    return { [T("Department")]: d, "Machines now": machinesNow, "Finished (sent on)": sent.length, "Accepted": received.length,
+             "Took longer": overrun.length, "Accepted late": late.length, "Avg work time": formatDuration(avgWork),
+             "Pending jobs (open)": openJobs.length, "Pending jobs (total)": jobs.length, [T("Avg rating")]: avgStars };
+  });
+  const monthKey = (iso) => { const t = iso ? Date.parse(iso) : NaN; if (Number.isNaN(t)) return null; const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+  const monthLabel = (k) => { const [y, m] = k.split("-"); return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString("en-IN", { month: "short", year: "numeric" }); };
+  const monthlyRows = (() => {
+    const acc = {};
+    const bump = (k, f, n = 1) => { if (!k) return; acc[k] = acc[k] || { started: 0, completed: 0, handovers: 0, overrun: 0, jobsRaised: 0, jobsClosed: 0, models: {} }; acc[k][f] += n; };
+    for (const m of filteredMachines) {
+      const ks = monthKey(m.createdDate) || monthKey(m.departmentEnteredAt); bump(ks, "started");
+      if (ks) { acc[ks].models[m.bomKey] = (acc[ks].models[m.bomKey] || 0) + 1; }
+      if (m.status === "completed") bump(monthKey(m.completedDate) || ks, "completed");
+    }
+    for (const h of filteredHandovers) { const k = monthKey(h.sentAt); bump(k, "handovers"); if ((h.overrunMinutes || 0) > 0) bump(k, "overrun"); }
+    for (const p of filteredPending) { bump(monthKey(p.createdAt), "jobsRaised"); if (p.status === "resolved") bump(monthKey(p.resolvedAt || p.createdAt), "jobsClosed"); }
+    return Object.keys(acc).sort().reverse().map((k) => ({ Month: monthLabel(k), "Machines started": acc[k].started, [T("Completed")]: acc[k].completed,
+      "Models": Object.entries(acc[k].models).map(([b, n]) => `${b} × ${n}`).join(", "), "Transfers": acc[k].handovers, "Took longer": acc[k].overrun,
+      "Jobs raised": acc[k].jobsRaised, "Jobs closed": acc[k].jobsClosed }));
+  })();
+  const ownerRows = (() => {
+    const done = filteredMachines.filter((m) => m.status === "completed");
+    const leadDays = done.map((m) => { const a = Date.parse(m.createdDate), b = Date.parse(m.completedDate); return Number.isNaN(a) || Number.isNaN(b) ? null : (b - a) / 86400000; }).filter((x) => x != null);
+    const avgLead = leadDays.length ? Math.round((leadDays.reduce((a, b) => a + b, 0) / leadDays.length) * 10) / 10 : "";
+    const onTime = filteredHandovers.length ? Math.round((filteredHandovers.filter((h) => !(h.overrunMinutes > 0)).length / filteredHandovers.length) * 100) : "";
+    const worst = departmentRows.slice().sort((a, b) => (b["Took longer"] + b["Accepted late"]) - (a["Took longer"] + a["Accepted late"]))[0];
+    const byModel = {}; for (const m of filteredMachines) { byModel[m.bomKey] = byModel[m.bomKey] || { total: 0, done: 0 }; byModel[m.bomKey].total++; if (m.status === "completed") byModel[m.bomKey].done++; }
+    return [
+      { Metric: T("Total machines"), Value: summary.total },
+      { Metric: T("Active"), Value: summary.active },
+      { Metric: T("Completed"), Value: summary.completed },
+      { Metric: "Avg BOM → Ready (days)", Value: avgLead },
+      { Metric: "Transfers on time (%)", Value: onTime },
+      { Metric: T("Delayed handovers"), Value: summary.delayedHandovers },
+      { Metric: T("Held handovers"), Value: summary.heldHandovers },
+      { Metric: T("Open pending items"), Value: summary.openPending },
+      { Metric: T("Avg rating"), Value: summary.avgRating ?? "" },
+      { Metric: "Department losing most time", Value: worst ? `${worst[T("Department")]} (${worst["Took longer"]} late finish, ${worst["Accepted late"]} late accept)` : "" },
+      { Metric: "By model", Value: Object.entries(byModel).map(([k, v]) => `${k}: ${v.done}/${v.total} ready`).join(" · ") },
+    ];
+  })();
+
   const exportable = {
+    owner:          { rows: ownerRows,    file: "shantaz-owner-summary" },
+    department:     { rows: departmentRows, file: "shantaz-department-performance" },
+    monthly:        { rows: monthlyRows,  file: "shantaz-monthly-production" },
     delay:          { rows: delayRows,    file: "shantaz-delay-report" },
     hold:           { rows: holdRows,     file: "shantaz-hold-report"  },
     pending:        { rows: pendingRows,  file: "shantaz-pending-report" },
@@ -15241,6 +15341,7 @@ function ReportCenterPage({
              "background: #fff" above is what keeps the stroke readable. Give them
              a border so an empty-looking box still reads as a signature field. */
           .report-area canvas, .report-area img { border: 1px solid #ccc !important; }
+          @page { size: ${rc.pageSize || "A4"} ${rc.orientation || "portrait"}; margin: 12mm; }
         }
       `}</style>
 
@@ -15278,9 +15379,17 @@ function ReportCenterPage({
                      className="bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-900 outline-none" />
             </div>
             <div>
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Machine / BOM / Serial</div>
-              <input type="text" value={machineFilter} onChange={(e) => setMachineFilter(e.target.value)}
-                     placeholder="e.g. BOM-ASSY-01 or S/N A-104"
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Machine model</div>
+              <select value={machineFilter} onChange={(e) => setMachineFilter(e.target.value)} data-filter-model
+                      className="bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-900 outline-none">
+                <option value="">All models</option>
+                {[...new Set(scopedMachineLog.map((m) => m.bomKey).filter(Boolean))].sort().map((k) => <option key={k} value={k}>{k}{bomDefs[k]?.label ? ` — ${bomDefs[k].label}` : ""}</option>)}
+              </select>
+            </div>
+            <div>
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Serial number</div>
+              <input type="text" value={serialFilter} onChange={(e) => setSerialFilter(e.target.value)} data-filter-serial
+                     placeholder="e.g. 123456789"
                      className="bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-900 outline-none" />
             </div>
             <div>
@@ -15292,7 +15401,7 @@ function ReportCenterPage({
               </select>
             </div>
             <div className="flex-1" />
-            <button onClick={() => { setDateFrom(""); setDateTo(""); setMachineFilter(""); setDeptFilter(""); }}
+            <button onClick={() => { setDateFrom(""); setDateTo(""); setMachineFilter(""); setSerialFilter(""); setDeptFilter(""); }}
                     className="text-[11px] font-bold text-slate-400 px-3 py-1.5 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:text-slate-900">
               Reset filters
             </button>
@@ -15324,21 +15433,40 @@ function ReportCenterPage({
               </button>
             ))}
           </div>
-          <button onClick={() => exportCSV(activeExport.rows, activeExport.file)}
-                  className="text-[11px] font-bold text-emerald-300 px-3 py-1.5 rounded border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20">
-            ⬇ CSV
+          <button onClick={() => exportExcel(activeExport.rows, activeExport.file)} data-export-excel
+                  className="text-[11px] font-bold px-3 py-1.5 rounded-lg border" style={{ color: "#15803d", borderColor: "rgba(21,128,61,0.35)", background: "rgba(21,128,61,0.08)" }}
+                  title="Download this report as an Excel file (CSV: hold Shift)"
+                  onContextMenu={(e) => { e.preventDefault(); exportCSV(activeExport.rows, activeExport.file); }}>
+            ⬇ Excel / CSV
           </button>
-          <button onClick={() => exportExcel(activeExport.rows, activeExport.file)}
-                  className="text-[11px] font-bold text-emerald-300 px-3 py-1.5 rounded border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20">
-            ⬇ Excel
-          </button>
-          <button onClick={printReport}
-                  className="text-[11px] font-bold text-blue-300 px-3 py-1.5 rounded border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20">
-            🖨 Print / Save as PDF
+          <button onClick={printReport} data-export-pdf
+                  className="text-[11px] font-black px-3 py-1.5 rounded-lg text-white" style={{ background: "#B01218" }}
+                  title={tab === "customer" ? "Save the customer PDF to send manually (no link is created)" : "Print or save this report as PDF"}>
+            🖨 {tab === "customer" ? "Save customer PDF" : "PDF"}
           </button>
         </div>
 
         {/* Tab content */}
+        {tab === "owner" && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {ownerRows.slice(0, 9).map((r) => (
+                <div key={r.Metric} className="rounded-xl p-3" style={{ background: "rgba(17,24,39,0.03)", border: "1px solid rgba(17,24,39,0.10)" }}>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{r.Metric}</div>
+                  <div className="text-[22px] font-black text-slate-900 mt-1 tabular-nums">{r.Value === "" ? "—" : r.Value}</div>
+                </div>
+              ))}
+            </div>
+            <ReportTable title="Owner summary & performance" rows={ownerRows} t={T} />
+            <ReportTable title="Department-wise performance" rows={departmentRows} t={T} />
+          </div>
+        )}
+        {tab === "department" && (
+          <ReportTable title="Department-wise performance" rows={departmentRows} t={T} />
+        )}
+        {tab === "monthly" && (
+          <ReportTable title="Monthly production" rows={monthlyRows} t={T} />
+        )}
         {tab === "factory" && (
           <div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -15432,7 +15560,17 @@ function ReportCenterPage({
             <ReportTable title={T("Customer Progress Report")} rows={customerRows} t={T} />
           </>
         )}
-        {rc.footerNote && <div className="hidden print:block text-[10px] text-slate-500 pt-3 mt-4" style={{ borderTop: "1px solid #cbd5e1" }}>{rc.footerNote}</div>}
+        {(rc.footerNote || rc.signatureImage) && (
+          <div className="hidden print:flex items-end justify-between gap-4 pt-3 mt-4" style={{ borderTop: "1px solid #cbd5e1" }}>
+            <div className="text-[10px] text-slate-500 flex-1">{rc.footerNote}</div>
+            {rc.signatureImage && (
+              <div className="text-center">
+                <img src={rc.signatureImage} alt="" style={{ height: 56, width: "auto", border: "none" }} />
+                <div className="text-[10px] text-slate-700 mt-1" style={{ borderTop: "1px solid #64748b", paddingTop: 2 }}>{rc.signatureLabel || "Authorised Signatory"}</div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -16646,7 +16784,7 @@ function PendingJobRows({ rows, onChange, inventory = [], accent = "#b45309", ad
   );
 }
 
-function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, onUpdateTrialCertificate = null, onUpdateStage, onNavigate = () => {}, canDo = () => true, bomDefs = {}, onStartProduction, onRemoveRackMachine, onUpdateBOM,
+function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, onUpdateTrialCertificate = null, canView = () => true, onUpdateStage, onNavigate = () => {}, canDo = () => true, bomDefs = {}, onStartProduction, onRemoveRackMachine, onUpdateBOM,
   // 2026-10-30 — the BOM Outward section (an embedded OutwardPage), or null
   // when this role may not issue a BOM.
   bomSection = null,
@@ -17553,6 +17691,15 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
       })()}
 
       <Topbar title="Machine Tracker" subtitle="Production build tracking — BOM issue through completion">
+        {/* 2026-10-31 — the Report Center opens from here (no sidebar entry). */}
+        {canView("reports") && (
+          <button type="button" data-open-reports onClick={() => onNavigate("reports")}
+                  className="h-9 px-3 rounded-lg text-[12px] font-black flex items-center gap-1.5"
+                  style={{ background: "rgba(215,25,32,0.10)", color: "#B01218", border: "1px solid rgba(215,25,32,0.35)" }}
+                  title="Open the Report Center">
+            📄 Reports
+          </button>
+        )}
         {/* Departments Called, behind a bell. Same count and same scope as the
             panel it opens; hidden for a floor login, as the panel always was. */}
         {!isFloorLogin && (() => {
@@ -25987,7 +26134,7 @@ export default function App() {
                               isSuperAdmin={currentUser?.role === "super_admin"}
                               onReverseReceive={handleReverseReceive}
                               onSetItemDefaultRate={handleSetItemDefaultRate} />,
-    machines:  <MachinePage   machineLog={machineLog} outwardLog={outwardLog} onUpdateTrialCertificate={handleUpdateTrialCertificate} onUpdateStage={handleUpdateMachineStage} onNavigate={setActivePage} canDo={canDo}
+    machines:  <MachinePage   machineLog={machineLog} outwardLog={outwardLog} onUpdateTrialCertificate={handleUpdateTrialCertificate} canView={canView} onUpdateStage={handleUpdateMachineStage} onNavigate={setActivePage} canDo={canDo}
                               items={items}
                               /* 2026-10-30 — BOM Outward, embedded at the top. Shown
                                  only to roles that may issue a BOM, same as Outward. */

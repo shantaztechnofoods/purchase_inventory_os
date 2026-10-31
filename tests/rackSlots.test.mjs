@@ -380,3 +380,25 @@ test("App: trial certificate confirmation-only gate, edit-later path, On Hold fi
   assert.match(app, /setMtTab\("production"\); setFilter\(filter === c\.key \? "all" : c\.key\);/);
   assert.match(app, /h\.status === "pending" && \(h\.id === m\.pendingHandoverId \|\| String\(h\.machineId\) === String\(m\.id\)\)/);
 });
+
+// 2026-10-31 — Report Center: opened from the Machine Tracker top bar (no
+// sidebar entry); seven reports; serial filter; Excel/CSV + PDF; settings for
+// signature / stamp, page layout and displayed fields.
+test("App: Report Center navigation, seven reports, filters, exports and settings", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+  const app = fs.readFileSync(path.join(root, "src/App.jsx"), "utf8");
+  assert.doesNotMatch(app, /\{ id: "reports",\s+Icon: TrendingUp,\s+label: "Report Center"/, "no sidebar entry");
+  assert.match(app, /data-open-reports onClick=\{\(\) => onNavigate\("reports"\)\}/, "Reports button on the Machine Tracker top bar");
+  for (const id of ["factory", "owner", "department", "stuck", "machine", "monthly", "customer"]) assert.match(app, new RegExp(`\\{ id: "${id}",\\s+label: "`), `report tab ${id}`);
+  assert.match(app, /const \[serialFilter, setSerialFilter\] = useState\(""\);/);
+  assert.match(app, /data-filter-model/); assert.match(app, /data-filter-serial/);
+  assert.match(app, /data-export-excel/); assert.match(app, /data-export-pdf/);
+  assert.match(app, /const departmentRows = DEPARTMENT_SEQUENCE/); assert.match(app, /const monthlyRows = \(\(\) => \{/); assert.match(app, /const ownerRows = \(\(\) => \{/);
+  assert.match(app, /signatureImage: "", signatureLabel: "Authorised Signatory", pageSize: "A4", orientation: "portrait"/);
+  assert.match(app, /@page \{ size: \$\{rc\.pageSize \|\| "A4"\} \$\{rc\.orientation \|\| "portrait"\}; margin: 12mm; \}/);
+  assert.match(app, /show\.showPendingJobs === false \|\| !machinePending\.length/);
+  // customer PDF is printed / saved, never linked
+  assert.doesNotMatch(app, /share(able)? link/i);
+});
