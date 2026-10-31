@@ -488,8 +488,10 @@ test("App: Machine Tracker — Ready is the final stage, filters clear, cards ar
 
   // 5/6 — premium scope and aligned header
   assert.match(app, /className="flex-1 overflow-y-auto mt-premium"/);
-  assert.match(css, /\.mt-premium \{[\s\S]*?--surface-card:\s+#FFFDF8;/);
-  assert.match(css, /\.mt-premium \.mt-card \{/);
+  // 2026-10-31 — the tracker shares the ERP's champagne palette (white cards,
+  // one set of hairlines); only the card shell and the gold chips are its own.
+  assert.match(css, /\.mt-premium \.mt-card \{[\s\S]*?background: var\(--surface-card\);/);
+  assert.match(css, /\.mt-premium \.mt-chip \{/);
   assert.match(css, /--mt-gold:\s+#A8842C;/);
   assert.match(css, /@media \(max-width: 640px\) \{[\s\S]*?\.mt-premium/);
   assert.match(app, /<Topbar title="Machine Tracker" subtitle="Mechanical → Electrical → Trial → Ready">/);

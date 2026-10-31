@@ -2649,66 +2649,134 @@ body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-for
    share a frame, so the pair reads as one set on the floor. */
 .rack-set { background: rgba(255,255,255,0.55); border: 1px dashed rgba(17,24,39,0.18); }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   Machine Tracker — premium cream/ivory surface (2026-10-31)
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHAMPAGNE IVORY — the ERP's warm-neutral surface system  (2026-10-31)
 
-   Scoped to .mt-premium (the Machine Tracker page root) so every other page
-   keeps the standard white surfaces. Harsh white gives way to warm ivory
-   paper, slate hairlines to soft gold, and flat borders to a low, wide
-   shadow — the same information, a calmer sheet to read it on.
-   ───────────────────────────────────────────────────────────────────────── */
-.mt-premium {
-  --surface-page:      #FAF7F0;
-  --surface-base:      #FAF7F0;
-  --surface-card:      #FFFDF8;
-  --surface-raised:    #FFFDF8;
-  --surface-elevated:  #FFFDF8;
-  --surface-highlight: #F4EFE3;
-  --surface-input:     #FFFDF8;
-  --border-subtle:     rgba(146, 118, 46, 0.18);
-  --border-rim:        rgba(146, 118, 46, 0.26);
-  --mt-gold:           #A8842C;
-  --mt-gold-soft:      rgba(168, 132, 44, 0.10);
-  background: var(--surface-page);
-}
-/* Tailwind utilities used across the page, re-pointed at the warm palette. */
-.mt-premium .bg-white      { background-color: var(--surface-card); }
-.mt-premium .bg-slate-50   { background-color: #F7F2E6; }
-.mt-premium .border-slate-200 { border-color: rgba(146, 118, 46, 0.20); }
-.mt-premium .page-header {
-  background: var(--surface-card);
-  border-bottom: 1px solid var(--border-subtle);
-}
-.mt-premium .section-card,
-.mt-premium .kpi-tile {
-  border-color: var(--border-subtle);
-  box-shadow: 0 1px 2px rgba(92, 72, 24, 0.05), 0 10px 26px -20px rgba(92, 72, 24, 0.45);
+   One palette for every module. The paper is a light champagne ivory, the
+   cards stay pure white, and everything that used to be a cool slate grey —
+   hairlines, subtle fills, shadows and body ink — moves onto a warm neutral
+   ramp of the same weight so nothing reads as grey-on-beige.
+
+   Nothing structural changes here: no layout, no component, no business
+   colour. Brand red, status colours (green / amber / red / indigo) and the
+   rack model colours are deliberately untouched — they are the ERP's
+   vocabulary and they read correctly against warm paper.
+
+   Contrast (WCAG AA needs 4.5:1 for body text; every value here clears 7:1
+   on white and on the paper):
+       ink                    on #fff   on paper
+       --text-strong #171310   18.5       16.8
+       --text-muted  #3A332A   12.5       11.3
+       --text-dim    #4C4435    9.6        8.8
+       --text-faint  #5B5240    7.7        7.0
+       slate-500 →   #5C5341    7.6        6.9   (was 4.8 — a real lift)
+
+   Declared last so it wins over the earlier :root blocks.
+   ═══════════════════════════════════════════════════════════════════════ */
+:root {
+  /* ── Paper ──────────────────────────────────────────────────────────── */
+  --surface-page:       #F8F4EA;
+  --surface-base:       #F8F4EA;
+  /* Two-tone wash: light at the top-left, a shade deeper at the bottom
+     right. Fixed, so it does not slide while a long page scrolls. */
+  --champagne-wash:     linear-gradient(165deg, #FCFAF3 0%, #F8F4EA 45%, #F2EBDA 100%);
+  --gold-wash:          var(--champagne-wash);   /* kept: earlier alias */
+
+  /* ── Cards stay pure white — the contrast against the paper is the
+        hierarchy, so nothing inside a card needs a border to be found. ── */
+  --surface-card:       #ffffff;
+  --surface-raised:     #ffffff;
+  --surface-elevated:   #ffffff;
+  --surface-input:      #ffffff;
+  --surface-highlight:  #F1EADA;
+  --surface-glass:        rgba(255, 253, 248, 0.90);
+  --surface-glass-strong: rgba(255, 253, 248, 0.97);
+  --surface-muted:      rgba(124, 101, 54, 0.045);
+  --surface-muted2:     rgba(124, 101, 54, 0.085);
+
+  /* ── Hairlines — warm taupe at the weight the slate lines used to be ── */
+  --border-subtle:      rgba(124, 101, 54, 0.17);
+  --border-rim:         rgba(124, 101, 54, 0.24);
+  --border-rim-strong:  rgba(124, 101, 54, 0.32);
+
+  /* ── Ink — warm neutrals, every step darker than the slate it replaces ── */
+  --text:               #262019;
+  --text-strong:        #171310;
+  --text-muted:         #3A332A;
+  --text-dim:           #4C4435;
+  --text-faint:         #5B5240;
+  --text-placeholder:   #786F5C;
+  --text-disabled:      #A79C86;
+
+  /* ── Shadows — warm, low and wide; light falls the same way everywhere ── */
+  --shadow-sm:  0 1px 2px rgba(86, 68, 33, 0.05), 0 1px 3px rgba(86, 68, 33, 0.07);
+  --shadow-md:  0 2px 8px -2px rgba(86, 68, 33, 0.09), 0 6px 18px -6px rgba(86, 68, 33, 0.11);
+
+  /* ── Gold accent, for the few places that carry one ── */
+  --mt-gold:            #A8842C;
+  --mt-gold-soft:       rgba(168, 132, 44, 0.10);
 }
 
-/* One machine, one card. */
+html, body, #root { background: var(--champagne-wash); }
+/* The app shell paints `background: var(--surface-base)` inline, which resets
+   background-image; this restores the wash without touching the component. */
+.app-shell { background-image: var(--champagne-wash) !important; background-attachment: fixed; }
+
+/* ── Tailwind neutrals, harmonised ───────────────────────────────────────────
+   The app reaches for slate utilities in ~1,300 places. Re-pointing the six
+   that carry surface and body ink keeps every module on one palette without
+   touching a single component. Cards (.bg-white) stay white, and the light
+   end of the ramp (100–300) is left alone so light text on dark surfaces is
+   unaffected. */
+.bg-slate-50      { background-color: #F8F5EC; }
+.bg-slate-100     { background-color: #F1EBDE; }
+.border-slate-100 { border-color: rgba(124, 101, 54, 0.13); }
+.border-slate-200 { border-color: rgba(124, 101, 54, 0.20); }
+.text-slate-400   { color: #6E6553; }
+.text-slate-500   { color: #5C5341; }
+.text-slate-600   { color: #4A4234; }
+.text-slate-700   { color: #3E372C; }
+.text-slate-800   { color: #2B251D; }
+.text-slate-900   { color: #171310; }
+.divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(124, 101, 54, 0.13); }
+.divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(124, 101, 54, 0.20); }
+
+/* ── Navigation rail ─────────────────────────────────────────────────────────
+   Deep warm charcoal rather than cool navy: beside champagne paper, a blue
+   black reads as a different design. Every accent — the red indicator, the
+   active item, the logo — is unchanged. */
+.sidebar-slate            { background: #15120D; border-right: 1px solid #272116; color: #D6D0C3; }
+.sidebar-slate .sb-divider     { border-bottom: 1px solid #252016; }
+.sidebar-slate .sb-divider-top { border-top: 1px solid #252016; }
+.sidebar-slate .sb-search      { background: #1D1810; border: 1px solid #2F2718; color: #A79C86; }
+.sidebar-slate .sb-search:hover{ background: #241E14; border-color: #3B3120; }
+.sidebar-slate .sb-kbd         { background: #15120D; border: 1px solid #3B3120; color: #A79C86; }
+.sidebar-slate .sb-iconbtn     { background: #1D1810; border: 1px solid #2F2718; color: #D6D0C3; }
+.sidebar-slate .sb-iconbtn:hover { background: #241E14; border-color: #3B3120; }
+.sidebar-slate .sb-section     { color: #8A7F66; }
+.sidebar-slate .sb-item        { color: #CFC8B8; }
+.sidebar-slate .sb-icon        { color: #A2998A; }
+.sidebar-slate .sb-user-chevron{ color: #8A7F66; }
+.sidebar-slate .sb-collapse    { color: #8A7F66; }
+.sidebar-slate nav::-webkit-scrollbar-thumb { background: #3B3120; }
+
+/* ── Machine Tracker ─────────────────────────────────────────────────────────
+   The tracker now shares the ERP palette — white cards, champagne paper, the
+   same hairlines — and keeps only what is its own: the card shell and the
+   filter chips, in gold. */
 .mt-premium .mt-card {
   background: var(--surface-card);
   border: 1px solid var(--border-subtle);
   border-radius: 16px;
-  box-shadow: 0 1px 2px rgba(92, 72, 24, 0.05), 0 14px 30px -24px rgba(92, 72, 24, 0.5);
+  box-shadow: var(--shadow-sm);
   transition: border-color .18s ease, box-shadow .18s ease;
 }
-.mt-premium .mt-card:hover {
-  border-color: rgba(146, 118, 46, 0.32);
-  box-shadow: 0 2px 6px rgba(92, 72, 24, 0.07), 0 20px 38px -26px rgba(92, 72, 24, 0.55);
-}
-.mt-premium .mt-card-ready { border-color: rgba(21, 128, 61, 0.30); }
-
-/* Filter chips (All Machines / the active summary-card filter). */
+.mt-premium .mt-card:hover { border-color: var(--border-rim); box-shadow: var(--shadow-md); }
+.mt-premium .mt-card-ready { border-color: rgba(21, 128, 61, 0.28); }
 .mt-premium .mt-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 10px;
-  font-size: 11.5px;
-  font-weight: 700;
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 12px; border-radius: 10px;
+  font-size: 11.5px; font-weight: 700;
   color: var(--text-dim);
   background: var(--surface-card);
   border: 1px solid var(--border-subtle);
@@ -2717,13 +2785,18 @@ body :where(:not(.sidebar-slate):not(.sidebar-slate *):not(.tc-form):not(.tc-for
 .mt-premium .mt-chip:hover { color: var(--text-strong); border-color: var(--border-rim); }
 .mt-premium .mt-chip[data-on="1"],
 .mt-premium .mt-chip-active {
-  color: #7d6118;
-  background: var(--mt-gold-soft);
-  border-color: rgba(168, 132, 44, 0.45);
+  color: #7D6118; background: var(--mt-gold-soft); border-color: rgba(168, 132, 44, 0.45);
 }
-
 @media (max-width: 640px) {
   /* A phone on the shop floor: full-width actions, nothing clipped. */
   .mt-premium .mt-card { border-radius: 14px; }
   .mt-premium .page-header-actions { width: 100%; }
+}
+
+/* ── Paper is for screens; printed reports stay white ──────────────────── */
+@media print {
+  html, body, #root, .app-shell {
+    background: #fff !important;
+    background-image: none !important;
+  }
 }
