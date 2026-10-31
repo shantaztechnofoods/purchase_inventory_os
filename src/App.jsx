@@ -83,7 +83,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-job-modal-front";
+const APP_BUILD = "2026-10-31-transfer-form";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -16981,9 +16981,13 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
       return;
     }
     if (!mainEmployeeId || !workedBy.includes(mainEmployeeId)) {
-      showToast("Main Employee required", "Pick the Main / Responsible Employee (must have ERP login) from the selected workers.", "warning");
+      showToast("Main Employee required", "Pick the Main / Responsible Employee.", "warning");
       return;
     }
+    // 2026-10-31 — the Main Employee may be a Settings → Employees member
+    // without an ERP login. The DB uuid column takes a login id only; the
+    // employee is identified by main_employee_ref / _name and the snapshot.
+    const mainIsLogin = !String(mainEmployeeId).startsWith("emp:");
     if (!mainSigSvg || !String(mainSigSvg).trim()) {
       showToast("Signature required", "The Main Employee must sign to confirm this department's work.", "warning");
       return;
@@ -16994,10 +16998,10 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
       if (String(id).startsWith("emp:")) {
         const empId = id.slice(4);
         const m = (settings?.employeeMembers || []).find((x) => x.id === empId);
-        return { id, type: "emp", name: m?.name || empId };
+        return { id, type: "emp", name: m?.name || empId, main: id === mainEmployeeId || undefined };
       }
       const u = (allUsers || []).find((x) => x.id === id);
-      const entry = { id, type: "auth", fullName: u?.fullName || null, username: u?.username || null };
+      const entry = { id, type: "auth", fullName: u?.fullName || null, username: u?.username || null, main: id === mainEmployeeId || undefined };
       // 2026-10-30 — acting Main Employee, assigned by an admin.
       if (actingMainId && id === actingMainId) {
         entry.acting = true;
@@ -17026,7 +17030,9 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
         // Phase 1 — jobs this department still owes on the machine it is
         // handing over. Recorded against fromDepartment, not the receiver.
         owedItems:         cleanPendingJobs(owedItems),
-        mainEmployeeId,
+        mainEmployeeId: mainIsLogin ? mainEmployeeId : null,
+        mainEmployeeRef: mainEmployeeId,
+        mainEmployeeName: (workedBySnapshot.find((w) => w.id === mainEmployeeId) || {}).name || (workedBySnapshot.find((w) => w.id === mainEmployeeId) || {}).fullName || null,
         mainEmployeeSignatureSvg: mainSigSvg,
         actingMainEmployeeId: actingMainId || null,
       });
@@ -19151,29 +19157,23 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                             if (u) return u.fullName || u.username || uid;
                             return String(uid).startsWith("emp:") ? String(uid).slice(4) : uid;
                           };
+                          // 2026-10-31 — the Main Employee may be a Settings
+                          // employee (main_employee_ref "emp:…", snapshot main:true).
+                          const mainOf = (h) => h.mainEmployeeRef || h.mainEmployeeId || (Array.isArray(h.workedBySnapshot) ? (h.workedBySnapshot.find((x) => x && x.main) || {}).id : null) || null;
                           return (
                             <div>
-                              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">Workers per department</div>
-                              <div className="space-y-1.5">
-                                {machineHandovers.map((h) => (
-                                  <div key={h.id} className="rounded px-2 py-1.5"
+                              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">Team per department</div>
+                              <div className="space-y-1">
+                                {machineHandovers.map((h) => { const mid = mainOf(h); const others = workerIdsOf(h).filter((uid) => uid !== mid); return (
+                                  <div key={h.id} className="rounded px-2 py-1.5 text-[10.5px] flex items-center gap-x-2 gap-y-0.5 flex-wrap"
                                        style={{ background: "rgba(16,185,129,0.05)", border: "1px solid rgba(16,185,129,0.25)" }}>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="text-[10px] font-black text-emerald-200">{h.fromDepartment}</span>
-                                      <span className="text-[9px] text-slate-500">· {h.sentAt ? new Date(h.sentAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : ""}</span>
-                                      {h.mainEmployeeSignatureSvg && <span title="Main Employee signed" className="text-[9px] font-bold text-yellow-300">✍ Signed</span>}
-                                    </div>
-                                    <div className="text-[10px] text-slate-500 mt-0.5">
-                                      {workerIdsOf(h).map((uid, idx) => (
-                                        <span key={uid}>
-                                          {idx > 0 && ", "}
-                                          {uid === h.mainEmployeeId && <span className="text-yellow-300">⭐ </span>}
-                                          {nameOf(uid, h.workedBySnapshot)}
-                                        </span>
-                                      ))}
-                                    </div>
+                                    <span className="font-black text-emerald-200">{h.fromDepartment}</span>
+                                    <span className="text-[9px] text-slate-500">{h.sentAt ? new Date(h.sentAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : ""}</span>
+                                    {mid && <span className="text-slate-300"><span className="text-yellow-300">⭐</span> {h.mainEmployeeName || nameOf(mid, h.workedBySnapshot)}{h.mainEmployeeSignatureSvg ? <span title="Main Employee signed" className="text-yellow-300"> ✍</span> : ""}</span>}
+                                    {others.length > 0 && <span className="text-slate-500" title={others.map((uid) => nameOf(uid, h.workedBySnapshot)).join(", ")}>+ {others.map((uid) => nameOf(uid, h.workedBySnapshot)).join(", ")}</span>}
+                                    {h.checklistTemplateName || h.checklistSnapshot ? <span className="text-[9px] font-bold text-sky-300">☑ checklist</span> : null}
                                   </div>
-                                ))}
+                                ); })}
                               </div>
                             </div>
                           );
@@ -20052,75 +20052,59 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                       <div className="text-[10px] text-slate-500 mt-1">The acting employee is added to the workers, becomes Main and must sign below.</div>
                     </div>
                   ) : null;
+                  // 2026-10-31 — compact one-row picker. Every employee of the
+                  // department is selectable (ERP logins and Settings →
+                  // Employees alike): exactly one Main / Responsible Employee
+                  // (who signs) and any number of working employees.
+                  const people = [
+                    ...deptUsers.map((u) => ({ id: u.id, name: u.fullName || u.username || u.id, login: true })),
+                    ...deptEmpMembers.map((m) => ({ id: `emp:${m.id}`, name: m.name, login: false })),
+                  ];
+                  const others = workedBy.filter((id) => id !== mainId);
+                  const chooseMain = (id) => setFinishModal((prev) => {
+                    if (!prev) return prev;
+                    const rest = (prev.workedBy || []).filter((x) => x !== id && x !== prev.mainEmployeeId);
+                    return { ...prev, workedBy: id ? [id, ...rest] : rest, mainEmployeeId: id || null, mainSigSvg: null, mainSigNeeded: false, actingMainId: prev.actingMainId === prev.mainEmployeeId ? null : prev.actingMainId };
+                  });
+                  const toggleWorker = (id) => setFinishModal((prev) => {
+                    if (!prev || id === prev.mainEmployeeId) return prev;
+                    const has = (prev.workedBy || []).includes(id);
+                    return { ...prev, workedBy: has ? prev.workedBy.filter((x) => x !== id) : [...prev.workedBy, id] };
+                  });
                   return (
                     <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
-                      <div className="text-[11px] font-black text-slate-800 mb-1">
-                        Workers from {fromDepartment} <span className="text-red-500 ml-0.5">*</span>
-                      </div>
-                      <div className="text-[10px] text-slate-500 mb-2">
-                        Pick everyone who worked on this machine. The <span className="text-amber-600 font-semibold">Main / Responsible Employee</span> (must have an ERP login) signs to confirm. Factory workers without logins can be added from Settings → Employees.
-                      </div>
                       {!hasAnyWorkers && !actingId ? (
                         <div className="rounded-lg px-2 py-2 text-[11px] font-semibold text-red-600 bg-red-50 border border-red-200">
-                          ⚠ No employees are assigned to {fromDepartment} yet. Ask an admin to assign workers in Settings → Department Workflow or add display names in Settings → Employees.
+                          ⚠ No employees are assigned to {fromDepartment} yet. Ask an admin to assign workers in Settings → Department Workflow or add them in Settings → Employees.
                         </div>
                       ) : (
-                        <>
-                          {workedBy.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mb-2">
-                              {workedBy.map((id) => {
-                                const isEmp  = id.startsWith("emp:");
-                                const isMain = !isEmp && mainId === id;
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" data-team-picker>
+                          <div>
+                            <div className="text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">Main / Responsible Employee <span className="text-red-500">*</span> <span className="font-semibold normal-case text-slate-500">(signs)</span></div>
+                            <select value={mainId || ""} onChange={(e) => chooseMain(e.target.value)} data-main-select
+                                    className="w-full bg-white border border-amber-300 rounded-md px-2 py-2 text-[12px] text-slate-900 outline-none focus:border-amber-400">
+                              <option value="">— Pick one —</option>
+                              {people.map((x) => <option key={x.id} value={x.id}>{x.name}{x.login ? "" : " (no login)"}</option>)}
+                              {actingId && !people.some((x) => x.id === actingId) && <option value={actingId}>{chipName(actingId)} (acting)</option>}
+                            </select>
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">Working employees <span className="font-semibold normal-case text-slate-500">(with the main employee)</span></div>
+                            <div className="flex flex-wrap gap-1" data-worker-chips>
+                              {people.filter((x) => x.id !== mainId).map((x) => {
+                                const on = others.includes(x.id);
                                 return (
-                                  <span key={id}
-                                        className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
-                                          isMain ? "bg-amber-50 border-amber-300 text-amber-700" : isEmp ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "bg-emerald-50 border-emerald-200 text-emerald-700"
-                                        }`}>
-                                    {isMain ? "⭐" : isEmp ? "👤" : ""}
-                                    {chipName(id)}
-                                    {finishModal.actingMainId === id && <span className="text-[9px] font-black uppercase ml-0.5">acting</span>}
-                                    <button onClick={() => removeWorker(id)}
-                                            title="Remove worker"
-                                            className="ml-0.5 text-slate-400 hover:text-red-500">×</button>
-                                  </span>
+                                  <button key={x.id} type="button" onClick={() => toggleWorker(x.id)} aria-pressed={on} data-worker={x.id}
+                                          className="text-[11px] font-bold px-2 py-1 rounded-md border transition-all"
+                                          style={on ? { background: "#15803d", color: "#fff", borderColor: "#15803d" } : { background: "#fff", color: "#334155", borderColor: "rgba(17,24,39,0.18)" }}>
+                                    {on ? "✓ " : ""}{x.name}
+                                  </button>
                                 );
                               })}
+                              {people.filter((x) => x.id !== mainId).length === 0 && <span className="text-[10.5px] text-slate-500">No other employee in {fromDepartment}.</span>}
                             </div>
-                          )}
-                          <div className="flex flex-wrap gap-2">
-                            {unassignedUsers.length > 0 && (
-                              <select value="" onChange={(e) => { if (e.target.value) addWorker(e.target.value); }}
-                                      className="flex-1 min-w-[160px] bg-white border border-slate-300 rounded-md px-2 py-1.5 text-[11px] text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-100 transition-colors">
-                                <option value="">+ Add ERP user…</option>
-                                {unassignedUsers.map((u) => (
-                                  <option key={u.id} value={u.id}>{u.fullName || u.username}{u.username && u.fullName ? ` (${u.username})` : ""}</option>
-                                ))}
-                              </select>
-                            )}
-                            {unassignedEmps.length > 0 && (
-                              <select value="" onChange={(e) => { if (e.target.value) addWorker(`emp:${e.target.value}`); }}
-                                      className="flex-1 min-w-[160px] bg-white border border-slate-300 rounded-md px-2 py-1.5 text-[11px] text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-100 transition-colors">
-                                <option value="">+ Add factory worker…</option>
-                                {unassignedEmps.map((m) => (
-                                  <option key={m.id} value={m.id}>{m.name}</option>
-                                ))}
-                              </select>
-                            )}
                           </div>
-                          {authWorkedBy.length > 1 && (
-                            <div className="mt-2">
-                              <div className="text-[10px] font-bold text-slate-600 mb-1 uppercase tracking-wider">Main / Responsible Employee (must sign)</div>
-                              <select value={mainId || ""} onChange={(e) => setMain(e.target.value)}
-                                      className="w-full bg-white border border-amber-300 rounded-md px-2 py-1.5 text-[11px] text-slate-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-50 transition-colors">
-                                <option value="">— Pick the main employee —</option>
-                                {authWorkedBy.map((id) => {
-                                  const u = (allUsers || []).find((x) => x.id === id);
-                                  return <option key={id} value={id}>{u ? (u.fullName || u.username) : id}</option>;
-                                })}
-                              </select>
-                            </div>
-                          )}
-                        </>
+                        </div>
                       )}
 
                       {actingBlock}
@@ -24865,6 +24849,9 @@ export default function App() {
     checklistTemplate, checklistAnswers,
     // Migration 029 — department-wise employees + Main Employee signature.
     workedBy = [], mainEmployeeId = null, mainEmployeeSignatureSvg = null,
+    // 2026-10-31 — Main Employee reference for a Settings employee without a
+    // login ("emp:<id>") plus the display name; mainEmployeeId is null then.
+    mainEmployeeRef = null, mainEmployeeName = null,
     // Feature 3/4 — pre-built snapshot from submitFinishTransfer that includes
     // both auth users and emp-member display names. If absent, compute from allUsers.
     workedBySnapshot: workedBySnapshotArg = null,
@@ -24957,6 +24944,8 @@ export default function App() {
       workedBy:                 safeWorkedBy,
       workedBySnapshot,
       mainEmployeeId:           mainEmployeeId || null,
+      mainEmployeeRef:          mainEmployeeRef || mainEmployeeId || null,
+      mainEmployeeName:         mainEmployeeName || null,
       mainEmployeeSignatureId:  mainSigId,
       mainEmployeeSignatureSvg: mainEmployeeSignatureSvg || null,
     };

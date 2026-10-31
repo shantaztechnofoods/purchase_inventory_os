@@ -117,3 +117,18 @@ test("validateChecklistAnswers still requires remark on unchecked rows", () => {
   assert.equal(bad.ok, false);
   assert.deepEqual(bad.missing, [0]);
 });
+
+// 2026-10-31 — a department-wide template for the stage (bom_key null,
+// stage set — what Settings → Department Checklists creates) applies to a
+// BOM that has no template of its own. Live Mechanical showed none.
+test("pickTemplate: department-wide stage template is used when the BOM has none", () => {
+  const t = [
+    { id: 4, department: "Mechanical", bomKey: null, stage: "before_dispatch", active: true, name: "Mechanical · Before Dispatch", items: [{ text: "x" }] },
+    { id: 3, department: "Mechanical", bomKey: null, stage: "before_receive", active: true, name: "Mechanical · Before Receive", items: [{ text: "y" }] },
+    { id: 9, department: "Mechanical", bomKey: "M-15", stage: "before_dispatch", active: true, name: "M-15 own", items: [{ text: "z" }] },
+  ];
+  assert.equal(pickTemplate(t, "M-10", "Mechanical", "before_dispatch")?.id, 4);
+  assert.equal(pickTemplate(t, "M-10", "Mechanical", "before_receive")?.id, 3);
+  assert.equal(pickTemplate(t, "M-15", "Mechanical", "before_dispatch")?.id, 9, "a BOM's own template still wins");
+  assert.equal(pickTemplate(t, "M-10", "Mechanical", "during_work"), null);
+});

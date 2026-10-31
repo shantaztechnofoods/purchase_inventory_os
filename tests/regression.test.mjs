@@ -353,9 +353,11 @@ const USER_FACING_STRINGS = [
   "Department Employees",
   "Main / Responsible Employee",
   "Main Employee signature",
-  "Workers from",
-  "+ Add ERP user",
-  "Workers per department",
+  // 2026-10-31 — compact one-row team picker replaced "Workers from" /
+  // "+ Add ERP user" / "+ Add factory worker"; the card shows "Team per department".
+  "Main / Responsible Employee",
+  "Working employees",
+  "Team per department",
   // BOM Edit — Checklist + Critical Items review chips (2026-10-22)
   "Critical Items in this BOM",
   "Department Checklists for ",
@@ -396,7 +398,6 @@ const USER_FACING_STRINGS = [
   "Add Employee",
   "Active (appears in dropdowns)",
   // Feature 4 — Transfer multi-select (2026-10-27)
-  "+ Add factory worker",
   "factory workers without ERP logins",
   // Feature 5 — Accept multi-select (2026-10-27)
   "Receiving employees",

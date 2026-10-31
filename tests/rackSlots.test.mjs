@@ -341,3 +341,21 @@ test("App: Part received asks for the item's configured verification and gates t
   // the stylesheet's .modal-backdrop { z-index: 50 } outranks the utility, so the value must be inline
   assert.ok(/backdropFilter: "blur\(12px\)", zIndex: 96 \}/.test(app.slice(i, i + 9000)), "job action modal z-index is inline (beats .modal-backdrop z-index:50)");
 });
+
+// 2026-10-31 — compact team picker; any Settings employee may be Main.
+test("App: compact team picker, non-login Main Employee, migration 050", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+  const app = fs.readFileSync(path.join(root, "src/App.jsx"), "utf8");
+  const store = fs.readFileSync(path.join(root, "src/stores/handoverStore.js"), "utf8");
+  assert.match(app, /data-team-picker/);
+  assert.match(app, /\{people\.map\(\(x\) => <option key=\{x\.id\} value=\{x\.id\}>\{x\.name\}\{x\.login \? "" : " \(no login\)"\}<\/option>\)\}/, "Main select lists logins and Settings employees");
+  assert.match(app, /const mainIsLogin = !String\(mainEmployeeId\)\.startsWith\("emp:"\);/);
+  assert.match(app, /mainEmployeeId: mainIsLogin \? mainEmployeeId : null,\n\s+mainEmployeeRef: mainEmployeeId,/);
+  assert.doesNotMatch(app, /must have ERP login/, "no login-only restriction text");
+  assert.match(store, /row\.main_employee_ref\s+= h\.mainEmployeeRef \|\| null;/);
+  const up = fs.readFileSync(path.join(root, "supabase/migrations/050_handover_main_employee_ref.sql"), "utf8");
+  assert.match(up, /ADD COLUMN IF NOT EXISTS main_employee_ref\s+text/);
+  assert.doesNotMatch(up, /\b(DROP TABLE|TRUNCATE|DELETE FROM|ALTER POLICY|CREATE POLICY|DROP POLICY)\b/i);
+});
