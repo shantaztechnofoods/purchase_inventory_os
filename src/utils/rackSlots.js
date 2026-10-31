@@ -4,8 +4,10 @@
 // TWELVE rack units on the floor — M-10 (1), M-10 (2), R-10 (1), R-10 (2), …
 // R-20 (2) — paired into SIX machine sets: M-10 (1) + R-10 (1) is ONE machine
 // set with ONE serial number; M-10 (2) + R-10 (2) is a second set with a
-// different serial. The M unit holds the M BOM crate, the R unit the R BOM
-// crate of the same machine. M and R are never separate machines.
+// different serial. M and R are never separate machines, and each rack keeps
+// its OWN BOM (never merged): the M rack is filled with the M BOM under a new
+// serial (that places the machine), the R rack with the R BOM as a separate
+// outward under the same serial (the "R crate").
 //
 // A set is stored on the machine as its M slot id ("M-10-1#2"); the R unit of
 // the same position shows the same machine (pairSlotOf). Every rack takes
@@ -97,22 +99,6 @@ export function pairSlotOf(slotId) {
 export const setSlotOf = (slotId) => (tierOfSlot(slotId) === "R" ? pairSlotOf(slotId) : (slotId || null));
 // "M-10 (2) + R-10 (2)"
 export const setLabel = (slotId) => { const m = setSlotOf(slotId); return m ? `${slotLabel(m)} + ${slotLabel(pairSlotOf(m))}` : ""; };
-
-// One BOM line list for a machine set: the M crate and the R crate together.
-// A code used by both crates is one line with the quantities added, so stock
-// is checked and deducted once. `crates` says which crate(s) each line is for.
-export function mergeSetBomItems(mItems = [], rItems = []) {
-  const out = []; const at = {};
-  const add = (list, crate) => (list || []).forEach((l) => {
-    const code = String((l && l.code) || "").trim();
-    if (!code) return;
-    const qty = Number(l.qty) || 0;
-    if (at[code] == null) { at[code] = out.length; out.push({ ...l, code, qty, crates: [crate], crateQty: { [crate]: qty } }); }
-    else { const o = out[at[code]]; o.qty += qty; if (!o.crates.includes(crate)) o.crates.push(crate); o.crateQty[crate] = (o.crateQty[crate] || 0) + qty; }
-  });
-  add(mItems, "M"); add(rItems, "R");
-  return out;
-}
 
 // Slot ids of a family (optionally one tier only), rack by rack, in floor order.
 export function familySlotIds(family, layout = PHYSICAL_RACK_LAYOUT, tier = null) {
@@ -246,28 +232,33 @@ export function rackViewLog(machineLog = [], handovers = []) {
   return (machineLog || []).map((m) => (m && m.rackSlot && released.has(String(m.id)) && m.stage === "Assembly" ? { ...m, rackSlot: null } : m));
 }
 
-// Can a machine set of `family` be filled? Both crates are filled together,
-// so BOTH BOMs must exist, be live, have components, and every merged line
-// must be fully in stock. stockOf(code) → Item Master record or undefined.
-// Returns { ok, why, mKey, rKey, lines, short }.
-export function setFillCheck(family, bomDefs = {}, stockOf = () => undefined) {
-  const mKey = rackBoms(family, "M").primary;
-  const rKey = rackBoms(family, "R").primary;
-  const mDef = mKey ? bomDefs[mKey] : null;
-  const rDef = rKey ? bomDefs[rKey] : null;
-  const res = (why, extra = {}) => ({ ok: !why, why, mKey, rKey, lines: [], short: [], ...extra });
-  if (!mDef || mDef.retiredAt) return res(`Create the ${mKey} BOM first`);
-  if (!rDef || rDef.retiredAt) return res(`Create the ${rKey} BOM first`);
-  const mItems = (mDef.items || []).filter((l) => l && l.code);
-  const rItems = (rDef.items || []).filter((l) => l && l.code);
-  if (!mItems.length) return res(`${mKey} BOM has no components yet`);
-  if (!rItems.length) return res(`${rKey} BOM has no components yet — the set cannot be filled until its verified component list is added`);
-  const lines = mergeSetBomItems(mItems, rItems).map((l) => {
+// Can `bomKey` be issued as one complete crate? The BOM must exist, be live,
+// have components, and every line must be in the Item Master and fully in
+// stock. Each rack keeps its OWN BOM — M and R are never merged.
+// stockOf(code) → Item Master record or undefined.
+// Returns { ok, why, key, empty, lines, short }.
+export function bomFillCheck(bomKey, bomDefs = {}, stockOf = () => undefined) {
+  const def = bomKey ? bomDefs[bomKey] : null;
+  const res = (why, extra = {}) => ({ ok: !why, why, key: bomKey, empty: false, lines: [], short: [], ...extra });
+  if (!bomKey) return res("No BOM is mapped to this rack");
+  if (!def || def.retiredAt) return res(`Create the ${bomKey} BOM first`);
+  const items = (def.items || []).filter((l) => l && l.code);
+  if (!items.length) return res(`${bomKey} BOM has no components yet — add its verified component list first`, { empty: true });
+  const lines = items.map((l) => {
     const inv = stockOf(l.code);
+    const need = Number(l.qty) || 0;
     const have = inv ? (Number(inv.stock) || 0) : 0;
-    return { ...l, inv: inv || null, have, ok: !!inv && l.qty > 0 && have >= l.qty, unknown: !inv };
+    return { code: l.code, need, have, inv: inv || null, ok: !!inv && need > 0 && have >= need, unknown: !inv };
   });
   const short = lines.filter((l) => !l.ok);
-  if (short.length) return res(`Some components are short: ${short.map((l) => l.code).join(", ")}`, { lines, short });
+  if (short.length) return res(`Some ${bomKey} components are short: ${short.map((l) => l.code).join(", ")}`, { lines, short });
   return res("", { lines, short });
+}
+
+// The R crate of a machine set is issued as its own BOM outward (ref = the R
+// BOM key) under the machine's serial number. Returns those outward entries.
+export function rCrateIssues(outwardLog = [], rBomKey, serialNo) {
+  const sn = String(serialNo || "").trim().toLowerCase();
+  if (!rBomKey || !sn) return [];
+  return (outwardLog || []).filter((e) => e && e.type === "bom" && rackKeyNorm(e.ref) === rackKeyNorm(rBomKey) && String(e.serialNo || "").trim().toLowerCase() === sn);
 }

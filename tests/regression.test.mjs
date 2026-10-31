@@ -230,7 +230,7 @@ const AUDIT_EVENT_TYPES = [
   // Migration 036 — a production head releases a machine off the rack.
   "handover_released",
   // Migration 045 — rack slots (brief §14).
-  "rack_slot_assigned", "rack_slot_released",
+  "rack_slot_assigned", "rack_slot_released", "rack_crate_filled",
   "attachment_uploaded", "attachment_deleted",
   "department_rated", "rating_overridden",
   // Migration 028 — BOM-wise reusable checklist submission audit split by stage.
