@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { rackViewLog, PHYSICAL_RACK_LAYOUT, rackOfBom, rackBoms, rackCapacityFor, familySlotIds, buildFamilyRacks, firstFreeSlot, canAssignSlot, slotLabel, slotStatusOf, pairSlotOf, setSlotOf, setLabel, bomFillCheck, rCrateIssues } from "../src/utils/rackSlots.js";
+import { rackViewLog, PHYSICAL_RACK_LAYOUT, rackOfBom, rackBoms, rackCapacityFor, familySlotIds, buildFamilyRacks, firstFreeSlot, canAssignSlot, slotLabel, slotStatusOf, pairSlotOf, setSlotOf, setLabel, bomFillCheck, rCrateIssues, freeSlotsFor } from "../src/utils/rackSlots.js";
 
 const fam10 = PHYSICAL_RACK_LAYOUT.families[0];
 const m = (id, over = {}) => ({ id, bomKey: "KM10", serialNo: `S${id}`, stage: "BOM Issued", status: "active", createdDate: `2026-10-${String(10 + id).padStart(2, "0")}`, ...over });
@@ -28,67 +28,62 @@ test("rack ↔ BOM mapping is exact; every other BOM is Direct Production only",
 
 const mm = (id, bomKey, over = {}) => m(id, { bomKey, ...over });
 
-test("M/R pairing: unit n of M and unit n of R are ONE machine set", () => {
-  assert.equal(pairSlotOf("M-10-1#1"), "R-10-1#1");
-  assert.equal(pairSlotOf("R-20-1#2"), "M-20-1#2");
-  assert.equal(setSlotOf("R-15-1#2"), "M-15-1#2");
-  assert.equal(setSlotOf("M-15-1#2"), "M-15-1#2");
-  assert.equal(setLabel("R-10-1#1"), "M-10 (1) + R-10 (1)");
-  const log = [mm(1, "M-10"), mm(2, "M-10"), mm(3, "M-10")];
-  const { placed, overflow, columns } = buildFamilyRacks(fam10, log);
+test("a machine only ever lands on its own rack", () => {
+  const log = [mm(1, "M-10"), mm(2, "R-10"), mm(3, "M-10"), mm(4, "M-10")];
+  const { placed, overflow } = buildFamilyRacks(fam10, log);
   assert.equal(placed["M-10-1#1"].machine.id, 1);
-  assert.equal(placed["R-10-1#1"].machine.id, 1, "R unit shows the same machine (shared serial)");
-  assert.equal(placed["R-10-1#1"].paired, true);
-  assert.equal(placed["M-10-1#2"].machine.id, 2);
-  assert.equal(placed["R-10-1#2"].machine.serialNo, placed["M-10-1#2"].machine.serialNo);
-  assert.deepEqual(overflow.map((x) => x.id), [3], "two sets per model — a third machine is overflow, never a second machine on an R unit");
-  assert.equal(columns[0][1].slots[0].machine.id, 1);
-  assert.equal(columns[0][1].slots[0].setId, "M-10-1#1");
+  assert.equal(placed["M-10-1#2"].machine.id, 3);
+  assert.equal(placed["R-10-1#1"].machine.id, 2);
+  assert.equal(placed["R-10-1#2"], undefined, "an M-10 set never spills onto the R-10 rack");
+  assert.deepEqual(overflow.map((x) => x.id), [4]);
+  // A wrong-rack pin is ignored and the set re-flows onto its own rack.
+  const p2 = buildFamilyRacks(fam10, [mm(5, "R-10", { rackSlot: "M-10-1#1" })]).placed;
+  assert.equal(p2["M-10-1#1"], undefined); assert.equal(p2["R-10-1#1"].machine.id, 5);
 });
 
-test("an older R slot id or a legacy R machine still means its set; a foreign slot is ignored", () => {
-  const p1 = buildFamilyRacks(fam10, [mm(5, "M-10", { rackSlot: "R-10-1#2" })]).placed;
-  assert.equal(p1["M-10-1#2"].machine.id, 5); assert.equal(p1["M-10-1#2"].pinned, true);
-  const p2 = buildFamilyRacks(fam10, [mm(6, "M-10", { rackSlot: "M-15-1#1" })]).placed;
-  assert.equal(p2["M-10-1#1"].machine.id, 6); assert.equal(p2["M-10-1#1"].pinned, false);
-  const p3 = buildFamilyRacks(fam10, [mm(7, "M-10", { rackSlot: "M-10-1#2" }), mm(8, "R-10", { rackSlot: "R-10-1#2" })]);
-  assert.equal(p3.placed["M-10-1#2"].machine.id, 7);
-  assert.equal(p3.placed["M-10-1#1"].machine.id, 8, "a contested set keeps the oldest; the other set-less BOM-issued machine flows into the free set");
-});
-
-test("legacy KM10 machine keeps its saved set (live fcbf: M-10-1#2)", () => {
+test("legacy KM10 machine keeps its saved slot (live fcbf: M-10-1#2)", () => {
   const log = [mm(64, "KM10", { serialNo: "fcbf", rackSlot: "M-10-1#2" })];
   const { placed } = buildFamilyRacks(fam10, log);
   assert.equal(placed["M-10-1#2"].machine.serialNo, "fcbf");
-  assert.equal(placed["R-10-1#2"].machine.serialNo, "fcbf");
   assert.equal(placed["M-10-1#2"].pinned, true);
   assert.equal(firstFreeSlot("M-10", log), "M-10-1#1");
-  assert.equal(firstFreeSlot("R-10", log), "M-10-1#1");
 });
 
-test("set status: set / assembling / assembled / empty, the same on both units", () => {
+test("slot status: set / assembling / assembled / empty; machine past Assembly is off the rack", () => {
   const awaiting = new Set(["5"]);
-  const log = [mm(4, "M-10", { rackSlot: "M-10-1#1", stage: "Assembly" }), mm(5, "M-10", { rackSlot: "M-10-1#2", stage: "Assembly" }), mm(6, "M-10", { stage: "Mechanical", rackSlot: "R-10-1#1" })];
-  const { columns } = buildFamilyRacks(fam10, log, awaiting);
+  const log = [mm(4, "M-10", { rackSlot: "M-10-1#1", stage: "Assembly" }), mm(5, "M-10", { rackSlot: "M-10-1#2", stage: "Assembly" }), mm(6, "R-10", { stage: "Mechanical", rackSlot: "R-10-1#1" })];
+  const { columns, placed } = buildFamilyRacks(fam10, log, awaiting);
   assert.equal(columns[0][0].slots[0].status, "assembling");
-  assert.equal(columns[0][1].slots[0].status, "assembling");
   assert.equal(columns[0][0].slots[1].status, "assembled");
-  assert.equal(columns[0][1].slots[1].status, "assembled");
   assert.equal(columns[0][0].name, "M-10");
   assert.equal(columns[0][1].name, "R-10");
+  assert.equal(placed["R-10-1#1"], undefined);
   assert.equal(slotStatusOf(null), "empty");
 });
 
-test("firstFreeSlot: returns the free set's M slot; preferred M or R unit; full → null; no rack → null", () => {
+test("firstFreeSlot: preferred slot on own rack only; full rack → null; no rack → null", () => {
   const log = [mm(1, "M-10", { rackSlot: "M-10-1#1" })];
   assert.equal(firstFreeSlot("M-10", log), "M-10-1#2");
-  assert.equal(firstFreeSlot("M-10", log, new Set(), "R-10-1#2"), "M-10-1#2");
-  assert.equal(firstFreeSlot("M-10", log, new Set(), "R-10-1#1"), "M-10-1#2", "a taken set is never preferred");
+  assert.equal(firstFreeSlot("M-10", log, new Set(), "R-10-1#2"), "M-10-1#2", "an R slot is never preferred for an M BOM");
+  assert.equal(firstFreeSlot("R-10", log, new Set(), "R-10-1#2"), "R-10-1#2");
   assert.equal(firstFreeSlot("AM900", log), null);
   const full = [mm(1, "M-10", { rackSlot: "M-10-1#1" }), mm(2, "M-10", { rackSlot: "M-10-1#2" })];
   assert.equal(firstFreeSlot("M-10", full), null);
-  assert.equal(firstFreeSlot("R-10", full), null, "R units are full when their M units are");
-  assert.equal(firstFreeSlot("M-15", full), "M-15-1#1");
+  assert.equal(firstFreeSlot("R-10", full), "R-10-1#1");
+});
+
+test("M and R units are independent: own machine, own serial, nothing mirrored", () => {
+  const log = [mm(1, "M-10", { serialNo: "M1", rackSlot: "M-10-1#1" }), mm(2, "R-10", { serialNo: "R9", rackSlot: "R-10-1#1" })];
+  const { placed } = buildFamilyRacks(fam10, log);
+  assert.equal(placed["M-10-1#1"].machine.serialNo, "M1");
+  assert.equal(placed["R-10-1#1"].machine.serialNo, "R9");
+  assert.equal(placed["R-10-1#2"], undefined, "an M machine never appears on an R unit");
+  assert.equal(placed["M-10-1#2"], undefined);
+  assert.deepEqual(freeSlotsFor("M-10", log), ["M-10-1#2"]);
+  assert.deepEqual(freeSlotsFor("R-10", log), ["R-10-1#2"]);
+  assert.deepEqual(freeSlotsFor("AM900", log), []);
+  assert.equal(firstFreeSlot("R-10", log, new Set(), "R-10-1#2"), "R-10-1#2", "the rack the operator picked is used");
+  assert.equal(firstFreeSlot("M-10", log, new Set(), "R-10-1#2"), "M-10-1#2", "an R unit is never used for an M BOM");
 });
 
 test("canAssignSlot: no double assignment, own model's sets only, only rack machines", () => {
@@ -174,49 +169,37 @@ test("App: retired BOMs are not issuable; Fill opens only the rack's own BOM; ma
 
 // 2026-10-31 M/R sets — guards for the approved rack fixes and the
 // separate-BOM / shared-serial pairing.
-test("App: separate M/R BOM fills under one serial, remove, release scope and permissions", async () => {
+test("App: independent M/R units, BOM Outward rack picker, remove, release scope and permissions", async () => {
   const fs = await import("node:fs");
   const path = await import("node:path");
   const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
   const app = fs.readFileSync(path.join(root, "src/App.jsx"), "utf8");
   assert.doesNotMatch(app, /mergeSetBomItems|setFillCheck/, "M and R BOMs are never merged");
   assert.match(app, /const drawerBom = bomDefs\[openBOM\];/, "the drawer always shows the rack's own BOM");
-  // M fill places the machine; R fill is a crate under the same serial, no new machine
-  assert.match(app, /setBomOpenRequest\(\{ key: bomKey, slotId: setId, mode: "set"/);
-  assert.match(app, /setBomOpenRequest\(\{ key: bomKey, slotId: pairSlotOf\(setId\), mode: "crate", serialNo: holder\.serialNo/);
-  assert.match(app, /if \(data\.serialNo && onCreateMachine && !\(data\.rackSet && data\.rackSet\.mode === "crate"\)\)/);
-  assert.match(app, /setSerialModal\(null\); setActiveSerial\(bomOpenRequest\.serialNo \|\| ""\); setOpenBOM\(bomOpenRequest\.key\);/, "R crate never asks for a new serial");
-  // 3 — no destination popup on a rack fill
+  // Fill Rack on any empty unit opens that rack's own BOM and fills that unit
+  assert.match(app, /if \(tierOfSlot\(slotId\) !== r\.tier\) return \{ success: false/);
+  assert.match(app, /setBomOpenRequest\(\{ key: bomKey, slotId, mode: "set", n: Date\.now\(\) \}\);/);
+  assert.doesNotMatch(app, /mode: "crate", serialNo: holder\.serialNo/, "no serial is copied to the paired rack");
+  // BOM Outward: the operator picks the exact empty rack; it is used for the machine
+  assert.match(app, /data-slot-choice=\{id\} onClick=\{\(\) => doIssue\("rack", \{ durationConfirmed: true, slot: id \}\)\}/);
+  assert.match(app, /if \(serialNo && rackTracked && !rackSet && !slot\) \{/);
+  assert.match(app, /rackSlot: finalDest === "rack" \? \(rackSet \? rackSet\.slotId : slot\) : null/);
+  assert.match(app, /const preferred = preferredSlot \|\| \(reserved/);
+  // no popup when the rack was chosen in the Rack View
   assert.match(app, /if \(serialNo && !chosenDest && rackSet\) \{\n      \/\/ A set fill has one destination: the selected set\. No popup\.\n      return doIssue\("rack"/);
-  // 4 — any unticked / short / skipped / unknown line blocks a rack fill
-  assert.match(app, /const rackIncomplete = \(\) => enriched\.filter\(\(i\) => !skippedCodes\.has\(i\.code\) && \(!isItemChecked\(i\.code\) \|\| !i\.inv \|\| i\.pendingQty > 0 \|\| i\.issueQty < i\.required\)\);/, "a Not-issued (reason given) item no longer blocks the rack");
-  assert.match(app, /BOM Ready · \{niN\} Pending/);
-  // pending part issued from the rack: stock first, receipt guarded, undo on a lost race, job completed
-  assert.match(app, /const mv = await handleUpdateStock\(cat, p\.itemCode, -qty, ref\);/);
-  assert.match(app, /if \(!rec\.success\) \{\n        await handleUpdateStock\(cat, p\.itemCode, \+qty,/);
-  assert.match(app, /if \(p\.receivedAt\) return \{ success: false, error: "This part is already received/);
-  assert.match(app, /data-pending-action="issue"/);
-  assert.match(app, /onRaiseNotIssued\(\{ machineId: data\.rackSet\.machineId/);
-  assert.match(app, /const raiseNotIssued = \(machineId\) => raiseNotIssuedJobs\(\{ machineId, notIssued, bomKey, serialNo, issueId, rackSlot \}\);/);
-  // BOM Outward: an M BOM offers Empty Rack or Direct Production; an R BOM
-  // links by serial to the M machine as its crate; a rack is filled complete.
-  assert.match(app, /<div className="text-sm font-black text-emerald-300 mb-1">Empty Rack<\/div>/);
-  assert.match(app, /if \(rk && rk\.tier === "R"\) \{\n      const holder = machineLog\.find/);
-  assert.match(app, /setFillTarget\(\{ key, mode: "crate", slotId: holder\.rackSlot \? pairSlotOf\(setSlotOf\(holder\.rackSlot\)\) : null/);
-  assert.match(app, /const bad = rackTracked && !rackSet \? rackIncomplete\(\) : \[\];/);
-  // assemble waits for a defined R crate
-  assert.match(app, /sl\.status === "set" && pend\.length === 0 && crate\.state !== "pending" && canDo\("machines", "updateStage"\)/);
-  // 5 — remove from rack reverses the M issue and the R crate
+  // remove from rack returns only this machine's own BOM outwards
+  assert.match(app, /rackKeyNorm\(e\.ref\) === rackKeyNorm\(machine\.bomKey\)\) : \[\];/);
   assert.match(app, /const handleRemoveRackMachine = async \(machineId\) => \{\n    if \(!authCanDo\("outward", "delete"\)\)/);
-  assert.match(app, /const entries = \[outwardEntry, \.\.\.crateEntries\]\.filter\(Boolean\);/);
   assert.match(app, /Nothing was removed — the set is still on the rack\./);
-  assert.match(app, /data-action="remove"/);
-  // 6 — only rack-slot machines are parked for release
+  // release only for rack machines; permissions
   assert.match(app, /payload\.releaseRequired = !!machine\.rackSlot && RACK_RELEASE_HOPS\.some\(/);
-  // 7 — permissions; one serial per set, never shared by the two sets of a model
   assert.match(app, /const handleStartProduction = \(machineIds\) => \{\n    if \(!authCanDo\("machines", "updateStage"\)\)/);
   assert.match(app, /if \(!canFinishTransfer\(authCanDo\)\) return \{ success: false/);
-  assert.match(app, /is already used by an active \$\{rk\.family\.label\} machine set/);
+  // Not issued with a reason does not block a rack
+  assert.match(app, /const rackIncomplete = \(\) => enriched\.filter\(\(i\) => !skippedCodes\.has\(i\.code\) && \(!isItemChecked\(i\.code\) \|\| !i\.inv \|\| i\.pendingQty > 0 \|\| i\.issueQty < i\.required\)\);/);
+  assert.match(app, /BOM Ready · \{niN\} Pending/);
+  assert.match(app, /const mv = await handleUpdateStock\(cat, p\.itemCode, -qty, ref\);/);
+  assert.match(app, /data-pending-action="issue"/);
 });
 
 test("migration 047 guards one machine per set and M-slot pairing in the database", async () => {
@@ -226,6 +209,9 @@ test("migration 047 guards one machine per set and M-slot pairing in the databas
   const up = fs.readFileSync(path.join(root, "supabase/migrations/047_rack_set_guard.sql"), "utf8");
   const up48 = fs.readFileSync(path.join(root, "supabase/migrations/048_rack_set_serial_guard.sql"), "utf8");
   assert.match(up48, /already used by machine/);
+  const up49 = fs.readFileSync(path.join(root, "supabase/migrations/049_rack_unit_guard.sql"), "utf8");
+  assert.doesNotMatch(up49, /regexp_replace\([^)]*'\^R-', 'M-'\)/, "049: an R unit is not read as its M unit");
+  assert.doesNotMatch(up49, /\b(DROP TABLE|TRUNCATE|DELETE FROM|ALTER POLICY|CREATE POLICY|DROP POLICY)\b/i);
   assert.doesNotMatch(up48, /\b(DROP TABLE|TRUNCATE|DELETE FROM|ALTER POLICY|CREATE POLICY|DROP POLICY)\b/i);
   const down = fs.readFileSync(path.join(root, "supabase/migrations/047_rack_set_guard_rollback.sql"), "utf8");
   assert.match(up, /pg_advisory_xact_lock/);

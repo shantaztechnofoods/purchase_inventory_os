@@ -72,7 +72,7 @@ import { mapRow as vendorMapRow, parseRows as vendorParseRows } from "./utils/ve
 import { parseRows as itemParseRows, generateItemCode, buildRowsFromSheet as itemBuildRowsFromSheet } from "./utils/itemImport.js";
 import { parseBomPaste } from "./utils/bomPaste.js";
 import { receivedPoRates, bomCostLines, bomCostSummary, validateBomLines, formatINR, RATE_SOURCE_LABEL } from "./utils/bomCost.js";
-import { PHYSICAL_RACK_LAYOUT, rackOfBom, physicalRackFamily, physicalRackSlots, rackCapacityFor, buildFamilyRacks, firstFreeSlot, canAssignSlot, slotLabel, rackKeyNorm, rackViewLog, setSlotOf, setLabel, pairSlotOf, bomFillCheck, rCrateIssues, rackBoms } from "./utils/rackSlots.js";
+import { PHYSICAL_RACK_LAYOUT, rackOfBom, physicalRackFamily, physicalRackSlots, rackCapacityFor, buildFamilyRacks, firstFreeSlot, canAssignSlot, slotLabel, rackKeyNorm, rackViewLog, setSlotOf, setLabel, pairSlotOf, bomFillCheck, rCrateIssues, rackBoms, freeSlotsFor, tierOfSlot } from "./utils/rackSlots.js";
 import { getActiveCompany, normalizePOSettings, openPOPdf, PO_TEMPLATE_OPTIONS } from "./utils/poTemplate.js";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -83,7 +83,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-rack-unticked-fix";
+const APP_BUILD = "2026-10-31-rack-independent";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -11664,7 +11664,10 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   // "crate" issues the R BOM under the serial of the machine already there.
   // Units are fixed at 1, the BOM cannot be edited here, and the issue goes
   // to that rack only (no destination choice).
-  rackSet = null }) {
+  rackSet = null,
+  // 2026-10-31 — every empty unit of this BOM's rack; BOM Outward asks the
+  // operator to pick one.
+  rackFreeSlots = [] }) {
   const [showCostPanel, setShowCostPanel] = useState(false);
   const [materialBlock, setMaterialBlock] = useState(false);
   // Pre-issue check — which rows have their checklist / serials open, and
@@ -11985,7 +11988,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   // that line is Not Issued (no stock moves) and becomes a pending job on the
   // machine, and the machine still goes on the rack ("BOM Ready · X Pending").
   const rackIncomplete = () => enriched.filter((i) => !skippedCodes.has(i.code) && (!isItemChecked(i.code) || !i.inv || i.pendingQty > 0 || i.issueQty < i.required));
-  const doIssue = async (chosenDest, { durationConfirmed = false } = {}) => {
+  const doIssue = async (chosenDest, { durationConfirmed = false, slot = null } = {}) => {
     if (issuing) return;                    // duplicate production-issue guard
     // 2026-10-31 M/R sets — a rack is filled only with its OWN BOM complete:
     // every line ticked, in the Item Master and issued in full. A critical
@@ -12074,6 +12077,16 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
       if (rackTracked && !rackFreeSlot && !reservedSlot) {
         setDestError(`Rack is full — the ${bomKey} rack has both slots taken. Start assembly or release a machine to free a slot.`);
         setShowDestChoice(true);
+        return;
+      }
+      if (rackTracked && !rackSet && slot && !rackFreeSlots.includes(slot)) {
+        setDestError(`${slotLabel(slot)} is no longer empty — pick another rack.`);
+        setShowDestChoice(true);
+        return;
+      }
+      if (serialNo && rackTracked && !rackSet && !slot) {
+        // BOM Outward: the operator picks the exact empty rack.
+        setDestError(""); setShowDestChoice(true);
         return;
       }
       const bad = rackTracked && !rackSet ? rackIncomplete() : [];
@@ -12192,7 +12205,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
     // payload. Only emitted when a serial is present (= machine will be
     // created). Non-serial manual outward sends nothing, matching legacy flow.
     const deptDurations = serialNo ? buildDeptDurations() : null;
-    onIssue({ bomKey, label: bom.label, units, issued, pending, note: issueNote, date: fmtDate(new Date()), serialNo, destination: finalDest, deptDurations, rackSet: rackSet || null });
+    onIssue({ bomKey, label: bom.label, units, issued, pending, note: issueNote, date: fmtDate(new Date()), serialNo, destination: finalDest, deptDurations, rackSet: rackSet || null, rackSlot: finalDest === "rack" ? (rackSet ? rackSet.slotId : slot) : null });
     onClose();
   };
 
@@ -12298,7 +12311,7 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
 
           {rackSet && (
             <span data-rack-set className="text-[10.5px] font-black px-2.5 py-1 rounded-lg" style={{ background: "rgba(29,78,216,0.08)", color: "#1d4ed8", border: "1px solid rgba(29,78,216,0.25)" }}>
-              {rackSet.mode === "crate" ? (rackSet.slotId ? `Filling ${rackSet.unit} crate · ${bomKey} BOM · same serial as ${rackSet.pairUnit}` : `${bomKey} crate · same serial ${rackSet.serialNo} · machine not on a rack`) : `Filling ${rackSet.unit} · ${bomKey} BOM · serial also shown on ${rackSet.pairUnit}`}
+              {rackSet.mode === "crate" ? (rackSet.slotId ? `Filling ${rackSet.unit} crate · ${bomKey} BOM · same serial as ${rackSet.pairUnit}` : `${bomKey} crate · same serial ${rackSet.serialNo} · machine not on a rack`) : `Filling ${rackSet.unit} · ${bomKey} BOM`}
             </span>
           )}
           {/* Units stepper — a machine set is always one machine. */}
@@ -13048,15 +13061,21 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               </div>
             )}
             <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button data-dest="rack" onClick={() => doIssue("rack", { durationConfirmed: true })} disabled={issuing || (rackTracked && !rackFreeSlot && !reservedSlot)} autoFocus
-                      className="text-left rounded-xl p-4 transition-all border disabled:opacity-50"
-                      style={{ background: "rgba(34,197,94,0.08)", borderColor: "rgba(34,197,94,0.4)" }}>
+              <div className="rounded-xl p-4 border" style={{ background: "rgba(34,197,94,0.06)", borderColor: "rgba(34,197,94,0.4)" }}>
                 <div className="text-2xl mb-1.5">📦</div>
                 <div className="text-sm font-black text-emerald-300 mb-1">Empty Rack</div>
-                <div className="text-[10px] text-slate-400 leading-relaxed">
-                  {reservedSlot || rackFreeSlot ? `Goes into ${slotLabel(reservedSlot || rackFreeSlot)} — the serial also shows on ${slotLabel(pairSlotOf(reservedSlot || rackFreeSlot))}. ` : "Both racks of this model are full. "}Sits on the rack until assembly starts.
+                <div className="text-[10px] text-slate-400 leading-relaxed mb-2">
+                  {rackTracked ? (rackFreeSlots.length ? "Pick the rack this machine goes into:" : `No empty ${bomKey} rack — start assembly or send a machine on to free one.`) : "This BOM has no rack."}
                 </div>
-              </button>
+                <div className="flex flex-wrap gap-1.5">
+                  {rackTracked && rackFreeSlots.map((id, i) => (
+                    <button key={id} data-dest="rack" data-slot-choice={id} onClick={() => doIssue("rack", { durationConfirmed: true, slot: id })} disabled={issuing} autoFocus={i === 0}
+                            className="text-[12px] font-black px-3 py-2 rounded-lg text-white disabled:opacity-50" style={{ background: "#15803d" }}>
+                      {slotLabel(id)}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <button data-dest="direct" onClick={() => doIssue("direct", { durationConfirmed: true })} disabled={issuing || checkedE.some((i) => i.pendingQty > 0 && !skippedCodes.has(i.code))}
                       title={checkedE.some((i) => i.pendingQty > 0 && !skippedCodes.has(i.code)) ? "Components are short — Direct Production needs every component issued in full" : undefined}
                       className="text-left rounded-xl p-4 transition-all border disabled:opacity-50 disabled:cursor-not-allowed"
@@ -13313,7 +13332,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
   // 2026-10-31 — BOM cost & rates (brief §12).
   pos = [], canSetRate = false, onSetItemRate,
   // 2026-10-31 fixed racks: free slot on a BOM's own rack, and Fill requests.
-  rackFreeSlotFor = null, bomOpenRequest = null }) {
+  rackFreeSlotFor = null, rackFreeSlotsFor = null, bomOpenRequest = null }) {
   // Feature 3: confirm + remove rack machine. The button only appears when a
   // remover prop is provided AND the operator has the permission. Stays in
   // local state so the confirmation persists across re-renders of the modal.
@@ -13384,29 +13403,11 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
     const sn = pendingSerial.trim();
     if (!sn) { setSerialErr("Serial number is required to proceed."); return; }
     const key = serialModal;
-    // 2026-10-31 M/R sets — BOM Outward and Rack View Fill both work.
-    //   • M BOM (M-10 / M-15 / M-20): a new machine; the issue then offers an
-    //     Empty Rack (the first free set of that model) or Direct Production.
-    //   • R BOM (R-10 / R-15 / R-20): never a machine of its own — it is the R
-    //     crate of the M machine that already carries this serial, so it links
-    //     to that machine (and its rack set) automatically.
+    // 2026-10-31 — rack BOMs (M-10 … R-20) are issued from BOM Outward (the
+    // operator then picks an empty rack of that model) or from Rack View →
+    // Fill Rack. M and R are independent: each issue takes its own serial.
     const rk = rackOfBom(key);
-    if (rk && rk.legacy) { setSerialErr(`${key} is retired — use ${rackBoms(rk.family, "M").primary}.`); return; }
-    if (rk && rk.tier === "R") {
-      const holder = machineLog.find((m) => m.status !== "completed" && rackOfBom(m.bomKey)?.family.id === rk.family.id && rackOfBom(m.bomKey)?.tier !== "R" && (m.serialNo || "").trim().toLowerCase() === sn.toLowerCase());
-      if (!holder) { setSerialErr(`No active ${rackBoms(rk.family, "M").primary} machine has serial "${sn}". Issue the ${rackBoms(rk.family, "M").primary} BOM first — the ${key} crate is then filled under the same serial.`); return; }
-      if (!["BOM Issued", "Assembly"].includes(holder.stage)) { setSerialErr(`${holder.serialNo} is already in ${holder.stage} — its ${key} crate can no longer be filled.`); return; }
-      if (rCrateIssues(outwardLog, key, holder.serialNo).length) { setSerialErr(`The ${key} crate for ${holder.serialNo} is already filled.`); return; }
-      setFillTarget({ key, mode: "crate", slotId: holder.rackSlot ? pairSlotOf(setSlotOf(holder.rackSlot)) : null, serialNo: holder.serialNo, machineId: holder.id });
-      setActiveSerial(holder.serialNo); setOpenBOM(key); setSerialModal(null); setSerialErr("");
-      return;
-    }
-    // One serial per machine set: no active machine of the same model family
-    // (M, R or retired key) may already carry it.
-    if (rk && machineLog.some((m) => m.status !== "completed" && rackOfBom(m.bomKey)?.family.id === rk.family.id && (m.serialNo || "").toLowerCase() === sn.toLowerCase())) {
-      setSerialErr(`Serial "${sn}" is already used by an active ${rk.family.label} machine set.`);
-      return;
-    }
+    if (rk && rk.legacy) { setSerialErr(`${key} is retired — use ${rackBoms(rk.family, rk.tier).primary}.`); return; }
     // Rack-capacity gate moved into handleBOMIssue's rack branch — at this
     // step the operator hasn't yet picked rack vs direct production, so we
     // can no longer block here. A full rack still refuses a Save-To-Rack
@@ -13462,7 +13463,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
         .map((it) => ({ code: it.code, name: it.name, unit: it.unit,
                         qty: Number(it.criticalInput.requiredQty) || Number(it.required) || 0,
                         remark: it.criticalInput.remark || "" }));
-      onCreateMachine(data.bomKey, data.label, data.serialNo, data.date, id, data.destination || "rack", data.deptDurations || null, notIssued);
+      onCreateMachine(data.bomKey, data.label, data.serialNo, data.date, id, data.destination || "rack", data.deptDurations || null, notIssued, data.rackSlot || null);
     }
     const destSuffix = data.destination === "direct" ? " · direct production" : "";
     showToast(data.rackSet ? `${data.rackSet.unit} filled · ${data.bomKey}` : `${data.bomKey} × ${data.units} issued${destSuffix}`, data.serialNo ? `S/N: ${data.serialNo}` : data.label);
@@ -13628,7 +13629,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
                       // Capacity = 0 / blank → no rack tracking for this BOM,
                       //   the issue routes straight to Active Builds (Direct
                       //   Production) without prompting.
-                      if (fillTarget && fillTarget.key === serialModal && fillTarget.slotId) return `Fill ${slotLabel(fillTarget.slotId)} · this serial number also appears on ${slotLabel(pairSlotOf(fillTarget.slotId))}`;
+                      if (fillTarget && fillTarget.key === serialModal && fillTarget.slotId) return `Fill ${slotLabel(fillTarget.slotId)} · enter this machine's serial number`;
                       return cap > 0
                         ? `Enter serial · Rack ${ready} / ${cap} ready · choose destination on commit`
                         : "Enter serial · No rack tracking — goes straight to Active Builds (Direct Production)";
@@ -13839,7 +13840,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
         // the machine on the set; mode "crate" = the R BOM under the serial
         // of the machine already on the set.
         const ft = fillTarget && fillTarget.key === openBOM && fillTarget.mode ? fillTarget : null;
-        const rackSet = ft ? { mode: ft.mode, key: ft.key, slotId: ft.slotId, setId: setSlotOf(ft.slotId), unit: slotLabel(ft.slotId), pairUnit: slotLabel(pairSlotOf(ft.slotId)), label: setLabel(ft.slotId), serialNo: ft.serialNo || null, machineId: ft.machineId ?? null } : null;
+        const rackSet = ft ? { mode: ft.mode, key: ft.key, slotId: ft.slotId, setId: ft.slotId, unit: slotLabel(ft.slotId), pairUnit: slotLabel(pairSlotOf(ft.slotId)), label: setLabel(ft.slotId), serialNo: ft.serialNo || null, machineId: ft.machineId ?? null } : null;
         const drawerBom = bomDefs[openBOM];
         return (
         <BOMDrawer
@@ -13859,6 +13860,7 @@ function OutwardPage({ items, handleUpdateStock, bomDefs, onUpdateBOM, onCreateB
           serialNo={activeSerial}
           rackReady={rackReadyCount(openBOM)}
           rackFreeSlot={rackFreeSlotFor ? rackFreeSlotFor(openBOM) : null}
+          rackFreeSlots={rackFreeSlotsFor ? rackFreeSlotsFor(openBOM) : []}
           reservedSlot={fillTarget && fillTarget.key === openBOM ? fillTarget.slotId : null}
           settings={settings}
           checklistTemplates={checklistTemplates}
@@ -18148,17 +18150,16 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                   const setSt = RACK_UNIT_STATUS[(units[0] && units[0].sl.status) || "empty"] || RACK_UNIT_STATUS.empty;
                   return (
                   <div key={`${f.id}-${ci}`} data-set={units[0] && units[0].sl.setId} className="rack-set flex flex-col gap-2 rounded-2xl p-1.5"
-                       aria-label={`Machine set ${units[0] ? setLabel(units[0].sl.setId) : ""}`}>
-                    <div className="flex items-center justify-between gap-1 px-1 text-[9.5px] font-bold" style={{ color: "var(--text-muted)" }}>
-                      <span>Set {f.label} ({units[0] ? units[0].sl.position : ci + 1})</span>
-                      <span className="inline-flex items-center gap-1 min-w-0"><span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: setSt.dot }} /><span className="font-mono truncate" style={{ color: setM ? "var(--text-strong)" : undefined }}>{setM ? (setM.serialNo || "(no serial)") : "Empty"}</span></span>
+                       aria-label={`${units[0] ? slotLabel(units[0].sl.id) : ""} and ${units[1] ? slotLabel(units[1].sl.id) : ""}`}>
+                    <div className="px-1 text-[9.5px] font-bold" style={{ color: "var(--text-muted)" }}>
+                      M-{f.label} / R-{f.label} ({units[0] ? units[0].sl.position : ci + 1})
                     </div>
                     {units.map(({ rack, sl }) => {
                       const m = sl.machine;
                       const color = RACK_UNIT_COLORS[`${rack.tier}-${f.label}`] || f.color;
                       const st = RACK_UNIT_STATUS[sl.status] || RACK_UNIT_STATUS.empty;
                       const short = m ? pendingForMachine(m).length : 0;
-                      const crateSt = rack.tier === "R" && m ? rCrateStateOf(f.id, m).state : null;
+                      const crateSt = null; // M and R units are independent (2026-10-31)
                       const niN = notIssuedOpenFor(m).length;
                       return (
                         <button key={sl.id} type="button" data-slot={sl.id} data-serial={m ? (m.serialNo || "") : ""}
@@ -18215,25 +18216,16 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
             const pend = m ? pendingForMachine(m) : [];
             const notIssued = notIssuedOpenFor(m);
             const ho = sl.status === "assembled" ? (handovers || []).find((h) => h && h.status === "pending" && String(h.machineId) === String(m.id)) : null;
-            // 2026-10-31 M/R sets — one machine, one serial, two racks, each
-            // with its OWN BOM. M unit: Fill places the machine (M BOM, new
-            // serial); its serial then shows on the R unit. R unit: Fill R
-            // Crate issues the R BOM under that same serial.
+            // 2026-10-31 — every unit (M or R) is independent: Fill Rack on an
+            // empty unit opens that rack's own BOM and fills that unit.
             const famDef = PHYSICAL_RACK_LAYOUT.families.find((x) => x.id === f.id);
             const isM = rack.tier === "M";
             const mKey = rackBoms(famDef, "M").primary; const rKey = rackBoms(famDef, "R").primary;
             const ownChk = bomFillCheck(rack.bom.primary, bomDefs, (c) => itemByCode[c]);
-            const crate = m ? rCrateStateOf(f.id, m) : { state: "none", rKey };
+            const crate = { state: "none", rKey }; // R units are no longer crates of the M machine
             const perm = canDo("outward", "bom") && !!onFillRack;
-            const canFill = isM
-              ? sl.status === "empty" && ownChk.ok && perm
-              : !!m && (sl.status === "set" || sl.status === "assembling") && crate.state === "pending" && ownChk.ok && perm;
-            const fillWhy = isM
-              ? (sl.status !== "empty" ? `This set already holds ${m ? (m.serialNo || m.bomKey) : "a machine"}` : !ownChk.ok ? ownChk.why : !perm ? "You do not have permission to issue a BOM" : "")
-              : (!m ? `Fill ${slotLabel(sl.setId)} first — the machine is placed on the M rack and its serial number then appears here`
-                 : crate.state === "filled" ? `The ${rKey} crate is already filled for ${m.serialNo}`
-                 : !(sl.status === "set" || sl.status === "assembling") ? "This machine is already assembled"
-                 : !ownChk.ok ? ownChk.why : !perm ? "You do not have permission to issue a BOM" : "");
+            const canFill = sl.status === "empty" && ownChk.ok && perm;
+            const fillWhy = sl.status !== "empty" ? `This rack already holds ${m ? (m.serialNo || m.bomKey) : "a machine"}` : !ownChk.ok ? ownChk.why : !perm ? "You do not have permission to issue a BOM" : "";
             const canRemove = sl.status === "set" && !!m && canDo("outward", "delete") && !!onRemoveRackMachine;
             const history = (auditLog || []).filter((a) => a && ((a.details && a.details.slotId === sl.id) || (m && m.serialNo && a.serialNo === m.serialNo) || (/rack_slot/.test(a.type || "") && String(a.action || "").includes(slotLabel(sl.id)))))
               .sort((x, y) => String(y.ts || y.timestamp || "").localeCompare(String(x.ts || x.timestamp || ""))).slice(0, 40);
@@ -18285,10 +18277,8 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                       <div className="min-w-0 flex-1">
                         <Row k="Machine model" v={bi.exists ? `${bi.key}${bi.def.label && bi.def.label !== bi.key ? ` — ${bi.def.label}` : ""}` : `${rack.bom.primary} (BOM not created)`} />
                         <Row k="Rack position" v={`${rack.tier === "M" ? "Top" : "Bottom"} (${slotLabel(sl.id)})`} />
-                        <Row k="Machine set" v={`${setLabel(sl.id)} · one machine, one serial`} />
                         <Row k="BOM (this rack)" v={rack.bom.primary} />
-                        <Row k="Paired rack" v={`${slotLabel(sl.pairId)} · ${isM ? rKey : mKey} BOM · same serial`} />
-                        {m && <Row k="R crate" v={crate.state === "filled" ? `✓ ${rKey} filled` : crate.state === "pending" ? `Not filled yet (${rKey})` : `${rKey} BOM has no components yet`} />}
+                        <Row k="Paired rack" v={`${slotLabel(sl.pairId)} · ${isM ? rKey : mKey} BOM · own serial`} />
                         <div className="flex gap-2 text-[12px] py-0.5 items-center"><span className="w-32 flex-shrink-0" style={{ color: "var(--text-muted)" }}>Status</span>
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: st.bg, color: st.fg }}><span className="w-1.5 h-1.5 rounded-full" style={{ background: st.dot }} />{pend.length && sl.status === "set" ? "Filled · waiting for material" : st.label}</span></div>
                         <Row k="Current machine" v={m ? `${m.bomLabel || m.bomKey}${m.bomKey !== rack.bom.primary ? ` (${m.bomKey})` : ""}` : "—"} />
@@ -18381,7 +18371,7 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                       )}
                       {rackPanelTab === "stock" && (
                         <div className="py-3 space-y-2 text-[12px]">
-                          {m && !isM ? (
+                          {false ? (
                             crate.state === "filled"
                               ? <div className="rounded-lg px-3 py-2 font-semibold" style={{ background: "rgba(21,128,61,0.08)", color: "#15803d" }}>{rKey} crate is on this rack for {m.serialNo}.</div>
                               : <div className="rounded-lg px-3 py-2 font-semibold" style={{ background: "rgba(185,28,28,0.07)", color: "#b91c1c" }}>{crate.state === "pending" ? `${rKey} crate not filled yet for ${m.serialNo}.` : `${rKey} BOM has no components yet — nothing to fill on this rack.`}</div>
@@ -18418,16 +18408,14 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                     </div>
                   </div>
                   <div className="p-4 sm:p-5 space-y-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
-                    {(isM ? sl.status === "empty" : sl.status !== "assembled") && (
-                      <div className="rounded-lg px-3 py-2 text-[12px] font-semibold" style={canFill || (!isM && crate.state === "filled") ? { background: "rgba(21,128,61,0.08)", color: "#15803d" } : { background: "rgba(185,28,28,0.07)", color: "#b91c1c" }}>
-                        {canFill
-                          ? (isM ? `✓ All ${mKey} items are available. Fill this rack — its serial number will also show on ${slotLabel(sl.pairId)}.` : `✓ All ${rKey} items are available. Fill the R crate for ${m.serialNo}.`)
-                          : !isM && crate.state === "filled" ? `✓ ${rKey} crate filled for ${m.serialNo}.` : `⚠ ${fillWhy}.`}
+                    {sl.status === "empty" && (
+                      <div className="rounded-lg px-3 py-2 text-[12px] font-semibold" style={canFill ? { background: "rgba(21,128,61,0.08)", color: "#15803d" } : { background: "rgba(185,28,28,0.07)", color: "#b91c1c" }}>
+                        {canFill ? `✓ All ${rack.bom.primary} items are available. Fill this rack.` : `⚠ ${fillWhy}.`}
                       </div>
                     )}
                     <div className="grid grid-cols-3 gap-2">
                       {[
-                        { key: "fill", label: isM ? "＋ Fill Rack" : "＋ Fill R Crate", sub: isM ? `Issues ${mKey} · new serial` : `Issues ${rKey} · same serial`, ok: canFill, bg: "#1d4ed8", fn: doFill, why: fillWhy },
+                        { key: "fill", label: "＋ Fill Rack", sub: `Issues ${rack.bom.primary} · own serial`, ok: canFill, bg: "#1d4ed8", fn: doFill, why: fillWhy },
                         { key: "assemble", label: `🔧 ${assembleLabel}`, sub: sl.status === "assembling" ? "Back on this rack" : "Start assembly work", ok: assembleOk, bg: "#d97706", fn: doAssemble, why: assembleWhy },
                         { key: "send", label: "→ Send to Mechanical", sub: "Both units become empty", ok: sendOk, bg: "#15803d", fn: doSend, why: sl.status !== "assembled" ? "Assemble first" : !canDo("machines", "release") ? "Production head only" : "" },
                       ].map((b) => (
@@ -24288,7 +24276,7 @@ export default function App() {
       });
     }
   };
-  const handleCreateMachine = (bomKey, bomLabel, serialNo, date, issueId, destination = "rack", deptDurations = null, notIssued = []) => {
+  const handleCreateMachine = (bomKey, bomLabel, serialNo, date, issueId, destination = "rack", deptDurations = null, notIssued = [], preferredSlot = null) => {
     const dateStr = date || fmtDate(new Date());
     // Feature 1: direct production lands the machine in Assembly immediately,
     // skipping the BOM Issued / rack waiting stage. Used for R&D, prototypes,
@@ -24317,7 +24305,8 @@ export default function App() {
     if (!directMode) {
       const awaiting = new Set((handovers || []).filter((h) => h && h.status === "pending" && h.releaseRequired && !h.releasedAt).map((h) => String(h.machineId)));
       const reserved = rackSlotReservationRef.current;
-      const preferred = reserved && (!reserved.bomKey || rackKeyNorm(reserved.bomKey) === rackKeyNorm(bomKey)) ? reserved.slotId : null;
+      // The rack the operator picked (BOM Outward) wins; else a Fill reservation.
+      const preferred = preferredSlot || (reserved && (!reserved.bomKey || rackKeyNorm(reserved.bomKey) === rackKeyNorm(bomKey)) ? reserved.slotId : null);
       rackSlot = firstFreeSlot(bomKey, rackViewLog(machineLog, handovers), awaiting, preferred);
       if (rackSlot) rackSlotReservationRef.current = null;
     }
@@ -24524,39 +24513,22 @@ export default function App() {
   const handleReserveRackSlot = (slotId, bomKey) => { rackSlotReservationRef.current = slotId ? { slotId, bomKey: bomKey || null } : null; };
   // Fill Rack: reserve the exact slot for that rack's BOM and open the BOM
   // (serial number first). Only the rack's own BOM is ever opened.
-  // 2026-10-31 M/R sets — M-10 (n) + R-10 (n) is ONE machine with ONE serial,
-  // but each rack keeps its OWN BOM (never merged):
-  //   • Fill on the M unit (set empty): the M BOM is issued under a new
-  //     serial; the machine takes the set, so the same serial appears on the
-  //     R unit below it automatically.
-  //   • Fill on the R unit (set holds a machine): the R BOM is issued as the
-  //     R crate under that machine's serial — no new machine, no new serial.
-  // Either way the BOM must have components and every line must be in stock.
+  // 2026-10-31 — Fill Rack on an empty unit (M or R alike — the units are
+  // independent): reserve that exact unit and open that rack's OWN BOM
+  // (serial first). After the issue the new machine goes into that unit.
   const handleFillRack = (slotId, bomKey) => {
     if (!slotId || !bomKey) return { success: false, error: "No BOM is mapped to this rack" };
     if (!authCanDo("outward", "bom")) return { success: false, error: "You do not have permission to issue a BOM" };
     const r = rackOfBom(bomKey);
     if (!r || r.legacy) return { success: false, error: `${bomKey} is not a rack BOM` };
-    const setId = setSlotOf(slotId);
+    if (tierOfSlot(slotId) !== r.tier) return { success: false, error: `${slotLabel(slotId)} takes the ${r.tier}-${r.family.label} BOM only` };
     const stockOf = (code) => { for (const list of Object.values(items || {})) { const f = (list || []).find((i) => i && i.code === code); if (f) return f; } return undefined; };
     const chk = bomFillCheck(bomKey, bomDefs, stockOf);
     if (!chk.ok) return { success: false, error: chk.why };
     const awaiting = new Set((handovers || []).filter((h) => h && h.status === "pending" && h.releaseRequired && !h.releasedAt).map((h) => String(h.machineId)));
-    const view = rackViewLog(machineLog, handovers);
-    const { placed } = buildFamilyRacks(r.family, view, awaiting);
-    const holder = placed[setId] ? placed[setId].machine : null;
-    if (r.tier === "M") {
-      if (holder || firstFreeSlot(bomKey, view, awaiting, setId) !== setId) return { success: false, error: `${setLabel(setId)} already holds a machine` };
-      rackSlotReservationRef.current = { slotId: setId, bomKey };
-      setBomOpenRequest({ key: bomKey, slotId: setId, mode: "set", n: Date.now() });
-      return { success: true };
-    }
-    // R crate
-    if (!holder) return { success: false, error: `Fill ${slotLabel(setId)} first — the machine is placed on the M rack and its serial number then appears on ${slotLabel(pairSlotOf(setId))}.` };
-    if (!holder.serialNo) return { success: false, error: "The machine on this set has no serial number" };
-    if (!["BOM Issued", "Assembly"].includes(holder.stage)) return { success: false, error: "This machine has left the rack" };
-    if (rCrateIssues(outwardLog, bomKey, holder.serialNo).length) return { success: false, error: `The ${bomKey} crate for ${holder.serialNo} is already filled` };
-    setBomOpenRequest({ key: bomKey, slotId: pairSlotOf(setId), mode: "crate", serialNo: holder.serialNo, machineId: holder.id, n: Date.now() });
+    if (firstFreeSlot(bomKey, rackViewLog(machineLog, handovers), awaiting, slotId) !== slotId) return { success: false, error: `${slotLabel(slotId)} already holds a machine` };
+    rackSlotReservationRef.current = { slotId, bomKey };
+    setBomOpenRequest({ key: bomKey, slotId, mode: "set", n: Date.now() });
     return { success: true };
   };
   // Pin one rack machine to one exact slot. Refuses a taken slot, a slot of
@@ -24620,8 +24592,10 @@ export default function App() {
     const outwardEntry = outwardLog.find((e) => String(e.id) === String(machine.issueId));
     const famR = rackOfBom(machine.bomKey);
     const sn = String(machine.serialNo || "").trim().toLowerCase();
+    // Units are independent: only this machine's own BOM outwards (same BOM
+    // key and serial — e.g. pending parts issued to it later) are returned.
     const crateEntries = famR && sn ? outwardLog.filter((e) => e && e.type === "bom" && String(e.id) !== String(machine.issueId)
-      && String(e.serialNo || "").trim().toLowerCase() === sn && rackOfBom(e.ref)?.family.id === famR.family.id) : [];
+      && String(e.serialNo || "").trim().toLowerCase() === sn && rackKeyNorm(e.ref) === rackKeyNorm(machine.bomKey)) : [];
     const entries = [outwardEntry, ...crateEntries].filter(Boolean);
     const issueIds = [...new Set([machine.issueId, ...crateEntries.map((e) => e.id)].filter((x) => x != null).map(String))];
     const issuedLines  = entries.flatMap((e) => (e.items || []).filter((it) => Number(it.issueQty) > 0));
@@ -24685,7 +24659,7 @@ export default function App() {
 
     logAudit({
       type: "machine_rack_removed", module: "Machine",
-      action: `Rack build removed${machine.rackSlot ? ` from ${setLabel(machine.rackSlot)}` : ""}: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""} — ${issuedLines.length} component(s) returned to stock`,
+      action: `Rack build removed${machine.rackSlot ? ` from ${slotLabel(machine.rackSlot)}` : ""}: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""} — ${issuedLines.length} component(s) returned to stock`,
       ref: machine.bomKey, serialNo: machine.serialNo || "",
       details: { rackSlot: machine.rackSlot || null, slotId: machine.rackSlot || null, issueId: machine.issueId, crateIssueIds: crateEntries.map((e) => e.id), restored: issuedLines.map((l) => ({ code: l.code, qty: l.issueQty })) },
     });
@@ -25529,13 +25503,13 @@ export default function App() {
       const issueId = Date.now();
       handleAddOutward({
         id: issueId, type: "bom", date: fmtDate(new Date()), ref: machine.bomKey, label: "Pending part issued", units: 1,
-        note: `Pending part issued to ${machine.serialNo || machine.bomKey}${machine.rackSlot ? ` (rack ${setLabel(machine.rackSlot)})` : ""} — was not issued: ${p.reason || "no reason"}`,
+        note: `Pending part issued to ${machine.serialNo || machine.bomKey}${machine.rackSlot ? ` (rack ${slotLabel(machine.rackSlot)})` : ""} — was not issued: ${p.reason || "no reason"}`,
         items: [{ code: p.itemCode, name: inv.name, unit: inv.unit, category: cat, required: qty, issueQty: qty, pendingQty: 0 }],
         serialNo: machine.serialNo || "",
       }, []);
       logAudit({
         type: "pending_item_issued", module: "Machine",
-        action: `Pending part issued from stock: ${inv.name} × ${qty} → ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}${machine.rackSlot ? ` · rack ${setLabel(machine.rackSlot)}` : ""}`,
+        action: `Pending part issued from stock: ${inv.name} × ${qty} → ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""}${machine.rackSlot ? ` · rack ${slotLabel(machine.rackSlot)}` : ""}`,
         ref: machine.bomKey, serialNo: machine.serialNo || "",
         details: { itemId: id, machineId: machine.id, itemCode: p.itemCode, qty, issueId, slotId: machine.rackSlot || null, originalReason: p.reason || "" },
       });
@@ -25728,6 +25702,7 @@ export default function App() {
     // 2026-10-31 — BOM cost panel: received-PO rates + authorized rate entry.
     pos, canSetRate: canDo("inventory", "edit"), onSetItemRate: handleSetItemDefaultRate,
     // 2026-10-31 fixed racks — free slot on a BOM's own rack; Fill requests.
+    rackFreeSlotsFor: (k) => freeSlotsFor(k, rackViewLog(machineLog, handovers), new Set((handovers || []).filter((h) => h && h.status === "pending" && h.releaseRequired && !h.releasedAt).map((h) => String(h.machineId)))),
     rackFreeSlotFor: (k) => firstFreeSlot(k, rackViewLog(machineLog, handovers), new Set((handovers || []).filter((h) => h && h.status === "pending" && h.releaseRequired && !h.releasedAt).map((h) => String(h.machineId))), rackSlotReservationRef.current && rackSlotReservationRef.current.bomKey === k ? rackSlotReservationRef.current.slotId : null),
     bomOpenRequest,
     bomDefs, onUpdateBOM: handleUpdateBOM,
