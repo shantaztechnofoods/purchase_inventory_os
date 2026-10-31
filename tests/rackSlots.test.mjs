@@ -250,8 +250,13 @@ test("App: finish Assembly returns a rack machine to its rack; admin transfers f
   assert.match(app, /label: "→ Transfer to Mechanical"/);
   assert.match(app, /if \(!authCanDo\("machines", "release"\) && !isAdmin\) return \{ success: false/);
   assert.match(app, /if \(!h\.releaseRequired \|\| h\.releasedAt\) return \{ success: false/);
-  // the machine card no longer offers the direct release button
-  assert.match(app, /\{false && canDo\("machines", "release"\) && onReleaseHandover && \(/);
+  // the machine card no longer offers the direct release button: the only
+  // release call left in the page is the Rack View transfer (2026-10-31 —
+  // the dead `{false && …}` branch on the card was removed outright).
+  assert.doesNotMatch(app, /\{false && canDo\("machines", "release"\)/);
+  const releaseCalls = app.match(/await onReleaseHandover\(/g) || [];
+  assert.equal(releaseCalls.length, 1, "exactly one release call — the Rack View transfer");
+  assert.match(app, /const r = await onReleaseHandover\(ho\.id\);/);
   // workers, signature, checklist and pending-work sections stay in the popup
   assert.match(app, /Anything still pending from \{fromDepartment\}\?/);
   assert.match(app, /The Main Employee must sign to confirm this department's work\./);
@@ -437,4 +442,57 @@ test("App + migration 051: Admin Data Cleanup is admin-gated, previewed, passwor
   for (const t of ["items", "stock", "bom_definitions", "users", "settings", "vendors", "purchase_orders", "inward_log"]) assert.doesNotMatch(sql, new RegExp(`DELETE FROM public\\.${t}\\b`), `never deletes ${t}`);
   assert.doesNotMatch(sql, /DELETE FROM public\.audit_log|ALTER TABLE public\.audit_log|DISABLE TRIGGER/, "audit log stays immutable");
   assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.admin_cleanup_machines\(bigint\[\], boolean, bigint\[\]\) TO authenticated;/);
+});
+
+// 2026-10-31 — Machine Tracker redesign: four production stages ending at
+// Ready (no "Completed" stage), three primary tabs with no duplicated summary
+// box, a clearable filter chip so the On Hold card is self-explanatory, one
+// card per machine with no repeated controls, and a cream/gold page scope.
+test("App: Machine Tracker — Ready is the final stage, filters clear, cards are not duplicated", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+  const app = fs.readFileSync(path.join(root, "src/App.jsx"), "utf8");
+  const css = fs.readFileSync(path.join(root, "src/index.css"), "utf8");
+
+  // 1 — stages: Mechanical → Electrical → Trial → Ready, Ready last
+  assert.match(app, /const DISPLAY_STAGES = \["Mechanical", "Electrical", "Trial", "Ready"\];/);
+  assert.match(app, /const displayStageOf = \(m\) => \(m && m\.status === "completed" \? "Ready" : \(m && m\.stage\) \|\| ""\);/);
+  assert.match(app, /const dispIdx = DISPLAY_STAGES\.indexOf\(dispStage\);/);
+  assert.doesNotMatch(app, /"Completed":\s+"#15803d"/, "no Completed stage colour");
+  // the machine card's "✓ Completed" stage badge is gone (the pending-job
+  // chips of the same wording are a different thing and stay)
+  assert.doesNotMatch(app, /border:"1px solid rgba\(34,197,94,0\.25\)" \}\}>\s*\n\s*✓ Completed/);
+  // the status column itself is untouched — history and rack guards read it
+  assert.match(app, /const isComplete = machine\.status === "completed";/);
+
+  // 2 — three primary tabs; Pending Jobs is a tab, not also a summary box
+  for (const id of ["production", "transfer", "pending"]) assert.match(app, new RegExp(`\\{ id: "${id}",`));
+  assert.doesNotMatch(app, /key: "jobs",\s+label: "Pending Jobs"/, "no duplicate Pending Jobs summary card");
+  assert.match(app, /xl:grid-cols-5 gap-3/, "five summary cards");
+  assert.match(app, /\{ key: "completed",\s+label: "Ready",/);
+
+  // 3 — On Hold (and every other card filter) toggles and can be cleared
+  assert.match(app, /const holdCount = onHold\.length;/);
+  assert.match(app, /setMtTab\("production"\); setFilter\(filter === c\.key \? "all" : c\.key\);/);
+  assert.match(app, /data-filter-all onClick=\{\(\) => setFilter\("all"\)\}/);
+  assert.match(app, /data-filter-clear onClick=\{\(\) => setFilter\("all"\)\}/);
+  assert.match(app, /const MT_FILTER_LABELS = \{[\s\S]*?hold: "On HOLD"/);
+
+  // 4 — one card, no repeated actions; the working ones are all still there
+  assert.match(app, /className=\{`mt-card overflow-hidden\$\{isComplete \? " mt-card-ready" : ""\}`\}/);
+  assert.doesNotMatch(app, /jobs? owed\n/, "the owed badge no longer repeats the Pending Jobs button");
+  assert.match(app, /\{!isComplete && machine\.trialCertificate && canFinishTransfer\(canDo\) && onUpdateTrialCertificate && \(/);
+  for (const action of ["Report Issue", "Finish & Transfer →", "✓ Accept Machine", "data-card-jobs", "data-card-accept", '{isExpanded ? "Hide" : "History"}'])
+    assert.ok(app.includes(action), `card keeps ${action}`);
+
+  // 5/6 — premium scope and aligned header
+  assert.match(app, /className="flex-1 overflow-y-auto mt-premium"/);
+  assert.match(css, /\.mt-premium \{[\s\S]*?--surface-card:\s+#FFFDF8;/);
+  assert.match(css, /\.mt-premium \.mt-card \{/);
+  assert.match(css, /--mt-gold:\s+#A8842C;/);
+  assert.match(css, /@media \(max-width: 640px\) \{[\s\S]*?\.mt-premium/);
+  assert.match(app, /<Topbar title="Machine Tracker" subtitle="Mechanical → Electrical → Trial → Ready">/);
+  assert.match(app, /data-open-reports[\s\S]{0,200}h-9 px-3 rounded-lg/);
+  assert.match(app, /tabular-nums hidden sm:flex/, "clock visible from small screens up");
 });

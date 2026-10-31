@@ -83,7 +83,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-admin-cleanup";
+const APP_BUILD = "2026-10-31-mt-premium";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -676,7 +676,7 @@ function Topbar({ title, subtitle, children }) {
         <h1 className="text-[17px] font-extrabold tracking-[-0.02em] leading-tight" style={{ color: "var(--text-strong)" }}>{title}</h1>
         {subtitle && <p className="text-[11.5px] mt-1 leading-snug font-normal" style={{ color: "var(--text-dim)" }}>{subtitle}</p>}
       </div>
-      <div className="text-[11px] tabular-nums hidden md:flex items-center gap-1.5 flex-shrink-0 px-3 py-1.5 rounded-lg"
+      <div className="text-[11px] tabular-nums hidden sm:flex items-center gap-1.5 flex-shrink-0 px-3 py-1.5 rounded-lg"
            style={{ fontFamily: "'Inter',system-ui,sans-serif", color: "var(--text-dim)", background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}>
         {timeStr}
       </div>
@@ -15859,8 +15859,17 @@ function ReportTable({ title, rows, t = (k) => k }) {
 // ─── MACHINE TRACKER PAGE ────────────────────────────────────────────────────
 
 // Display-only production stepper (brief 2026-10-31): Assembly is a status,
-// not a stage. MACHINE_STAGES (the workflow) is unchanged.
-const DISPLAY_STAGES = ["Mechanical", "Electrical", "Trial", "Ready", "Completed"];
+// not a stage, and READY is the final stage — there is no separate
+// "Completed" stage on the tracker. machine_log.status keeps its existing
+// values (the rack guards, reports and history all read them); a record whose
+// status is "completed" is simply displayed at Ready, with its history intact.
+const DISPLAY_STAGES = ["Mechanical", "Electrical", "Trial", "Ready"];
+const displayStageOf = (m) => (m && m.status === "completed" ? "Ready" : (m && m.stage) || "");
+// Labels for the active summary-card filter chip.
+const MT_FILTER_LABELS = {
+  active: "Active Builds", completed: "Ready", pendingAccept: "Pending Acceptance",
+  hold: "On HOLD", onRack: "On Rack",
+};
 // Rack units (2026-10-31): model colours as on the shop floor, and statuses.
 const RACK_UNIT_COLORS = { "M-10": "#1d4ed8", "R-10": "#dc2626", "M-15": "#16a34a", "R-15": "#7c3aed", "M-20": "#ea580c", "R-20": "#0891b2" };
 const RACK_UNIT_STATUS = {
@@ -15874,8 +15883,7 @@ const DISPLAY_STAGE_COLORS = {
   "Mechanical": "#D97706",
   "Electrical": "#eab308",
   "Trial":      "#0e7490",
-  "Ready":      "#22c55e",
-  "Completed":  "#15803d",
+  "Ready":      "#15803d",
 };
 const STAGE_COLORS = {
   "BOM Issued": "#D71920",
@@ -17816,7 +17824,9 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
   };
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    /* mt-premium (2026-10-31): cream/ivory surfaces and gold hairlines scoped
+       to this page only — the rest of the ERP keeps its standard white. */
+    <div className="flex-1 overflow-y-auto mt-premium">
 
       {toast && (() => {
         const prio = toast.priority || "info";
@@ -17838,7 +17848,7 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
         );
       })()}
 
-      <Topbar title="Machine Tracker" subtitle="Production build tracking — BOM issue through completion">
+      <Topbar title="Machine Tracker" subtitle="Mechanical → Electrical → Trial → Ready">
         {/* 2026-10-31 — the Report Center opens from here (no sidebar entry). */}
         {canView("reports") && (
           <button type="button" data-open-reports onClick={() => onNavigate("reports")}
@@ -17875,7 +17885,7 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
         {canConfigureDept(canDo) && (
           <button onClick={() => onNavigate("machines_settings")}
                   title="Open Machine Tracker settings (deadlines, HOLD rules, checklists, employees)"
-                  className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all"
+                  className="h-9 px-3 rounded-lg text-[12px] font-black inline-flex items-center gap-1.5 transition-all"
                   style={{ background: "rgba(215, 25, 32,0.1)", border: "1px solid rgba(215, 25, 32,0.35)", color: "#b01218" }}>
             ⚙️ Settings
           </button>
@@ -17918,7 +17928,7 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                         onClick={() => setMtTab(t.id)}
                         className="flex items-center gap-2 px-4 py-2.5 text-[12.5px] font-bold whitespace-nowrap transition-all -mb-px"
                         style={mtTab === t.id
-                          ? { color: "#d71920", borderBottom: "2px solid #d71920", background: "rgba(215,25,32,0.05)" }
+                          ? { color: "#8a6a1f", borderBottom: "2px solid var(--mt-gold, #A8842C)", background: "var(--mt-gold-soft, rgba(168,132,44,0.10))" }
                           : { color: "var(--text-dim)", borderBottom: "2px solid transparent" }}>
                   {t.label}
                   {t.badge > 0 && (
@@ -18093,8 +18103,8 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                                    currently 0 — no silent conversion from
                                    Overdue, future state would need its own
                                    workflow)
-              Active Builds      = status != completed, stage != BOM Issued
-              Completed          = status == completed
+              Active Builds      = still in production
+              Ready              = reached the final stage
             Clicking a card sets the main-list filter; current filter card
             is outlined. */}
         {/* ── Phase 1 — My Work scope switch ──
@@ -18430,15 +18440,16 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
             { key: "hold",          label: "On HOLD",            value: holdCount,         sub: "accept deadline passed", color: "#dc2626", bg: "rgba(239,68,68,0.1)"  },
             { key: "onRack",        label: "On Rack",            value: awaitingRelease.length, sub: "awaiting head release", color: "#4338ca", bg: "rgba(99,102,241,0.08)" },
             { key: "active",        label: "Active Builds",      value: active.length,       sub: "in production",           color: "#b45309", bg: "rgba(251,191,36,0.08)" },
-            { key: "completed",     label: "Completed",          value: completed.length,    sub: "ready for delivery",      color: "#15803d", bg: "rgba(34,197,94,0.08)" },
-            // 2026-10-30 — open jobs / missing parts across the factory; opens the Pending Jobs tab.
-            { key: "jobs",          label: "Pending Jobs",       value: openJobsScoped.length, sub: "parts & work still open", color: "#dc2626", bg: "rgba(239,68,68,0.08)", tab: "pending" },
+            // Ready is the final stage; "Completed" is no longer shown as one.
+            // Pending Jobs is NOT repeated here — it is a primary tab with its
+            // own live badge, and two controls for one list read as a bug.
+            { key: "completed",     label: "Ready",              value: completed.length,    sub: "finished — final stage",  color: "#15803d", bg: "rgba(34,197,94,0.08)" },
           ];
           return (
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
               {cards.map((c) => {
                 const active = filter === c.key;
-                const stripCls = c.key === "active" ? "status-strip-blue" : c.key === "completed" ? "status-strip-green" : c.key === "hold" || c.key === "jobs" ? "status-strip-red" : c.key === "pendingAccept" ? "status-strip-yellow" : "status-strip-purple";
+                const stripCls = c.key === "active" ? "status-strip-blue" : c.key === "completed" ? "status-strip-green" : c.key === "hold" ? "status-strip-red" : c.key === "pendingAccept" ? "status-strip-yellow" : "status-strip-purple";
                 return (
                   <button key={c.key} data-summary-card={c.key} onClick={() => { if (c.tab) { setMtTab(c.tab); return; } setMtTab("production"); setFilter(filter === c.key ? "all" : c.key); }}
                           className={`kpi-tile status-strip ${stripCls} text-left`}
@@ -18891,18 +18902,23 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
         </div>
         )}
 
-        {/* "All Machines" quick toggle — kept as a small chip because the
-            summary cards above cover the five main categories but don't offer
-            a direct "show everything" option. Production tab only: the summary
-            cards it refers to live there. */}
+        {/* ── Active filter bar ──
+            A summary card above sets the list filter (On HOLD, Active Builds,
+            Ready, …). Clicking the same card again clears it, and so does
+            "All Machines" or the ✕ on the chip — so the floor is never left
+            looking at a filtered list without knowing why. */}
         {mtTab === "production" && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <button onClick={() => setFilter("all")}
-                  className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${filter === "all" ? "bg-blue-500/15 text-blue-300 border-blue-500/40" : "text-slate-500 border-slate-200 hover:text-slate-500"}`}>
+        <div className="flex items-center gap-2 flex-wrap" data-filter-bar>
+          <button type="button" data-filter-all onClick={() => setFilter("all")} aria-pressed={filter === "all"}
+                  className="mt-chip" data-on={filter === "all" ? "1" : "0"}>
             All Machines ({started.length})
           </button>
           {filter !== "all" && (
-            <span className="text-[10px] text-slate-500">· Filtered by one of the summary cards above. Click <strong className="text-slate-500">All Machines</strong> to clear.</span>
+            <button type="button" data-filter-clear onClick={() => setFilter("all")}
+                    className="mt-chip mt-chip-active"
+                    title="Clear this filter and show every machine">
+              Showing {MT_FILTER_LABELS[filter] || filter} ({filtered.length}) · Clear ✕
+            </button>
           )}
         </div>
         )}
@@ -18912,8 +18928,11 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
           <div className="bg-white border border-slate-200 rounded-xl py-20 text-center">
             <div className="text-5xl mb-4">🔧</div>
             <div className="text-sm font-bold text-slate-900 mb-2">No Machines Tracked</div>
-            {filter === "completed" ? (
-              <div className="text-[11px] text-slate-500">No completed machines yet.</div>
+            {filter !== "all" && filter !== "active" ? (
+              <div className="text-[11px] text-slate-500">
+                No machines under <strong>{MT_FILTER_LABELS[filter] || filter}</strong> right now.{" "}
+                <button onClick={() => setFilter("all")} className="underline font-bold">Show all machines</button>
+              </div>
             ) : (
               <div className="text-[11px] text-slate-500">
                 Issue a BOM from Outward to add a machine to the rack, then use the Production Rack View above to start a build.{" "}
@@ -18936,10 +18955,11 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
             // 2026-10-30 — READY is reached only through the Trial Certificate
             // (Trial → Ready) and its acceptance, never by a stage jump.
             const futureStages = MACHINE_STAGES.filter((s, i) => i > curIdx && s !== "Ready");
-            const stageColor = STAGE_COLORS[machine.stage] || "#D71920";
+            const dispStage  = displayStageOf(machine);
+            const stageColor = STAGE_COLORS[dispStage] || "#D71920";
             const pct = isComplete ? 100 : Math.round((curIdx / (MACHINE_STAGES.length - 1)) * 100);
             // Display-only stage index for the card stepper (see DISPLAY_STAGES).
-            const dispIdx = isComplete ? DISPLAY_STAGES.length - 1 : DISPLAY_STAGES.indexOf(machine.stage);
+            const dispIdx = DISPLAY_STAGES.indexOf(dispStage);
             // Phase 1 — open pending items, split by what they block.
             //   fault: someone found something wrong and called the department
             //          responsible. The machine stays put until it is fixed.
@@ -18950,7 +18970,6 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
             const machineOpenAll = (pendingHandoverItems || [])
               .filter((p) => String(p.machineId) === String(machine.id) && p.status === "open");
             const machineOpenItems = machineOpenAll.filter((p) => p.kind !== "owed");
-            const machineOwedItems = machineOpenAll.filter((p) => p.kind === "owed");
             // Parts that were short at BOM issue and have since been given out
             // of Pending Stock. Matched on serial number, the same way the
             // machine report already matches them.
@@ -18960,8 +18979,7 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
             );
 
             return (
-              <div key={machine.id} className="bg-white rounded-xl overflow-hidden transition-all"
-                   style={{ border: `1px solid ${isComplete ? "rgba(34,197,94,0.2)" : "rgba(17,24,39,0.08)"}` }}>
+              <div key={machine.id} className={`mt-card overflow-hidden${isComplete ? " mt-card-ready" : ""}`}>
 
                 {/* ── Card header ── */}
                 <div className="px-5 py-4">
@@ -18980,7 +18998,7 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                           <span className="text-[10px] font-mono text-blue-400 font-bold">S/N: {machine.serialNo}</span>
                           <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
                                 style={{ background: stageColor + "18", color: stageColor, border: `1px solid ${stageColor}35` }}>
-                            {machine.stage}
+                            {dispStage}
                           </span>
                           {/* "4/6 — 60%" read as an arithmetic error, because the
                               two numbers count different things: 4 of 6 is which
@@ -19002,13 +19020,8 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                               📦 Material arrived ({arrivedItems.length})
                             </span>
                           )}
-                          {isComplete && (
-                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background:"rgba(34,197,94,0.12)", color:"#15803d", border:"1px solid rgba(34,197,94,0.25)" }}>
-                              ✓ Completed
-                            </span>
-                          )}
                         </div>
-                        <div className="text-[10px] text-slate-600 mt-0.5">Started {machine.createdDate}{machine.completedDate ? ` · Completed ${machine.completedDate}` : ""}</div>
+                        <div className="text-[10px] text-slate-600 mt-0.5">Started {machine.createdDate}{machine.completedDate ? ` · Ready ${machine.completedDate}` : ""}</div>
                         {/* 2026-10-30 — live department timer: working time only
                             (Tuesdays and holidays pause it), the BOM target, the
                             deadline, and a delay alert once the target is passed. */}
@@ -19043,7 +19056,7 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                     </div>
 
                     {/* Progress timeline — display only. Production stages are
-                        Mechanical → Electrical → Trial → Ready → Completed; the
+                        Mechanical → Electrical → Trial → Ready (final); the
                         BOM Issued / Assembly phase is shown as the status pill
                         above, not as a stage. MACHINE_STAGES and every handler
                         are unchanged. Hidden for a floor login, who only acts on
@@ -19178,16 +19191,6 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                           </button>
                         )
                       )}
-                      {/* Phase 1 — outstanding work carried forward from an
-                          earlier department. Shown wherever the machine is, so
-                          the floor knows before it reaches Trial. */}
-                      {!isComplete && machineOwedItems.length > 0 && (
-                        <span className="text-[10px] font-black px-2 py-1 rounded-lg"
-                              style={{ background: "rgba(245,158,11,0.12)", color: "#b45309", border: "1px solid rgba(245,158,11,0.4)" }}
-                              title={machineOwedItems.map((p) => `${p.assignedDepartment || "?"}: ${p.description}`).join(" · ")}>
-                          {machineOwedItems.length} job{machineOwedItems.length === 1 ? "" : "s"} owed
-                        </span>
-                      )}
                       {machine.pendingHandoverId && (() => {
                         const h = (handovers || []).find((x) => x.id === machine.pendingHandoverId && x.status === "pending");
                         // Migration 036 — parked on the rack. Nobody has been
@@ -19200,18 +19203,6 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                                     style={{ background: "rgba(99,102,241,0.12)", color: "#4f46e5", border: "1px solid rgba(99,102,241,0.4)" }}>
                                 On rack · assembled
                               </span>
-                              {false && canDo("machines", "release") && onReleaseHandover && (
-                                <button onClick={async () => {
-                                          const r = await onReleaseHandover(h.id);
-                                          if (r && r.success === false) showToast("Could not release", r.error || "", "urgent");
-                                          else showToast(`${machine.bomKey}${machine.serialNo ? ` — ${machine.serialNo}` : ""}`, `${h.toDepartment} can now pick it up`);
-                                        }}
-                                        className="text-[11px] font-black text-white px-3 py-1.5 rounded-lg transition-all"
-                                        style={{ background: "#4f46e5", boxShadow: "0 1px 2px rgba(17,24,39,0.14)", color: "#ffffff" }}
-                                        title={`Tell ${h.toDepartment} to pick this machine up off the rack`}>
-                                  Send to {h.toDepartment} →
-                                </button>
-                              )}
                               <span className="text-[10px] text-slate-500">Assembled · Ready on {machine.rackSlot ? slotLabel(machine.rackSlot) : "the rack"} — {canDo("machines", "release") || isAdminUser ? "transfer it from the Rack View" : "an admin transfers it from the Rack View"}</span>
                               {isAdminUser && onPullBackHandover && (
                                 <button type="button" onClick={() => setPullBack({ handover: h, reason: "", busy: false, error: "" })}
@@ -19267,7 +19258,7 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
                         </button>
                       )}
                       {/* Migration 032 — Certificate view button for Trial-completed machines */}
-                      {machine.trialCertificate && canFinishTransfer(canDo) && onUpdateTrialCertificate && (
+                      {!isComplete && machine.trialCertificate && canFinishTransfer(canDo) && onUpdateTrialCertificate && (
                         <button type="button" data-cert-edit onClick={() => setTrialCertModal({ machine, editOnly: true })}
                                 className="text-[10px] font-bold px-2 py-1.5 rounded-lg border transition-all"
                                 style={{ background: "rgba(217,119,6,0.10)", border: "1px solid rgba(217,119,6,0.35)", color: "#b45309" }}
