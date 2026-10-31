@@ -83,7 +83,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-rack-outward";
+const APP_BUILD = "2026-10-31-critical-compact";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -11667,6 +11667,10 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
   rackSet = null }) {
   const [showCostPanel, setShowCostPanel] = useState(false);
   const [materialBlock, setMaterialBlock] = useState(false);
+  // Pre-issue check — which rows have their checklist / serials open, and
+  // whether only the items still to resolve are listed.
+  const [cpOpen, setCpOpen] = useState({});
+  const [cpRemainingOnly, setCpRemainingOnly] = useState(false);
   const [editValidationErr, setEditValidationErr] = useState("");
   const [search,       setSearch]       = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -12815,118 +12819,128 @@ function BOMDrawer({ bomKey, bom, units, onUnitsChange, items, handleUpdateStock
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3">
-              {verifyLines.map((l) => {
+            {/* 2026-10-31 — compact list: one row per item with the two
+                choices inline; checklist / serials open only when needed. */}
+            {criticalLines.length > 0 && (
+              <div className="px-4 sm:px-6 py-2.5 border-b border-slate-200 flex items-center justify-between gap-3 flex-wrap flex-shrink-0 text-[11.5px]">
+                <div className="flex items-center gap-2 flex-wrap" data-cp-summary>
+                  <span className="font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(34,197,94,0.12)", color: "#15803d" }}>✓ {verifiedN} verified</span>
+                  <span className="font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(217,119,6,0.12)", color: "#b45309" }}>✗ {skippedN} not issued</span>
+                  <span className="font-black px-2 py-0.5 rounded-full" style={{ background: unresolved.length ? "rgba(239,68,68,0.10)" : "rgba(17,24,39,0.05)", color: unresolved.length ? "#dc2626" : "#64748b" }}>{unresolved.length} remaining</span>
+                </div>
+                <label className="inline-flex items-center gap-1.5 text-slate-600 cursor-pointer select-none">
+                  <input type="checkbox" checked={cpRemainingOnly} onChange={(e) => setCpRemainingOnly(e.target.checked)} className="w-3.5 h-3.5" />
+                  Remaining only
+                </label>
+              </div>
+            )}
+            <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-2">
+              {verifyLines.filter((l) => !cpRemainingOnly || (l.inv && l.inv.isCritical && !isCriticalLineResolved(l))).map((l, rowIdx) => {
                 const critical = !!(l.inv && l.inv.isCritical);
                 const type     = critical && l.inv.outwardInputType === "serial" ? "serial" : "checkbox";
                 const state    = criticalInputs[l.code] || {};
                 const verified = critical && isCriticalLineReady(l);
                 const skipped  = critical && isCriticalLineSkipped(l);
-                const needsWhy = critical && !verified && !hasPartialSerials(l);
+                const choseNot = critical && state.choice === "not";
                 const setLine  = (patch) => { setCriticalErr(""); setCriticalInputs((prev) => ({ ...prev, [l.code]: { ...(prev[l.code] || {}), ...patch } })); };
-                // Green when verified, amber when consciously skipped with a
-                // reason, neutral otherwise — the state reads at a glance.
-                const tone = !critical ? { bd: "rgba(17,24,39,0.10)", bg: "rgba(17,24,39,0.03)" }
-                           : verified  ? { bd: "rgba(34,197,94,0.40)", bg: "rgba(34,197,94,0.06)" }
-                           : skipped   ? { bd: "rgba(217,119,6,0.45)", bg: "rgba(217,119,6,0.06)" }
-                           :             { bd: "rgba(17,24,39,0.14)", bg: "rgba(17,24,39,0.03)" };
+                const points   = l.checkPoints || [];
+                const open     = !!cpOpen[l.code];
+                const toggle   = () => setCpOpen((prev) => ({ ...prev, [l.code]: !prev[l.code] }));
+                // Verified: the checkbox item is confirmed; a serial item opens
+                // its serial boxes (verified once every unit has a serial).
+                const markVerified = () => {
+                  if (type === "checkbox") setLine({ choice: "verified", confirmed: true, remark: "" });
+                  else { setLine({ choice: "verified", remark: "" }); setCpOpen((prev) => ({ ...prev, [l.code]: true })); }
+                };
+                // Not verified: cleared, and the reason box appears in the row.
+                const markNot = () => setLine({ choice: "not", confirmed: false, serials: [] });
+                const status = !critical ? null : verified ? "verified" : skipped ? "not" : "todo";
+                const chip = { verified: ["✓ Verified", "#15803d", "rgba(34,197,94,0.12)"], not: ["Not issued", "#b45309", "rgba(217,119,6,0.14)"], todo: ["To verify", "#64748b", "rgba(17,24,39,0.06)"] }[status || "todo"];
+                const showSerials = critical && type === "serial" && (open || state.choice === "verified") && !choseNot;
                 return (
-                  <div key={l.code} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${tone.bd}` }}>
-                    <div className="px-4 py-2.5 flex items-center justify-between gap-3" style={{ background: tone.bg }}>
-                      <div className="min-w-0">
-                        <div className="text-[12px] font-bold text-slate-900">
+                  <div key={l.code} data-cp-row={l.code} data-cp-status={status || "info"}
+                       className="py-2 px-2 rounded-lg" style={{ borderTop: rowIdx ? "1px solid rgba(17,24,39,0.07)" : "none", background: status === "verified" ? "rgba(34,197,94,0.04)" : status === "not" ? "rgba(217,119,6,0.05)" : "transparent" }}>
+                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                      <button type="button" onClick={toggle} aria-expanded={open} disabled={!points.length && type !== "serial"}
+                              className="w-5 h-5 flex-shrink-0 rounded text-[10px] text-slate-500 hover:bg-slate-100 disabled:opacity-0"
+                              title={points.length ? `${points.length} checklist point${points.length === 1 ? "" : "s"}` : ""}>{open ? "▾" : "▸"}</button>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[12px] font-bold text-slate-900 truncate">
                           {l.name}
-                          {critical && (
-                            <span className="ml-2 text-[9px] font-black px-1.5 py-0.5 rounded"
-                                  style={{ background: "rgba(239,68,68,0.12)", color: "#dc2626" }}>CRITICAL</span>
-                          )}
+                          {critical && <span className="ml-1.5 text-[8.5px] font-black px-1 py-0.5 rounded align-middle" style={{ background: "rgba(239,68,68,0.12)", color: "#dc2626" }}>CRITICAL</span>}
                         </div>
-                        <div className="text-[9px] font-mono text-slate-500">{l.code}</div>
+                        <div className="text-[9.5px] text-slate-500"><span className="font-mono">{l.code}</span> · {l.issueQty} {l.unit}{points.length ? ` · ${points.length} check point${points.length === 1 ? "" : "s"}` : ""}</div>
                       </div>
-                      <div className="text-right flex-shrink-0">
-                        <div className="text-[11px] font-bold text-slate-700" style={{ fontVariantNumeric: "tabular-nums" }}>
-                          {l.issueQty} {l.unit}
+                      {critical ? (
+                        <div className="flex items-center gap-1.5 flex-shrink-0 ml-7 sm:ml-0">
+                          <span className="text-[9.5px] font-black px-1.5 py-0.5 rounded whitespace-nowrap" style={{ color: chip[1], background: chip[2] }}>{chip[0]}</span>
+                          <button type="button" data-cp="verified" onClick={markVerified} disabled={issuing}
+                                  className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg border whitespace-nowrap"
+                                  style={state.choice === "verified" || verified ? { background: "#15803d", color: "#fff", borderColor: "#15803d" } : { background: "#fff", color: "#15803d", borderColor: "rgba(21,128,61,0.4)" }}>
+                            ✓ Physically verified
+                          </button>
+                          <button type="button" data-cp="not" onClick={markNot} disabled={issuing}
+                                  className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg border whitespace-nowrap"
+                                  style={choseNot ? { background: "#b45309", color: "#fff", borderColor: "#b45309" } : { background: "#fff", color: "#b45309", borderColor: "rgba(180,83,9,0.4)" }}>
+                            ✗ Not verified
+                          </button>
                         </div>
-                        {critical && (
-                          <div className="text-[9px] font-black uppercase tracking-wider"
-                               style={{ color: verified ? "#15803d" : skipped ? "#b45309" : "#64748b" }}>
-                            {verified ? "✓ Verified" : skipped ? "Not issued" : "To verify"}
-                          </div>
+                      ) : (
+                        <span className="text-[9.5px] text-slate-500 flex-shrink-0">Issued as usual</span>
+                      )}
+                    </div>
+
+                    {choseNot && (
+                      <div className="mt-1.5 ml-7">
+                        <input value={state.remark || ""} autoFocus
+                               onChange={(e) => setLine({ remark: e.target.value })}
+                               placeholder="Reason (required) — e.g. Not in store, ordered for Monday"
+                               className="w-full bg-white rounded-lg px-3 py-1.5 text-[12px] text-slate-900 outline-none modal-input"
+                               style={{ border: `1px solid ${criticalRemark(l) ? "rgba(217,119,6,0.45)" : "rgba(239,68,68,0.55)"}` }} />
+                        <div className="text-[9.5px] text-slate-500 mt-0.5">Not issued now — its stock is not deducted. The other items are issued as usual.</div>
+                      </div>
+                    )}
+
+                    {open && points.length > 0 && (
+                      <ul className="mt-1.5 ml-7 space-y-1">
+                        {points.map((cp, i) => (
+                          <li key={i} className="text-[11.5px] text-slate-700 leading-snug flex gap-1.5"><span className="text-slate-400">•</span>{cp}</li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {showSerials && (
+                      <div className="mt-1.5 ml-7">
+                        <div className="text-[9.5px] text-slate-500 mb-1">One unique serial number per unit ({l.issueQty}).</div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                          {Array.from({ length: l.issueQty }).map((_, idx) => {
+                            const val = (state.serials && state.serials[idx]) || "";
+                            const alreadyUsed = val.trim() && usedSerials.has(val.toLowerCase().trim());
+                            const dupeInBatch = val.trim() && (state.serials || []).filter((x, i) => i !== idx && x && x.toLowerCase().trim() === val.toLowerCase().trim()).length > 0;
+                            return (
+                              <div key={idx} className="flex flex-col gap-0.5">
+                                <input value={val}
+                                       onChange={(e) => { const next = (state.serials || []).slice(); next[idx] = e.target.value; setLine({ serials: next, choice: "verified" }); }}
+                                       placeholder={`Serial #${idx + 1}`}
+                                       className="bg-slate-50 rounded-md px-2 py-1 text-[11px] text-slate-900 outline-none modal-input"
+                                       style={{ border: (alreadyUsed || dupeInBatch) ? "1px solid rgba(239,68,68,0.7)" : "1px solid rgba(17,24,39,0.10)" }} />
+                                {alreadyUsed && <span className="text-[9px] text-red-500 font-semibold">Already issued</span>}
+                                {dupeInBatch && !alreadyUsed && <span className="text-[9px] text-amber-700 font-semibold">Duplicate in list</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {hasPartialSerials(l) && !verified && (
+                          <div className="text-[10px] font-semibold mt-1" style={{ color: "#dc2626" }}>Complete every serial number, or choose Not verified and give a reason.</div>
                         )}
                       </div>
-                    </div>
-
-                    <div className="px-4 py-3 space-y-2">
-                      {(l.checkPoints || []).map((cp, i) => (
-                        <div key={i} className="flex items-start gap-2">
-                          <span className="text-[11px] mt-0.5">✅</span>
-                          <span className="text-[12px] text-slate-800 leading-snug">{cp}</span>
-                        </div>
-                      ))}
-
-                      {critical && type === "checkbox" && (
-                        <label className="flex items-start gap-2 cursor-pointer pt-1">
-                          <input type="checkbox" checked={!!state.confirmed}
-                                 onChange={(e) => setLine({ confirmed: e.target.checked })}
-                                 className="accent-emerald-500 w-4 h-4 mt-0.5" />
-                          <span className="text-[11.5px] text-slate-700 leading-relaxed">
-                            Physically verified for all {l.issueQty} unit(s)
-                          </span>
-                        </label>
-                      )}
-
-                      {critical && type === "serial" && (
-                        <div className="pt-1">
-                          <div className="text-[10px] text-slate-500 mb-1.5">
-                            One unique serial number per unit ({l.issueQty}) — or leave all empty and give a reason below.
-                          </div>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                            {Array.from({ length: l.issueQty }).map((_, idx) => {
-                              const val = (state.serials && state.serials[idx]) || "";
-                              const alreadyUsed = val.trim() && usedSerials.has(val.toLowerCase().trim());
-                              const dupeInBatch = val.trim() && (state.serials || []).filter((x, i) => i !== idx && x && x.toLowerCase().trim() === val.toLowerCase().trim()).length > 0;
-                              return (
-                                <div key={idx} className="flex flex-col gap-0.5">
-                                  <input value={val}
-                                         onChange={(e) => { const next = (state.serials || []).slice(); next[idx] = e.target.value; setLine({ serials: next }); }}
-                                         placeholder={`Serial #${idx + 1}`}
-                                         className="bg-slate-50 rounded-md px-2 py-1.5 text-[11px] text-slate-900 outline-none modal-input"
-                                         style={{ border: (alreadyUsed || dupeInBatch) ? "1px solid rgba(239,68,68,0.7)" : "1px solid rgba(17,24,39,0.10)" }} />
-                                  {alreadyUsed && <span className="text-[9px] text-red-500 font-semibold">Already issued</span>}
-                                  {dupeInBatch && !alreadyUsed && <span className="text-[9px] text-amber-700 font-semibold">Duplicate in list</span>}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Not verified → why. Required: an unverified critical
-                          item can only be left out with a reason on record. */}
-                      {needsWhy && (
-                        <div className="pt-1">
-                          <div className="text-[10.5px] font-semibold mb-1" style={{ color: "#b45309" }}>
-                            Not verified — reason <span className="text-red-500">*</span>
-                          </div>
-                          <input value={state.remark || ""}
-                                 onChange={(e) => setLine({ remark: e.target.value })}
-                                 placeholder="e.g. Not in store — ordered, expected Monday"
-                                 className="w-full bg-white rounded-lg px-3 py-2 text-[12px] text-slate-900 outline-none modal-input"
-                                 style={{ border: `1px solid ${criticalRemark(l) ? "rgba(217,119,6,0.45)" : "rgba(239,68,68,0.45)"}` }} />
-                          <div className="text-[10px] text-slate-500 mt-1">
-                            This item will not be issued now. Its stock is not deducted.
-                          </div>
-                        </div>
-                      )}
-                      {critical && hasPartialSerials(l) && !verified && (
-                        <div className="text-[10.5px] font-semibold" style={{ color: "#dc2626" }}>
-                          Complete every serial number, or clear them all and give a reason.
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
                 );
               })}
+              {cpRemainingOnly && unresolved.length === 0 && (
+                <div className="py-6 text-center text-[12px] font-semibold" style={{ color: "#15803d" }}>✓ Every critical item is verified or explained.</div>
+              )}
 
               {criticalErr && (
                 <div className="text-[11px] font-bold px-3 py-2 rounded-md whitespace-pre-line"
