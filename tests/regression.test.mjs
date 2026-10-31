@@ -226,7 +226,7 @@ const AUDIT_EVENT_TYPES = [
   "signature_registered",
   // Phase B — checklists / pending items / attachments / ratings
   "checklist_template_created", "checklist_template_updated", "checklist_template_deleted",
-  "pending_item_raised", "pending_item_resolved", "pending_item_received", "acting_main_assigned", "handover_pulled_back",
+  "pending_item_raised", "pending_item_resolved", "pending_item_received", "pending_item_issued", "acting_main_assigned", "handover_pulled_back",
   // Migration 036 — a production head releases a machine off the rack.
   "handover_released",
   // Migration 045 — rack slots (brief §14).

@@ -189,7 +189,15 @@ test("App: separate M/R BOM fills under one serial, remove, release scope and pe
   // 3 — no destination popup on a rack fill
   assert.match(app, /if \(serialNo && !chosenDest && rackSet\) \{\n      \/\/ A set fill has one destination: the selected set\. No popup\.\n      return doIssue\("rack"/);
   // 4 — any unticked / short / skipped / unknown line blocks a rack fill
-  assert.match(app, /!isItemChecked\(i\.code\) \|\| !i\.inv \|\| i\.pendingQty > 0 \|\| i\.issueQty < i\.required \|\| skippedCodes\.has\(i\.code\)/);
+  assert.match(app, /const rackIncomplete = \(\) => enriched\.filter\(\(i\) => !skippedCodes\.has\(i\.code\) && \(!isItemChecked\(i\.code\) \|\| !i\.inv \|\| i\.pendingQty > 0 \|\| i\.issueQty < i\.required\)\);/, "a Not-issued (reason given) item no longer blocks the rack");
+  assert.match(app, /BOM Ready · \{niN\} Pending/);
+  // pending part issued from the rack: stock first, receipt guarded, undo on a lost race, job completed
+  assert.match(app, /const mv = await handleUpdateStock\(cat, p\.itemCode, -qty, ref\);/);
+  assert.match(app, /if \(!rec\.success\) \{\n        await handleUpdateStock\(cat, p\.itemCode, \+qty,/);
+  assert.match(app, /if \(p\.receivedAt\) return \{ success: false, error: "This part is already received/);
+  assert.match(app, /data-pending-action="issue"/);
+  assert.match(app, /onRaiseNotIssued\(\{ machineId: data\.rackSet\.machineId/);
+  assert.match(app, /const raiseNotIssued = \(machineId\) => raiseNotIssuedJobs\(\{ machineId, notIssued, bomKey, serialNo, issueId, rackSlot \}\);/);
   // BOM Outward: an M BOM offers Empty Rack or Direct Production; an R BOM
   // links by serial to the M machine as its crate; a rack is filled complete.
   assert.match(app, /<div className="text-sm font-black text-emerald-300 mb-1">Empty Rack<\/div>/);
