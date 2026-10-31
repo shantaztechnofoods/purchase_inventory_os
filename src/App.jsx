@@ -83,7 +83,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-assembly-return";
+const APP_BUILD = "2026-10-31-rack-release-sync";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -16782,7 +16782,10 @@ function MachinePage({ machineLog, outwardLog = [], onIssuePendingPart = null, o
   const pendingHandovers = (handovers || []).filter((h) => h && h.status === "pending");
   // Migration 036 — sent, but parked on the rack until a production head
   // releases it to the receiving department. Pre-036 rows read as false.
-  const isAwaitingRelease = (h) => !!(h && h.releaseRequired && !h.releasedAt);
+  // 2026-10-31 — only a PENDING hand-over parks a machine on the rack. A
+  // pulled-back (cancelled) or released one must not keep the rack showing
+  // "Assembled · Ready" with an active Transfer button.
+  const isAwaitingRelease = (h) => !!(h && h.status === "pending" && h.releaseRequired && !h.releasedAt);
   const askableHandovers  = pendingHandovers.filter((h) => !isAwaitingRelease(h));
   const overdueHandovers = pendingHandovers.filter((h) =>
     !isAwaitingRelease(h) && isHoldOverdue(h.sentAt, h.acceptTimeoutMinutes, nowTick));
@@ -22680,6 +22683,8 @@ export default function App() {
   const rackSlotReservationRef = useRef(null);
   // Pending parts being issued right now (double-click / double-submit guard).
   const issuePendingRef = useRef(new Set());
+  // Rack releases in flight (double-click / double-submit guard).
+  const releaseBusyRef = useRef(new Set());
   // "Fill Rack" → open that rack's own BOM in the embedded Outward section.
   const [bomOpenRequest, setBomOpenRequest] = useState(null); // { key, slotId, n }
   // Phase B — department workflow depth. Each falls back silently if its
@@ -24568,18 +24573,20 @@ export default function App() {
   };
   // The slot is freed when the assembled machine leaves the rack (release),
   // or when the set is removed from the rack.
-  const clearRackSlot = (machine, why) => {
-    if (!machine || !machine.rackSlot) return;
+  const clearRackSlot = async (machine, why) => {
+    if (!machine || !machine.rackSlot) return { success: true, noop: true };
     const slotId = machine.rackSlot;
     setMachineLog((prev) => prev.map((m) => (String(m.id) === String(machine.id) ? { ...m, rackSlot: null } : m)));
-    machineUpdate(machine.id, { rackSlot: null }).then((r) => { if (!r.success) console.warn("[App] rack slot clear failed", r.error); });
+    const r = await machineUpdate(machine.id, { rackSlot: null });
+    if (!r.success) console.warn("[App] rack slot clear failed", r.error);
     logAudit({
       type: "rack_slot_released", module: "Machine",
       action: `Rack ${slotLabel(slotId)} is empty again: ${machine.bomKey}${machine.serialNo ? ` [${machine.serialNo}]` : ""} — ${why}`,
       ref: machine.bomKey, serialNo: machine.serialNo || "",
       oldValue: { slotId }, newValue: { slotId: null },
-      details: { machineId: machine.id, why },
+      details: { machineId: machine.id, why, persisted: !!r.success },
     });
+    return r;
   };
 
   // Feature 3: remove a machine from the rack. Restores the materials that
@@ -25412,21 +25419,34 @@ export default function App() {
     if (!authCanDo("machines", "release") && !isAdmin) return { success: false, error: "Only an admin or a production head can transfer a machine off the rack." };
     const h = (handovers || []).find((x) => x.id === handoverId);
     if (!h) return { success: false, error: "Handover not found" };
+    if (h.status !== "pending") return { success: false, error: h.status === "cancelled" ? "This hand-over was pulled back — the machine is back in Assembly. Finish assembly again to send it." : "This hand-over is no longer pending." };
     if (!h.releaseRequired || h.releasedAt) return { success: false, error: "This machine is not waiting on the rack." };
-    const res = await releaseHandover(handoverId, { releasedBy: currentUser.id });
-    if (!res.success) return res;
-    setHandovers((prev) => prev.map((x) => x.id === handoverId
-      ? { ...x, releasedAt: res.handover?.releasedAt || new Date().toISOString(), releasedBy: currentUser.id }
-      : x));
-    const machine = machineLog.find((m) => String(m.id) === String(h?.machineId));
-    clearRackSlot(machine, `released to ${h?.toDepartment || "next department"}`);
+    if (releaseBusyRef.current.has(handoverId)) return { success: false, error: "Transfer already in progress" };
+    releaseBusyRef.current.add(handoverId);
+    try {
+      // 1) the hand-over row: the store only updates a pending, unreleased
+      //    row, so a second device / double click fails here and nothing
+      //    else is touched.
+      const res = await releaseHandover(handoverId, { releasedBy: currentUser.id });
+      if (!res.success) return res;
+      const released = res.handover || { ...h, releasedAt: new Date().toISOString(), releasedBy: currentUser.id };
+      setHandovers((prev) => prev.map((x) => x.id === handoverId ? { ...x, ...released, status: released.status || x.status } : x));
+      // 2) the rack: the machine leaves its unit. Awaited, so a refused slot
+      //    clear is reported; the released hand-over is the source of truth
+      //    for the rack either way (rackViewLog), so the unit reads Empty.
+      const machine = machineLog.find((m) => String(m.id) === String(h?.machineId));
+      const cleared = await clearRackSlot(machine, `released to ${h?.toDepartment || "next department"}`);
+      if (cleared && cleared.success === false) console.warn("[App] release: rack slot clear refused", cleared.error);
     logAudit({
       type: "handover_released", module: "Machine",
       action: `Released from rack to ${h?.toDepartment || "next dept"}: ${machine?.bomKey || ""}${machine?.serialNo ? ` [${machine.serialNo}]` : ""}`,
       ref: machine?.bomKey || "", serialNo: machine?.serialNo || "",
-      details: { handoverId, machineId: h?.machineId, toDepartment: h?.toDepartment },
+      details: { handoverId, machineId: h?.machineId, toDepartment: h?.toDepartment, slotCleared: !(cleared && cleared.success === false) },
     });
     return res;
+    } finally {
+      releaseBusyRef.current.delete(handoverId);
+    }
   };
 
   const handleResolvePendingItem = async (id, { notes }) => {

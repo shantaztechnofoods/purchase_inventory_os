@@ -256,3 +256,36 @@ test("App: finish Assembly returns a rack machine to its rack; admin transfers f
   assert.match(app, /Anything still pending from \{fromDepartment\}\?/);
   assert.match(app, /The Main Employee must sign to confirm this department's work\./);
 });
+
+// 2026-10-31 live bug (M-10 (2), S/N 123456789): a pulled-back (cancelled)
+// hand-over kept the rack showing "Assembled · Ready" with an active
+// Transfer button, which then failed with "Already released, or no longer
+// waiting". Only a PENDING hand-over parks a machine on the rack; a release
+// updates the hand-over first, then clears the slot (awaited), and a second
+// release of the same hand-over is refused.
+test("rack status: a cancelled or released hand-over never shows 'assembled'", () => {
+  const log = [m(1, { bomKey: "M-10", stage: "Assembly", rackSlot: "M-10-1#2" })];
+  const pending = new Set(["1"]);
+  assert.equal(buildFamilyRacks(fam10, log, pending).columns[0][0].slots[1].status, "assembled");
+  // the App only puts PENDING, unreleased hand-overs into awaitingReleaseIds; a
+  // cancelled one is not in the set → the machine is simply "assembling" again
+  assert.equal(buildFamilyRacks(fam10, log, new Set()).columns[0][0].slots[1].status, "assembling");
+  // released → off the rack entirely
+  const v = rackViewLog(log, [{ machineId: 1, releaseRequired: true, releasedAt: "2026-10-31T09:00:00Z", status: "pending" }]);
+  assert.equal(buildFamilyRacks(fam10, v, new Set()).columns[0][0].slots[1].status, "empty");
+});
+
+test("App: release is pending-only, guarded against duplicates, and clears the rack slot awaited", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+  const app = fs.readFileSync(path.join(root, "src/App.jsx"), "utf8");
+  assert.match(app, /const isAwaitingRelease = \(h\) => !!\(h && h\.status === "pending" && h\.releaseRequired && !h\.releasedAt\);/);
+  assert.match(app, /if \(h\.status !== "pending"\) return \{ success: false, error: h\.status === "cancelled" \? "This hand-over was pulled back/);
+  assert.match(app, /if \(releaseBusyRef\.current\.has\(handoverId\)\) return \{ success: false, error: "Transfer already in progress" \};/);
+  assert.match(app, /const cleared = await clearRackSlot\(machine, `released to/);
+  assert.match(app, /const clearRackSlot = async \(machine, why\) => \{/);
+  assert.match(app, /const r = await machineUpdate\(machine\.id, \{ rackSlot: null \}\);/);
+  // the rack panel only ever offers Transfer for a PENDING hand-over
+  assert.match(app, /const ho = sl\.status === "assembled" \? \(handovers \|\| \[\]\)\.find\(\(h\) => h && h\.status === "pending" && String\(h\.machineId\) === String\(m\.id\)\) : null;/);
+});
