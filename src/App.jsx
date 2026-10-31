@@ -83,7 +83,7 @@ import {
 // Visible build marker — shown in the Settings header so you can confirm in PRODUCTION
 // which bundle is live. If you don't see this tag on the Settings page, the deployed
 // build is stale (redeploy on Vercel without build cache + hard-refresh the browser).
-const APP_BUILD = "2026-10-31-report-center";
+const APP_BUILD = "2026-10-31-admin-cleanup";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -8737,13 +8737,158 @@ function EmployeeMembersPanel({ members = [], canConfig = false, onSave }) {
   );
 }
 
+// ─── Admin Data Cleanup ──────────────────────────────────────────────────────
+// Super Admin / Admin (machines.configDept) only. Deletes test machines and
+// their linked operational records (handovers, pending jobs, checklist
+// responses, ratings, attachments, outward issues) in ONE database
+// transaction via admin_cleanup_machines (migration 051). Flow:
+//   1. Select which machines to RETAIN (everything unticked is deleted)
+//   2. Preview — the server counts exactly what would go
+//   3. Confirm — admin password + typed DELETE, then execute
+// Master data (items, stock, BOMs, users, settings) is never touched; the
+// immutable audit_log keeps every old entry and gains one cleanup record.
+// Local (non-Supabase) mode fails closed: there is no transaction or auth.
+function AdminCleanupPanel({ machineLog = [], currentUser = null, onDone }) {
+  const [keep, setKeep]         = useState(() => new Set(machineLog.filter((m) => m.status !== "completed" && m.rackSlot).map((m) => Number(m.id))));
+  const [preview, setPreview]   = useState(null);   // server preview result
+  const [busy, setBusy]         = useState(false);
+  const [error, setError]       = useState("");
+  const [password, setPassword] = useState("");
+  const [typed, setTyped]       = useState("");
+  const [result, setResult]     = useState(null);
+  const supa = isSupabaseEnabled();
+  const machines = [...machineLog].sort((a, b) => Number(b.id) - Number(a.id));
+  const toDelete = machines.filter((m) => !keep.has(Number(m.id)));
+  const toggle = (id) => { setPreview(null); setKeep((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; }); };
+  const keepAll  = () => { setPreview(null); setKeep(new Set(machines.map((m) => Number(m.id)))); };
+  const keepNone = () => { setPreview(null); setKeep(new Set()); };
+  const keepIds  = () => [...keep].map(Number).filter((n) => Number.isFinite(n));
+
+  const runPreview = async () => {
+    setError(""); setResult(null);
+    if (!supa) { setError("Data cleanup needs the live database (Supabase mode)."); return; }
+    setBusy(true);
+    try {
+      const { data, error: e } = await getSupabase().rpc("admin_cleanup_machines", { p_keep_ids: keepIds(), p_execute: false });
+      if (e) throw new Error(e.message);
+      setPreview(data);
+    } catch (e) { setError(e.message || "Preview failed."); }
+    setBusy(false);
+  };
+
+  const runExecute = async () => {
+    setError("");
+    if (!preview || preview.mode !== "preview") { setError("Run the preview first."); return; }
+    if (typed.trim() !== "DELETE") { setError('Type DELETE to confirm.'); return; }
+    if (!password) { setError("Enter your admin password."); return; }
+    setBusy(true);
+    try {
+      const authEmail = currentUser?.email || `${currentUser?.username}@users.shantaz.local`;
+      const re = await reauthenticateByPassword(authEmail, password);
+      if (!re.success) throw new Error(re.error || "Password verification failed.");
+      const expected = (preview.machines || []).map((m) => Number(m.id));
+      const { data, error: e } = await getSupabase().rpc("admin_cleanup_machines", { p_keep_ids: keepIds(), p_execute: true, p_expected_ids: expected });
+      if (e) throw new Error(e.message);
+      setResult(data); setPreview(null); setPassword(""); setTyped("");
+      if (onDone) onDone(data);
+    } catch (e) { setError(e.message || "Cleanup failed — nothing was deleted."); }
+    setBusy(false);
+  };
+
+  const counts = preview?.counts || {};
+  const countRows = [
+    ["machine_log", "Machines"], ["handover_events", "Handovers (incl. On Hold / Completed)"], ["pending_handover_items", "Pending jobs"],
+    ["checklist_responses", "Checklist responses"], ["department_ratings", "Department ratings"], ["machine_attachments", "Attachments"], ["outward_log", "BOM outward issues"],
+  ];
+  const stageOf = (m) => m.status === "completed" ? "Completed" : (m.stage || "—");
+
+  return (
+    <div data-admin-cleanup className="mt-4 p-4 rounded-xl border" style={{ borderColor: "rgba(215,25,32,0.28)", background: "rgba(215,25,32,0.03)" }}>
+      <div className="text-[13px] font-semibold text-slate-900">🧹 Admin Data Cleanup — test machines</div>
+      <div className="text-[11px] text-slate-500 mt-0.5">
+        Deletes the unticked machines with their handovers, pending jobs, checklist responses, ratings, attachments and BOM outward entries in one transaction.
+        Items, stock, BOMs, users, settings and the audit trail are never touched.
+      </div>
+      {!supa && <div className="mt-2 text-[11px] font-semibold" style={{ color: "#b45309" }}>Available only when connected to the live database.</div>}
+
+      <div className="mt-3 flex items-center justify-between">
+        <div className="text-[11px] font-semibold text-slate-700">Tick the machines to <u>keep</u> ({keep.size} kept · {toDelete.length} to delete)</div>
+        <div className="flex gap-2">
+          <button data-keep-all onClick={keepAll} className="text-[11px] font-bold px-2.5 py-1 rounded-lg border border-slate-200 bg-white">Keep all</button>
+          <button data-keep-none onClick={keepNone} className="text-[11px] font-bold px-2.5 py-1 rounded-lg border border-slate-200 bg-white">Keep none</button>
+        </div>
+      </div>
+      <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+        {machines.length === 0 && <div className="p-3 text-[11px] text-slate-400">No machines.</div>}
+        {machines.map((m) => {
+          const id = Number(m.id); const kept = keep.has(id);
+          return (
+            <label key={m.id} data-cleanup-row={m.id} data-kept={kept ? "1" : "0"} className="flex items-center gap-3 px-3 py-1.5 border-b border-slate-100 text-[12px] cursor-pointer">
+              <input type="checkbox" checked={kept} onChange={() => toggle(id)} disabled={busy} />
+              <span className="font-semibold text-slate-800 w-16">{m.bomKey || "—"}</span>
+              <span className="font-mono text-slate-700 w-28 truncate">{m.serialNo || "no serial"}</span>
+              <span className="text-slate-500">{stageOf(m)}{m.rackSlot ? ` · ${m.rackSlot}` : ""}</span>
+              <span className="ml-auto text-[10px] font-bold" style={{ color: kept ? "#15803d" : "#d71920" }}>{kept ? "KEEP" : "DELETE"}</span>
+            </label>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        <button data-cleanup-preview onClick={runPreview} disabled={busy || !supa}
+                className="text-[12px] font-bold px-4 py-2 rounded-xl border border-slate-300 bg-white disabled:opacity-50">
+          {busy && !preview ? "Checking…" : "Preview deletion"}
+        </button>
+        {preview && <span className="text-[11px] text-slate-500">Preview from the live database — nothing deleted yet.</span>}
+      </div>
+
+      {preview && (
+        <div data-cleanup-summary className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+          <div className="text-[12px] font-semibold text-slate-900 mb-1">Will be deleted</div>
+          <table className="text-[11px] w-full"><tbody>
+            {countRows.map(([k, label]) => (
+              <tr key={k} data-count={k}><td className="py-0.5 text-slate-600">{label}</td><td className="py-0.5 text-right font-bold text-slate-900">{counts[k] ?? 0}</td></tr>
+            ))}
+          </tbody></table>
+          <div className="text-[11px] text-slate-500 mt-1">
+            {(preview.machines || []).length === 0
+              ? "No machines selected for deletion."
+              : `Machines: ${(preview.machines || []).map((m) => `${m.bom || "?"} ${m.serial || "(no serial)"}`).join(", ")}`}
+          </div>
+          {(preview.machines || []).length > 0 && (
+            <div className="mt-3 grid gap-2" style={{ gridTemplateColumns: "1fr 1fr auto" }}>
+              <input data-cleanup-password type="password" autoComplete="current-password" placeholder="Admin password" value={password} onChange={(e) => setPassword(e.target.value)}
+                     className="text-[12px] px-3 py-2 rounded-lg border border-slate-300" disabled={busy} />
+              <input data-cleanup-typed placeholder='Type DELETE to confirm' value={typed} onChange={(e) => setTyped(e.target.value)}
+                     className="text-[12px] px-3 py-2 rounded-lg border border-slate-300" disabled={busy} />
+              <button data-cleanup-execute onClick={runExecute} disabled={busy || typed.trim() !== "DELETE" || !password}
+                      className="text-[12px] font-bold px-4 py-2 rounded-xl text-white disabled:opacity-50" style={{ background: "#d71920" }}>
+                {busy ? "Deleting…" : `Delete ${(preview.machines || []).length} machine(s)`}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {error && <div data-cleanup-error className="mt-2 text-[11px] font-semibold" style={{ color: "#d71920" }}>{error}</div>}
+      {result && (
+        <div data-cleanup-result className="mt-2 text-[11px] font-semibold" style={{ color: "#15803d" }}>
+          Cleanup complete — {result.counts?.machine_log ?? 0} machine(s) and linked records deleted; {(result.keep_ids || []).length} kept. Recorded in the audit trail.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, isSuperAdmin = false, canDo = () => true, onRegisterSignature, currentUser = null,
   // Phase B — checklist admin props (optional)
   checklistTemplates = [], onCreateChecklistTemplate, onUpdateChecklistTemplate, onDeleteChecklistTemplate,
   // Migration 029 — department-wise employee assignment (optional)
   allUsers = [], onSaveUserDepartments,
   // Scoped view — when provided, only show matching tabs and start on initialTab
-  initialTab = "company", restrictTabs = null, pageTitle = "Settings" }) {
+  initialTab = "company", restrictTabs = null, pageTitle = "Settings",
+  // Admin Data Cleanup (migration 051) — optional
+  machineLog = [], onAdminCleanup }) {
   // Snapshot of the last KNOWN-PERSISTED settings — used for the dirty-state pill
   // ("Unsaved changes") so operators see they need to click Save. Updated only after
   // a save round-trips successfully.
@@ -9451,6 +9596,9 @@ function SettingsPage({ settings: initialSettings = SETTINGS_DEFAULTS, onSave, i
                 </button>
               </div>
             </div>
+            {(isSuperAdmin || canDo("machines", "configDept")) && (
+              <AdminCleanupPanel machineLog={machineLog} currentUser={currentUser} onDone={onAdminCleanup} />
+            )}
           </Section>
         )}
 
@@ -23455,6 +23603,37 @@ export default function App() {
 
   const logAudit = (entry) => { appendAuditWithUser(entry); };
 
+  // Admin Data Cleanup (migration 051): the DB function deleted the machines
+  // and linked rows atomically and wrote the authoritative audit row. Here we
+  // drop the same rows from local state, add a local-only audit entry
+  // (mirror:false — no duplicate DB row) and re-hydrate from Supabase.
+  const handleAdminCleanupDone = async (res) => {
+    const ids     = new Set((res?.machines || []).map((m) => String(m.id)));
+    const serials = new Set((res?.machines || []).map((m) => (m.serial || "").trim().toLowerCase()).filter(Boolean));
+    setMachineLog((prev) => prev.filter((m) => !ids.has(String(m.id))));
+    setHandovers((prev) => prev.filter((h) => !ids.has(String(h.machineId))));
+    setPendingHandoverItems((prev) => prev.filter((p) => !ids.has(String(p.machineId))));
+    setChecklistResponses((prev) => prev.filter((r) => !ids.has(String(r.machineId))));
+    setDeptRatings((prev) => prev.filter((r) => !ids.has(String(r.machineId))));
+    setAttachments((prev) => prev.filter((a) => !ids.has(String(a.machineId))));
+    setOutwardLog((prev) => prev.filter((o) => !serials.has((o.serialNo || "").trim().toLowerCase())));
+    appendAuditWithUser({ type: "admin_cleanup", module: "Machine",
+      action: `Admin data cleanup: ${res?.counts?.machine_log ?? ids.size} machine(s) and linked records deleted; ${(res?.keep_ids || []).length} kept`,
+      details: { keepIds: res?.keep_ids || [], deleted: res?.machines || [], counts: res?.counts || {} } }, { mirror: false });
+    if (isSupabaseEnabled()) {
+      try {
+        const [mac, ho, phi, cr, rt, atts, out] = await Promise.all([fetchMachines(), fetchHandovers(), fetchPendingItems(), fetchResponses(), fetchRatings(), fetchAllAttachments(), fetchOutward()]);
+        if (mac)  setMachineLog(mac);
+        if (ho)   setHandovers(ho);
+        if (phi)  setPendingHandoverItems(phi);
+        if (cr)   setChecklistResponses(cr);
+        if (rt)   setDeptRatings(rt);
+        if (atts) setAttachments(atts);
+        if (out)  setOutwardLog(out);
+      } catch (e) { console.warn("[App] re-hydrate after cleanup failed:", e); }
+    }
+  };
+
   const handleUpdateStock = async (category, code, delta, eventType = null) => {
     const dateStr = fmtDate(new Date());
     const event   = eventType || (delta > 0 ? "Restock" : "Usage");
@@ -26189,6 +26368,7 @@ export default function App() {
                               auditLog={auditLog}
                               canDo={canDo} />,
     settings:  <SettingsPage settings={settings} onSave={handleSaveSettings} isSuperAdmin={currentUser?.role === "super_admin"} canDo={canDo} onRegisterSignature={handleRegisterSignature} currentUser={currentUser}
+                              machineLog={machineLog} onAdminCleanup={handleAdminCleanupDone}
                               checklistTemplates={checklistTemplates}
                               onCreateChecklistTemplate={handleCreateChecklistTemplate}
                               onUpdateChecklistTemplate={handleUpdateChecklistTemplate}
@@ -26196,6 +26376,7 @@ export default function App() {
                               allUsers={allUsers}
                               onSaveUserDepartments={handleSaveUserDepartments} />,
     machines_settings: <SettingsPage settings={settings} onSave={handleSaveSettings} isSuperAdmin={currentUser?.role === "super_admin"} canDo={canDo} onRegisterSignature={handleRegisterSignature} currentUser={currentUser}
+                              machineLog={machineLog} onAdminCleanup={handleAdminCleanupDone}
                               checklistTemplates={checklistTemplates}
                               onCreateChecklistTemplate={handleCreateChecklistTemplate}
                               onUpdateChecklistTemplate={handleUpdateChecklistTemplate}

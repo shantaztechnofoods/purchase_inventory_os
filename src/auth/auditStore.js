@@ -96,7 +96,9 @@ function persistAndNotify(list) {
   listeners.forEach((cb) => { try { cb(list); } catch {} });
 }
 
-export function appendAudit(entry) {
+// opts.mirror=false: local entry only (used when the DB already wrote the
+// authoritative audit row inside a transaction, e.g. admin_cleanup_machines).
+export function appendAudit(entry, opts = {}) {
   const now = new Date();
   const full = {
     id:        Date.now() + Math.random(),
@@ -122,7 +124,7 @@ export function appendAudit(entry) {
   };
   const next = [full, ...getAuditLog()];
   persistAndNotify(next);
-  tryWriteToSupabase(full);
+  if (opts.mirror !== false) tryWriteToSupabase(full);
   return full;
 }
 
@@ -180,12 +182,12 @@ export function setAuditUserCtx(user, roleLabel) {
 }
 export function getAuditUserCtx() { return _currentUserCtx; }
 
-export function appendAuditWithUser(entry) {
+export function appendAuditWithUser(entry, opts) {
   const ctx = getAuditUserCtx();
   return appendAudit({
     user:   ctx?.fullName || entry.user || "System",
     userId: ctx?.id       || entry.userId || "",
     role:   ctx?.role     || entry.role   || "",
     ...entry,
-  });
+  }, opts);
 }

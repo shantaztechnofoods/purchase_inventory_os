@@ -230,7 +230,7 @@ const AUDIT_EVENT_TYPES = [
   // Migration 036 — a production head releases a machine off the rack.
   "handover_released",
   // Migration 045 — rack slots (brief §14).
-  "rack_slot_assigned", "rack_slot_released", "rack_crate_filled", "trial_certificate_updated",
+  "rack_slot_assigned", "rack_slot_released", "rack_crate_filled", "trial_certificate_updated", "admin_cleanup",
   "attachment_uploaded", "attachment_deleted",
   "department_rated", "rating_overridden",
   // Migration 028 — BOM-wise reusable checklist submission audit split by stage.
@@ -358,6 +358,8 @@ const USER_FACING_STRINGS = [
   "Main / Responsible Employee",
   "Working employees",
   "Team per department",
+  "Admin Data Cleanup",
+  "Preview deletion",
   // BOM Edit — Checklist + Critical Items review chips (2026-10-22)
   "Critical Items in this BOM",
   "Department Checklists for ",

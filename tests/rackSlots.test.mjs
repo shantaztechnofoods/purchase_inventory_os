@@ -402,3 +402,39 @@ test("App: Report Center navigation, seven reports, filters, exports and setting
   // customer PDF is printed / saved, never linked
   assert.doesNotMatch(app, /share(able)? link/i);
 });
+
+// 2026-10-31 — Admin Data Cleanup (migration 051): admin-only panel in
+// Settings → Data & Backup; keep-list selection; server preview; password
+// re-auth + typed DELETE; single-transaction DB function guarded by the
+// previewed id set; master data and the immutable audit log untouched.
+test("App + migration 051: Admin Data Cleanup is admin-gated, previewed, password-verified and atomic", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+  const app = fs.readFileSync(path.join(root, "src/App.jsx"), "utf8");
+  const sql = fs.readFileSync(path.join(root, "supabase/migrations/051_admin_cleanup.sql"), "utf8");
+  const audit = fs.readFileSync(path.join(root, "src/auth/auditStore.js"), "utf8");
+  // UI gate + wiring
+  assert.match(app, /\(isSuperAdmin \|\| canDo\("machines", "configDept"\)\) && \(\s*<AdminCleanupPanel machineLog=\{machineLog\} currentUser=\{currentUser\} onDone=\{onAdminCleanup\} \/>/);
+  assert.match(app, /machineLog=\{machineLog\} onAdminCleanup=\{handleAdminCleanupDone\}/);
+  // preview is read-only; execute needs password + DELETE + the previewed ids
+  assert.match(app, /rpc\("admin_cleanup_machines", \{ p_keep_ids: keepIds\(\), p_execute: false \}\)/);
+  assert.match(app, /const re = await reauthenticateByPassword\(authEmail, password\);\s*if \(!re\.success\) throw/);
+  assert.match(app, /if \(typed\.trim\(\) !== "DELETE"\)/);
+  assert.match(app, /rpc\("admin_cleanup_machines", \{ p_keep_ids: keepIds\(\), p_execute: true, p_expected_ids: expected \}\)/);
+  assert.match(app, /if \(!supa\) \{ setError\("Data cleanup needs the live database/, "local mode fails closed");
+  for (const h of ["data-cleanup-preview", "data-cleanup-password", "data-cleanup-typed", "data-cleanup-execute", "data-cleanup-summary", "data-keep-all", "data-keep-none"]) assert.match(app, new RegExp(h), h);
+  // local state follow-up: local-only audit entry (DB row written by the function)
+  assert.match(app, /appendAuditWithUser\(\{ type: "admin_cleanup", module: "Machine",[\s\S]*?\}, \{ mirror: false \}\);/);
+  assert.match(audit, /if \(opts\.mirror !== false\) tryWriteToSupabase\(full\);/);
+  // DB function: admin-only, preview mode, expected-id guard, cascade delete, audit insert, never touches master data
+  assert.match(sql, /v_user\.role_key = 'super_admin' OR public\.has_permission\('machines', 'configDept'\)/);
+  assert.match(sql, /IF NOT p_execute THEN\s*RETURN jsonb_build_object\('mode', 'preview'/);
+  assert.match(sql, /IF p_expected_ids IS NULL THEN\s*RAISE EXCEPTION 'Preview required before cleanup'/);
+  assert.match(sql, /Machine list changed since the preview/);
+  assert.match(sql, /DELETE FROM public\.outward_log WHERE serial_no = ANY\(v_serials\);\s*DELETE FROM public\.machine_log WHERE id = ANY\(v_ids\);/);
+  assert.match(sql, /INSERT INTO public\.audit_log \(user_id, user_name, user_role, type, module, action, details\)/);
+  for (const t of ["items", "stock", "bom_definitions", "users", "settings", "vendors", "purchase_orders", "inward_log"]) assert.doesNotMatch(sql, new RegExp(`DELETE FROM public\\.${t}\\b`), `never deletes ${t}`);
+  assert.doesNotMatch(sql, /DELETE FROM public\.audit_log|ALTER TABLE public\.audit_log|DISABLE TRIGGER/, "audit log stays immutable");
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.admin_cleanup_machines\(bigint\[\], boolean, bigint\[\]\) TO authenticated;/);
+});
